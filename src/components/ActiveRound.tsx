@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../App';
 import { ChevronLeft, ChevronRight, Mic, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag } from 'lucide-react';
-import { getNetScore, calculateStrokesReceived, calculateRelativeStrokesVsBanker } from '../services/gameEngine';
+import { getNetScore, calculateStrokesReceived, calculateRelativeStrokesVsBanker, calculateAggregatedHolePnL } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 import { GameType } from '../types';
 
@@ -43,6 +43,9 @@ const ActiveRound: React.FC = () => {
   const courseHole = currentRound.course.holes.find(h => h.number === activeHole);
   const openBetGames = currentRound.games.filter(g => g.type === GameType.OPEN_BETTING);
   const bankerGames = currentRound.games.filter(g => g.type === GameType.BANKER);
+  
+  // Calculate per-hole P&L for all players
+  const holePnL = calculateAggregatedHolePnL(currentRound);
 
   // Voice Input Logic
   const handleVoiceInput = () => {
@@ -205,16 +208,24 @@ const ActiveRound: React.FC = () => {
                 )}
               </div>
               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                {currentRound.players.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleBankerSelect(game.id, p.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all whitespace-nowrap ${bankerId === p.id ? 'bg-brand-gold text-brand-dark border-brand-gold shadow-md scale-105' : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'}`}
-                  >
-                    <div className={`w-2 h-2 rounded-full ${bankerId === p.id ? 'bg-brand-dark' : 'bg-muted-foreground/50'}`}></div>
-                    <span className="font-bold text-sm">{p.name}</span>
-                  </button>
-                ))}
+                {currentRound.players.map(p => {
+                  const playerHolePnL = holePnL[activeHole]?.[p.id] || 0;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleBankerSelect(game.id, p.id)}
+                      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all whitespace-nowrap ${bankerId === p.id ? 'bg-brand-gold text-brand-dark border-brand-gold shadow-md scale-105' : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${bankerId === p.id ? 'bg-brand-dark' : 'bg-muted-foreground/50'}`}></div>
+                        <span className="font-bold text-sm">{p.name}</span>
+                      </div>
+                      <span className={`text-xs font-mono font-bold ${playerHolePnL > 0 ? 'text-success' : playerHolePnL < 0 ? 'text-destructive' : bankerId === p.id ? 'text-brand-dark/50' : 'text-muted-foreground/50'}`}>
+                        {playerHolePnL !== 0 ? (playerHolePnL > 0 ? `+$${playerHolePnL}` : `-$${Math.abs(playerHolePnL)}`) : '$0'}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               {bankerId && (
                 <div className="mt-3 pt-3 border-t border-border">
