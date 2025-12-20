@@ -4,12 +4,36 @@ import { useApp } from '../App';
 import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from '../types';
 import { calculateCourseHandicap } from '../services/gameEngine';
 import { searchCourse, courseDataToCourse } from '@/lib/api/courseSearch';
+import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, ArrowRight, Plus, Trash2, MapPin, Users, Trophy, Check, Search, Camera, Locate, Loader2, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+// Types for tee box data
+interface TeeBox {
+  name: string;
+  color: string;
+  rating?: number;
+  slope?: number;
+  holes: {
+    number: number;
+    yardage: number;
+    par: number;
+    handicapIndex: number;
+  }[];
+  totalYardage: number;
+  totalPar: number;
+}
 
 // Game Library
 const GAME_LIBRARY: GameLibraryItem[] = [
@@ -68,7 +92,22 @@ const createDefaultCourse = (name: string, location: string): Course => ({
   }))
 });
 
-type CourseFinderMode = 'select' | 'location' | 'search' | 'camera';
+type CourseFinderMode = 'select' | 'location' | 'search' | 'camera' | 'tee-select';
+
+// Helper function to get tee color class
+const getTeeColorClass = (color: string): string => {
+  const colorMap: { [key: string]: string } = {
+    black: 'bg-black',
+    blue: 'bg-blue-600',
+    white: 'bg-white border border-gray-300',
+    gold: 'bg-yellow-500',
+    yellow: 'bg-yellow-500',
+    red: 'bg-red-600',
+    green: 'bg-green-600',
+    silver: 'bg-gray-400',
+  };
+  return colorMap[color.toLowerCase()] || 'bg-gray-400';
+};
 
 const SetupWizard: React.FC = () => {
   const navigate = useNavigate();
@@ -88,6 +127,10 @@ const SetupWizard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Array<{ name: string; url: string; description: string }>>([]);
+  
+  // Tee box selection (from scanned scorecard)
+  const [availableTeeBoxes, setAvailableTeeBoxes] = useState<TeeBox[]>([]);
+  const [selectedTeeBox, setSelectedTeeBox] = useState<string>('');
   
   // Step 2: Players
   const [players, setPlayers] = useState<Player[]>([
@@ -178,20 +221,92 @@ const SetupWizard: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      toast.info('Scorecard uploaded! Processing...');
-      // For now, create a default course - AI processing would happen here
-      setTimeout(() => {
-        const course = createDefaultCourse('Scanned Course', 'From Scorecard');
-        setSelectedCourse(course);
-        setHoles(course.holes);
-        setCourseName(course.name);
-        setCourseLocation(course.location);
+    if (!file) return;
+    
+    setIsLoading(true);
+    toast.info('Analyzing scorecard with AI...');
+    
+    try {
+      // Convert file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Remove data URL prefix to get just base64
+          const base64 = result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+      const imageBase64 = await base64Promise;
+      
+      // Call the AI parsing edge function
+      const { data, error } = await supabase.functions.invoke('parse-scorecard', {
+        body: { imageBase64 }
+      });
+      
+      if (error) {
+        console.error('Error parsing scorecard:', error);
+        toast.error('Failed to analyze scorecard. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+      
+      if (!data.success) {
+        toast.error(data.error || 'Failed to parse scorecard');
+        setIsLoading(false);
+        return;
+      }
+      
+      const parsedData = data.data;
+      
+      // Store the parsed tee boxes
+      setAvailableTeeBoxes(parsedData.teeBoxes);
+      setCourseName(parsedData.courseName || 'Scanned Course');
+      setCourseLocation(parsedData.location || '');
+      
+      // If multiple tee boxes, go to tee selection mode
+      if (parsedData.teeBoxes.length > 1) {
+        setCourseMode('tee-select');
+        toast.success(`Found ${parsedData.teeBoxes.length} tee boxes! Please select one.`);
+      } else {
+        // Only one tee box, use it directly
+        const teeBox = parsedData.teeBoxes[0];
+        handleSelectTeeBox(teeBox);
         toast.success('Course data extracted from scorecard!');
-      }, 1500);
+      }
+    } catch (error) {
+      console.error('Error processing scorecard:', error);
+      toast.error('Failed to process scorecard image');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleSelectTeeBox = (teeBox: TeeBox) => {
+    const course: Course = {
+      id: Date.now().toString(),
+      name: courseName || 'Scanned Course',
+      location: courseLocation || '',
+      holes: teeBox.holes.map(h => ({
+        number: h.number,
+        par: h.par,
+        yardage: h.yardage,
+        handicapIndex: h.handicapIndex
+      }))
+    };
+    
+    setSelectedCourse(course);
+    setHoles(course.holes);
+    setSelectedTeeBox(teeBox.name);
+    
+    // Update players' tee selection
+    setPlayers(players.map(p => ({ ...p, tee: teeBox.name })));
+    
+    setCourseMode('search'); // Go to course details view
   };
 
   const handleAddPlayer = () => {
@@ -347,7 +462,10 @@ const SetupWizard: React.FC = () => {
       <div className="bg-card p-4 shadow-sm sticky top-0 z-10 flex items-center gap-3 border-b border-border">
         <button 
           onClick={() => {
-            if (step === 1 && courseMode !== 'select') {
+            if (step === 1 && courseMode === 'tee-select') {
+              setCourseMode('camera');
+              fileInputRef.current?.click();
+            } else if (step === 1 && courseMode !== 'select') {
               setCourseMode('select');
             } else if (step === 1) {
               navigate('/');
@@ -708,7 +826,94 @@ const SetupWizard: React.FC = () => {
           </div>
         )}
 
-        {/* Step 2: Players */}
+        {/* Step 1: Tee Box Selection Mode */}
+        {step === 1 && courseMode === 'tee-select' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <MapPin className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Select Tee Box</h2>
+                <p className="text-sm text-muted-foreground">Choose which tees you'll be playing from</p>
+              </div>
+            </div>
+
+            {/* Course name preview */}
+            <div className="p-4 rounded-xl bg-success/10 border border-success/20">
+              <div className="flex items-center gap-2 text-success font-semibold">
+                <Check className="w-5 h-5" />
+                Course data extracted!
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">{courseName}</p>
+            </div>
+
+            {/* Tee Box Options */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">Available Tee Boxes</Label>
+              {availableTeeBoxes.map((teeBox, idx) => {
+                const teeColorClass = getTeeColorClass(teeBox.color);
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => handleSelectTeeBox(teeBox)}
+                    className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 transition-all text-left"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full ${teeColorClass}`} />
+                        <div>
+                          <div className="font-semibold">{teeBox.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {teeBox.totalYardage.toLocaleString()} yards • Par {teeBox.totalPar}
+                            {teeBox.rating && teeBox.slope && (
+                              <> • Rating {teeBox.rating}/{teeBox.slope}</>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Hole Details Preview */}
+            {availableTeeBoxes.length > 0 && (
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold text-muted-foreground">
+                  Hole Data Preview (first tee box)
+                </Label>
+                <div className="bg-card rounded-xl border border-border overflow-hidden">
+                  <div className="max-h-48 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted sticky top-0">
+                        <tr>
+                          <th className="p-2 text-left">Hole</th>
+                          <th className="p-2">Par</th>
+                          <th className="p-2">HCP</th>
+                          <th className="p-2">Yards</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {availableTeeBoxes[0].holes.slice(0, 9).map(hole => (
+                          <tr key={hole.number} className="border-t border-border">
+                            <td className="p-2 font-medium">{hole.number}</td>
+                            <td className="p-2 text-center">{hole.par}</td>
+                            <td className="p-2 text-center">{hole.handicapIndex}</td>
+                            <td className="p-2 text-center">{hole.yardage}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {step === 2 && (
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center gap-3 mb-6">
