@@ -88,19 +88,9 @@ const ActiveRound: React.FC = () => {
 
   const handleStrokeToggle = (pid: string, courseHandicap: number) => {
     const manualStrokes = currentRound.gameData?.['MANUAL_STROKES']?.[activeHole]?.[pid];
-    const naturalStrokes = calculateStrokesReceived(courseHandicap, courseHole!.handicapIndex);
-    const currentEffective = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : naturalStrokes;
-    
-    let newValue: number | null = 0;
-    if (currentEffective > 0) {
-      newValue = 0;
-    } else {
-      if (naturalStrokes > 0) {
-        newValue = null; 
-      } else {
-        newValue = 1;
-      }
-    }
+    // Simple toggle: if currently has stroke (1), remove it (0). If no stroke (0 or undefined), add one (1).
+    const currentEffective = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : 0;
+    const newValue = currentEffective > 0 ? 0 : 1;
     updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
   };
 
