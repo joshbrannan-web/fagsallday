@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
-import { ArrowLeft, Home, Play } from 'lucide-react';
+import { ArrowLeft, Home, Play, Crown } from 'lucide-react';
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
 import { Button } from '@/components/ui/button';
+import { GameType } from '../types';
 
 const Scorecard: React.FC = () => {
   const navigate = useNavigate();
@@ -34,6 +35,14 @@ const Scorecard: React.FC = () => {
 
   const getPlayerHoleMoney = (pid: string, holeNum: number) => {
     return holePnL[holeNum]?.[pid] || 0;
+  };
+
+  // Find banker game and get banker for each hole
+  const bankerGame = currentRound.games.find(g => g.type === GameType.BANKER);
+  const getBankerForHole = (holeNum: number): string | null => {
+    if (!bankerGame) return null;
+    const holeData = currentRound.gameData?.[bankerGame.id]?.[holeNum];
+    return holeData?.bankerId || null;
   };
 
   const calculateSubtotalScore = (pid: string, holesToSum: typeof activeHoles) => {
@@ -98,6 +107,7 @@ const Scorecard: React.FC = () => {
                       const score = getPlayerScore(player.id, h.number);
                       const diff = typeof score === 'number' ? score - h.par : 0;
                       const hasStroke = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id] === 1;
+                      const isBanker = getBankerForHole(h.number) === player.id;
                       return (
                         <td key={h.number} className="p-2 border-r border-border/50">
                           <div className="relative inline-block">
@@ -114,6 +124,9 @@ const Scorecard: React.FC = () => {
                               <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border border-background flex items-center justify-center">
                                 <span className="text-[8px] text-primary-foreground font-bold">•</span>
                               </span>
+                            )}
+                            {isBanker && (
+                              <Crown className="absolute -bottom-1 -right-1 w-3 h-3 text-brand-gold" />
                             )}
                           </div>
                         </td>
