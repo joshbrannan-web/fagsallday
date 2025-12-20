@@ -42,7 +42,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     name: 'Banker',
     description: 'One player is "banker" each hole. Banker vs all other players with multipliers.',
     icon: '🏦',
-    defaultUnitStake: 1,
+    defaultUnitStake: 3,
     minPlayers: 3,
     maxPlayers: 8,
     config: { birdieTriple: true, eagleQuintuple: true }
@@ -52,7 +52,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     name: 'Skins',
     description: 'Lowest net score wins the skin. Ties carry over to next hole.',
     icon: '🎯',
-    defaultUnitStake: 5,
+    defaultUnitStake: 3,
     minPlayers: 2,
     maxPlayers: 8,
     config: { carryovers: true }
@@ -62,7 +62,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     name: 'Nassau',
     description: 'Three separate bets: Front 9, Back 9, and Overall (2 players only).',
     icon: '🏌️',
-    defaultUnitStake: 10,
+    defaultUnitStake: 3,
     minPlayers: 2,
     maxPlayers: 2,
     config: { presses: false }
@@ -72,7 +72,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     name: 'Open Betting',
     description: 'Manual side bets - track any wager between players.',
     icon: '💰',
-    defaultUnitStake: 1,
+    defaultUnitStake: 3,
     minPlayers: 2,
     maxPlayers: 8,
     config: {}
@@ -1049,15 +1049,29 @@ const SetupWizard: React.FC = () => {
                     {selectedGame && (
                       <div className="ml-4 p-4 bg-muted rounded-xl space-y-3 animate-fade-in">
                         <div className="flex items-center justify-between">
-                          <Label>Unit Stake ($)</Label>
-                          <Input
-                            type="number"
-                            value={selectedGame.unitStake}
-                            onChange={(e) => handleUpdateGameStake(selectedGame.id, parseFloat(e.target.value) || 1)}
-                            className="w-24 text-right"
-                            min={1}
-                            max={100}
-                          />
+                          <Label>Unit Stake</Label>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUpdateGameStake(selectedGame.id, Math.max(1, selectedGame.unitStake - 1))}
+                              disabled={selectedGame.unitStake <= 1}
+                              className="h-8 w-8 p-0"
+                            >
+                              -$1
+                            </Button>
+                            <span className="w-12 text-center font-medium">${selectedGame.unitStake}</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUpdateGameStake(selectedGame.id, selectedGame.unitStake + 1)}
+                              className="h-8 w-8 p-0"
+                            >
+                              +$1
+                            </Button>
+                          </div>
                         </div>
 
                         {game.type === GameType.SKINS && (
