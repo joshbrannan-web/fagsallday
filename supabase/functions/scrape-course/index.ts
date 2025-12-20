@@ -21,8 +21,10 @@ serve(async (req) => {
       );
     }
 
-    const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
-    if (!apiKey) {
+    const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
+    const lovableKey = Deno.env.get('LOVABLE_API_KEY');
+    
+    if (!firecrawlKey) {
       console.error('FIRECRAWL_API_KEY not configured');
       return new Response(
         JSON.stringify({ success: false, error: 'Firecrawl connector not configured' }),
@@ -40,7 +42,7 @@ serve(async (req) => {
     const searchResponse = await fetch('https://api.firecrawl.dev/v1/search', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${firecrawlKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -76,7 +78,6 @@ serve(async (req) => {
     }
 
     if (!courseUrl && results.length > 0) {
-      // Take first 18birdies result
       courseUrl = results.find((r: any) => r.url?.includes('18birdies.com'))?.url;
     }
 
@@ -102,7 +103,7 @@ serve(async (req) => {
     const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${firecrawlKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -127,8 +128,15 @@ serve(async (req) => {
     const markdown = scrapeData.data?.markdown || scrapeData.markdown || '';
     const metadata = scrapeData.data?.metadata || scrapeData.metadata || {};
 
-    // Parse scorecard data from markdown
-    const courseData = parseCourseData(markdown, metadata, courseName);
+    // Use AI to parse the scraped content if available
+    let courseData;
+    if (lovableKey && markdown.length > 100) {
+      console.log('Using AI to parse course data...');
+      courseData = await parseWithAI(markdown, metadata, courseName, location, lovableKey);
+    } else {
+      console.log('Using regex fallback to parse course data...');
+      courseData = parseCourseDataFallback(markdown, metadata, courseName);
+    }
 
     console.log('Parsed course data:', JSON.stringify(courseData).slice(0, 500));
 
@@ -150,19 +158,124 @@ serve(async (req) => {
   }
 });
 
-function parseCourseData(markdown: string, metadata: any, fallbackName: string) {
+async function parseWithAI(markdown: string, metadata: any, courseName: string, location: string | undefined, apiKey: string) {
+  const systemPrompt = `You are a golf course data extraction expert. Extract scorecard information from the provided content and return it as structured JSON.`;
+
+  const userPrompt = `Extract the golf course scorecard data from this content. Return a JSON object with:
+- name: course name (string)
+- location: city, state (string)
+- holes: array of 18 hole objects, each with: number (1-18), par (3-5), yardage (number), handicapIndex (1-18, difficulty ranking)
+- totalPar: sum of all hole pars
+- totalYardage: sum of all hole yardages
+
+If you cannot find specific hole data, use realistic default values for a typical 18-hole course (mix of par 3s, 4s, and 5s totaling around 72).
+
+Course being searched: ${courseName}${location ? ` in ${location}` : ''}
+
+Page metadata: ${JSON.stringify(metadata)}
+
+Page content:
+${markdown.slice(0, 8000)}`;
+
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'extract_course_data',
+              description: 'Extract golf course scorecard data',
+              parameters: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', description: 'Course name' },
+                  location: { type: 'string', description: 'City, State' },
+                  holes: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        number: { type: 'number' },
+                        par: { type: 'number' },
+                        yardage: { type: 'number' },
+                        handicapIndex: { type: 'number' }
+                      },
+                      required: ['number', 'par', 'yardage', 'handicapIndex']
+                    }
+                  },
+                  totalPar: { type: 'number' },
+                  totalYardage: { type: 'number' }
+                },
+                required: ['name', 'location', 'holes', 'totalPar', 'totalYardage']
+              }
+            }
+          }
+        ],
+        tool_choice: { type: 'function', function: { name: 'extract_course_data' } }
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        console.warn('AI rate limited, falling back to regex parsing');
+        return parseCourseDataFallback(markdown, metadata, courseName);
+      }
+      if (response.status === 402) {
+        console.warn('AI credits exhausted, falling back to regex parsing');
+        return parseCourseDataFallback(markdown, metadata, courseName);
+      }
+      console.error('AI request failed:', response.status);
+      return parseCourseDataFallback(markdown, metadata, courseName);
+    }
+
+    const data = await response.json();
+    console.log('AI response:', JSON.stringify(data).slice(0, 500));
+
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (toolCall?.function?.arguments) {
+      const parsed = JSON.parse(toolCall.function.arguments);
+      
+      // Validate and ensure we have 18 holes
+      if (parsed.holes && parsed.holes.length === 18) {
+        return {
+          name: parsed.name || courseName,
+          location: parsed.location || '',
+          holes: parsed.holes.map((h: any, i: number) => ({
+            number: h.number || i + 1,
+            par: h.par || 4,
+            yardage: h.yardage || 400,
+            handicapIndex: h.handicapIndex || i + 1,
+          })),
+          totalPar: parsed.totalPar || parsed.holes.reduce((sum: number, h: any) => sum + (h.par || 4), 0),
+          totalYardage: parsed.totalYardage || parsed.holes.reduce((sum: number, h: any) => sum + (h.yardage || 400), 0),
+        };
+      }
+    }
+
+    // Fallback if AI parsing didn't return valid data
+    console.log('AI response invalid, falling back to regex parsing');
+    return parseCourseDataFallback(markdown, metadata, courseName);
+  } catch (error) {
+    console.error('AI parsing error:', error);
+    return parseCourseDataFallback(markdown, metadata, courseName);
+  }
+}
+
+function parseCourseDataFallback(markdown: string, metadata: any, fallbackName: string) {
   const courseName = metadata.title?.replace(/\s*\|\s*18Birdies.*$/i, '').trim() || fallbackName;
   
-  // Try to extract hole data from markdown tables or structured content
   const holes = [];
-  
-  // Look for yardage patterns like "Hole 1: 405 yards Par 4"
-  const holePatterns = [
-    /hole\s*(\d+)[:\s]*(\d+)\s*(?:yards?|yds?)?\s*par\s*(\d)/gi,
-    /(\d+)\s*\|\s*(\d+)\s*\|\s*(\d)/g, // Table format: hole | yardage | par
-  ];
-
-  // Try to find hole data in markdown
   let matches;
   const foundHoles = new Map();
 
@@ -175,7 +288,7 @@ function parseCourseData(markdown: string, metadata: any, fallbackName: string) 
         number: holeNum,
         yardage: parseInt(matches[2]),
         par: parseInt(matches[3]),
-        handicapIndex: holeNum, // Default, will be updated if found
+        handicapIndex: holeNum,
       });
     }
   }
@@ -201,7 +314,6 @@ function parseCourseData(markdown: string, metadata: any, fallbackName: string) 
     if (foundHoles.has(i)) {
       holes.push(foundHoles.get(i));
     } else {
-      // Use extracted data or defaults
       const defaultPars = [4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4];
       const defaultYardages = [380, 420, 165, 510, 390, 405, 175, 525, 410, 395, 430, 155, 490, 385, 415, 185, 505, 400];
       
@@ -209,7 +321,7 @@ function parseCourseData(markdown: string, metadata: any, fallbackName: string) 
         number: i,
         par: pars[i - 1] || defaultPars[i - 1],
         yardage: yardages[i - 1] || defaultYardages[i - 1],
-        handicapIndex: i <= 9 ? (i * 2 - 1) : ((i - 9) * 2), // Typical stroke index pattern
+        handicapIndex: i <= 9 ? (i * 2 - 1) : ((i - 9) * 2),
       });
     }
   }
