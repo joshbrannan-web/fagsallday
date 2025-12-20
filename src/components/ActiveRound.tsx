@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../App';
 import { ChevronLeft, ChevronRight, Mic, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag } from 'lucide-react';
-import { getNetScore, calculateStrokesReceived } from '../services/gameEngine';
+import { getNetScore, calculateStrokesReceived, calculateRelativeStrokesVsBanker } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 import { GameType } from '../types';
 
@@ -249,26 +249,44 @@ const ActiveRound: React.FC = () => {
           const hasScore = rawScore !== undefined && rawScore !== null;
           const displayScore = hasScore ? rawScore : (courseHole?.par || '-');
           const manualStrokes = currentRound.gameData?.['MANUAL_STROKES']?.[activeHole]?.[p.id];
-          const net = rawScore ? getNetScore(rawScore, courseHole!.par, courseHole!.handicapIndex, p.courseHandicap, manualStrokes) : '-';
 
-          const naturalStrokes = calculateStrokesReceived(p.courseHandicap, courseHole!.handicapIndex);
-          const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : naturalStrokes;
-          const isStroking = effectiveStrokes > 0;
-          const isManual = manualStrokes !== undefined && manualStrokes !== null;
-
-          let bankerData = null;
-          let isBanker = false;
+          // Determine banker context for relative stroke calculation
           const activeBankerGame = bankerGames[0];
+          let currentBankerId: string | null = null;
+          let banker: typeof p | undefined = undefined;
+          
           if (activeBankerGame) {
             const holeData = currentRound.gameData?.[activeBankerGame.id]?.[activeHole] || {};
-            const currentBankerId = holeData['_META_BANKER_ID'];
-            isBanker = currentBankerId === p.id;
-            if (currentBankerId) {
-              const playerMult = holeData[p.id] || 1;
-              const bankerMult = holeData['_META_BANKER_MULT'] || 1;
-              const totalBet = activeBankerGame.unitStake * playerMult * bankerMult;
-              bankerData = { isBanker, playerMult, totalBet, gameId: activeBankerGame.id };
-            }
+            currentBankerId = holeData['_META_BANKER_ID'] || null;
+            banker = currentRound.players.find(pl => pl.id === currentBankerId);
+          }
+
+          // Calculate strokes - use relative calculation when banker is selected
+          let naturalStrokes: number;
+          if (currentBankerId && banker) {
+            // Relative strokes vs banker
+            naturalStrokes = calculateRelativeStrokesVsBanker(p.courseHandicap, banker.courseHandicap, courseHole!.handicapIndex);
+          } else {
+            // No banker selected - use absolute calculation
+            naturalStrokes = calculateStrokesReceived(p.courseHandicap, courseHole!.handicapIndex);
+          }
+
+          const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : naturalStrokes;
+          const isStroking = effectiveStrokes > 0;
+          const isGivingStrokes = effectiveStrokes < 0; // Banker might give strokes if they have higher handicap
+          const isManual = manualStrokes !== undefined && manualStrokes !== null;
+
+          // Calculate net score using effective strokes
+          const net = rawScore ? rawScore - effectiveStrokes : '-';
+
+          let bankerData = null;
+          const isBanker = currentBankerId === p.id;
+          if (currentBankerId && activeBankerGame) {
+            const holeData = currentRound.gameData?.[activeBankerGame.id]?.[activeHole] || {};
+            const playerMult = holeData[p.id] || 1;
+            const bankerMult = holeData['_META_BANKER_MULT'] || 1;
+            const totalBet = activeBankerGame.unitStake * playerMult * bankerMult;
+            bankerData = { isBanker, playerMult, totalBet, gameId: activeBankerGame.id };
           }
 
           return (
