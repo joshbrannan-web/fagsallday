@@ -5,11 +5,15 @@ import { GameType } from '../types';
 import { getNetScore, calculateStrokesReceived, formatMoney } from '../services/gameEngine';
 import { ArrowLeft, ArrowRight, Home, FileText, Minus, Plus, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
   const { currentRound, updateScore, updateGameData, roundTotals } = useApp();
   const [currentHole, setCurrentHole] = useState(1);
+  
+  // Manual stroke overrides: { [holeNumber]: { [playerId]: boolean } }
+  const [manualStrokes, setManualStrokes] = useState<{ [hole: number]: { [playerId: string]: boolean } }>({});
 
   if (!currentRound) {
     return (
@@ -43,6 +47,32 @@ const ActiveRound: React.FC = () => {
       bankerMultiplier: 1,
       playerMultipliers: {}
     });
+  };
+
+  const handleStrokeToggle = (playerId: string, checked: boolean) => {
+    setManualStrokes(prev => ({
+      ...prev,
+      [currentHole]: {
+        ...prev[currentHole],
+        [playerId]: checked
+      }
+    }));
+  };
+
+  const getPlayerStrokes = (playerId: string, autoStrokes: number): number => {
+    const manualOverride = manualStrokes[currentHole]?.[playerId];
+    if (manualOverride !== undefined) {
+      return manualOverride ? 1 : 0;
+    }
+    return autoStrokes;
+  };
+
+  const isStrokeChecked = (playerId: string, autoStrokes: number): boolean => {
+    const manualOverride = manualStrokes[currentHole]?.[playerId];
+    if (manualOverride !== undefined) {
+      return manualOverride;
+    }
+    return autoStrokes > 0;
   };
 
   const navigateHole = (direction: 'prev' | 'next') => {
@@ -105,8 +135,9 @@ const ActiveRound: React.FC = () => {
       <div className="flex-1 p-4 space-y-4 overflow-y-auto">
         {currentRound.players.map(player => {
           const gross = holeScores[player.id] || hole.par;
-          const strokes = calculateStrokesReceived(player.courseHandicap, hole.handicapIndex);
-          const net = getNetScore(gross, hole.par, hole.handicapIndex, player.courseHandicap);
+          const autoStrokes = calculateStrokesReceived(player.courseHandicap, hole.handicapIndex);
+          const strokes = getPlayerStrokes(player.id, autoStrokes);
+          const net = gross - strokes;
           const isBanker = bankerData?.bankerId === player.id;
           const totalMoney = roundTotals[player.id] || 0;
 
@@ -121,11 +152,6 @@ const ActiveRound: React.FC = () => {
                 <div className="flex items-center gap-2">
                   {isBanker && <Crown className="w-5 h-5 text-brand-gold" />}
                   <span className="font-bold">{player.name}</span>
-                  {strokes > 0 && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                      +{strokes} stroke{strokes > 1 ? 's' : ''}
-                    </span>
-                  )}
                 </div>
                 <span className={`font-mono text-sm ${totalMoney >= 0 ? 'text-success' : 'text-destructive'}`}>
                   {formatMoney(totalMoney)}
@@ -154,16 +180,27 @@ const ActiveRound: React.FC = () => {
                   </button>
                 </div>
 
-                {bankerGame && !isBanker && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleSetBanker(player.id)}
-                  >
-                    <Crown className="w-4 h-4 mr-1" />
-                    Banker
-                  </Button>
-                )}
+                <div className="flex items-center gap-3">
+                  {/* Manual Stroke Checkbox */}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={isStrokeChecked(player.id, autoStrokes)}
+                      onCheckedChange={(checked) => handleStrokeToggle(player.id, checked === true)}
+                    />
+                    <span className="text-sm text-muted-foreground">Stroke</span>
+                  </label>
+
+                  {bankerGame && !isBanker && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSetBanker(player.id)}
+                    >
+                      <Crown className="w-4 h-4 mr-1" />
+                      Banker
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           );
