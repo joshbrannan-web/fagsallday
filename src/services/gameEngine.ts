@@ -114,13 +114,15 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
     const activePlayers = players.filter(p => typeof holeScores[p.id] === 'number');
     if (activePlayers.length < players.length) break; // Incomplete hole
 
-    // Calculate net scores
+    // Calculate net scores - only apply manual strokes, no automatic calculation
     const nets = activePlayers.map(p => {
       const gross = holeScores[p.id]!;
       const manualStrokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p.id];
+      // Only apply strokes if manually set, otherwise use gross score
+      const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : 0;
       return {
         id: p.id,
-        net: getNetScore(gross, holeData.par, holeData.handicapIndex, p.courseHandicap, manualStrokes)
+        net: gross - effectiveStrokes
       };
     });
 
@@ -203,8 +205,11 @@ export const calculateNassau = (round: Round, game: GameSettings): GameResult =>
     const m1Strokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p1.id];
     const m2Strokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p2.id];
 
-    const net1 = getNetScore(holeScores[p1.id]!, holeData.par, holeData.handicapIndex, p1.courseHandicap, m1Strokes);
-    const net2 = getNetScore(holeScores[p2.id]!, holeData.par, holeData.handicapIndex, p2.courseHandicap, m2Strokes);
+    // Only apply strokes if manually set, otherwise use gross score
+    const effectiveStrokes1 = m1Strokes !== undefined && m1Strokes !== null ? m1Strokes : 0;
+    const effectiveStrokes2 = m2Strokes !== undefined && m2Strokes !== null ? m2Strokes : 0;
+    const net1 = holeScores[p1.id]! - effectiveStrokes1;
+    const net2 = holeScores[p2.id]! - effectiveStrokes2;
 
     const scoreDiff = h <= 9 ? front9Score : back9Score;
 
@@ -336,15 +341,10 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
       const playerGross = holeScores[p.id];
       if (typeof playerGross !== 'number') return;
 
-      // Calculate relative strokes vs banker
+      // Only apply strokes if manually set, otherwise use gross score
       const playerManualStrokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p.id];
-      let playerRelativeStrokes: number;
-      if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
-        playerRelativeStrokes = playerManualStrokes;
-      } else {
-        playerRelativeStrokes = calculateRelativeStrokesVsBanker(p.courseHandicap, banker.courseHandicap, holeData.handicapIndex);
-      }
-      const playerNet = playerGross - playerRelativeStrokes;
+      const playerEffectiveStrokes = playerManualStrokes !== undefined && playerManualStrokes !== null ? playerManualStrokes : 0;
+      const playerNet = playerGross - playerEffectiveStrokes;
 
       // Get player-specific multiplier (stored directly under player ID in new format)
       let playerMultiplier = holeBankerData[p.id] || holeBankerData.playerMultipliers?.[p.id] || 1;
