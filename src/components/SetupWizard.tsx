@@ -5,7 +5,7 @@ import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from '.
 import { calculateCourseHandicap } from '../services/gameEngine';
 import { searchCourse, courseDataToCourse } from '@/lib/api/courseSearch';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, ArrowRight, Plus, Trash2, MapPin, Users, Trophy, Check, Search, Camera, Locate, Loader2, Globe } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Trash2, MapPin, Users, Trophy, Check, Search, Camera, Loader2, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -508,24 +508,6 @@ const SetupWizard: React.FC = () => {
 
             {/* Course Finding Options */}
             <div className="space-y-4">
-              <button
-                onClick={handleUseLocation}
-                disabled={isLoading}
-                className="w-full p-5 rounded-xl border-2 border-border bg-card hover:border-primary/50 transition-all text-left flex items-center gap-4 group"
-              >
-                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  {isLoading ? (
-                    <Loader2 className="w-7 h-7 text-primary animate-spin" />
-                  ) : (
-                    <Locate className="w-7 h-7 text-primary" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-lg">Use My Location</div>
-                  <div className="text-sm text-muted-foreground">Find golf courses near you</div>
-                </div>
-                <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-              </button>
 
               <button
                 onClick={handleSearchCourses}
@@ -585,37 +567,6 @@ const SetupWizard: React.FC = () => {
           </div>
         )}
 
-        {/* Step 1: Location Mode */}
-        {step === 1 && courseMode === 'location' && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Locate className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold">Nearby Courses</h2>
-                <p className="text-sm text-muted-foreground">{courseLocation || 'Getting location...'}</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="courseName">Course Name</Label>
-                <Input
-                  id="courseName"
-                  value={courseName}
-                  onChange={(e) => setCourseName(e.target.value)}
-                  placeholder="Enter course name"
-                  className="mt-1"
-                />
-              </div>
-              
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Enter the course name to continue, or connect Lovable Cloud for AI-powered course search.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Step 1: Search Mode */}
         {step === 1 && courseMode === 'search' && (
