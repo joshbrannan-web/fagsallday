@@ -136,9 +136,9 @@ const ActiveRound: React.FC = () => {
     <div className="flex flex-col h-screen bg-background">
       {/* Top Bar: Hole Nav */}
       <div className="bg-brand-dark text-primary-foreground p-4 shadow-lg sticky top-0 z-20">
-        <div className="flex items-center justify-between mb-4">
-          <button className="p-2" onClick={() => navigate('/summary')}><Menu className="w-5 h-5" /></button>
-          <div className="flex flex-col items-center">
+        <div className="flex items-center justify-center mb-4 relative">
+          <button className="p-2 absolute left-0" onClick={() => navigate('/summary')}><Menu className="w-5 h-5" /></button>
+          <div className="flex flex-col items-center text-center">
             <h1 className="text-2xl font-bold">Hole {activeHole}</h1>
             <div className="flex gap-3 text-xs text-muted-foreground font-mono tracking-wider">
               <span>PAR {courseHole?.par}</span>
