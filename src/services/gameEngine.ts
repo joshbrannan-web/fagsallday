@@ -276,9 +276,12 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
     players.forEach(p => holeResults[h][p.id] = 0);
 
     const holeBankerData = bankerData[h];
-    if (!holeBankerData || !holeBankerData.bankerId) continue;
+    if (!holeBankerData) continue;
 
-    const bankerId = holeBankerData.bankerId;
+    // Support both old format (bankerId) and new format (_META_BANKER_ID)
+    const bankerId = holeBankerData['_META_BANKER_ID'] || holeBankerData.bankerId;
+    if (!bankerId) continue;
+
     const banker = players.find(p => p.id === bankerId);
     if (!banker) continue;
 
@@ -288,8 +291,8 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
     const bankerManualStrokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[bankerId];
     const bankerNet = getNetScore(bankerGross, holeData.par, holeData.handicapIndex, banker.courseHandicap, bankerManualStrokes);
 
-    // Get base multiplier for banker
-    let bankerBaseMultiplier = holeBankerData.bankerMultiplier || 1;
+    // Get base multiplier for banker (support both formats)
+    let bankerBaseMultiplier = holeBankerData['_META_BANKER_MULT'] || holeBankerData.bankerMultiplier || 1;
 
     // Apply score-based multipliers
     const bankerToPar = bankerGross - holeData.par;
@@ -309,8 +312,10 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
       const playerManualStrokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p.id];
       const playerNet = getNetScore(playerGross, holeData.par, holeData.handicapIndex, p.courseHandicap, playerManualStrokes);
 
-      // Get player-specific multiplier
-      let playerMultiplier = holeBankerData.playerMultipliers?.[p.id] || 1;
+      // Get player-specific multiplier (stored directly under player ID in new format)
+      let playerMultiplier = holeBankerData[p.id] || holeBankerData.playerMultipliers?.[p.id] || 1;
+      // Filter out non-numeric values (like _META keys stored as strings)
+      if (typeof playerMultiplier !== 'number') playerMultiplier = 1;
 
       // Apply score-based multipliers for player too
       const playerToPar = playerGross - holeData.par;
