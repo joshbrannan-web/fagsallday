@@ -3,9 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { GameType } from '../types';
 import { getNetScore, calculateStrokesReceived, formatMoney } from '../services/gameEngine';
-import { ArrowLeft, ArrowRight, Home, FileText, Minus, Plus, Crown } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Home, FileText, Minus, Plus, Crown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+
+const MULTIPLIER_OPTIONS = [
+  { value: 1, label: '1x' },
+  { value: 2, label: '2x' },
+  { value: 3, label: '3x' },
+  { value: 4, label: '4x' },
+];
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
@@ -49,6 +56,25 @@ const ActiveRound: React.FC = () => {
     });
   };
 
+  const handleBankerMultiplier = (multiplier: number) => {
+    if (!bankerGame || !bankerData?.bankerId) return;
+    updateGameData(bankerGame.id, currentHole, {
+      ...bankerData,
+      bankerMultiplier: multiplier
+    });
+  };
+
+  const handlePlayerMultiplier = (playerId: string, multiplier: number) => {
+    if (!bankerGame || !bankerData?.bankerId) return;
+    updateGameData(bankerGame.id, currentHole, {
+      ...bankerData,
+      playerMultipliers: {
+        ...bankerData.playerMultipliers,
+        [playerId]: multiplier
+      }
+    });
+  };
+
   const handleStrokeToggle = (playerId: string, checked: boolean) => {
     setManualStrokes(prev => ({
       ...prev,
@@ -82,6 +108,8 @@ const ActiveRound: React.FC = () => {
       setCurrentHole(currentHole + 1);
     }
   };
+
+  const currentBankerMultiplier = bankerData?.bankerMultiplier || 1;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -131,6 +159,33 @@ const ActiveRound: React.FC = () => {
         </div>
       </div>
 
+      {/* Banker Multiplier Controls */}
+      {bankerGame && bankerData?.bankerId && (
+        <div className="bg-brand-gold/10 border-b border-brand-gold/30 p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Crown className="w-4 h-4 text-brand-gold" />
+              <span className="text-sm font-medium">Banker Presses All:</span>
+            </div>
+            <div className="flex gap-1">
+              {MULTIPLIER_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => handleBankerMultiplier(opt.value)}
+                  className={`px-3 py-1 text-xs font-bold rounded-full transition-all ${
+                    currentBankerMultiplier === opt.value
+                      ? 'bg-brand-gold text-brand-dark'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Player Scores */}
       <div className="flex-1 p-4 space-y-4 overflow-y-auto">
         {currentRound.players.map(player => {
@@ -140,6 +195,7 @@ const ActiveRound: React.FC = () => {
           const net = gross - strokes;
           const isBanker = bankerData?.bankerId === player.id;
           const totalMoney = roundTotals[player.id] || 0;
+          const playerMultiplier = bankerData?.playerMultipliers?.[player.id] || 1;
 
           return (
             <div
@@ -180,14 +236,14 @@ const ActiveRound: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   {/* Manual Stroke Checkbox */}
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-1 cursor-pointer">
                     <Checkbox
                       checked={isStrokeChecked(player.id, autoStrokes)}
                       onCheckedChange={(checked) => handleStrokeToggle(player.id, checked === true)}
                     />
-                    <span className="text-sm text-muted-foreground">Stroke</span>
+                    <span className="text-xs text-muted-foreground">Stroke</span>
                   </label>
 
                   {bankerGame && !isBanker && (
@@ -202,6 +258,30 @@ const ActiveRound: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {/* Player Multiplier Controls (non-banker players when banker is set) */}
+              {bankerGame && bankerData?.bankerId && !isBanker && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Press Banker:</span>
+                    <div className="flex gap-1">
+                      {MULTIPLIER_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => handlePlayerMultiplier(player.id, opt.value)}
+                          className={`px-2 py-1 text-xs font-bold rounded-full transition-all ${
+                            playerMultiplier === opt.value
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
