@@ -86,6 +86,15 @@ const ActiveRound: React.FC = () => {
     updateScore(activeHole, pid, newScore);
   };
 
+  const handleScoreClick = (pid: string, displayScore: number) => {
+    const player = currentRound.players.find(p => p.id === pid)!;
+    const validation = validateHoleInput(displayScore, courseHole!.par, player);
+    if (validation.severity === 'warning') {
+      console.warn(validation.message);
+    }
+    updateScore(activeHole, pid, displayScore);
+  };
+
   const handleStrokeToggle = (pid: string, courseHandicap: number) => {
     const manualStrokes = currentRound.gameData?.['MANUAL_STROKES']?.[activeHole]?.[pid];
     // Simple toggle: if currently has stroke (1), remove it (0). If no stroke (0 or undefined), add one (1).
@@ -314,11 +323,14 @@ const ActiveRound: React.FC = () => {
                 >
                   <span className="text-3xl text-primary font-light">-</span>
                 </button>
-                <div className="flex items-center justify-center bg-card">
+                <button 
+                  onClick={() => handleScoreClick(p.id, typeof displayScore === 'number' ? displayScore : courseHole?.par || 0)}
+                  className="flex items-center justify-center bg-card active:bg-muted"
+                >
                   <span className={`text-3xl font-bold ${!hasScore ? 'text-muted-foreground' : 'text-foreground'}`}>
                     {displayScore}
                   </span>
-                </div>
+                </button>
                 <button 
                   onClick={() => handleScoreChange(p.id, 1)}
                   className="flex items-center justify-center active:bg-muted"
