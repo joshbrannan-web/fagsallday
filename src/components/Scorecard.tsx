@@ -139,7 +139,14 @@ const Scorecard: React.FC = () => {
       </div>
 
       <div className="p-4 bg-card border-t border-border">
-        <Button onClick={() => navigate('/active')} className="w-full">
+        <Button onClick={() => {
+          // Find the last hole with any score posted
+          const holesWithScores = Object.keys(currentRound.scores)
+            .map(Number)
+            .filter(h => Object.values(currentRound.scores[h] || {}).some(s => typeof s === 'number'));
+          const lastHole = holesWithScores.length > 0 ? Math.max(...holesWithScores) : 1;
+          navigate('/active', { state: { startHole: lastHole } });
+        }} className="w-full">
           <Play className="w-4 h-4 mr-2" /> Return to Hole
         </Button>
       </div>
