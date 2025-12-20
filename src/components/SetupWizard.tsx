@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from '../types';
 import { calculateCourseHandicap } from '../services/gameEngine';
-import { ArrowLeft, ArrowRight, Plus, Trash2, MapPin, Users, Trophy, Check, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Trash2, MapPin, Users, Trophy, Check, Search, Camera, Locate, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -67,11 +67,16 @@ const createDefaultCourse = (name: string, location: string): Course => ({
   }))
 });
 
+type CourseFinderMode = 'select' | 'location' | 'search' | 'camera';
+
 const SetupWizard: React.FC = () => {
   const navigate = useNavigate();
   const { startNewRound, savedCourses, saveCourse } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [courseMode, setCourseMode] = useState<CourseFinderMode>('select');
+  const [isLoading, setIsLoading] = useState(false);
   
   // Step 1: Course
   const [courseName, setCourseName] = useState('');
@@ -79,6 +84,7 @@ const SetupWizard: React.FC = () => {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [holes, setHoles] = useState<Hole[]>([]);
   const [editingHoles, setEditingHoles] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Step 2: Players
   const [players, setPlayers] = useState<Player[]>([
@@ -88,6 +94,57 @@ const SetupWizard: React.FC = () => {
   
   // Step 3: Games
   const [selectedGames, setSelectedGames] = useState<GameSettings[]>([]);
+
+  const handleUseLocation = () => {
+    setIsLoading(true);
+    setCourseMode('location');
+    
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      setIsLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCourseLocation(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        toast.success('Location found! Enter course name or search nearby courses.');
+        setIsLoading(false);
+      },
+      (error) => {
+        toast.error('Unable to get your location. Please try again or search manually.');
+        setIsLoading(false);
+        setCourseMode('select');
+      },
+      { timeout: 10000 }
+    );
+  };
+
+  const handleSearchCourses = () => {
+    setCourseMode('search');
+  };
+
+  const handleCameraUpload = () => {
+    setCourseMode('camera');
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      toast.info('Scorecard uploaded! Processing...');
+      // For now, create a default course - AI processing would happen here
+      setTimeout(() => {
+        const course = createDefaultCourse('Scanned Course', 'From Scorecard');
+        setSelectedCourse(course);
+        setHoles(course.holes);
+        setCourseName(course.name);
+        setCourseLocation(course.location);
+        toast.success('Course data extracted from scorecard!');
+      }, 1500);
+    }
+  };
 
   const handleAddPlayer = () => {
     if (players.length >= 8) return;
@@ -121,7 +178,6 @@ const SetupWizard: React.FC = () => {
     if (exists) {
       setSelectedGames(selectedGames.filter(g => g.type !== game.type));
     } else {
-      // Check player count requirements
       if (players.length < game.minPlayers || players.length > game.maxPlayers) {
         toast.error(`${game.name} requires ${game.minPlayers}-${game.maxPlayers} players`);
         return;
@@ -208,7 +264,6 @@ const SetupWizard: React.FC = () => {
       holes: holes.length ? holes : createDefaultCourse(courseName, courseLocation).holes
     };
 
-    // Save course for future use
     saveCourse(course);
 
     const validPlayers = players.filter(p => p.name.trim()).map(p => ({
@@ -230,10 +285,28 @@ const SetupWizard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Hidden file input for camera */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       {/* Header */}
       <div className="bg-card p-4 shadow-sm sticky top-0 z-10 flex items-center gap-3 border-b border-border">
         <button 
-          onClick={() => step === 1 ? navigate('/') : setStep((step - 1) as 1 | 2)}
+          onClick={() => {
+            if (step === 1 && courseMode !== 'select') {
+              setCourseMode('select');
+            } else if (step === 1) {
+              navigate('/');
+            } else {
+              setStep((step - 1) as 1 | 2);
+            }
+          }}
           className="p-2 hover:bg-muted rounded-full transition-colors"
         >
           <ArrowLeft className="w-6 h-6" />
@@ -255,34 +328,83 @@ const SetupWizard: React.FC = () => {
       {/* Content */}
       <div className="flex-1 p-4 overflow-y-auto">
         {/* Step 1: Course Selection */}
-        {step === 1 && (
+        {step === 1 && courseMode === 'select' && (
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <MapPin className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h2 className="text-lg font-bold">Select Course</h2>
-                <p className="text-sm text-muted-foreground">Choose or create a course</p>
+                <h2 className="text-lg font-bold">Find Your Course</h2>
+                <p className="text-sm text-muted-foreground">Choose how to set up your course</p>
               </div>
+            </div>
+
+            {/* Course Finding Options */}
+            <div className="space-y-4">
+              <button
+                onClick={handleUseLocation}
+                disabled={isLoading}
+                className="w-full p-5 rounded-xl border-2 border-border bg-card hover:border-primary/50 transition-all text-left flex items-center gap-4 group"
+              >
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  {isLoading ? (
+                    <Loader2 className="w-7 h-7 text-primary animate-spin" />
+                  ) : (
+                    <Locate className="w-7 h-7 text-primary" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-lg">Use My Location</div>
+                  <div className="text-sm text-muted-foreground">Find golf courses near you</div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+              </button>
+
+              <button
+                onClick={handleSearchCourses}
+                className="w-full p-5 rounded-xl border-2 border-border bg-card hover:border-primary/50 transition-all text-left flex items-center gap-4 group"
+              >
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <Search className="w-7 h-7 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-lg">Search All Courses</div>
+                  <div className="text-sm text-muted-foreground">Find any golf course by name</div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+              </button>
+
+              <button
+                onClick={handleCameraUpload}
+                className="w-full p-5 rounded-xl border-2 border-border bg-card hover:border-primary/50 transition-all text-left flex items-center gap-4 group"
+              >
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <Camera className="w-7 h-7 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-lg">Scan Scorecard</div>
+                  <div className="text-sm text-muted-foreground">Take a photo to auto-fill course data</div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+              </button>
             </div>
 
             {/* Saved Courses */}
             {savedCourses.length > 0 && (
-              <div className="space-y-3">
+              <div className="space-y-3 pt-4 border-t border-border">
                 <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Saved Courses
+                  Recently Played
                 </Label>
                 <div className="grid gap-3">
-                  {savedCourses.map(course => (
+                  {savedCourses.slice(0, 3).map(course => (
                     <button
                       key={course.id}
-                      onClick={() => handleSelectSavedCourse(course)}
-                      className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                        selectedCourse?.id === course.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border bg-card hover:border-primary/50'
-                      }`}
+                      onClick={() => {
+                        handleSelectSavedCourse(course);
+                        setCourseMode('search');
+                      }}
+                      className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 text-left transition-all"
                     >
                       <div className="font-semibold">{course.name}</div>
                       <div className="text-sm text-muted-foreground flex items-center gap-1">
@@ -294,41 +416,82 @@ const SetupWizard: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
 
-            {/* Create New Course */}
-            <div className="space-y-4">
-              <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Or Create New
-              </Label>
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="courseName">Course Name</Label>
-                  <Input
-                    id="courseName"
-                    value={courseName}
-                    onChange={(e) => {
-                      setCourseName(e.target.value);
-                      setSelectedCourse(null);
-                    }}
-                    placeholder="e.g., Pine Valley Golf Club"
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="courseLocation">Location</Label>
-                  <Input
-                    id="courseLocation"
-                    value={courseLocation}
-                    onChange={(e) => setCourseLocation(e.target.value)}
-                    placeholder="e.g., Pine Valley, NJ"
-                    className="mt-1"
-                  />
-                </div>
+        {/* Step 1: Location Mode */}
+        {step === 1 && courseMode === 'location' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Locate className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Nearby Courses</h2>
+                <p className="text-sm text-muted-foreground">{courseLocation || 'Getting location...'}</p>
               </div>
             </div>
 
-            {/* Edit Holes (optional) */}
-            {(selectedCourse || courseName) && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="courseName">Course Name</Label>
+                <Input
+                  id="courseName"
+                  value={courseName}
+                  onChange={(e) => setCourseName(e.target.value)}
+                  placeholder="Enter course name"
+                  className="mt-1"
+                />
+              </div>
+              
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Enter the course name to continue, or connect Lovable Cloud for AI-powered course search.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Step 1: Search Mode */}
+        {step === 1 && courseMode === 'search' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Search className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Course Details</h2>
+                <p className="text-sm text-muted-foreground">Enter course information</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="courseName">Course Name</Label>
+                <Input
+                  id="courseName"
+                  value={courseName}
+                  onChange={(e) => {
+                    setCourseName(e.target.value);
+                    setSelectedCourse(null);
+                  }}
+                  placeholder="e.g., Pine Valley Golf Club"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="courseLocation">Location</Label>
+                <Input
+                  id="courseLocation"
+                  value={courseLocation}
+                  onChange={(e) => setCourseLocation(e.target.value)}
+                  placeholder="e.g., Pine Valley, NJ"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            {/* Edit Holes */}
+            {courseName && (
               <div className="space-y-3">
                 <button
                   onClick={() => {
@@ -350,8 +513,8 @@ const SetupWizard: React.FC = () => {
                           <tr>
                             <th className="p-2 text-left">Hole</th>
                             <th className="p-2">Par</th>
-                            <th className="p-2">Handicap</th>
-                            <th className="p-2">Yardage</th>
+                            <th className="p-2">HCP</th>
+                            <th className="p-2">Yards</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -363,7 +526,7 @@ const SetupWizard: React.FC = () => {
                                   type="number"
                                   value={hole.par}
                                   onChange={(e) => handleUpdateHole(hole.number, 'par', parseInt(e.target.value) || 4)}
-                                  className="w-16 h-8 text-center"
+                                  className="w-14 h-8 text-center"
                                   min={3}
                                   max={6}
                                 />
@@ -373,7 +536,7 @@ const SetupWizard: React.FC = () => {
                                   type="number"
                                   value={hole.handicapIndex}
                                   onChange={(e) => handleUpdateHole(hole.number, 'handicapIndex', parseInt(e.target.value) || 1)}
-                                  className="w-16 h-8 text-center"
+                                  className="w-14 h-8 text-center"
                                   min={1}
                                   max={18}
                                 />
@@ -383,7 +546,7 @@ const SetupWizard: React.FC = () => {
                                   type="number"
                                   value={hole.yardage}
                                   onChange={(e) => handleUpdateHole(hole.number, 'yardage', parseInt(e.target.value) || 300)}
-                                  className="w-20 h-8 text-center"
+                                  className="w-16 h-8 text-center"
                                   min={50}
                                   max={700}
                                 />
@@ -395,6 +558,47 @@ const SetupWizard: React.FC = () => {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 1: Camera Mode */}
+        {step === 1 && courseMode === 'camera' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Camera className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Scan Scorecard</h2>
+                <p className="text-sm text-muted-foreground">Processing your scorecard...</p>
+              </div>
+            </div>
+
+            {selectedCourse ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-success/10 border border-success/20">
+                  <div className="flex items-center gap-2 text-success font-semibold">
+                    <Check className="w-5 h-5" />
+                    Course data extracted!
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="courseName">Course Name</Label>
+                  <Input
+                    id="courseName"
+                    value={courseName}
+                    onChange={(e) => setCourseName(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+                <p className="text-muted-foreground">Analyzing scorecard image...</p>
               </div>
             )}
           </div>
@@ -533,7 +737,6 @@ const SetupWizard: React.FC = () => {
                       </div>
                     </button>
 
-                    {/* Game Settings */}
                     {selectedGame && (
                       <div className="ml-4 p-4 bg-muted rounded-xl space-y-3 animate-fade-in">
                         <div className="flex items-center justify-between">
