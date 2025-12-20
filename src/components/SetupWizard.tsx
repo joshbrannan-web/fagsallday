@@ -134,8 +134,8 @@ const SetupWizard: React.FC = () => {
   
   // Step 2: Players
   const [players, setPlayers] = useState<Player[]>([
-    { id: '1', name: '', handicapIndex: 0, courseHandicap: 0, tee: 'White' },
-    { id: '2', name: '', handicapIndex: 0, courseHandicap: 0, tee: 'White' }
+    { id: '1', name: '', handicapIndex: NaN, courseHandicap: 0, tee: 'White' },
+    { id: '2', name: '', handicapIndex: NaN, courseHandicap: 0, tee: 'White' }
   ]);
   
   // Step 3: Games
@@ -314,7 +314,7 @@ const SetupWizard: React.FC = () => {
     setPlayers([...players, {
       id: Date.now().toString(),
       name: '',
-      handicapIndex: 0,
+      handicapIndex: NaN,
       courseHandicap: 0,
       tee: 'White'
     }]);
@@ -961,9 +961,9 @@ const SetupWizard: React.FC = () => {
                       <Input
                         id={`handicap-${player.id}`}
                         type="number"
-                        value={player.handicapIndex}
-                        onChange={(e) => handlePlayerChange(player.id, 'handicapIndex', parseFloat(e.target.value) || 0)}
-                        placeholder="0"
+                        value={isNaN(player.handicapIndex) ? '' : player.handicapIndex}
+                        onChange={(e) => handlePlayerChange(player.id, 'handicapIndex', e.target.value === '' ? NaN : parseFloat(e.target.value))}
+                        placeholder="Enter handicap"
                         className="mt-1"
                         min={-10}
                         max={54}
@@ -971,7 +971,7 @@ const SetupWizard: React.FC = () => {
                       />
                     </div>
                   </div>
-                  {player.handicapIndex > 0 && (
+                  {!isNaN(player.handicapIndex) && player.handicapIndex > 0 && (
                     <p className="text-xs text-muted-foreground">
                       Course Handicap: {calculateCourseHandicap(player.handicapIndex, 72)} strokes
                     </p>
