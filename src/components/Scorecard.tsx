@@ -97,17 +97,25 @@ const Scorecard: React.FC = () => {
                     {activeHoles.map(h => {
                       const score = getPlayerScore(player.id, h.number);
                       const diff = typeof score === 'number' ? score - h.par : 0;
+                      const hasStroke = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id] === 1;
                       return (
                         <td key={h.number} className="p-2 border-r border-border/50">
-                          <span className={`inline-block w-8 h-8 leading-8 rounded-full text-sm font-bold ${
-                            diff <= -2 ? 'bg-brand-gold/20 text-brand-gold' :
-                            diff === -1 ? 'bg-success/20 text-success' :
-                            diff === 0 ? '' :
-                            diff === 1 ? 'bg-destructive/10 text-destructive' :
-                            'bg-destructive/20 text-destructive'
-                          }`}>
-                            {score}
-                          </span>
+                          <div className="relative inline-block">
+                            <span className={`inline-block w-8 h-8 leading-8 rounded-full text-sm font-bold ${
+                              diff <= -2 ? 'bg-brand-gold/20 text-brand-gold' :
+                              diff === -1 ? 'bg-success/20 text-success' :
+                              diff === 0 ? '' :
+                              diff === 1 ? 'bg-destructive/10 text-destructive' :
+                              'bg-destructive/20 text-destructive'
+                            }`}>
+                              {score}
+                            </span>
+                            {hasStroke && (
+                              <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border border-background flex items-center justify-center">
+                                <span className="text-[8px] text-primary-foreground font-bold">•</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
                       );
                     })}
