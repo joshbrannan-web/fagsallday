@@ -263,9 +263,27 @@ const ActiveRound: React.FC = () => {
 
           // Calculate strokes - use relative calculation when banker is selected
           let naturalStrokes: number;
+          const isBanker = currentBankerId === p.id;
+          
           if (currentBankerId && banker) {
-            // Relative strokes vs banker
-            naturalStrokes = calculateRelativeStrokesVsBanker(p.courseHandicap, banker.courseHandicap, courseHole!.handicapIndex);
+            if (isBanker) {
+              // For the banker, check if they get strokes against any other player
+              // Banker gets strokes if their handicap is higher than opponents
+              const otherPlayers = currentRound.players.filter(pl => pl.id !== p.id);
+              // Find max strokes the banker gets (most favorable matchup)
+              const bankerStrokesVsOthers = otherPlayers.map(other => {
+                // When banker has higher handicap, they get strokes (positive for them)
+                const diff = p.courseHandicap - other.courseHandicap;
+                if (diff > 0 && courseHole!.handicapIndex <= diff) {
+                  return 1; // Banker gets a stroke on this hole
+                }
+                return 0;
+              });
+              naturalStrokes = Math.max(...bankerStrokesVsOthers, 0);
+            } else {
+              // For non-banker players, calculate relative to banker
+              naturalStrokes = calculateRelativeStrokesVsBanker(p.courseHandicap, banker.courseHandicap, courseHole!.handicapIndex);
+            }
           } else {
             // No banker selected - use absolute calculation
             naturalStrokes = calculateStrokesReceived(p.courseHandicap, courseHole!.handicapIndex);
@@ -273,14 +291,13 @@ const ActiveRound: React.FC = () => {
 
           const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : naturalStrokes;
           const isStroking = effectiveStrokes > 0;
-          const isGivingStrokes = effectiveStrokes < 0; // Banker might give strokes if they have higher handicap
+          const isGivingStrokes = effectiveStrokes < 0; // Player might give strokes if banker has higher handicap
           const isManual = manualStrokes !== undefined && manualStrokes !== null;
 
           // Calculate net score using effective strokes
           const net = rawScore ? rawScore - effectiveStrokes : '-';
 
           let bankerData = null;
-          const isBanker = currentBankerId === p.id;
           if (currentBankerId && activeBankerGame) {
             const holeData = currentRound.gameData?.[activeBankerGame.id]?.[activeHole] || {};
             const playerMult = holeData[p.id] || 1;
