@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from '../types';
 import { calculateCourseHandicap } from '../services/gameEngine';
-import { ArrowLeft, ArrowRight, Plus, Trash2, MapPin, Users, Trophy, Check, Search, Camera, Locate, Loader2 } from 'lucide-react';
+import { searchCourse, courseDataToCourse } from '@/lib/api/courseSearch';
+import { ArrowLeft, ArrowRight, Plus, Trash2, MapPin, Users, Trophy, Check, Search, Camera, Locate, Loader2, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -85,6 +86,8 @@ const SetupWizard: React.FC = () => {
   const [holes, setHoles] = useState<Hole[]>([]);
   const [editingHoles, setEditingHoles] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Array<{ name: string; url: string; description: string }>>([]);
   
   // Step 2: Players
   const [players, setPlayers] = useState<Player[]>([
@@ -123,6 +126,51 @@ const SetupWizard: React.FC = () => {
 
   const handleSearchCourses = () => {
     setCourseMode('search');
+    setSearchResults([]);
+  };
+
+  const handleFetchCourseData = async () => {
+    if (!courseName.trim()) {
+      toast.error('Please enter a course name');
+      return;
+    }
+
+    setIsSearching(true);
+    toast.info('Searching 18birdies.com for course data...');
+
+    try {
+      const result = await searchCourse(courseName, courseLocation);
+      
+      if (!result.success) {
+        toast.error(result.error || 'Failed to find course');
+        setIsSearching(false);
+        return;
+      }
+
+      if (result.course) {
+        const course = courseDataToCourse(result.course);
+        if (course) {
+          setSelectedCourse(course);
+          setHoles(course.holes);
+          setCourseName(course.name);
+          setCourseLocation(course.location);
+          toast.success(`Found ${course.name}! Scorecard data loaded.`);
+        }
+      } else if (result.courses && result.courses.length > 0) {
+        setSearchResults(result.courses);
+        toast.info(`Found ${result.courses.length} possible matches`);
+      } else {
+        toast.warning('No course data found. Using default values.');
+        const defaultCourse = createDefaultCourse(courseName, courseLocation);
+        setSelectedCourse(defaultCourse);
+        setHoles(defaultCourse.holes);
+      }
+    } catch (error) {
+      console.error('Error fetching course:', error);
+      toast.error('Failed to fetch course data');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleCameraUpload = () => {
@@ -479,7 +527,7 @@ const SetupWizard: React.FC = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="courseLocation">Location</Label>
+                <Label htmlFor="courseLocation">Location (optional)</Label>
                 <Input
                   id="courseLocation"
                   value={courseLocation}
@@ -488,6 +536,62 @@ const SetupWizard: React.FC = () => {
                   className="mt-1"
                 />
               </div>
+
+              {/* Fetch from 18birdies button */}
+              <Button
+                onClick={handleFetchCourseData}
+                disabled={isSearching || !courseName.trim()}
+                className="w-full gap-2"
+                variant="outline"
+              >
+                {isSearching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Searching 18birdies.com...
+                  </>
+                ) : (
+                  <>
+                    <Globe className="w-4 h-4" />
+                    Fetch Course Data from 18birdies
+                  </>
+                )}
+              </Button>
+
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Search Results</Label>
+                  {searchResults.map((result, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setCourseName(result.name);
+                        setSearchResults([]);
+                        handleFetchCourseData();
+                      }}
+                      className="w-full p-3 rounded-lg border border-border bg-card hover:border-primary/50 text-left transition-all"
+                    >
+                      <div className="font-medium text-sm">{result.name}</div>
+                      {result.description && (
+                        <div className="text-xs text-muted-foreground truncate">{result.description}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Selected Course Info */}
+              {selectedCourse && (
+                <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+                  <div className="flex items-center gap-2 text-primary font-medium">
+                    <Check className="w-4 h-4" />
+                    Course data loaded!
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {selectedCourse.holes.length} holes • Par {selectedCourse.holes.reduce((sum, h) => sum + h.par, 0)} • {selectedCourse.holes.reduce((sum, h) => sum + h.yardage, 0).toLocaleString()} yards
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Edit Holes */}
