@@ -32,11 +32,29 @@ const RoundSummary: React.FC = () => {
   };
 
   const handleShare = async () => {
-    const results = sortedPlayers.map((p, i) => 
-      `${i + 1}. ${p.name}: ${formatMoney(roundTotals[p.id] || 0)}`
+    const roundDate = new Date(currentRound.startTime).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    // Calculate total strokes for each player
+    const getPlayerTotalScore = (playerId: string) => {
+      let total = 0;
+      Object.values(currentRound.scores).forEach(holeScores => {
+        const score = holeScores[playerId];
+        if (score !== null && score !== undefined) {
+          total += score;
+        }
+      });
+      return total;
+    };
+
+    const results = sortedPlayers.map((p) => 
+      `${p.name}: ${formatMoney(roundTotals[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
     ).join('\n');
 
-    const text = `🏌️ ${currentRound.course.name}\n\nResults:\n${results}`;
+    const text = `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day`;
 
     if (navigator.share) {
       await navigator.share({ title: 'Golf Round Results', text });
