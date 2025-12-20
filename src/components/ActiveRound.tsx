@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../App';
-import { ChevronLeft, ChevronRight, Mic, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag } from 'lucide-react';
 import { getNetScore, calculateStrokesReceived, calculateRelativeStrokesVsBanker, calculateAggregatedHolePnL } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 import { GameType } from '../types';
@@ -148,11 +148,7 @@ const ActiveRound: React.FC = () => {
               <span>IDX {courseHole?.handicapIndex}</span>
             </div>
           </div>
-          <button className={`p-2 rounded-full ${isListening ? 'bg-destructive animate-pulse' : 'bg-muted'}`} onClick={handleVoiceInput}>
-            <Mic className="w-5 h-5" />
-          </button>
         </div>
-
         <div className="flex justify-between items-center gap-4">
           <button 
             disabled={activeHole === 1}
