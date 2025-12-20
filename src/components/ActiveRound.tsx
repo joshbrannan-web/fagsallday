@@ -261,26 +261,12 @@ const ActiveRound: React.FC = () => {
             banker = currentRound.players.find(pl => pl.id === currentBankerId);
           }
 
-          // Calculate strokes - when banker is selected, use relative to lowest handicap player
-          let naturalStrokes: number;
+          // Strokes are now fully manual - default to 0 (no stroke)
           const isBanker = currentBankerId === p.id;
           
-          if (currentBankerId && banker) {
-            // Find the lowest handicap among all players
-            const lowestHandicap = Math.min(...currentRound.players.map(pl => pl.courseHandicap));
-            // Calculate strokes relative to the lowest handicap player
-            const handicapDifference = p.courseHandicap - lowestHandicap;
-            // Player gets a stroke if the hole index is within their handicap difference from lowest
-            naturalStrokes = courseHole!.handicapIndex <= handicapDifference ? 1 : 0;
-          } else {
-            // No banker selected - use absolute calculation
-            naturalStrokes = calculateStrokesReceived(p.courseHandicap, courseHole!.handicapIndex);
-          }
-
-          const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : naturalStrokes;
+          // Use manual strokes if set, otherwise default to 0 (no stroke)
+          const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : 0;
           const isStroking = effectiveStrokes > 0;
-          const isGivingStrokes = effectiveStrokes < 0; // Player might give strokes if banker has higher handicap
-          const isManual = manualStrokes !== undefined && manualStrokes !== null;
 
           // Calculate net score using effective strokes
           const net = rawScore ? rawScore - effectiveStrokes : '-';
@@ -325,9 +311,6 @@ const ActiveRound: React.FC = () => {
                     <span className="text-xs text-muted-foreground uppercase font-bold mb-1">Net</span>
                     <div className="relative">
                       <span className="text-2xl font-bold text-foreground">{net}</span>
-                      {isManual && (
-                        <span className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-brand-gold"></span>
-                      )}
                     </div>
                   </div>
                 </div>
