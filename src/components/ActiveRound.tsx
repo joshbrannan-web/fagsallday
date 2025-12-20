@@ -76,7 +76,7 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleScoreChange = (pid: string, delta: number) => {
-    const current = currentRound.scores[activeHole]?.[pid] ?? 2;
+    const current = currentRound.scores[activeHole]?.[pid] || courseHole!.par;
     const newScore = Math.max(1, current + delta);
     const player = currentRound.players.find(p => p.id === pid)!;
     const validation = validateHoleInput(newScore, courseHole!.par, player);
@@ -237,7 +237,7 @@ const ActiveRound: React.FC = () => {
         {currentRound.players.map(p => {
           const rawScore = currentRound.scores[activeHole]?.[p.id];
           const hasScore = rawScore !== undefined && rawScore !== null;
-          const displayScore = hasScore ? rawScore : 2;
+          const displayScore = hasScore ? rawScore : (courseHole?.par || '-');
           const manualStrokes = currentRound.gameData?.['MANUAL_STROKES']?.[activeHole]?.[p.id];
 
           // Determine banker context for relative stroke calculation
