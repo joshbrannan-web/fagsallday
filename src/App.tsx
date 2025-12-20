@@ -21,7 +21,7 @@ interface AppState {
   roundHistory: Round[];
   startNewRound: (course: Course, players: Player[], games: GameSettings[]) => void;
   updateScore: (holeNumber: number, playerId: string, score: number) => void;
-  updateGameData: (gameId: string, holeNumber: number, data: any) => void;
+  updateGameData: (gameId: string, holeNumber: number, key: string, value: any) => void;
   finishRound: () => void;
   loadPastRound: (round: Round) => void;
   deleteRound: (roundId: string) => void;
@@ -118,7 +118,7 @@ const AppContent: React.FC = () => {
     });
   };
 
-  const updateGameData = (gameId: string, holeNumber: number, data: any) => {
+  const updateGameData = (gameId: string, holeNumber: number, key: string, value: any) => {
     setCurrentRound(prev => {
       if (!prev) return null;
       const newGameData = { ...prev.gameData };
@@ -127,9 +127,13 @@ const AppContent: React.FC = () => {
         newGameData[gameId] = {};
       }
       
-      newGameData[gameId] = {
-        ...newGameData[gameId],
-        [holeNumber]: data
+      if (!newGameData[gameId][holeNumber]) {
+        newGameData[gameId][holeNumber] = {};
+      }
+      
+      newGameData[gameId][holeNumber] = {
+        ...newGameData[gameId][holeNumber],
+        [key]: value
       };
 
       return { ...prev, gameData: newGameData };
