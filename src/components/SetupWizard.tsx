@@ -5,7 +5,9 @@ import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from '.
 import { calculateCourseHandicap } from '../services/gameEngine';
 import { searchCourse, courseDataToCourse } from '@/lib/api/courseSearch';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, ArrowRight, Plus, Trash2, MapPin, Users, Trophy, Check, Search, Camera, Loader2, Globe } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useSavedPlayers } from '@/hooks/useSavedPlayers';
+import { ArrowLeft, ArrowRight, Plus, Trash2, MapPin, Users, Trophy, Check, Search, Camera, Loader2, Globe, UserPlus, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 // Types for tee box data
 interface TeeBox {
@@ -112,11 +121,14 @@ const getTeeColorClass = (color: string): string => {
 const SetupWizard: React.FC = () => {
   const navigate = useNavigate();
   const { startNewRound, savedCourses, saveCourse } = useApp();
+  const { user } = useAuth();
+  const { savedPlayers, addPlayer: addSavedPlayer } = useSavedPlayers();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [courseMode, setCourseMode] = useState<CourseFinderMode>('select');
   const [isLoading, setIsLoading] = useState(false);
+  const [showSavedPlayers, setShowSavedPlayers] = useState(false);
   
   // Step 1: Course
   const [courseName, setCourseName] = useState('');
@@ -140,6 +152,52 @@ const SetupWizard: React.FC = () => {
   
   // Step 3: Games
   const [selectedGames, setSelectedGames] = useState<GameSettings[]>([]);
+
+  const handleSelectSavedPlayer = (savedPlayer: { id: string; name: string; handicap_index: number; tee: string }) => {
+    // Add to players list if not already at max
+    if (players.filter(p => p.name.trim()).length >= 8) {
+      toast.error('Maximum 8 players allowed');
+      return;
+    }
+    
+    // Find first empty slot or add new
+    const emptyIndex = players.findIndex(p => !p.name.trim());
+    if (emptyIndex !== -1) {
+      setPlayers(players.map((p, i) => 
+        i === emptyIndex 
+          ? { 
+              ...p, 
+              name: savedPlayer.name, 
+              handicapIndex: savedPlayer.handicap_index, 
+              courseHandicap: calculateCourseHandicap(savedPlayer.handicap_index, 72),
+              tee: savedPlayer.tee 
+            }
+          : p
+      ));
+    } else {
+      setPlayers([...players, {
+        id: Date.now().toString(),
+        name: savedPlayer.name,
+        handicapIndex: savedPlayer.handicap_index,
+        courseHandicap: calculateCourseHandicap(savedPlayer.handicap_index, 72),
+        tee: savedPlayer.tee
+      }]);
+    }
+    setShowSavedPlayers(false);
+    toast.success(`Added ${savedPlayer.name}`);
+  };
+
+  const handleSavePlayer = async (player: Player) => {
+    if (!user) {
+      toast.error('Sign in to save players');
+      return;
+    }
+    if (!player.name.trim()) {
+      toast.error('Enter player name first');
+      return;
+    }
+    await addSavedPlayer(player.name, player.handicapIndex || 0, player.tee);
+  };
 
   const handleUseLocation = () => {
     setIsLoading(true);
@@ -931,14 +989,44 @@ const SetupWizard: React.FC = () => {
               ))}
 
               {players.length < 8 && (
-                <Button
-                  variant="outline"
-                  onClick={handleAddPlayer}
-                  className="w-full"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Player
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleAddPlayer}
+                    className="flex-1"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Player
+                  </Button>
+                  {user && savedPlayers.length > 0 && (
+                    <Dialog open={showSavedPlayers} onOpenChange={setShowSavedPlayers}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline">
+                          <UserPlus className="w-4 h-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Saved Players</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {savedPlayers.map(sp => (
+                            <button
+                              key={sp.id}
+                              onClick={() => handleSelectSavedPlayer(sp)}
+                              className="w-full p-3 rounded-lg border border-border bg-card hover:border-primary/50 text-left transition-all"
+                            >
+                              <div className="font-medium">{sp.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Handicap: {sp.handicap_index} • Tee: {sp.tee}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </div>
               )}
             </div>
           </div>
