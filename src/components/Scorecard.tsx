@@ -45,6 +45,36 @@ const Scorecard: React.FC = () => {
     return holeData?.bankerId || null;
   };
 
+  // Find FBO game and get dots data
+  const fboGame = currentRound.games.find(g => g.type === GameType.FBO);
+  const fboPlayerIds = fboGame?.config.fboPlayers || currentRound.players.map(p => p.id);
+  const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
+  
+  const getDotsForHole = (holeNum: number): string[] => {
+    if (!fboGame) return [];
+    return currentRound.gameData?.[fboGame.id]?.[holeNum]?.dots || [];
+  };
+
+  const getTotalDotsForPlayer = (pid: string, holesToSum: typeof activeHoles): number => {
+    if (!fboGame) return 0;
+    let total = 0;
+    holesToSum.forEach(h => {
+      const dots = getDotsForHole(h.number);
+      if (dots.includes(pid)) total++;
+    });
+    return total;
+  };
+
+  const getOverallDotsForPlayer = (pid: string): number => {
+    if (!fboGame) return 0;
+    let total = 0;
+    holes.forEach(h => {
+      const dots = getDotsForHole(h.number);
+      if (dots.includes(pid)) total++;
+    });
+    return total;
+  };
+
   const calculateSubtotalScore = (pid: string, holesToSum: typeof activeHoles) => {
     let total = 0;
     holesToSum.forEach(h => {
@@ -161,6 +191,63 @@ const Scorecard: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* FBO Dots Section */}
+        {fboGame && fboPlayers.length > 0 && (
+          <div className="mt-4 inline-block min-w-full bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
+            <div className="bg-primary/10 px-4 py-2 border-b border-primary/20">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🎱</span>
+                <h3 className="font-bold text-foreground">FBO Dots</h3>
+                <span className="text-xs text-muted-foreground ml-auto">${fboGame.unitStake} per segment</span>
+              </div>
+            </div>
+            <table className="w-full text-center border-collapse text-sm">
+              <thead>
+                <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
+                  <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
+                  {activeHoles.map(h => (
+                    <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
+                      {h.number}
+                    </th>
+                  ))}
+                  <th className="p-2 min-w-[50px] bg-muted">{viewMode === 'FRONT' ? 'Front' : 'Back'}</th>
+                  <th className="p-2 min-w-[50px] bg-primary/10">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fboPlayers.map((player, idx) => (
+                  <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                    <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
+                      {player.name}
+                    </td>
+                    {activeHoles.map(h => {
+                      const dots = getDotsForHole(h.number);
+                      const hasDot = dots.includes(player.id);
+                      return (
+                        <td key={h.number} className="p-2 border-r border-border/50">
+                          {hasDot ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold">
+                              ●
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/30">-</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="p-2 font-bold text-foreground">
+                      {getTotalDotsForPlayer(player.id, activeHoles)}
+                    </td>
+                    <td className="p-2 font-bold bg-primary/5">
+                      <span className="text-primary">{getOverallDotsForPlayer(player.id)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="p-4 bg-card border-t border-border">
