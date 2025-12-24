@@ -29,7 +29,8 @@ export enum GameType {
   NINE_POINTS = 'NINE_POINTS',
   BINGO_BANGO_BONGO = 'BINGO_BANGO_BONGO',
   OPEN_BETTING = 'OPEN_BETTING',
-  BANKER = 'BANKER'
+  BANKER = 'BANKER',
+  FBO = 'FBO'
 }
 
 export interface GameSettings {
@@ -43,6 +44,7 @@ export interface GameSettings {
     handicapPct?: number; // e.g., 100% or 80%
     birdieTriple?: boolean; // For Banker: 3x payout on Gross Birdie
     eagleQuintuple?: boolean; // For Banker: 5x payout on Gross Eagle
+    fboPlayers?: string[]; // For FBO: player IDs participating in this game
   };
 }
 

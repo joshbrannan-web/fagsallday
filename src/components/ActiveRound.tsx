@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../App';
-import { ChevronLeft, ChevronRight, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check } from 'lucide-react';
 import { getNetScore, calculateStrokesReceived, calculateBankerMatchupStrokes, calculateAggregatedHolePnL } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 import { GameType } from '../types';
@@ -43,6 +43,7 @@ const ActiveRound: React.FC = () => {
   const courseHole = currentRound.course.holes.find(h => h.number === activeHole);
   const openBetGames = currentRound.games.filter(g => g.type === GameType.OPEN_BETTING);
   const bankerGames = currentRound.games.filter(g => g.type === GameType.BANKER);
+  const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
   
   // Calculate per-hole P&L for all players
   const holePnL = calculateAggregatedHolePnL(currentRound);
@@ -129,6 +130,24 @@ const ActiveRound: React.FC = () => {
 
   const handleBankerPressAll = (gameId: string, currentMult: number) => {
     updateGameData(gameId, activeHole, '_META_BANKER_MULT', currentMult);
+  };
+
+  const handleFboDotToggle = (gameId: string, playerId: string) => {
+    const currentDots: string[] = currentRound.gameData?.[gameId]?.[activeHole]?.dots || [];
+    const newDots = currentDots.includes(playerId)
+      ? currentDots.filter(id => id !== playerId)
+      : [...currentDots, playerId];
+    updateGameData(gameId, activeHole, 'dots', newDots);
+  };
+
+  const getFboDotsForPlayer = (gameId: string, playerId: string): number => {
+    const fboData = currentRound.gameData?.[gameId] || {};
+    let total = 0;
+    for (let h = 1; h <= currentRound.course.holes.length; h++) {
+      const holeDots: string[] = fboData[h]?.dots || [];
+      if (holeDots.includes(playerId)) total++;
+    }
+    return total;
   };
 
   const getPlayerTotalGross = (pid: string) => {
@@ -253,6 +272,82 @@ const ActiveRound: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          );
+        })}
+
+        {/* FBO Game: Dot Selection */}
+        {fboGames.map(game => {
+          const fboPlayerIds = game.config.fboPlayers || currentRound.players.map(p => p.id);
+          const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
+          const currentDots: string[] = currentRound.gameData?.[game.id]?.[activeHole]?.dots || [];
+
+          return (
+            <div key={game.id} className="bg-card rounded-2xl shadow-sm border border-primary/50 p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-foreground flex items-center gap-2">
+                  <span className="bg-primary text-primary-foreground p-1 rounded">🎱</span> FBO - Award Dots
+                </h3>
+                <div className="text-xs font-medium text-muted-foreground">
+                  Hole {activeHole} {activeHole <= 9 ? '(Front 9)' : '(Back 9)'}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">
+                Select all players who win this hole (ties allowed)
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {fboPlayers.map(p => {
+                  const hasDot = currentDots.includes(p.id);
+                  const totalDots = getFboDotsForPlayer(game.id, p.id);
+                  
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleFboDotToggle(game.id, p.id)}
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl border-2 transition-all ${
+                        hasDot 
+                          ? 'bg-primary/10 border-primary text-foreground' 
+                          : 'bg-muted border-border text-muted-foreground hover:border-primary/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          hasDot ? 'bg-primary border-primary' : 'border-muted-foreground/50'
+                        }`}>
+                          {hasDot && <Check className="w-3 h-3 text-primary-foreground" />}
+                        </div>
+                        <span className="font-medium text-sm">{p.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-bold bg-background px-2 py-0.5 rounded-full">
+                          {totalDots} dots
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              
+              {/* Running Totals Summary */}
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="flex items-center justify-between text-xs font-medium">
+                  <span className="text-muted-foreground uppercase">Running Totals</span>
+                  <span className="text-muted-foreground">${game.unitStake} × 3 bets</span>
+                </div>
+                <div className="flex gap-2 mt-2 overflow-x-auto no-scrollbar">
+                  {fboPlayers.map(p => {
+                    const totalDots = getFboDotsForPlayer(game.id, p.id);
+                    return (
+                      <div key={p.id} className="flex flex-col items-center min-w-[50px] px-2 py-1 bg-muted rounded-lg">
+                        <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[50px]">
+                          {p.name.split(' ')[0]}
+                        </span>
+                        <span className="text-sm font-bold text-foreground">{totalDots}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           );
         })}
