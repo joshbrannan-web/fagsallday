@@ -424,7 +424,7 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
 // --- FBO (Front/Back/Overall) ---
 
 export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
-  const { players, course } = round;
+  const { players, course, scores } = round;
   const unit = game.unitStake;
   
   // Get players participating in this FBO game
@@ -445,6 +445,23 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
 
   // Initialize results for all FBO players
   fboPlayers.forEach((p) => (results[p.id] = 0));
+
+  // Determine which holes have been completed (at least one player has a score)
+  const completedHoles = new Set<number>();
+  for (let h = 1; h <= course.holes.length; h++) {
+    const hasAnyScore = fboPlayers.some(p => {
+      const score = scores[p.id]?.[h]?.gross;
+      return score !== undefined && score !== null && score > 0;
+    });
+    if (hasAnyScore) {
+      completedHoles.add(h);
+    }
+  }
+
+  // Check if segments are complete
+  const frontNineComplete = [1, 2, 3, 4, 5, 6, 7, 8, 9].every(h => completedHoles.has(h));
+  const backNineComplete = [10, 11, 12, 13, 14, 15, 16, 17, 18].every(h => completedHoles.has(h));
+  const overallComplete = frontNineComplete && backNineComplete;
 
   // Get dot data from gameData
   const fboData = round.gameData?.[game.id] || {};
@@ -481,7 +498,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     });
   }
 
-  // Calculate winners for each segment
+  // Calculate winners for each segment (only if segment is complete)
   const calculateSegmentWinner = (segment: { [id: string]: number }, label: string) => {
     const maxDots = Math.max(...Object.values(segment));
     if (maxDots === 0) {
@@ -526,9 +543,24 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     }
   };
 
-  calculateSegmentWinner(dotCounts.front, 'Front 9');
-  calculateSegmentWinner(dotCounts.back, 'Back 9');
-  calculateSegmentWinner(dotCounts.overall, 'Overall');
+  // Only calculate payouts for completed segments
+  if (frontNineComplete) {
+    calculateSegmentWinner(dotCounts.front, 'Front 9');
+  } else {
+    details.push('Front 9: In progress');
+  }
+  
+  if (backNineComplete) {
+    calculateSegmentWinner(dotCounts.back, 'Back 9');
+  } else {
+    details.push('Back 9: In progress');
+  }
+  
+  if (overallComplete) {
+    calculateSegmentWinner(dotCounts.overall, 'Overall');
+  } else {
+    details.push('Overall: In progress');
+  }
 
   return { gameId: game.id, playerResults: results, details, holeResults };
 };
