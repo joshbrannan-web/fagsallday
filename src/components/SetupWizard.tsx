@@ -121,7 +121,7 @@ const getTeeColorClass = (color: string): string => {
 const SetupWizard: React.FC = () => {
   const navigate = useNavigate();
   const { startNewRound, savedCourses, saveCourse } = useApp();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { savedPlayers, addPlayer: addSavedPlayer } = useSavedPlayers();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -152,6 +152,38 @@ const SetupWizard: React.FC = () => {
   
   // Step 3: Games
   const [selectedGames, setSelectedGames] = useState<GameSettings[]>([]);
+
+  // Pre-populate Player 1 with the signed-in user's profile
+  React.useEffect(() => {
+    if (profile && players[0] && !players[0].name.trim()) {
+      const playerName = profile.display_name || user?.email?.split('@')[0] || '';
+      const handicap = profile.handicap_index ?? NaN;
+      setPlayers(prev => prev.map((p, i) => 
+        i === 0 
+          ? { 
+              ...p, 
+              name: playerName, 
+              handicapIndex: handicap, 
+              courseHandicap: !isNaN(handicap) ? calculateCourseHandicap(handicap, 72) : 0
+            }
+          : p
+      ));
+    }
+  }, [profile, user]);
+
+  const handleSelectSavedPlayerForSlot = (idx: number, savedPlayer: { id: string; name: string; handicap_index: number; tee: string }) => {
+    setPlayers(players.map((p, i) => 
+      i === idx 
+        ? { 
+            ...p, 
+            name: savedPlayer.name, 
+            handicapIndex: savedPlayer.handicap_index, 
+            courseHandicap: calculateCourseHandicap(savedPlayer.handicap_index, 72),
+            tee: savedPlayer.tee 
+          }
+        : p
+    ));
+  };
 
   const handleSelectSavedPlayer = (savedPlayer: { id: string; name: string; handicap_index: number; tee: string }) => {
     // Add to players list if not already at max
@@ -943,7 +975,7 @@ const SetupWizard: React.FC = () => {
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-muted-foreground">
-                      Player {idx + 1}
+                      Player {idx + 1} {idx === 0 && user && '(You)'}
                     </span>
                     {players.length > 2 && (
                       <button
@@ -954,6 +986,29 @@ const SetupWizard: React.FC = () => {
                       </button>
                     )}
                   </div>
+                  
+                  {/* Saved Players Selector for this slot */}
+                  {user && savedPlayers.length > 0 && (
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        const sp = savedPlayers.find(p => p.id === value);
+                        if (sp) handleSelectSavedPlayerForSlot(idx, sp);
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Choose from saved players..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {savedPlayers.map(sp => (
+                          <SelectItem key={sp.id} value={sp.id}>
+                            {sp.name} (HCP: {sp.handicap_index})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label htmlFor={`name-${player.id}`}>Name</Label>
@@ -961,7 +1016,7 @@ const SetupWizard: React.FC = () => {
                         id={`name-${player.id}`}
                         value={player.name}
                         onChange={(e) => handlePlayerChange(player.id, 'name', e.target.value)}
-                        placeholder="Player name"
+                        placeholder="Enter name manually"
                         className="mt-1"
                       />
                     </div>
