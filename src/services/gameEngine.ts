@@ -27,22 +27,39 @@ export const calculateStrokesReceived = (courseHandicap: number, strokeIndex: nu
   return 0;
 };
 
-// Calculate strokes relative to banker for head-to-head Banker game
-// A player receives a stroke if:
-// 1. Player has HIGHER handicap than banker (lower handicap players don't get strokes)
-// 2. (Player Handicap - Banker Handicap) >= Hole Handicap Index
-// Returns 1 if player receives stroke, 0 otherwise
+// Calculate strokes for a banker matchup
+// Returns { playerStrokes, bankerStrokes } based on handicap difference
+// The higher handicap player receives strokes if difference >= hole handicap index
+export const calculateBankerMatchupStrokes = (
+  playerHandicap: number,
+  bankerHandicap: number,
+  holeHandicapIndex: number,
+): { playerStrokes: number; bankerStrokes: number } => {
+  const diff = Math.abs(playerHandicap - bankerHandicap);
+  
+  if (diff < holeHandicapIndex) {
+    return { playerStrokes: 0, bankerStrokes: 0 };
+  }
+  
+  if (playerHandicap > bankerHandicap) {
+    // Player has higher handicap, player gets stroke
+    return { playerStrokes: 1, bankerStrokes: 0 };
+  } else if (bankerHandicap > playerHandicap) {
+    // Banker has higher handicap, banker gets stroke against this player
+    return { playerStrokes: 0, bankerStrokes: 1 };
+  }
+  
+  return { playerStrokes: 0, bankerStrokes: 0 };
+};
+
+// Legacy function for backward compatibility - returns player strokes only
 export const calculateBankerStrokeReceived = (
   playerHandicap: number,
   bankerHandicap: number,
   holeHandicapIndex: number,
 ): number => {
-  // Only higher handicap players can receive strokes
-  if (playerHandicap <= bankerHandicap) return 0;
-  
-  const handicapDifference = playerHandicap - bankerHandicap;
-  // Player receives a stroke if their handicap advantage >= hole handicap index
-  return handicapDifference >= holeHandicapIndex ? 1 : 0;
+  const result = calculateBankerMatchupStrokes(playerHandicap, bankerHandicap, holeHandicapIndex);
+  return result.playerStrokes;
 };
 
 export const getNetScore = (
@@ -315,9 +332,6 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
     const bankerGross = holeScores[bankerId];
     if (typeof bankerGross !== "number") continue;
 
-    // Banker's net is just their gross (banker doesn't get strokes against themselves)
-    const bankerNet = bankerGross;
-
     // Get base multiplier for banker (support both formats)
     let bankerBaseMultiplier = holeBankerData["_META_BANKER_MULT"] || holeBankerData.bankerMultiplier || 1;
 
@@ -338,22 +352,33 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
 
       // Check for manual stroke override first
       const playerManualStrokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p.id];
+      const bankerManualStrokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[`${bankerId}_vs_${p.id}`];
 
-      // Player receives a stroke if (Player Handicap - Banker Handicap) >= Hole Handicap Index
+      // Calculate strokes for both player and banker in this matchup
       let playerStrokesReceived: number;
+      let bankerStrokesReceived: number;
+
       if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
-        // Use manual override if set
+        // Use manual override if set for player
         playerStrokesReceived = playerManualStrokes;
+        bankerStrokesReceived = 0;
+      } else if (bankerManualStrokes !== undefined && bankerManualStrokes !== null) {
+        // Use manual override if set for banker
+        playerStrokesReceived = 0;
+        bankerStrokesReceived = bankerManualStrokes;
       } else {
         // Calculate based on handicap difference vs hole handicap index
-        playerStrokesReceived = calculateBankerStrokeReceived(
+        const matchupStrokes = calculateBankerMatchupStrokes(
           p.courseHandicap,
           banker.courseHandicap,
           holeData.handicapIndex,
         );
+        playerStrokesReceived = matchupStrokes.playerStrokes;
+        bankerStrokesReceived = matchupStrokes.bankerStrokes;
       }
 
       const playerNet = playerGross - playerStrokesReceived;
+      const bankerNet = bankerGross - bankerStrokesReceived;
 
       // Get player-specific multiplier (stored directly under player ID in new format)
       let playerMultiplier = holeBankerData[p.id] || holeBankerData.playerMultipliers?.[p.id] || 1;
@@ -459,10 +484,6 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
 
         const bankerMult = holeData["_META_BANKER_MULT"] || 1;
 
-        // Banker's strokes are 0 vs themselves
-        const bankerStrokes = 0;
-        const bankerNetScore = bankerScore - bankerStrokes;
-
         // Process each opponent
         round.players
           .filter((p) => p.id !== bankerId)
@@ -470,20 +491,24 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
             const playerScore = round.scores[holeNumber]?.[player.id];
             if (playerScore === undefined || playerScore === null) return;
 
-            // Calculate if player receives stroke using Banker rule
-            let playerStrokes = calculateBankerStrokeReceived(
+            // Calculate strokes for both player and banker in this matchup
+            const matchupStrokes = calculateBankerMatchupStrokes(
               player.courseHandicap,
               banker.courseHandicap,
               hole.handicapIndex,
             );
+            let playerStrokes = matchupStrokes.playerStrokes;
+            let bankerStrokes = matchupStrokes.bankerStrokes;
 
             // Check for manual override
             const manualStrokes = round.gameData?.["MANUAL_STROKES"]?.[holeNumber]?.[player.id];
             if (manualStrokes !== undefined && manualStrokes !== null) {
               playerStrokes = manualStrokes;
+              bankerStrokes = 0; // Manual override only affects player strokes
             }
 
             const playerNetScore = playerScore - playerStrokes;
+            const bankerNetScore = bankerScore - bankerStrokes;
 
             // Calculate bet amount
             const playerMult = holeData[player.id] || 1;

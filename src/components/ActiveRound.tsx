@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../App';
 import { ChevronLeft, ChevronRight, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag } from 'lucide-react';
-import { getNetScore, calculateStrokesReceived, calculateBankerStrokeReceived, calculateAggregatedHolePnL } from '../services/gameEngine';
+import { getNetScore, calculateStrokesReceived, calculateBankerMatchupStrokes, calculateAggregatedHolePnL } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 import { GameType } from '../types';
 
@@ -278,23 +278,28 @@ const ActiveRound: React.FC = () => {
           const isBanker = currentBankerId === p.id;
           
           // Calculate auto strokes based on handicap difference vs banker
-          let autoCalculatedStrokes = 0;
+          let autoPlayerStrokes = 0;
+          let autoBankerStrokes = 0;
           if (banker && !isBanker && courseHole) {
-            autoCalculatedStrokes = calculateBankerStrokeReceived(
+            const matchupStrokes = calculateBankerMatchupStrokes(
               p.courseHandicap,
               banker.courseHandicap,
               courseHole.handicapIndex
             );
+            autoPlayerStrokes = matchupStrokes.playerStrokes;
+            autoBankerStrokes = matchupStrokes.bankerStrokes;
           }
           
           // Use manual strokes if explicitly set, otherwise use auto-calculated
-          const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null 
+          const effectivePlayerStrokes = manualStrokes !== undefined && manualStrokes !== null 
             ? manualStrokes 
-            : autoCalculatedStrokes;
-          const isStroking = effectiveStrokes > 0;
+            : autoPlayerStrokes;
+          const isPlayerStroking = effectivePlayerStrokes > 0;
+          const isBankerStroking = autoBankerStrokes > 0 && manualStrokes === undefined;
 
-          // Calculate net score using effective strokes
-          const net = rawScore ? rawScore - effectiveStrokes : '-';
+          // Calculate net score - for display, show player's perspective
+          // If banker gets strokes, player is at disadvantage (their effective score is higher relative to banker)
+          const net = rawScore ? rawScore - effectivePlayerStrokes : '-';
 
           let bankerData = null;
           if (currentBankerId && activeBankerGame) {
@@ -320,16 +325,25 @@ const ActiveRound: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  {/* Manual Stroke Checkbox */}
-                  <div className="flex flex-col items-end gap-1">
-                    <label className="text-[10px] uppercase font-bold text-muted-foreground">Stroke</label>
-                    <button 
-                      onClick={() => handleStrokeToggle(p.id, autoCalculatedStrokes)}
-                      className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${isStroking ? 'bg-primary border-primary' : 'bg-background border-border'}`}
-                    >
-                      {isStroking && <CheckSquare className="w-4 h-4 text-primary-foreground" />}
-                    </button>
-                  </div>
+                  {/* Manual Stroke Checkbox - shows player gets stroke */}
+                  {!isBanker && (
+                    <div className="flex flex-col items-end gap-1">
+                      <label className="text-[10px] uppercase font-bold text-muted-foreground">
+                        {isBankerStroking ? 'Banker +1' : 'Stroke'}
+                      </label>
+                      <button 
+                        onClick={() => handleStrokeToggle(p.id, autoPlayerStrokes)}
+                        className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${
+                          isPlayerStroking ? 'bg-primary border-primary' : 
+                          isBankerStroking ? 'bg-destructive/20 border-destructive' :
+                          'bg-background border-border'
+                        }`}
+                      >
+                        {isPlayerStroking && <CheckSquare className="w-4 h-4 text-primary-foreground" />}
+                        {isBankerStroking && <span className="text-xs font-bold text-destructive">B</span>}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Net Score Badge */}
                   <div className="flex flex-col items-end">
