@@ -161,7 +161,7 @@ const ActiveRound: React.FC = () => {
           <button 
             disabled={activeHole === 1}
             onClick={() => setActiveHole(h => h - 1)}
-            className="bg-muted p-3 rounded-xl disabled:opacity-30"
+            className="bg-primary p-3 rounded-xl disabled:opacity-30"
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
