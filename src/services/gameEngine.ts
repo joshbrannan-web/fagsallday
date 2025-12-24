@@ -657,9 +657,31 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
             const playerNetScore = playerScore - playerStrokes;
             const bankerNetScore = bankerScore - bankerStrokes;
 
-            // Calculate bet amount
-            const playerMult = holeData[player.id] || 1;
-            const betAmount = game.unitStake * playerMult * bankerMult;
+            // Calculate bet amount with score-based multipliers
+            let playerMult = holeData[player.id] || 1;
+            let effectiveBankerMult = bankerMult;
+            
+            // Apply birdie/eagle multipliers from game config
+            const birdieTriple = game.config?.birdieTriple ?? false;
+            const eagleQuintuple = game.config?.eagleQuintuple ?? false;
+            
+            // Apply score-based multipliers for banker
+            const bankerToPar = bankerScore - hole.par;
+            if (eagleQuintuple && bankerToPar <= -2) {
+              effectiveBankerMult *= 5;
+            } else if (birdieTriple && bankerToPar === -1) {
+              effectiveBankerMult *= 3;
+            }
+            
+            // Apply score-based multipliers for player
+            const playerToPar = playerScore - hole.par;
+            if (eagleQuintuple && playerToPar <= -2) {
+              playerMult *= 5;
+            } else if (birdieTriple && playerToPar === -1) {
+              playerMult *= 3;
+            }
+            
+            const betAmount = game.unitStake * playerMult * effectiveBankerMult;
 
             // Determine winner and update P&L
             if (playerNetScore < bankerNetScore) {
