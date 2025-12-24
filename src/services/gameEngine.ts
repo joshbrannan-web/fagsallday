@@ -28,15 +28,20 @@ export const calculateStrokesReceived = (courseHandicap: number, strokeIndex: nu
 };
 
 // Calculate strokes relative to banker for head-to-head Banker game
-// A player receives a stroke if: |Player Handicap - Banker Handicap| >= Hole Handicap Index
+// A player receives a stroke if:
+// 1. Player has HIGHER handicap than banker (lower handicap players don't get strokes)
+// 2. (Player Handicap - Banker Handicap) >= Hole Handicap Index
 // Returns 1 if player receives stroke, 0 otherwise
 export const calculateBankerStrokeReceived = (
   playerHandicap: number,
   bankerHandicap: number,
   holeHandicapIndex: number,
 ): number => {
-  const handicapDifference = Math.abs(playerHandicap - bankerHandicap);
-  // Player receives a stroke if absolute handicap difference >= hole handicap index
+  // Only higher handicap players can receive strokes
+  if (playerHandicap <= bankerHandicap) return 0;
+  
+  const handicapDifference = playerHandicap - bankerHandicap;
+  // Player receives a stroke if their handicap advantage >= hole handicap index
   return handicapDifference >= holeHandicapIndex ? 1 : 0;
 };
 
