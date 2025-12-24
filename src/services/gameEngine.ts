@@ -28,25 +28,16 @@ export const calculateStrokesReceived = (courseHandicap: number, strokeIndex: nu
 };
 
 // Calculate strokes relative to banker for head-to-head Banker game
-// Returns positive if player gets stroke, negative if banker gets stroke
-export const calculateRelativeStrokesVsBanker = (
+// A player receives a stroke if: |Player Handicap - Banker Handicap| >= Hole Handicap Index
+// Returns 1 if player receives stroke, 0 otherwise
+export const calculateBankerStrokeReceived = (
   playerHandicap: number,
   bankerHandicap: number,
-  holeStrokeIndex: number
+  holeHandicapIndex: number
 ): number => {
-  const diff = playerHandicap - bankerHandicap;
-  if (diff === 0) return 0;
-
-  const absDiff = Math.abs(diff);
-  // Player with higher handicap gets strokes on hardest holes
-  // If diff > 0, player has higher handicap and gets strokes
-  // If diff < 0, banker has higher handicap (player gives strokes, returned as negative)
-  
-  // Check if this hole's index falls within the stroke difference
-  if (holeStrokeIndex <= absDiff) {
-    return diff > 0 ? 1 : -1;
-  }
-  return 0;
+  const handicapDifference = Math.abs(playerHandicap - bankerHandicap);
+  // Player receives a stroke if handicap difference >= hole handicap index
+  return handicapDifference >= holeHandicapIndex ? 1 : 0;
 };
 
 export const getNetScore = (
@@ -315,13 +306,8 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
     const bankerGross = holeScores[bankerId];
     if (typeof bankerGross !== 'number') continue;
 
-    // Banker's net is just their gross (banker is the reference point, no strokes for themselves)
-    const bankerManualStrokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[bankerId];
-    // For banker, their strokes relative to themselves = 0 unless manually overridden
-    const bankerEffectiveStrokes = bankerManualStrokes !== undefined && bankerManualStrokes !== null 
-      ? bankerManualStrokes 
-      : 0;
-    const bankerNet = bankerGross - bankerEffectiveStrokes;
+    // Banker's net is just their gross (banker doesn't get strokes against themselves)
+    const bankerNet = bankerGross;
 
     // Get base multiplier for banker (support both formats)
     let bankerBaseMultiplier = holeBankerData['_META_BANKER_MULT'] || holeBankerData.bankerMultiplier || 1;
@@ -341,10 +327,25 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
       const playerGross = holeScores[p.id];
       if (typeof playerGross !== 'number') return;
 
-      // Only apply strokes if manually set, otherwise use gross score
+      // Check for manual stroke override first
       const playerManualStrokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p.id];
-      const playerEffectiveStrokes = playerManualStrokes !== undefined && playerManualStrokes !== null ? playerManualStrokes : 0;
-      const playerNet = playerGross - playerEffectiveStrokes;
+      
+      // Calculate strokes using Banker game rules:
+      // Player receives a stroke if |Player Handicap - Banker Handicap| >= Hole Handicap Index
+      let playerStrokesReceived: number;
+      if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
+        // Use manual override if set
+        playerStrokesReceived = playerManualStrokes;
+      } else {
+        // Calculate based on handicap difference vs hole handicap index
+        playerStrokesReceived = calculateBankerStrokeReceived(
+          p.courseHandicap,
+          banker.courseHandicap,
+          holeData.handicapIndex
+        );
+      }
+      
+      const playerNet = playerGross - playerStrokesReceived;
 
       // Get player-specific multiplier (stored directly under player ID in new format)
       let playerMultiplier = holeBankerData[p.id] || holeBankerData.playerMultipliers?.[p.id] || 1;
