@@ -1,11 +1,166 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
-import { ArrowLeft, Home, Play, Crown } from 'lucide-react';
+import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus } from 'lucide-react';
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
 import { Button } from '@/components/ui/button';
-import { GameType } from '../types';
+import { GameType, GameSettings, Player, HoleScores, GameData, Hole } from '../types';
 
+// FBO Segment Results Component
+interface FBOSegmentResultsProps {
+  fboGame: GameSettings;
+  fboPlayers: Player[];
+  scores: { [holeNumber: number]: HoleScores };
+  gameData: GameData;
+  courseHoles: Hole[];
+}
+
+const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
+  fboGame,
+  fboPlayers,
+  scores,
+  gameData,
+  courseHoles,
+}) => {
+  const unit = fboGame.unitStake;
+  const fboData = gameData?.[fboGame.id] || {};
+
+  // Check completed holes
+  const completedHoles = new Set<number>();
+  for (let h = 1; h <= courseHoles.length; h++) {
+    const holeScores = scores[h];
+    if (!holeScores) continue;
+    const allPlayersScored = fboPlayers.every(p => {
+      const score = holeScores[p.id];
+      return score !== undefined && score !== null && score > 0;
+    });
+    if (allPlayersScored) {
+      completedHoles.add(h);
+    }
+  }
+
+  const frontNineComplete = [1, 2, 3, 4, 5, 6, 7, 8, 9].every(h => completedHoles.has(h));
+  const backNineComplete = [10, 11, 12, 13, 14, 15, 16, 17, 18].every(h => completedHoles.has(h));
+  const overallComplete = frontNineComplete && backNineComplete;
+
+  // Count dots per segment
+  const dotCounts = { front: {} as { [id: string]: number }, back: {} as { [id: string]: number }, overall: {} as { [id: string]: number } };
+  fboPlayers.forEach(p => {
+    dotCounts.front[p.id] = 0;
+    dotCounts.back[p.id] = 0;
+    dotCounts.overall[p.id] = 0;
+  });
+
+  for (let h = 1; h <= courseHoles.length; h++) {
+    const holeDots = fboData[h]?.dots || [];
+    holeDots.forEach((playerId: string) => {
+      if (dotCounts.overall[playerId] !== undefined) {
+        dotCounts.overall[playerId]++;
+        if (h <= 9) dotCounts.front[playerId]++;
+        else dotCounts.back[playerId]++;
+      }
+    });
+  }
+
+  // Calculate segment result
+  const getSegmentResult = (segment: { [id: string]: number }, isComplete: boolean) => {
+    if (!isComplete) return { status: 'pending' as const, winners: [], losers: [], amounts: {} as { [id: string]: number } };
+    
+    const maxDots = Math.max(...Object.values(segment));
+    if (maxDots === 0) return { status: 'push' as const, winners: [], losers: [], amounts: {} as { [id: string]: number } };
+    
+    const winners = Object.entries(segment).filter(([_, dots]) => dots === maxDots).map(([id]) => id);
+    const losers = Object.entries(segment).filter(([_, dots]) => dots < maxDots).map(([id]) => id);
+    
+    const amounts: { [id: string]: number } = {};
+    fboPlayers.forEach(p => amounts[p.id] = 0);
+    
+    if (winners.length === 1) {
+      amounts[winners[0]] = unit * losers.length;
+      losers.forEach(id => amounts[id] = -unit);
+    } else if (losers.length > 0) {
+      const totalFromLosers = unit * losers.length;
+      const perWinner = totalFromLosers / winners.length;
+      winners.forEach(id => amounts[id] = perWinner);
+      losers.forEach(id => amounts[id] = -unit);
+    }
+    
+    return { status: 'settled' as const, winners, losers, amounts };
+  };
+
+  const frontResult = getSegmentResult(dotCounts.front, frontNineComplete);
+  const backResult = getSegmentResult(dotCounts.back, backNineComplete);
+  const overallResult = getSegmentResult(dotCounts.overall, overallComplete);
+
+  const segments = [
+    { label: 'Front 9', result: frontResult, dots: dotCounts.front, complete: frontNineComplete },
+    { label: 'Back 9', result: backResult, dots: dotCounts.back, complete: backNineComplete },
+    { label: 'Overall', result: overallResult, dots: dotCounts.overall, complete: overallComplete },
+  ];
+
+  return (
+    <div className="mt-4 inline-block min-w-full bg-card rounded-xl shadow-sm border border-brand-gold/30 overflow-hidden">
+      <div className="bg-brand-gold/10 px-4 py-2 border-b border-brand-gold/20">
+        <div className="flex items-center gap-2">
+          <Trophy className="w-5 h-5 text-brand-gold" />
+          <h3 className="font-bold text-foreground">FBO Results</h3>
+          <span className="text-xs text-muted-foreground ml-auto">${unit} per segment × 3 segments</span>
+        </div>
+      </div>
+      <div className="p-4 space-y-3">
+        {segments.map(({ label, result, dots, complete }) => (
+          <div key={label} className={`rounded-lg p-3 ${complete ? 'bg-muted/50' : 'bg-muted/20'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-sm">{label}</span>
+              {!complete ? (
+                <span className="text-xs text-muted-foreground px-2 py-0.5 bg-muted rounded-full">In Progress</span>
+              ) : result.status === 'push' ? (
+                <span className="text-xs text-muted-foreground px-2 py-0.5 bg-muted rounded-full flex items-center gap-1">
+                  <Minus className="w-3 h-3" /> Push
+                </span>
+              ) : (
+                <span className="text-xs text-success px-2 py-0.5 bg-success/10 rounded-full">Settled</span>
+              )}
+            </div>
+            <div className="grid gap-1">
+              {fboPlayers.map(player => {
+                const isWinner = result.winners.includes(player.id);
+                const isLoser = result.losers.includes(player.id);
+                const amount = result.amounts[player.id] || 0;
+                const playerDots = dots[player.id] || 0;
+                
+                return (
+                  <div 
+                    key={player.id} 
+                    className={`flex items-center justify-between px-3 py-2 rounded-md text-sm ${
+                      isWinner ? 'bg-success/10 border border-success/20' : 
+                      isLoser ? 'bg-destructive/10 border border-destructive/20' : 
+                      'bg-background/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isWinner && <Trophy className="w-4 h-4 text-brand-gold" />}
+                      {isLoser && <TrendingDown className="w-4 h-4 text-destructive" />}
+                      <span className={isWinner ? 'font-semibold' : ''}>{player.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">{playerDots} dot{playerDots !== 1 ? 's' : ''}</span>
+                      {complete && result.status === 'settled' && (
+                        <span className={`font-mono font-bold ${amount > 0 ? 'text-success' : amount < 0 ? 'text-destructive' : ''}`}>
+                          {amount > 0 ? `+$${amount}` : amount < 0 ? `-$${Math.abs(amount)}` : '-'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 const Scorecard: React.FC = () => {
   const navigate = useNavigate();
   const { currentRound, roundTotals } = useApp();
@@ -194,59 +349,70 @@ const Scorecard: React.FC = () => {
 
         {/* FBO Dots Section */}
         {fboGame && fboPlayers.length > 0 && (
-          <div className="mt-4 inline-block min-w-full bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
-            <div className="bg-primary/10 px-4 py-2 border-b border-primary/20">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🎱</span>
-                <h3 className="font-bold text-foreground">FBO Dots</h3>
-                <span className="text-xs text-muted-foreground ml-auto">${fboGame.unitStake} per segment</span>
+          <>
+            <div className="mt-4 inline-block min-w-full bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
+              <div className="bg-primary/10 px-4 py-2 border-b border-primary/20">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🎱</span>
+                  <h3 className="font-bold text-foreground">FBO Dots</h3>
+                  <span className="text-xs text-muted-foreground ml-auto">${fboGame.unitStake} per segment</span>
+                </div>
               </div>
-            </div>
-            <table className="w-full text-center border-collapse text-sm">
-              <thead>
-                <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
-                  <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
-                  {activeHoles.map(h => (
-                    <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
-                      {h.number}
-                    </th>
-                  ))}
-                  <th className="p-2 min-w-[50px] bg-muted">{viewMode === 'FRONT' ? 'Front' : 'Back'}</th>
-                  <th className="p-2 min-w-[50px] bg-primary/10">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fboPlayers.map((player, idx) => (
-                  <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
-                    <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
-                      {player.name}
-                    </td>
-                    {activeHoles.map(h => {
-                      const dots = getDotsForHole(h.number);
-                      const hasDot = dots.includes(player.id);
-                      return (
-                        <td key={h.number} className="p-2 border-r border-border/50">
-                          {hasDot ? (
-                            <span className="inline-flex items-center justify-center w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold">
-                              ●
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/30">-</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                    <td className="p-2 font-bold text-foreground">
-                      {getTotalDotsForPlayer(player.id, activeHoles)}
-                    </td>
-                    <td className="p-2 font-bold bg-primary/5">
-                      <span className="text-primary">{getOverallDotsForPlayer(player.id)}</span>
-                    </td>
+              <table className="w-full text-center border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
+                    <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
+                    {activeHoles.map(h => (
+                      <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
+                        {h.number}
+                      </th>
+                    ))}
+                    <th className="p-2 min-w-[50px] bg-muted">{viewMode === 'FRONT' ? 'Front' : 'Back'}</th>
+                    <th className="p-2 min-w-[50px] bg-primary/10">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {fboPlayers.map((player, idx) => (
+                    <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                      <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
+                        {player.name}
+                      </td>
+                      {activeHoles.map(h => {
+                        const dots = getDotsForHole(h.number);
+                        const hasDot = dots.includes(player.id);
+                        return (
+                          <td key={h.number} className="p-2 border-r border-border/50">
+                            {hasDot ? (
+                              <span className="inline-flex items-center justify-center w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold">
+                                ●
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/30">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="p-2 font-bold text-foreground">
+                        {getTotalDotsForPlayer(player.id, activeHoles)}
+                      </td>
+                      <td className="p-2 font-bold bg-primary/5">
+                        <span className="text-primary">{getOverallDotsForPlayer(player.id)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* FBO Segment Results */}
+            <FBOSegmentResults 
+              fboGame={fboGame}
+              fboPlayers={fboPlayers}
+              scores={currentRound.scores}
+              gameData={currentRound.gameData}
+              courseHoles={holes}
+            />
+          </>
         )}
       </div>
 
