@@ -422,45 +422,110 @@ export const calculateRoundTotals = (round: Round): { [playerId: string]: number
   return totals;
 };
 
-export const calculateAggregatedHolePnL = (round: Round): { [holeNumber: number]: { [playerId: string]: number } } => {
-  const holePnL: { [holeNumber: number]: { [playerId: string]: number } } = {};
+export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<string, number>> => {
+  const holePnL: Record<number, Record<string, number>> = {};
 
-  // Initialize
   round.course.holes.forEach(hole => {
-    holePnL[hole.number] = {};
+    const holeNumber = hole.number;
+    holePnL[holeNumber] = {};
+    
+    // Initialize all players to $0 for this hole
     round.players.forEach(p => {
-      holePnL[hole.number][p.id] = 0;
+      holePnL[holeNumber][p.id] = 0;
     });
-  });
 
-  round.games.forEach(game => {
-    let result: GameResult;
+    // Process Banker games
+    round.games
+      .filter(g => g.type === GameType.BANKER)
+      .forEach(game => {
+        const holeData = round.gameData?.[game.id]?.[holeNumber] || {};
+        const bankerId = holeData['_META_BANKER_ID'];
+        
+        if (!bankerId) return; // No banker selected for this hole
+        
+        const banker = round.players.find(p => p.id === bankerId);
+        if (!banker) return;
 
-    switch (game.type) {
-      case GameType.SKINS:
-        result = calculateSkins(round, game);
-        break;
-      case GameType.NASSAU:
-        result = calculateNassau(round, game);
-        break;
-      case GameType.OPEN_BETTING:
-        result = calculateOpenBetting(round, game);
-        break;
-      case GameType.BANKER:
-        result = calculateBanker(round, game);
-        break;
-      default:
-        return;
-    }
+        const bankerScore = round.scores[holeNumber]?.[bankerId];
+        if (bankerScore === undefined || bankerScore === null) return;
 
-    if (result.holeResults) {
-      Object.entries(result.holeResults).forEach(([holeStr, playerAmounts]) => {
-        const holeNum = parseInt(holeStr);
-        Object.entries(playerAmounts).forEach(([playerId, amount]) => {
-          holePnL[holeNum][playerId] = (holePnL[holeNum][playerId] || 0) + amount;
+        const bankerMult = holeData['_META_BANKER_MULT'] || 1;
+        
+        // Calculate banker's strokes (should be 0, bankers don't get strokes against themselves)
+        const bankerStrokes = 0;
+        const bankerNetScore = bankerScore - bankerStrokes;
+
+        // Process each opponent
+        round.players
+          .filter(p => p.id !== bankerId)
+          .forEach(player => {
+            const playerScore = round.scores[holeNumber]?.[player.id];
+            if (playerScore === undefined || playerScore === null) return;
+
+            // Calculate if player receives stroke
+            const handicapDiff = Math.abs(player.courseHandicap - banker.courseHandicap);
+            let playerStrokes = handicapDiff >= hole.handicapIndex ? 1 : 0;
+            
+            // Check for manual override
+            const manualStrokes = round.gameData?.['MANUAL_STROKES']?.[holeNumber]?.[player.id];
+            if (manualStrokes !== undefined && manualStrokes !== null) {
+              playerStrokes = manualStrokes;
+            }
+
+            const playerNetScore = playerScore - playerStrokes;
+            
+            // Calculate bet amount
+            const playerMult = holeData[player.id] || 1;
+            const betAmount = game.unitStake * playerMult * bankerMult;
+            
+            // Determine winner and update P&L
+            if (playerNetScore < bankerNetScore) {
+              // Player wins
+              holePnL[holeNumber][player.id] += betAmount;
+              holePnL[holeNumber][bankerId] -= betAmount;
+            } else if (playerNetScore > bankerNetScore) {
+              // Banker wins
+              holePnL[holeNumber][player.id] -= betAmount;
+              holePnL[holeNumber][bankerId] += betAmount;
+            }
+            // Tie = no money changes hands
+          });
+      });
+
+    // Process Open Betting games
+    round.games
+      .filter(g => g.type === GameType.OPEN_BETTING)
+      .forEach(game => {
+        const holeData = round.gameData?.[game.id]?.[holeNumber] || {};
+        round.players.forEach(p => {
+          const betValue = holeData[p.id] || 0;
+          holePnL[holeNumber][p.id] += betValue;
         });
       });
-    }
+
+    // Process Skins games
+    round.games
+      .filter(g => g.type === GameType.SKINS)
+      .forEach(game => {
+        const result = calculateSkins(round, game);
+        if (result.holeResults?.[holeNumber]) {
+          Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
+            holePnL[holeNumber][playerId] += amount;
+          });
+        }
+      });
+
+    // Process Nassau games
+    round.games
+      .filter(g => g.type === GameType.NASSAU)
+      .forEach(game => {
+        const result = calculateNassau(round, game);
+        if (result.holeResults?.[holeNumber]) {
+          Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
+            holePnL[holeNumber][playerId] += amount;
+          });
+        }
+      });
   });
 
   return holePnL;
