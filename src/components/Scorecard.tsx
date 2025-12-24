@@ -88,7 +88,11 @@ const Scorecard: React.FC = () => {
               <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
                 <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
                 {activeHoles.map(h => (
-                  <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
+                  <th 
+                    key={h.number} 
+                    className="p-2 min-w-[40px] border-r border-border/50 cursor-pointer hover:bg-primary/10 transition-colors"
+                    onClick={() => navigate('/active', { state: { startHole: h.number } })}
+                  >
                     {h.number}
                     <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}</div>
                   </th>
