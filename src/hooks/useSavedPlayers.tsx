@@ -46,8 +46,15 @@ export const useSavedPlayers = () => {
 
   const addPlayer = async (name: string, handicapIndex: number, tee: string = 'White') => {
     if (!user) {
-      toast.error('Please sign in to save players');
       return null;
+    }
+
+    // Check if player with same name already exists
+    const existing = savedPlayers.find(p => p.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      // Update existing player instead
+      await updatePlayer(existing.id, { handicap_index: handicapIndex, tee });
+      return existing;
     }
 
     try {
@@ -58,18 +65,16 @@ export const useSavedPlayers = () => {
           name: name.trim(),
           handicap_index: handicapIndex,
           tee
-        })
+        } as any)
         .select()
         .single();
 
       if (error) throw error;
       
-      setSavedPlayers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-      toast.success(`${name} saved to your players`);
-      return data;
+      setSavedPlayers(prev => [...prev, data as SavedPlayer].sort((a, b) => a.name.localeCompare(b.name)));
+      return data as SavedPlayer;
     } catch (error) {
       console.error('Error adding player:', error);
-      toast.error('Failed to save player');
       return null;
     }
   };
@@ -80,19 +85,18 @@ export const useSavedPlayers = () => {
     try {
       const { error } = await supabase
         .from('saved_players')
-        .update(updates)
+        .update(updates as any)
         .eq('id', id)
         .eq('user_id', user.id);
 
       if (error) throw error;
       
       setSavedPlayers(prev => 
-        prev.map(p => p.id === id ? { ...p, ...updates } : p)
+        prev.map(p => p.id === id ? { ...p, ...updates } as SavedPlayer : p)
       );
       return true;
     } catch (error) {
       console.error('Error updating player:', error);
-      toast.error('Failed to update player');
       return false;
     }
   };
