@@ -98,12 +98,20 @@ const ActiveRound: React.FC = () => {
     updateScore(activeHole, pid, displayScore);
   };
 
-  const handleStrokeToggle = (pid: string, courseHandicap: number) => {
+  const handleStrokeToggle = (pid: string, autoStrokes: number) => {
     const manualStrokes = currentRound.gameData?.['MANUAL_STROKES']?.[activeHole]?.[pid];
-    // Simple toggle: if currently has stroke (1), remove it (0). If no stroke (0 or undefined), add one (1).
-    const currentEffective = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : 0;
-    const newValue = currentEffective > 0 ? 0 : 1;
-    updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
+    
+    // If manual strokes are set, toggle: if currently stroking, set to 0; if not, set to 1
+    // If no manual override exists, set opposite of auto-calculated
+    if (manualStrokes !== undefined && manualStrokes !== null) {
+      // Already has manual override - toggle between 0 and 1
+      const newValue = manualStrokes > 0 ? 0 : 1;
+      updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
+    } else {
+      // No manual override yet - set to opposite of auto-calculated
+      const newValue = autoStrokes > 0 ? 0 : 1;
+      updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
+    }
   };
 
   const handleOpenBetChange = (gameId: string, pid: string, delta: number) => {
@@ -267,11 +275,22 @@ const ActiveRound: React.FC = () => {
             banker = currentRound.players.find(pl => pl.id === currentBankerId);
           }
 
-          // Strokes are now fully manual - default to 0 (no stroke)
           const isBanker = currentBankerId === p.id;
           
-          // Use manual strokes if set, otherwise default to 0 (no stroke)
-          const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : 0;
+          // Calculate auto strokes based on handicap difference vs banker
+          let autoCalculatedStrokes = 0;
+          if (banker && !isBanker && courseHole) {
+            autoCalculatedStrokes = calculateBankerStrokeReceived(
+              p.courseHandicap,
+              banker.courseHandicap,
+              courseHole.handicapIndex
+            );
+          }
+          
+          // Use manual strokes if explicitly set, otherwise use auto-calculated
+          const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null 
+            ? manualStrokes 
+            : autoCalculatedStrokes;
           const isStroking = effectiveStrokes > 0;
 
           // Calculate net score using effective strokes
@@ -305,7 +324,7 @@ const ActiveRound: React.FC = () => {
                   <div className="flex flex-col items-end gap-1">
                     <label className="text-[10px] uppercase font-bold text-muted-foreground">Stroke</label>
                     <button 
-                      onClick={() => handleStrokeToggle(p.id, p.courseHandicap)}
+                      onClick={() => handleStrokeToggle(p.id, autoCalculatedStrokes)}
                       className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${isStroking ? 'bg-primary border-primary' : 'bg-background border-border'}`}
                     >
                       {isStroking && <CheckSquare className="w-4 h-4 text-primary-foreground" />}
