@@ -446,14 +446,18 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
   // Initialize results for all FBO players
   fboPlayers.forEach((p) => (results[p.id] = 0));
 
-  // Determine which holes have been completed (at least one player has a score)
+  // Determine which holes have been completed (all FBO players have a score)
   const completedHoles = new Set<number>();
   for (let h = 1; h <= course.holes.length; h++) {
-    const hasAnyScore = fboPlayers.some(p => {
-      const score = scores[p.id]?.[h]?.gross;
+    const holeScores = scores[h];
+    if (!holeScores) continue;
+    
+    // Check if all FBO players have completed this hole
+    const allPlayersScored = fboPlayers.every(p => {
+      const score = holeScores[p.id];
       return score !== undefined && score !== null && score > 0;
     });
-    if (hasAnyScore) {
+    if (allPlayersScored) {
       completedHoles.add(h);
     }
   }
