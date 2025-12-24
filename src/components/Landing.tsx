@@ -1,15 +1,76 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroIllustration from './HeroIllustration';
-import { Play, History, Flag } from 'lucide-react';
+import { Play, History, Flag, User, LogOut, Loader2 } from 'lucide-react';
 import { useApp } from '../App';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
-  const { currentRound } = useApp();
+  const { currentRound, isLoading: appLoading } = useApp();
+  const { user, profile, signOut, isLoading: authLoading } = useAuth();
+
+  const isLoading = appLoading || authLoading;
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8 bg-background animate-fade-in">
+      {/* User Menu - Top Right */}
+      <div className="absolute top-4 right-4">
+        {user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <User className="w-4 h-4" />
+                <span className="hidden sm:inline">{profile?.display_name || 'Profile'}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <div className="px-2 py-1.5">
+                <p className="text-sm font-medium">{profile?.display_name}</p>
+                <p className="text-xs text-muted-foreground">
+                  Handicap: {profile?.handicap_index ?? 'Not set'}
+                </p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/auth')}
+            className="gap-2"
+          >
+            <User className="w-4 h-4" />
+            Sign In
+          </Button>
+        )}
+      </div>
+
       <div className="max-w-md w-full">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-2">
@@ -59,7 +120,7 @@ const Landing: React.FC = () => {
       </div>
 
       <p className="text-xs text-muted-foreground mt-auto">
-        v1.0.0 • Offline Ready
+        v1.0.0 • {user ? 'Synced' : 'Offline Ready'}
       </p>
     </div>
   );

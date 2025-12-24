@@ -7,11 +7,15 @@ import ActiveRound from './components/ActiveRound';
 import RoundSummary from './components/RoundSummary';
 import RoundHistory from './components/RoundHistory';
 import Scorecard from './components/Scorecard';
+import Auth from './pages/Auth';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { useRounds } from '@/hooks/useRounds';
+import { useSavedCourses } from '@/hooks/useSavedCourses';
 
 // --- Context ---
 
@@ -28,6 +32,7 @@ interface AppState {
   saveCourse: (course: Course) => void;
   deleteCourse: (courseId: string) => void;
   roundTotals: { [playerId: string]: number };
+  isLoading: boolean;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -41,146 +46,202 @@ export const useApp = () => {
 const queryClient = new QueryClient();
 
 const AppContent: React.FC = () => {
-  const [currentRound, setCurrentRound] = useState<Round | null>(() => {
+  const { user, isLoading: authLoading } = useAuth();
+  const { 
+    rounds, 
+    currentRound: dbCurrentRound, 
+    isLoading: roundsLoading, 
+    createRound, 
+    updateRound, 
+    deleteRound: dbDeleteRound,
+    finishRound: dbFinishRound,
+    loadRound
+  } = useRounds();
+  const { 
+    savedCourses: dbSavedCourses, 
+    isLoading: coursesLoading, 
+    saveCourse: dbSaveCourse, 
+    deleteCourse: dbDeleteCourse 
+  } = useSavedCourses();
+
+  // Fallback to localStorage for non-authenticated users
+  const [localCurrentRound, setLocalCurrentRound] = useState<Round | null>(() => {
     const saved = localStorage.getItem('fg_current_round');
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [savedCourses, setSavedCourses] = useState<Course[]>(() => {
+  const [localSavedCourses, setLocalSavedCourses] = useState<Course[]>(() => {
     const saved = localStorage.getItem('fg_saved_courses');
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [roundHistory, setRoundHistory] = useState<Round[]>(() => {
+  const [localRoundHistory, setLocalRoundHistory] = useState<Round[]>(() => {
     const saved = localStorage.getItem('fg_history');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [roundTotals, setRoundTotals] = useState<{ [playerId: string]: number }>({});
 
+  // Determine which data source to use
+  const isAuthenticated = !!user;
+  const currentRound = isAuthenticated ? dbCurrentRound : localCurrentRound;
+  const savedCourses = isAuthenticated ? dbSavedCourses : localSavedCourses;
+  const roundHistory = isAuthenticated ? rounds : localRoundHistory;
+  const isLoading = authLoading || (isAuthenticated && (roundsLoading || coursesLoading));
+
+  // Calculate totals when round changes
   useEffect(() => {
     if (currentRound) {
-      if (currentRound.status === 'ACTIVE') {
-        localStorage.setItem('fg_current_round', JSON.stringify(currentRound));
-
-        // Auto-save active round to history
-        setRoundHistory(prev => {
-          const index = prev.findIndex(r => r.id === currentRound.id);
-          if (index !== -1) {
-            if (JSON.stringify(prev[index]) === JSON.stringify(currentRound)) return prev;
-            const newHistory = [...prev];
-            newHistory[index] = currentRound;
-            return newHistory;
-          }
-          return [currentRound, ...prev];
-        });
-      }
       setRoundTotals(calculateRoundTotals(currentRound));
-    } else {
-      localStorage.removeItem('fg_current_round');
     }
   }, [currentRound]);
 
+  // Persist local data for non-authenticated users
   useEffect(() => {
-    localStorage.setItem('fg_saved_courses', JSON.stringify(savedCourses));
-  }, [savedCourses]);
+    if (!isAuthenticated && localCurrentRound) {
+      if (localCurrentRound.status === 'ACTIVE') {
+        localStorage.setItem('fg_current_round', JSON.stringify(localCurrentRound));
+
+        setLocalRoundHistory(prev => {
+          const index = prev.findIndex(r => r.id === localCurrentRound.id);
+          if (index !== -1) {
+            if (JSON.stringify(prev[index]) === JSON.stringify(localCurrentRound)) return prev;
+            const newHistory = [...prev];
+            newHistory[index] = localCurrentRound;
+            return newHistory;
+          }
+          return [localCurrentRound, ...prev];
+        });
+      }
+    } else if (!isAuthenticated) {
+      localStorage.removeItem('fg_current_round');
+    }
+  }, [localCurrentRound, isAuthenticated]);
 
   useEffect(() => {
-    localStorage.setItem('fg_history', JSON.stringify(roundHistory));
-  }, [roundHistory]);
+    if (!isAuthenticated) {
+      localStorage.setItem('fg_saved_courses', JSON.stringify(localSavedCourses));
+    }
+  }, [localSavedCourses, isAuthenticated]);
 
-  const startNewRound = (course: Course, players: Player[], games: GameSettings[]) => {
-    const newRound: Round = {
-      id: Date.now().toString(),
-      course,
-      players,
-      games,
-      scores: {},
-      gameData: {},
-      status: 'ACTIVE',
-      startTime: Date.now()
-    };
-    setCurrentRound(newRound);
-  };
+  useEffect(() => {
+    if (!isAuthenticated) {
+      localStorage.setItem('fg_history', JSON.stringify(localRoundHistory));
+    }
+  }, [localRoundHistory, isAuthenticated]);
 
-  const updateScore = (holeNumber: number, playerId: string, score: number) => {
-    setCurrentRound(prev => {
-      if (!prev) return null;
-      const newScores = { ...prev.scores };
-      if (!newScores[holeNumber]) newScores[holeNumber] = {};
-
-      newScores[holeNumber] = {
-        ...newScores[holeNumber],
-        [playerId]: score
+  const startNewRound = async (course: Course, players: Player[], games: GameSettings[]) => {
+    if (isAuthenticated) {
+      await createRound(course, players, games);
+    } else {
+      const newRound: Round = {
+        id: Date.now().toString(),
+        course,
+        players,
+        games,
+        scores: {},
+        gameData: {},
+        status: 'ACTIVE',
+        startTime: Date.now()
       };
-
-      return { ...prev, scores: newScores };
-    });
-  };
-
-  const updateGameData = (gameId: string, holeNumber: number, key: string, value: any) => {
-    setCurrentRound(prev => {
-      if (!prev) return null;
-      const newGameData = { ...prev.gameData };
-      
-      if (!newGameData[gameId]) {
-        newGameData[gameId] = {};
-      }
-      
-      if (!newGameData[gameId][holeNumber]) {
-        newGameData[gameId][holeNumber] = {};
-      }
-      
-      newGameData[gameId][holeNumber] = {
-        ...newGameData[gameId][holeNumber],
-        [key]: value
-      };
-
-      return { ...prev, gameData: newGameData };
-    });
-  };
-
-  const finishRound = () => {
-    if (!currentRound) return;
-
-    const completedRound = { ...currentRound, status: 'COMPLETE' as const };
-
-    setRoundHistory(prev => {
-      const index = prev.findIndex(r => r.id === currentRound.id);
-      if (index !== -1) {
-        const newHistory = [...prev];
-        newHistory[index] = completedRound;
-        return newHistory;
-      }
-      return [completedRound, ...prev];
-    });
-
-    setCurrentRound(null);
-  };
-
-  const loadPastRound = (round: Round) => {
-    setCurrentRound(round);
-  };
-
-  const deleteRound = (roundId: string) => {
-    setRoundHistory(prev => prev.filter(r => r.id !== roundId));
-    if (currentRound?.id === roundId) {
-      setCurrentRound(null);
+      setLocalCurrentRound(newRound);
     }
   };
 
-  const saveCourse = (course: Course) => {
-    setSavedCourses(prev => {
-      const exists = prev.find(c => c.id === course.id);
-      if (exists) {
-        return prev.map(c => c.id === course.id ? course : c);
-      }
-      return [...prev, course];
-    });
+  const updateScore = async (holeNumber: number, playerId: string, score: number) => {
+    if (!currentRound) return;
+
+    const newScores = { ...currentRound.scores };
+    if (!newScores[holeNumber]) newScores[holeNumber] = {};
+    newScores[holeNumber] = {
+      ...newScores[holeNumber],
+      [playerId]: score
+    };
+
+    if (isAuthenticated) {
+      await updateRound(currentRound.id, { scores: newScores });
+    } else {
+      setLocalCurrentRound(prev => prev ? { ...prev, scores: newScores } : null);
+    }
   };
 
-  const deleteCourse = (courseId: string) => {
-    setSavedCourses(prev => prev.filter(c => c.id !== courseId));
+  const updateGameData = async (gameId: string, holeNumber: number, key: string, value: any) => {
+    if (!currentRound) return;
+
+    const newGameData = { ...currentRound.gameData };
+    if (!newGameData[gameId]) newGameData[gameId] = {};
+    if (!newGameData[gameId][holeNumber]) newGameData[gameId][holeNumber] = {};
+    newGameData[gameId][holeNumber] = {
+      ...newGameData[gameId][holeNumber],
+      [key]: value
+    };
+
+    if (isAuthenticated) {
+      await updateRound(currentRound.id, { gameData: newGameData });
+    } else {
+      setLocalCurrentRound(prev => prev ? { ...prev, gameData: newGameData } : null);
+    }
+  };
+
+  const finishRound = async () => {
+    if (!currentRound) return;
+
+    if (isAuthenticated) {
+      await dbFinishRound(currentRound.id);
+    } else {
+      const completedRound = { ...currentRound, status: 'COMPLETE' as const };
+      setLocalRoundHistory(prev => {
+        const index = prev.findIndex(r => r.id === currentRound.id);
+        if (index !== -1) {
+          const newHistory = [...prev];
+          newHistory[index] = completedRound;
+          return newHistory;
+        }
+        return [completedRound, ...prev];
+      });
+      setLocalCurrentRound(null);
+    }
+  };
+
+  const loadPastRound = (round: Round) => {
+    if (isAuthenticated) {
+      loadRound(round);
+    } else {
+      setLocalCurrentRound(round);
+    }
+  };
+
+  const deleteRound = async (roundId: string) => {
+    if (isAuthenticated) {
+      await dbDeleteRound(roundId);
+    } else {
+      setLocalRoundHistory(prev => prev.filter(r => r.id !== roundId));
+      if (localCurrentRound?.id === roundId) {
+        setLocalCurrentRound(null);
+      }
+    }
+  };
+
+  const saveCourse = async (course: Course) => {
+    if (isAuthenticated) {
+      await dbSaveCourse(course);
+    } else {
+      setLocalSavedCourses(prev => {
+        const exists = prev.find(c => c.id === course.id);
+        if (exists) {
+          return prev.map(c => c.id === course.id ? course : c);
+        }
+        return [...prev, course];
+      });
+    }
+  };
+
+  const deleteCourse = async (courseId: string) => {
+    if (isAuthenticated) {
+      await dbDeleteCourse(courseId);
+    } else {
+      setLocalSavedCourses(prev => prev.filter(c => c.id !== courseId));
+    }
   };
 
   const value: AppState = {
@@ -195,7 +256,8 @@ const AppContent: React.FC = () => {
     deleteRound,
     saveCourse,
     deleteCourse,
-    roundTotals
+    roundTotals,
+    isLoading
   };
 
   return (
@@ -203,6 +265,7 @@ const AppContent: React.FC = () => {
       <HashRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/auth" element={<Auth />} />
           <Route path="/setup" element={<SetupWizard />} />
           <Route path="/active" element={<ActiveRound />} />
           <Route path="/scorecard" element={<Scorecard />} />
@@ -216,11 +279,13 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AppContent />
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AppContent />
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
