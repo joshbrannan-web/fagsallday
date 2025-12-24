@@ -1,4 +1,4 @@
-import { Course, GameSettings, GameType, Player, Round, GameResult } from '../types';
+import { Course, GameSettings, GameType, Player, Round, GameResult } from "../types";
 
 // --- Handicap Utilities ---
 
@@ -21,21 +21,21 @@ export const calculateStrokesReceived = (courseHandicap: number, strokeIndex: nu
     const remainder = absHcp % 18;
     // Remainder 1 => add stroke on Index 18.
     // Logic: If hole stroke index is > (18 - remainder), we add a stroke.
-    const addsStroke = strokeIndex > (18 - remainder);
+    const addsStroke = strokeIndex > 18 - remainder;
     return -(baseStrokes + (addsStroke ? 1 : 0));
   }
   return 0;
 };
 
 // Calculate strokes relative to banker for head-to-head Banker game
-// A player receives a stroke if: |Player Handicap - Banker Handicap| >= Hole Handicap Index
+// A player receives a stroke if: (Player Handicap - Banker Handicap) >= Hole Handicap Index
 // Returns 1 if player receives stroke, 0 otherwise
 export const calculateBankerStrokeReceived = (
   playerHandicap: number,
   bankerHandicap: number,
-  holeHandicapIndex: number
+  holeHandicapIndex: number,
 ): number => {
-  const handicapDifference = Math.abs(playerHandicap - bankerHandicap);
+  const handicapDifference = playerHandicap - bankerHandicap;
   // Player receives a stroke if handicap difference >= hole handicap index
   return handicapDifference >= holeHandicapIndex ? 1 : 0;
 };
@@ -45,7 +45,7 @@ export const getNetScore = (
   par: number,
   strokeIndex: number,
   courseHandicap: number,
-  overrideStrokes?: number | null // Optional manual override
+  overrideStrokes?: number | null, // Optional manual override
 ): number => {
   if (!gross) return 0;
 
@@ -64,7 +64,7 @@ export const getNetScore = (
 export const getMatchStrokesReceived = (
   playerHandicap: number,
   opponentHandicap: number,
-  holeStrokeIndex: number
+  holeStrokeIndex: number,
 ): number => {
   const diff = playerHandicap - opponentHandicap;
   if (diff === 0) return 0;
@@ -88,38 +88,38 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
   const results: { [id: string]: number } = {};
   const holeResults: { [hole: number]: { [id: string]: number } } = {};
 
-  players.forEach(p => results[p.id] = 0);
+  players.forEach((p) => (results[p.id] = 0));
 
   const details: string[] = [];
   let currentPot = unit;
 
-  // Iterate holes 1 to 18 (or however many defined)
+  // Iterate holes 1 to however many defined
   for (let h = 1; h <= course.holes.length; h++) {
-    const holeData = course.holes.find(hole => hole.number === h);
+    const holeData = course.holes.find((hole) => hole.number === h);
     if (!holeData) continue;
 
     const holeScores = scores[h];
     if (!holeScores) break; // Future hole
 
     // Check if all players have scores
-    const activePlayers = players.filter(p => typeof holeScores[p.id] === 'number');
+    const activePlayers = players.filter((p) => typeof holeScores[p.id] === "number");
     if (activePlayers.length < players.length) break; // Incomplete hole
 
     // Calculate net scores - only apply manual strokes, no automatic calculation
-    const nets = activePlayers.map(p => {
+    const nets = activePlayers.map((p) => {
       const gross = holeScores[p.id]!;
-      const manualStrokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p.id];
+      const manualStrokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p.id];
       // Only apply strokes if manually set, otherwise use gross score
       const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : 0;
       return {
         id: p.id,
-        net: gross - effectiveStrokes
+        net: gross - effectiveStrokes,
       };
     });
 
     // Find min score
-    const minScore = Math.min(...nets.map(n => n.net));
-    const winners = nets.filter(n => n.net === minScore);
+    const minScore = Math.min(...nets.map((n) => n.net));
+    const winners = nets.filter((n) => n.net === minScore);
 
     holeResults[h] = {}; // Init hole result
 
@@ -128,7 +128,7 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
       const winnerId = winners[0].id;
       const winAmountPerPlayer = currentPot;
 
-      players.forEach(p => {
+      players.forEach((p) => {
         let amount = 0;
         if (p.id === winnerId) {
           amount = winAmountPerPlayer * (players.length - 1);
@@ -140,8 +140,12 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
         holeResults[h][p.id] = amount;
       });
 
-      const winnerName = players.find(p => p.id === winnerId)?.name;
-      details.push(`Hole ${h}: ${winnerName} wins $${currentPot * (players.length - 1)} skin${currentPot > unit ? ' (with carryovers)' : ''}`);
+      const winnerName = players.find((p) => p.id === winnerId)?.name;
+      details.push(
+        `Hole ${h}: ${winnerName} wins $${currentPot * (players.length - 1)} skin${
+          currentPot > unit ? " (with carryovers)" : ""
+        }`,
+      );
 
       currentPot = unit; // Reset pot
     } else {
@@ -153,7 +157,7 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
         details.push(`Hole ${h}: Tie - no carryover`);
       }
       // No money changes hands on this hole
-      players.forEach(p => {
+      players.forEach((p) => {
         holeResults[h][p.id] = 0;
       });
     }
@@ -170,7 +174,7 @@ export const calculateNassau = (round: Round, game: GameSettings): GameResult =>
     return {
       gameId: game.id,
       playerResults: {},
-      details: ['Nassau requires exactly 2 players']
+      details: ["Nassau requires exactly 2 players"],
     };
   }
 
@@ -183,18 +187,18 @@ export const calculateNassau = (round: Round, game: GameSettings): GameResult =>
   let back9Score = { [p1.id]: 0, [p2.id]: 0 };
 
   for (let h = 1; h <= course.holes.length; h++) {
-    const holeData = course.holes.find(hole => hole.number === h);
+    const holeData = course.holes.find((hole) => hole.number === h);
     if (!holeData) continue;
 
     const holeScores = scores[h];
-    if (!holeScores || typeof holeScores[p1.id] !== 'number' || typeof holeScores[p2.id] !== 'number') {
+    if (!holeScores || typeof holeScores[p1.id] !== "number" || typeof holeScores[p2.id] !== "number") {
       break;
     }
 
     holeResults[h] = { [p1.id]: 0, [p2.id]: 0 };
 
-    const m1Strokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p1.id];
-    const m2Strokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p2.id];
+    const m1Strokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p1.id];
+    const m2Strokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p2.id];
 
     // Only apply strokes if manually set, otherwise use gross score
     const effectiveStrokes1 = m1Strokes !== undefined && m1Strokes !== null ? m1Strokes : 0;
@@ -227,15 +231,15 @@ export const calculateNassau = (round: Round, game: GameSettings): GameResult =>
     }
   };
 
-  calculatePayout(front9Score, 'Front 9');
-  calculatePayout(back9Score, 'Back 9');
+  calculatePayout(front9Score, "Front 9");
+  calculatePayout(back9Score, "Back 9");
 
   // Overall
   const overallScore = {
     [p1.id]: front9Score[p1.id] + back9Score[p1.id],
-    [p2.id]: front9Score[p2.id] + back9Score[p2.id]
+    [p2.id]: front9Score[p2.id] + back9Score[p2.id],
   };
-  calculatePayout(overallScore, 'Overall');
+  calculatePayout(overallScore, "Overall");
 
   return { gameId: game.id, playerResults: results, details, holeResults };
 };
@@ -245,7 +249,7 @@ export const calculateOpenBetting = (round: Round, game: GameSettings): GameResu
   const results: { [id: string]: number } = {};
   const holeResults: { [hole: number]: { [id: string]: number } } = {};
 
-  players.forEach(p => results[p.id] = 0);
+  players.forEach((p) => (results[p.id] = 0));
 
   const openBetData = round.gameData?.[game.id] || {};
 
@@ -253,7 +257,7 @@ export const calculateOpenBetting = (round: Round, game: GameSettings): GameResu
     const holeNum = parseInt(holeStr);
     holeResults[holeNum] = {};
 
-    if (typeof holeBets === 'object') {
+    if (typeof holeBets === "object") {
       Object.entries(holeBets).forEach(([playerId, amount]: [string, any]) => {
         const numAmount = Number(amount) || 0;
         results[playerId] = (results[playerId] || 0) + numAmount;
@@ -265,8 +269,8 @@ export const calculateOpenBetting = (round: Round, game: GameSettings): GameResu
   return {
     gameId: game.id,
     playerResults: results,
-    details: ['Open betting - manual adjustments'],
-    holeResults
+    details: ["Open betting - manual adjustments"],
+    holeResults,
   };
 };
 
@@ -279,38 +283,38 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
   const results: { [id: string]: number } = {};
   const holeResults: { [hole: number]: { [id: string]: number } } = {};
 
-  players.forEach(p => results[p.id] = 0);
+  players.forEach((p) => (results[p.id] = 0));
 
   const bankerData = round.gameData?.[game.id] || {};
 
   for (let h = 1; h <= course.holes.length; h++) {
-    const holeData = course.holes.find(hole => hole.number === h);
+    const holeData = course.holes.find((hole) => hole.number === h);
     if (!holeData) continue;
 
     const holeScores = scores[h];
     if (!holeScores) break;
 
     holeResults[h] = {};
-    players.forEach(p => holeResults[h][p.id] = 0);
+    players.forEach((p) => (holeResults[h][p.id] = 0));
 
     const holeBankerData = bankerData[h];
     if (!holeBankerData) continue;
 
     // Support both old format (bankerId) and new format (_META_BANKER_ID)
-    const bankerId = holeBankerData['_META_BANKER_ID'] || holeBankerData.bankerId;
+    const bankerId = holeBankerData["_META_BANKER_ID"] || holeBankerData.bankerId;
     if (!bankerId) continue;
 
-    const banker = players.find(p => p.id === bankerId);
+    const banker = players.find((p) => p.id === bankerId);
     if (!banker) continue;
 
     const bankerGross = holeScores[bankerId];
-    if (typeof bankerGross !== 'number') continue;
+    if (typeof bankerGross !== "number") continue;
 
     // Banker's net is just their gross (banker doesn't get strokes against themselves)
     const bankerNet = bankerGross;
 
     // Get base multiplier for banker (support both formats)
-    let bankerBaseMultiplier = holeBankerData['_META_BANKER_MULT'] || holeBankerData.bankerMultiplier || 1;
+    let bankerBaseMultiplier = holeBankerData["_META_BANKER_MULT"] || holeBankerData.bankerMultiplier || 1;
 
     // Apply score-based multipliers
     const bankerToPar = bankerGross - holeData.par;
@@ -321,17 +325,16 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
     }
 
     // Calculate against each non-banker player
-    players.forEach(p => {
+    players.forEach((p) => {
       if (p.id === bankerId) return;
 
       const playerGross = holeScores[p.id];
-      if (typeof playerGross !== 'number') return;
+      if (typeof playerGross !== "number") return;
 
       // Check for manual stroke override first
-      const playerManualStrokes = round.gameData?.['MANUAL_STROKES']?.[h]?.[p.id];
-      
-      // Calculate strokes using Banker game rules:
-      // Player receives a stroke if |Player Handicap - Banker Handicap| >= Hole Handicap Index
+      const playerManualStrokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p.id];
+
+      // Player receives a stroke if (Player Handicap - Banker Handicap) >= Hole Handicap Index
       let playerStrokesReceived: number;
       if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
         // Use manual override if set
@@ -341,16 +344,16 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
         playerStrokesReceived = calculateBankerStrokeReceived(
           p.courseHandicap,
           banker.courseHandicap,
-          holeData.handicapIndex
+          holeData.handicapIndex,
         );
       }
-      
+
       const playerNet = playerGross - playerStrokesReceived;
 
       // Get player-specific multiplier (stored directly under player ID in new format)
       let playerMultiplier = holeBankerData[p.id] || holeBankerData.playerMultipliers?.[p.id] || 1;
       // Filter out non-numeric values (like _META keys stored as strings)
-      if (typeof playerMultiplier !== 'number') playerMultiplier = 1;
+      if (typeof playerMultiplier !== "number") playerMultiplier = 1;
 
       // Apply score-based multipliers for player too
       const playerToPar = playerGross - holeData.par;
@@ -383,8 +386,8 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
   return {
     gameId: game.id,
     playerResults: results,
-    details: ['Banker game results'],
-    holeResults
+    details: ["Banker game results"],
+    holeResults,
   };
 };
 
@@ -392,9 +395,9 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
 
 export const calculateRoundTotals = (round: Round): { [playerId: string]: number } => {
   const totals: { [playerId: string]: number } = {};
-  round.players.forEach(p => totals[p.id] = 0);
+  round.players.forEach((p) => (totals[p.id] = 0));
 
-  round.games.forEach(game => {
+  round.games.forEach((game) => {
     let result: GameResult;
 
     switch (game.type) {
@@ -425,59 +428,62 @@ export const calculateRoundTotals = (round: Round): { [playerId: string]: number
 export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<string, number>> => {
   const holePnL: Record<number, Record<string, number>> = {};
 
-  round.course.holes.forEach(hole => {
+  round.course.holes.forEach((hole) => {
     const holeNumber = hole.number;
     holePnL[holeNumber] = {};
-    
+
     // Initialize all players to $0 for this hole
-    round.players.forEach(p => {
+    round.players.forEach((p) => {
       holePnL[holeNumber][p.id] = 0;
     });
 
     // Process Banker games
     round.games
-      .filter(g => g.type === GameType.BANKER)
-      .forEach(game => {
+      .filter((g) => g.type === GameType.BANKER)
+      .forEach((game) => {
         const holeData = round.gameData?.[game.id]?.[holeNumber] || {};
-        const bankerId = holeData['_META_BANKER_ID'];
-        
+        const bankerId = holeData["_META_BANKER_ID"];
+
         if (!bankerId) return; // No banker selected for this hole
-        
-        const banker = round.players.find(p => p.id === bankerId);
+
+        const banker = round.players.find((p) => p.id === bankerId);
         if (!banker) return;
 
         const bankerScore = round.scores[holeNumber]?.[bankerId];
         if (bankerScore === undefined || bankerScore === null) return;
 
-        const bankerMult = holeData['_META_BANKER_MULT'] || 1;
-        
-        // Calculate banker's strokes (should be 0, bankers don't get strokes against themselves)
+        const bankerMult = holeData["_META_BANKER_MULT"] || 1;
+
+        // Banker's strokes are 0 vs themselves
         const bankerStrokes = 0;
         const bankerNetScore = bankerScore - bankerStrokes;
 
         // Process each opponent
         round.players
-          .filter(p => p.id !== bankerId)
-          .forEach(player => {
+          .filter((p) => p.id !== bankerId)
+          .forEach((player) => {
             const playerScore = round.scores[holeNumber]?.[player.id];
             if (playerScore === undefined || playerScore === null) return;
 
-            // Calculate if player receives stroke
-            const handicapDiff = Math.abs(player.courseHandicap - banker.courseHandicap);
-            let playerStrokes = handicapDiff >= hole.handicapIndex ? 1 : 0;
-            
+            // Calculate if player receives stroke using Banker rule
+            let playerStrokes = calculateBankerStrokeReceived(
+              player.courseHandicap,
+              banker.courseHandicap,
+              hole.handicapIndex,
+            );
+
             // Check for manual override
-            const manualStrokes = round.gameData?.['MANUAL_STROKES']?.[holeNumber]?.[player.id];
+            const manualStrokes = round.gameData?.["MANUAL_STROKES"]?.[holeNumber]?.[player.id];
             if (manualStrokes !== undefined && manualStrokes !== null) {
               playerStrokes = manualStrokes;
             }
 
             const playerNetScore = playerScore - playerStrokes;
-            
+
             // Calculate bet amount
             const playerMult = holeData[player.id] || 1;
             const betAmount = game.unitStake * playerMult * bankerMult;
-            
+
             // Determine winner and update P&L
             if (playerNetScore < bankerNetScore) {
               // Player wins
@@ -494,10 +500,10 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
 
     // Process Open Betting games
     round.games
-      .filter(g => g.type === GameType.OPEN_BETTING)
-      .forEach(game => {
+      .filter((g) => g.type === GameType.OPEN_BETTING)
+      .forEach((game) => {
         const holeData = round.gameData?.[game.id]?.[holeNumber] || {};
-        round.players.forEach(p => {
+        round.players.forEach((p) => {
           const betValue = holeData[p.id] || 0;
           holePnL[holeNumber][p.id] += betValue;
         });
@@ -505,8 +511,8 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
 
     // Process Skins games
     round.games
-      .filter(g => g.type === GameType.SKINS)
-      .forEach(game => {
+      .filter((g) => g.type === GameType.SKINS)
+      .forEach((game) => {
         const result = calculateSkins(round, game);
         if (result.holeResults?.[holeNumber]) {
           Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
@@ -517,8 +523,8 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
 
     // Process Nassau games
     round.games
-      .filter(g => g.type === GameType.NASSAU)
-      .forEach(game => {
+      .filter((g) => g.type === GameType.NASSAU)
+      .forEach((game) => {
         const result = calculateNassau(round, game);
         if (result.holeResults?.[holeNumber]) {
           Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
@@ -533,18 +539,18 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
 
 export const getScoreLabel = (gross: number, par: number): string => {
   const diff = gross - par;
-  if (diff <= -3) return 'Albatross';
-  if (diff === -2) return 'Eagle';
-  if (diff === -1) return 'Birdie';
-  if (diff === 0) return 'Par';
-  if (diff === 1) return 'Bogey';
-  if (diff === 2) return 'Double Bogey';
-  if (diff === 3) return 'Triple Bogey';
+  if (diff <= -3) return "Albatross";
+  if (diff === -2) return "Eagle";
+  if (diff === -1) return "Birdie";
+  if (diff === 0) return "Par";
+  if (diff === 1) return "Bogey";
+  if (diff === 2) return "Double Bogey";
+  if (diff === 3) return "Triple Bogey";
   return `+${diff}`;
 };
 
 export const formatMoney = (amount: number): string => {
-  if (amount === 0) return '$0';
-  const prefix = amount > 0 ? '+' : '';
+  if (amount === 0) return "$0";
+  const prefix = amount > 0 ? "+" : "";
   return `${prefix}$${Math.abs(amount)}`;
 };
