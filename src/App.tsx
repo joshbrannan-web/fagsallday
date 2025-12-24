@@ -8,6 +8,7 @@ import RoundSummary from './components/RoundSummary';
 import RoundHistory from './components/RoundHistory';
 import Scorecard from './components/Scorecard';
 import Auth from './pages/Auth';
+import Players from './pages/Players';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -16,6 +17,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { useRounds } from '@/hooks/useRounds';
 import { useSavedCourses } from '@/hooks/useSavedCourses';
+import { useSavedPlayers } from '@/hooks/useSavedPlayers';
 
 // --- Context ---
 
@@ -63,6 +65,7 @@ const AppContent: React.FC = () => {
     saveCourse: dbSaveCourse, 
     deleteCourse: dbDeleteCourse 
   } = useSavedCourses();
+  const { addPlayer: addSavedPlayer } = useSavedPlayers();
 
   // Fallback to localStorage for non-authenticated users
   const [localCurrentRound, setLocalCurrentRound] = useState<Round | null>(() => {
@@ -131,7 +134,13 @@ const AppContent: React.FC = () => {
   }, [localRoundHistory, isAuthenticated]);
 
   const startNewRound = async (course: Course, players: Player[], games: GameSettings[]) => {
+    // Auto-save all players when authenticated
     if (isAuthenticated) {
+      for (const player of players) {
+        if (player.name.trim()) {
+          await addSavedPlayer(player.name, player.handicapIndex || 0, player.tee);
+        }
+      }
       await createRound(course, players, games);
     } else {
       const newRound: Round = {
@@ -266,6 +275,7 @@ const AppContent: React.FC = () => {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/players" element={<Players />} />
           <Route path="/setup" element={<SetupWizard />} />
           <Route path="/active" element={<ActiveRound />} />
           <Route path="/scorecard" element={<Scorecard />} />

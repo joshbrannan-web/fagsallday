@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroIllustration from './HeroIllustration';
-import { Play, History, Flag, User, LogOut, Loader2 } from 'lucide-react';
+import { Play, History, Flag, User, LogOut, Loader2, Users } from 'lucide-react';
 import { useApp } from '../App';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,11 @@ const Landing: React.FC = () => {
                   Handicap: {profile?.handicap_index ?? 'Not set'}
                 </p>
               </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/players')}>
+                <Users className="w-4 h-4 mr-2" />
+                My Players
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                 <LogOut className="w-4 h-4 mr-2" />
