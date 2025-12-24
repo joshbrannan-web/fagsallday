@@ -57,6 +57,16 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     config: { birdieTriple: true, eagleQuintuple: true }
   },
   {
+    type: GameType.FBO,
+    name: 'FBO (Front/Back/Overall)',
+    description: 'Match play dots: 3 bets for Front 9, Back 9, and Overall 18.',
+    icon: '🎱',
+    defaultUnitStake: 10,
+    minPlayers: 2,
+    maxPlayers: 8,
+    config: { fboPlayers: [] }
+  },
+  {
     type: GameType.SKINS,
     name: 'Skins',
     description: 'Lowest net score wins the skin. Ties carry over to next hole.',
@@ -436,12 +446,18 @@ const SetupWizard: React.FC = () => {
         return;
       }
       
+      // For FBO, auto-select all players
+      const gameConfig = { ...game.config };
+      if (game.type === GameType.FBO) {
+        gameConfig.fboPlayers = players.filter(p => p.name.trim()).map(p => p.id);
+      }
+      
       setSelectedGames([...selectedGames, {
         id: `${game.type}-${Date.now()}`,
         type: game.type,
         name: game.name,
         unitStake: game.defaultUnitStake,
-        config: { ...game.config }
+        config: gameConfig
       }]);
     }
   };
@@ -1142,31 +1158,100 @@ const SetupWizard: React.FC = () => {
 
                     {selectedGame && (
                       <div className="ml-4 p-4 bg-muted rounded-xl space-y-3 animate-fade-in">
-                        <div className="flex items-center justify-between">
-                          <Label>Unit Stake</Label>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUpdateGameStake(selectedGame.id, Math.max(1, selectedGame.unitStake - 1))}
-                              disabled={selectedGame.unitStake <= 1}
-                              className="h-8 w-8 p-0"
-                            >
-                              -$1
-                            </Button>
-                            <span className="w-12 text-center font-medium">${selectedGame.unitStake}</span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUpdateGameStake(selectedGame.id, selectedGame.unitStake + 1)}
-                              className="h-8 w-8 p-0"
-                            >
-                              +$1
-                            </Button>
+                        {/* FBO uses $5 increments, others use $1 */}
+                        {game.type === GameType.FBO ? (
+                          <div className="flex items-center justify-between">
+                            <Label>Bet Amount (per segment)</Label>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdateGameStake(selectedGame.id, Math.max(5, selectedGame.unitStake - 5))}
+                                disabled={selectedGame.unitStake <= 5}
+                                className="h-8 px-2"
+                              >
+                                -$5
+                              </Button>
+                              <span className="w-14 text-center font-medium">${selectedGame.unitStake}</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdateGameStake(selectedGame.id, selectedGame.unitStake + 5)}
+                                className="h-8 px-2"
+                              >
+                                +$5
+                              </Button>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <Label>Unit Stake</Label>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdateGameStake(selectedGame.id, Math.max(1, selectedGame.unitStake - 1))}
+                                disabled={selectedGame.unitStake <= 1}
+                                className="h-8 w-8 p-0"
+                              >
+                                -$1
+                              </Button>
+                              <span className="w-12 text-center font-medium">${selectedGame.unitStake}</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdateGameStake(selectedGame.id, selectedGame.unitStake + 1)}
+                                className="h-8 w-8 p-0"
+                              >
+                                +$1
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* FBO Player Selection */}
+                        {game.type === GameType.FBO && (
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Players in FBO</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {players.filter(p => p.name.trim()).map(player => {
+                                const fboPlayers = selectedGame.config.fboPlayers || [];
+                                const isInGame = fboPlayers.includes(player.id);
+                                return (
+                                  <button
+                                    key={player.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const currentPlayers = selectedGame.config.fboPlayers || [];
+                                      const newPlayers = isInGame
+                                        ? currentPlayers.filter((id: string) => id !== player.id)
+                                        : [...currentPlayers, player.id];
+                                      setSelectedGames(selectedGames.map(g =>
+                                        g.id === selectedGame.id
+                                          ? { ...g, config: { ...g.config, fboPlayers: newPlayers } }
+                                          : g
+                                      ));
+                                    }}
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                      isInGame
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-background border border-border text-muted-foreground hover:border-primary'
+                                    }`}
+                                  >
+                                    {player.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {(selectedGame.config.fboPlayers?.length || 0) < 2 && (
+                              <p className="text-xs text-destructive">Select at least 2 players</p>
+                            )}
+                          </div>
+                        )}
 
                         {game.type === GameType.SKINS && (
                           <div className="flex items-center justify-between">

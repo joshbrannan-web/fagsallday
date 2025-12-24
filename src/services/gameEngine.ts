@@ -421,6 +421,118 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
   };
 };
 
+// --- FBO (Front/Back/Overall) ---
+
+export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
+  const { players, course } = round;
+  const unit = game.unitStake;
+  
+  // Get players participating in this FBO game
+  const fboPlayerIds = game.config.fboPlayers || players.map(p => p.id);
+  const fboPlayers = players.filter(p => fboPlayerIds.includes(p.id));
+  
+  if (fboPlayers.length < 2) {
+    return {
+      gameId: game.id,
+      playerResults: {},
+      details: ["FBO requires at least 2 players"],
+    };
+  }
+
+  const results: { [id: string]: number } = {};
+  const holeResults: { [hole: number]: { [id: string]: number } } = {};
+  const details: string[] = [];
+
+  // Initialize results for all FBO players
+  fboPlayers.forEach((p) => (results[p.id] = 0));
+
+  // Get dot data from gameData
+  const fboData = round.gameData?.[game.id] || {};
+  
+  // Count dots per player per segment
+  const dotCounts: { front: { [id: string]: number }; back: { [id: string]: number }; overall: { [id: string]: number } } = {
+    front: {},
+    back: {},
+    overall: {}
+  };
+  
+  fboPlayers.forEach(p => {
+    dotCounts.front[p.id] = 0;
+    dotCounts.back[p.id] = 0;
+    dotCounts.overall[p.id] = 0;
+  });
+
+  // Count dots from each hole
+  for (let h = 1; h <= course.holes.length; h++) {
+    const holeDots = fboData[h]?.dots || [];
+    
+    holeResults[h] = {};
+    fboPlayers.forEach(p => holeResults[h][p.id] = 0);
+    
+    holeDots.forEach((playerId: string) => {
+      if (dotCounts.overall[playerId] !== undefined) {
+        dotCounts.overall[playerId]++;
+        if (h <= 9) {
+          dotCounts.front[playerId]++;
+        } else {
+          dotCounts.back[playerId]++;
+        }
+      }
+    });
+  }
+
+  // Calculate winners for each segment
+  const calculateSegmentWinner = (segment: { [id: string]: number }, label: string) => {
+    const maxDots = Math.max(...Object.values(segment));
+    if (maxDots === 0) {
+      details.push(`${label}: No dots awarded - Push`);
+      return;
+    }
+    
+    const winners = Object.entries(segment).filter(([_, dots]) => dots === maxDots);
+    const losers = Object.entries(segment).filter(([_, dots]) => dots < maxDots);
+    
+    if (winners.length === 1) {
+      // Single winner takes from all losers
+      const winnerId = winners[0][0];
+      const winnerName = fboPlayers.find(p => p.id === winnerId)?.name;
+      const winAmount = unit * losers.length;
+      
+      results[winnerId] += winAmount;
+      losers.forEach(([loserId]) => {
+        results[loserId] -= unit;
+      });
+      
+      details.push(`${label}: ${winnerName} wins $${winAmount} (${maxDots} dots)`);
+    } else {
+      // Multiple winners tie - they split from the losers
+      if (losers.length > 0) {
+        const totalFromLosers = unit * losers.length;
+        const perWinner = totalFromLosers / winners.length;
+        
+        winners.forEach(([winnerId]) => {
+          results[winnerId] += perWinner;
+        });
+        losers.forEach(([loserId]) => {
+          results[loserId] -= unit;
+        });
+        
+        const winnerNames = winners.map(([id]) => fboPlayers.find(p => p.id === id)?.name).join(', ');
+        details.push(`${label}: ${winnerNames} tie with ${maxDots} dots each - split $${totalFromLosers}`);
+      } else {
+        // All players tied
+        details.push(`${label}: All players tied with ${maxDots} dots - Push`);
+      }
+    }
+  };
+
+  calculateSegmentWinner(dotCounts.front, 'Front 9');
+  calculateSegmentWinner(dotCounts.back, 'Back 9');
+  calculateSegmentWinner(dotCounts.overall, 'Overall');
+
+  return { gameId: game.id, playerResults: results, details, holeResults };
+};
+
 // --- Aggregation Utilities ---
 
 export const calculateRoundTotals = (round: Round): { [playerId: string]: number } => {
@@ -442,6 +554,9 @@ export const calculateRoundTotals = (round: Round): { [playerId: string]: number
         break;
       case GameType.BANKER:
         result = calculateBanker(round, game);
+        break;
+      case GameType.FBO:
+        result = calculateFBO(round, game);
         break;
       default:
         return;
