@@ -1,14 +1,29 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { formatMoney } from '../services/gameEngine';
-import { Home, Trophy, Share2 } from 'lucide-react';
+import { Home, Trophy, Share2, Edit2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 const RoundSummary: React.FC = () => {
   const navigate = useNavigate();
   const { currentRound, roundTotals, finishRound } = useApp();
+  const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, number>>({});
+  const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  // Initialize adjusted amounts from calculated totals
+  useEffect(() => {
+    if (currentRound && Object.keys(adjustedAmounts).length === 0) {
+      const initial: Record<string, number> = {};
+      currentRound.players.forEach(p => {
+        initial[p.id] = roundTotals[p.id] || 0;
+      });
+      setAdjustedAmounts(initial);
+    }
+  }, [currentRound, roundTotals]);
 
   if (!currentRound) {
     return (
@@ -21,9 +36,33 @@ const RoundSummary: React.FC = () => {
     );
   }
 
+  const displayAmounts = Object.keys(adjustedAmounts).length > 0 ? adjustedAmounts : roundTotals;
+
   const sortedPlayers = [...currentRound.players].sort((a, b) => 
-    (roundTotals[b.id] || 0) - (roundTotals[a.id] || 0)
+    (displayAmounts[b.id] || 0) - (displayAmounts[a.id] || 0)
   );
+
+  const handleStartEdit = (playerId: string) => {
+    setEditingPlayer(playerId);
+    setEditValue(String(displayAmounts[playerId] || 0));
+  };
+
+  const handleSaveEdit = () => {
+    if (editingPlayer) {
+      const newValue = parseFloat(editValue) || 0;
+      setAdjustedAmounts(prev => ({
+        ...prev,
+        [editingPlayer]: newValue
+      }));
+      setEditingPlayer(null);
+      setEditValue('');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPlayer(null);
+    setEditValue('');
+  };
 
   const handleFinish = () => {
     finishRound();
@@ -51,7 +90,7 @@ const RoundSummary: React.FC = () => {
     };
 
     const results = sortedPlayers.map((p) => 
-      `${p.name}: ${formatMoney(roundTotals[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
+      `${p.name}: ${formatMoney(displayAmounts[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
     ).join('\n');
 
     const text = `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day`;
@@ -74,10 +113,14 @@ const RoundSummary: React.FC = () => {
 
       <div className="flex-1 p-4 space-y-6">
         <div className="space-y-3">
-          <h2 className="text-lg font-bold">Leaderboard</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">Leaderboard</h2>
+            <span className="text-xs text-muted-foreground">Tap amount to adjust</span>
+          </div>
           {sortedPlayers.map((player, idx) => {
-            const amount = roundTotals[player.id] || 0;
+            const amount = displayAmounts[player.id] || 0;
             const isWinner = idx === 0 && amount > 0;
+            const isEditing = editingPlayer === player.id;
 
             return (
               <div
@@ -97,11 +140,38 @@ const RoundSummary: React.FC = () => {
                   </div>
                   <span className="font-semibold">{player.name}</span>
                 </div>
-                <span className={`text-xl font-bold font-mono ${
-                  amount > 0 ? 'text-success' : amount < 0 ? 'text-destructive' : 'text-muted-foreground'
-                }`}>
-                  {formatMoney(amount)}
-                </span>
+                
+                {isEditing ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="w-24 h-8 text-right font-mono"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit();
+                        if (e.key === 'Escape') handleCancelEdit();
+                      }}
+                    />
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleSaveEdit}>
+                      <Check className="w-4 h-4 text-success" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleCancelEdit}>
+                      <X className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleStartEdit(player.id)}
+                    className={`flex items-center gap-2 text-xl font-bold font-mono ${
+                      amount > 0 ? 'text-success' : amount < 0 ? 'text-destructive' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {formatMoney(amount)}
+                    <Edit2 className="w-4 h-4 opacity-50" />
+                  </button>
+                )}
               </div>
             );
           })}
