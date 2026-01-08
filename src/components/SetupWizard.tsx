@@ -1029,11 +1029,13 @@ const SetupWizard: React.FC = () => {
                         <SelectValue placeholder="Choose from saved players..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {savedPlayers.map(sp => (
-                          <SelectItem key={sp.id} value={sp.id}>
-                            {sp.name} (HCP: {sp.handicap_index})
-                          </SelectItem>
-                        ))}
+                        {savedPlayers
+                          .filter(sp => !players.some(p => p.name.trim().toLowerCase() === sp.name.trim().toLowerCase()))
+                          .map(sp => (
+                            <SelectItem key={sp.id} value={sp.id}>
+                              {sp.name} (HCP: {sp.handicap_index})
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   )}
@@ -1094,18 +1096,20 @@ const SetupWizard: React.FC = () => {
                           <DialogTitle>Saved Players</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {savedPlayers.map(sp => (
-                            <button
-                              key={sp.id}
-                              onClick={() => handleSelectSavedPlayer(sp)}
-                              className="w-full p-3 rounded-lg border border-border bg-card hover:border-primary/50 text-left transition-all"
-                            >
-                              <div className="font-medium">{sp.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Handicap: {sp.handicap_index} • Tee: {sp.tee}
-                              </div>
-                            </button>
-                          ))}
+                          {savedPlayers
+                            .filter(sp => !players.some(p => p.name.trim().toLowerCase() === sp.name.trim().toLowerCase()))
+                            .map(sp => (
+                              <button
+                                key={sp.id}
+                                onClick={() => handleSelectSavedPlayer(sp)}
+                                className="w-full p-3 rounded-lg border border-border bg-card hover:border-primary/50 text-left transition-all"
+                              >
+                                <div className="font-medium">{sp.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Handicap: {sp.handicap_index} • Tee: {sp.tee}
+                                </div>
+                              </button>
+                            ))}
                         </div>
                       </DialogContent>
                     </Dialog>
