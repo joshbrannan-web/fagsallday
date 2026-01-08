@@ -666,24 +666,24 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
             let playerMult = holeData[player.id] || 1;
             let effectiveBankerMult = bankerMult;
             
-            // Apply birdie/eagle multipliers from game config
-            const birdieTriple = game.config?.birdieTriple ?? false;
-            const eagleQuintuple = game.config?.eagleQuintuple ?? false;
+            // Get birdie/eagle multipliers from game config (support new and legacy format)
+            const birdieMultiplier = game.config?.birdieMultiplier ?? (game.config?.birdieTriple ? 3 : 1);
+            const eagleMultiplier = game.config?.eagleMultiplier ?? (game.config?.eagleQuintuple ? 5 : 1);
             
             // Apply score-based multipliers for banker
             const bankerToPar = bankerScore - hole.par;
-            if (eagleQuintuple && bankerToPar <= -2) {
-              effectiveBankerMult *= 5;
-            } else if (birdieTriple && bankerToPar === -1) {
-              effectiveBankerMult *= 3;
+            if (eagleMultiplier > 1 && bankerToPar <= -2) {
+              effectiveBankerMult *= eagleMultiplier;
+            } else if (birdieMultiplier > 1 && bankerToPar === -1) {
+              effectiveBankerMult *= birdieMultiplier;
             }
             
             // Apply score-based multipliers for player
             const playerToPar = playerScore - hole.par;
-            if (eagleQuintuple && playerToPar <= -2) {
-              playerMult *= 5;
-            } else if (birdieTriple && playerToPar === -1) {
-              playerMult *= 3;
+            if (eagleMultiplier > 1 && playerToPar <= -2) {
+              playerMult *= eagleMultiplier;
+            } else if (birdieMultiplier > 1 && playerToPar === -1) {
+              playerMult *= birdieMultiplier;
             }
             
             const betAmount = game.unitStake * playerMult * effectiveBankerMult;
