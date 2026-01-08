@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import {
   Select,
@@ -54,7 +55,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 3,
     minPlayers: 3,
     maxPlayers: 8,
-    config: { birdieTriple: true, eagleQuintuple: true }
+    config: { birdieMultiplier: 1, eagleMultiplier: 1 }
   },
   {
     type: GameType.FBO,
@@ -1264,22 +1265,58 @@ const SetupWizard: React.FC = () => {
                         )}
 
                         {game.type === GameType.BANKER && (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <Label>Birdie Triple (3x)</Label>
-                              <Switch
-                                checked={selectedGame.config.birdieTriple ?? true}
-                                onCheckedChange={(checked) => handleUpdateGameConfig(selectedGame.id, 'birdieTriple', checked)}
-                              />
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Birdie Multiplier</Label>
+                              <RadioGroup
+                                value={String(selectedGame.config.birdieMultiplier ?? 1)}
+                                onValueChange={(value) => {
+                                  setSelectedGames(selectedGames.map(g =>
+                                    g.id === selectedGame.id
+                                      ? { ...g, config: { ...g.config, birdieMultiplier: Number(value) } }
+                                      : g
+                                  ));
+                                }}
+                                className="flex gap-4"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="1" id={`birdie-none-${selectedGame.id}`} />
+                                  <Label htmlFor={`birdie-none-${selectedGame.id}`} className="font-normal cursor-pointer">None</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="3" id={`birdie-triple-${selectedGame.id}`} />
+                                  <Label htmlFor={`birdie-triple-${selectedGame.id}`} className="font-normal cursor-pointer">Triple (3x)</Label>
+                                </div>
+                              </RadioGroup>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <Label>Eagle Quintuple (5x)</Label>
-                              <Switch
-                                checked={selectedGame.config.eagleQuintuple ?? true}
-                                onCheckedChange={(checked) => handleUpdateGameConfig(selectedGame.id, 'eagleQuintuple', checked)}
-                              />
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Eagle Multiplier</Label>
+                              <RadioGroup
+                                value={String(selectedGame.config.eagleMultiplier ?? 1)}
+                                onValueChange={(value) => {
+                                  setSelectedGames(selectedGames.map(g =>
+                                    g.id === selectedGame.id
+                                      ? { ...g, config: { ...g.config, eagleMultiplier: Number(value) } }
+                                      : g
+                                  ));
+                                }}
+                                className="flex gap-4"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="1" id={`eagle-none-${selectedGame.id}`} />
+                                  <Label htmlFor={`eagle-none-${selectedGame.id}`} className="font-normal cursor-pointer">None</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="3" id={`eagle-triple-${selectedGame.id}`} />
+                                  <Label htmlFor={`eagle-triple-${selectedGame.id}`} className="font-normal cursor-pointer">Triple (3x)</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="5" id={`eagle-quintuple-${selectedGame.id}`} />
+                                  <Label htmlFor={`eagle-quintuple-${selectedGame.id}`} className="font-normal cursor-pointer">Quintuple (5x)</Label>
+                                </div>
+                              </RadioGroup>
                             </div>
-                          </>
+                          </div>
                         )}
                       </div>
                     )}

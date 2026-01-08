@@ -299,8 +299,9 @@ export const calculateOpenBetting = (round: Round, game: GameSettings): GameResu
 export const calculateBanker = (round: Round, game: GameSettings): GameResult => {
   const { players, scores, course } = round;
   const unit = game.unitStake;
-  const birdieTriple = game.config.birdieTriple ?? false;
-  const eagleQuintuple = game.config.eagleQuintuple ?? false;
+  // Support new multiplier config, fallback to legacy boolean config
+  const birdieMultiplier = game.config.birdieMultiplier ?? (game.config.birdieTriple ? 3 : 1);
+  const eagleMultiplier = game.config.eagleMultiplier ?? (game.config.eagleQuintuple ? 5 : 1);
 
   const results: { [id: string]: number } = {};
   const holeResults: { [hole: number]: { [id: string]: number } } = {};
@@ -337,10 +338,10 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
 
     // Apply score-based multipliers
     const bankerToPar = bankerGross - holeData.par;
-    if (eagleQuintuple && bankerToPar <= -2) {
-      bankerBaseMultiplier *= 5;
-    } else if (birdieTriple && bankerToPar === -1) {
-      bankerBaseMultiplier *= 3;
+    if (eagleMultiplier > 1 && bankerToPar <= -2) {
+      bankerBaseMultiplier *= eagleMultiplier;
+    } else if (birdieMultiplier > 1 && bankerToPar === -1) {
+      bankerBaseMultiplier *= birdieMultiplier;
     }
 
     // Calculate against each non-banker player
@@ -387,10 +388,10 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
 
       // Apply score-based multipliers for player too
       const playerToPar = playerGross - holeData.par;
-      if (eagleQuintuple && playerToPar <= -2) {
-        playerMultiplier *= 5;
-      } else if (birdieTriple && playerToPar === -1) {
-        playerMultiplier *= 3;
+      if (eagleMultiplier > 1 && playerToPar <= -2) {
+        playerMultiplier *= eagleMultiplier;
+      } else if (birdieMultiplier > 1 && playerToPar === -1) {
+        playerMultiplier *= birdieMultiplier;
       }
 
       const effectiveMultiplier = bankerBaseMultiplier * playerMultiplier;
