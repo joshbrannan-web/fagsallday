@@ -58,6 +58,16 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     config: { birdieMultiplier: 1, eagleMultiplier: 1 }
   },
   {
+    type: GameType.BLOODY_BANKER,
+    name: 'Bloody Banker',
+    description: 'One player is "banker" each hole. Banker vs all other players with multipliers.',
+    icon: '🩸',
+    defaultUnitStake: 3,
+    minPlayers: 3,
+    maxPlayers: 8,
+    config: { birdieMultiplier: 1, eagleMultiplier: 1 }
+  },
+  {
     type: GameType.FBO,
     name: 'FBO (Front/Back/Overall)',
     description: 'Match play dots: 3 bets for Front 9, Back 9, and Overall 18.',
@@ -1264,7 +1274,7 @@ const SetupWizard: React.FC = () => {
                           </div>
                         )}
 
-                        {game.type === GameType.BANKER && (
+                        {(game.type === GameType.BANKER || game.type === GameType.BLOODY_BANKER) && (
                           <div className="space-y-4">
                             <div className="space-y-2">
                               <Label className="text-sm font-medium">Birdie Multiplier</Label>

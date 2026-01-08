@@ -42,7 +42,7 @@ const ActiveRound: React.FC = () => {
 
   const courseHole = currentRound.course.holes.find(h => h.number === activeHole);
   const openBetGames = currentRound.games.filter(g => g.type === GameType.OPEN_BETTING);
-  const bankerGames = currentRound.games.filter(g => g.type === GameType.BANKER);
+  const bankerGames = currentRound.games.filter(g => g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER);
   const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
   
   // Calculate per-hole P&L for all players
