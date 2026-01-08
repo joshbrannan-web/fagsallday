@@ -590,6 +590,7 @@ export const calculateRoundTotals = (round: Round): { [playerId: string]: number
         result = calculateOpenBetting(round, game);
         break;
       case GameType.BANKER:
+      case GameType.BLOODY_BANKER:
         result = calculateBanker(round, game);
         break;
       case GameType.FBO:
@@ -619,9 +620,9 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
       holePnL[holeNumber][p.id] = 0;
     });
 
-    // Process Banker games
+    // Process Banker and Bloody Banker games
     round.games
-      .filter((g) => g.type === GameType.BANKER)
+      .filter((g) => g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER)
       .forEach((game) => {
         const holeData = round.gameData?.[game.id]?.[holeNumber] || {};
         const bankerId = holeData["_META_BANKER_ID"];
