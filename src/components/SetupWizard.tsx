@@ -168,7 +168,9 @@ const SetupWizard: React.FC = () => {
   // Step 2: Players
   const [players, setPlayers] = useState<Player[]>([
     { id: '1', name: '', handicapIndex: NaN, courseHandicap: 0, tee: 'White' },
-    { id: '2', name: '', handicapIndex: NaN, courseHandicap: 0, tee: 'White' }
+    { id: '2', name: '', handicapIndex: NaN, courseHandicap: 0, tee: 'White' },
+    { id: '3', name: '', handicapIndex: NaN, courseHandicap: 0, tee: 'White' },
+    { id: '4', name: '', handicapIndex: NaN, courseHandicap: 0, tee: 'White' }
   ]);
   
   // Step 3: Games
@@ -432,7 +434,7 @@ const SetupWizard: React.FC = () => {
   };
 
   const handleRemovePlayer = (id: string) => {
-    if (players.length <= 2) return;
+    if (players.length <= 1) return;
     setPlayers(players.filter(p => p.id !== id));
   };
 
@@ -1004,7 +1006,7 @@ const SetupWizard: React.FC = () => {
                     <span className="text-sm font-semibold text-muted-foreground">
                       Player {idx + 1} {idx === 0 && user && '(You)'}
                     </span>
-                    {players.length > 2 && (
+                    {players.length > 1 && (
                       <button
                         onClick={() => handleRemovePlayer(player.id)}
                         className="p-1 text-destructive hover:bg-destructive/10 rounded"
