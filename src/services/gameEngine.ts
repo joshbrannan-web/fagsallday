@@ -759,3 +759,119 @@ export const formatMoney = (amount: number): string => {
   const prefix = amount > 0 ? "+" : "";
   return `${prefix}$${Math.abs(amount)}`;
 };
+
+// Calculate P&L for a specific Bloody Banker game up to a given hole
+// Used for determining who is "down the most" for bet-setting privileges on holes 16-18
+export const calculateBloodyBankerPnL = (
+  round: Round,
+  game: GameSettings,
+  upToHole: number
+): { [playerId: string]: number } => {
+  const { players, scores, course } = round;
+  const unit = game.unitStake;
+  const birdieMultiplier = game.config.birdieMultiplier ?? (game.config.birdieTriple ? 3 : 1);
+  const eagleMultiplier = game.config.eagleMultiplier ?? (game.config.eagleQuintuple ? 5 : 1);
+
+  const results: { [id: string]: number } = {};
+  players.forEach((p) => (results[p.id] = 0));
+
+  const bankerData = round.gameData?.[game.id] || {};
+
+  for (let h = 1; h <= upToHole; h++) {
+    const holeData = course.holes.find((hole) => hole.number === h);
+    if (!holeData) continue;
+
+    const holeScores = scores[h];
+    if (!holeScores) continue;
+
+    // Check if all players have scores for this hole
+    const allHaveScores = players.every(p => typeof holeScores[p.id] === 'number');
+    if (!allHaveScores) continue;
+
+    const holeBankerData = bankerData[h];
+    if (!holeBankerData) continue;
+
+    const bankerId = holeBankerData["_META_BANKER_ID"] || holeBankerData.bankerId;
+    if (!bankerId) continue;
+
+    const banker = players.find((p) => p.id === bankerId);
+    if (!banker) continue;
+
+    const bankerGross = holeScores[bankerId];
+    if (typeof bankerGross !== "number") continue;
+
+    let bankerBaseMultiplier = holeBankerData["_META_BANKER_MULT"] || holeBankerData.bankerMultiplier || 1;
+
+    const bankerToPar = bankerGross - holeData.par;
+    if (eagleMultiplier > 1 && bankerToPar <= -2) {
+      bankerBaseMultiplier *= eagleMultiplier;
+    } else if (birdieMultiplier > 1 && bankerToPar === -1) {
+      bankerBaseMultiplier *= birdieMultiplier;
+    }
+
+    players.forEach((p) => {
+      if (p.id === bankerId) return;
+
+      const playerGross = holeScores[p.id];
+      if (typeof playerGross !== "number") return;
+
+      const playerManualStrokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p.id];
+      let playerStrokesReceived: number;
+      let bankerStrokesReceived: number;
+
+      if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
+        playerStrokesReceived = playerManualStrokes;
+        bankerStrokesReceived = 0;
+      } else {
+        const matchupStrokes = calculateBankerMatchupStrokes(
+          p.courseHandicap,
+          banker.courseHandicap,
+          holeData.handicapIndex,
+        );
+        playerStrokesReceived = matchupStrokes.playerStrokes;
+        bankerStrokesReceived = matchupStrokes.bankerStrokes;
+      }
+
+      const playerNet = playerGross - playerStrokesReceived;
+      const bankerNet = bankerGross - bankerStrokesReceived;
+
+      let playerMultiplier = holeBankerData[p.id] || holeBankerData.playerMultipliers?.[p.id] || 1;
+      if (typeof playerMultiplier !== "number") playerMultiplier = 1;
+
+      const playerToPar = playerGross - holeData.par;
+      if (eagleMultiplier > 1 && playerToPar <= -2) {
+        playerMultiplier *= eagleMultiplier;
+      } else if (birdieMultiplier > 1 && playerToPar === -1) {
+        playerMultiplier *= birdieMultiplier;
+      }
+
+      const effectiveMultiplier = bankerBaseMultiplier * playerMultiplier;
+      const payout = unit * effectiveMultiplier;
+
+      if (bankerNet < playerNet) {
+        results[bankerId] += payout;
+        results[p.id] -= payout;
+      } else if (playerNet < bankerNet) {
+        results[p.id] += payout;
+        results[bankerId] -= payout;
+      }
+    });
+  }
+
+  return results;
+};
+
+// Check if all players have completed a hole
+export const isHoleComplete = (round: Round, holeNumber: number): boolean => {
+  const holeScores = round.scores[holeNumber];
+  if (!holeScores) return false;
+  return round.players.every(p => typeof holeScores[p.id] === 'number');
+};
+
+// Check if first N holes are complete (all players have scores)
+export const areHolesComplete = (round: Round, throughHole: number): boolean => {
+  for (let h = 1; h <= throughHole; h++) {
+    if (!isHoleComplete(round, h)) return false;
+  }
+  return true;
+};

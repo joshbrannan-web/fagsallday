@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../App';
-import { ChevronLeft, ChevronRight, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check } from 'lucide-react';
-import { getNetScore, calculateStrokesReceived, calculateBankerMatchupStrokes, calculateAggregatedHolePnL } from '../services/gameEngine';
+import { ChevronLeft, ChevronRight, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame } from 'lucide-react';
+import { getNetScore, calculateStrokesReceived, calculateBankerMatchupStrokes, calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
-import { GameType } from '../types';
+import { GameType, GameSettings } from '../types';
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
@@ -43,10 +43,50 @@ const ActiveRound: React.FC = () => {
   const courseHole = currentRound.course.holes.find(h => h.number === activeHole);
   const openBetGames = currentRound.games.filter(g => g.type === GameType.OPEN_BETTING);
   const bankerGames = currentRound.games.filter(g => g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER);
+  const bloodyBankerGames = currentRound.games.filter(g => g.type === GameType.BLOODY_BANKER);
   const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
   
   // Calculate per-hole P&L for all players
   const holePnL = calculateAggregatedHolePnL(currentRound);
+
+  // Bloody Banker "Down the Most" logic for holes 16, 17, 18
+  const bloodyBankerDownPlayer = useMemo(() => {
+    if (bloodyBankerGames.length === 0) return null;
+    
+    // Check if current hole is 16, 17, or 18
+    if (activeHole < 16 || activeHole > 18) return null;
+    
+    const previousHole = activeHole - 1; // 15, 16, or 17
+    
+    // Check if all previous holes are complete
+    if (!areHolesComplete(currentRound, previousHole)) return null;
+    
+    // Calculate P&L for each Bloody Banker game
+    const downPlayers: { game: GameSettings; playerId: string; amount: number }[] = [];
+    
+    bloodyBankerGames.forEach(game => {
+      const pnl = calculateBloodyBankerPnL(currentRound, game, previousHole);
+      
+      // Find the player who is down the most (most negative)
+      let lowestPlayerId: string | null = null;
+      let lowestAmount = 0;
+      
+      currentRound.players.forEach(p => {
+        const playerPnL = pnl[p.id] || 0;
+        if (playerPnL < lowestAmount) {
+          lowestAmount = playerPnL;
+          lowestPlayerId = p.id;
+        }
+      });
+      
+      // Only show if someone is actually down money
+      if (lowestPlayerId && lowestAmount < 0) {
+        downPlayers.push({ game, playerId: lowestPlayerId, amount: lowestAmount });
+      }
+    });
+    
+    return downPlayers.length > 0 ? downPlayers : null;
+  }, [bloodyBankerGames, activeHole, currentRound]);
 
   // Voice Input Logic
   const handleVoiceInput = () => {
@@ -272,6 +312,79 @@ const ActiveRound: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          );
+        })}
+
+        {/* Bloody Banker: Down the Most Player Gets to Set the Bet */}
+        {bloodyBankerDownPlayer && bloodyBankerDownPlayer.map(({ game, playerId, amount }) => {
+          const downPlayer = currentRound.players.find(p => p.id === playerId);
+          const holeData = currentRound.gameData?.[game.id]?.[activeHole] || {};
+          const bankerMult = holeData['_META_BANKER_MULT'] || 1;
+          
+          if (!downPlayer) return null;
+          
+          return (
+            <div key={`bloody-down-${game.id}`} className="bg-gradient-to-r from-destructive/10 to-destructive/5 rounded-2xl shadow-sm border-2 border-destructive/50 p-4 mb-4 animate-pulse-subtle">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="bg-destructive text-destructive-foreground p-1.5 rounded-lg">
+                    <TrendingDown className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground text-sm">🩸 Bloody Banker - Hole {activeHole}</h3>
+                    <p className="text-xs text-muted-foreground">Down player sets the stakes!</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Flame className="w-4 h-4 text-destructive" />
+                </div>
+              </div>
+              
+              <div className="bg-card rounded-xl p-3 mb-3 border border-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-destructive/20 border-2 border-destructive flex items-center justify-center">
+                      <span className="font-bold text-destructive">{downPlayer.name.substring(0, 2).toUpperCase()}</span>
+                    </div>
+                    <div>
+                      <div className="font-bold text-foreground">{downPlayer.name}</div>
+                      <div className="text-xs text-destructive font-mono font-bold">
+                        Down ${Math.abs(amount)} after {activeHole - 1} holes
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-muted-foreground uppercase font-bold">Gets to set</div>
+                    <div className="text-lg font-bold text-brand-gold">{bankerMult}x</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="text-xs font-bold text-muted-foreground uppercase mb-2">
+                  {downPlayer.name}'s Power Pick
+                </div>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map(mult => {
+                    const isActive = bankerMult === mult;
+                    const label = mult === 1 ? 'Standard' : (mult === 2 ? 'Double' : (mult === 3 ? 'Triple' : 'PreQuad'));
+                    return (
+                      <button
+                        key={mult}
+                        onClick={() => handleBankerPressAll(game.id, mult)}
+                        className={`flex-1 py-2.5 rounded-lg text-xs font-bold border-2 transition-all ${
+                          isActive 
+                            ? 'bg-destructive text-destructive-foreground border-destructive shadow-lg scale-105' 
+                            : 'bg-card text-muted-foreground border-border hover:border-destructive/50 hover:bg-destructive/5'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           );
         })}
