@@ -19,38 +19,12 @@ const ActiveRound: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!currentRound) {
-      // Allow the component to render the empty state
-    }
-  }, [currentRound, navigate]);
-
-  if (!currentRound) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background p-6 text-center space-y-6">
-        <h2 className="text-xl font-bold text-foreground">No Active Round</h2>
-        <p className="text-muted-foreground">Please set up a new round to start scoring.</p>
-        <button 
-          onClick={() => navigate('/')}
-          className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold flex items-center gap-2"
-        >
-          <Home className="w-5 h-5" /> Go Home
-        </button>
-      </div>
-    );
-  }
-
-  const courseHole = currentRound.course.holes.find(h => h.number === activeHole);
-  const openBetGames = currentRound.games.filter(g => g.type === GameType.OPEN_BETTING);
-  const bankerGames = currentRound.games.filter(g => g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER);
-  const bloodyBankerGames = currentRound.games.filter(g => g.type === GameType.BLOODY_BANKER);
-  const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
-  
-  // Calculate per-hole P&L for all players
-  const holePnL = calculateAggregatedHolePnL(currentRound);
-
+  // All hooks must be called before any early returns!
   // Bloody Banker "Down the Most" logic for holes 16, 17, 18
   const bloodyBankerDownPlayer = useMemo(() => {
+    if (!currentRound) return null;
+    
+    const bloodyBankerGames = currentRound.games.filter(g => g.type === GameType.BLOODY_BANKER);
     if (bloodyBankerGames.length === 0) return null;
     
     // Check if current hole is 16, 17, or 18
@@ -86,7 +60,37 @@ const ActiveRound: React.FC = () => {
     });
     
     return downPlayers.length > 0 ? downPlayers : null;
-  }, [bloodyBankerGames, activeHole, currentRound]);
+  }, [currentRound, activeHole]);
+
+  useEffect(() => {
+    if (!currentRound) {
+      // Allow the component to render the empty state
+    }
+  }, [currentRound, navigate]);
+
+  if (!currentRound) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-background p-6 text-center space-y-6">
+        <h2 className="text-xl font-bold text-foreground">No Active Round</h2>
+        <p className="text-muted-foreground">Please set up a new round to start scoring.</p>
+        <button 
+          onClick={() => navigate('/')}
+          className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold flex items-center gap-2"
+        >
+          <Home className="w-5 h-5" /> Go Home
+        </button>
+      </div>
+    );
+  }
+
+  const courseHole = currentRound.course.holes.find(h => h.number === activeHole);
+  const openBetGames = currentRound.games.filter(g => g.type === GameType.OPEN_BETTING);
+  const bankerGames = currentRound.games.filter(g => g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER);
+  const bloodyBankerGames = currentRound.games.filter(g => g.type === GameType.BLOODY_BANKER);
+  const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
+  
+  // Calculate per-hole P&L for all players
+  const holePnL = calculateAggregatedHolePnL(currentRound);
 
   // Voice Input Logic
   const handleVoiceInput = () => {
