@@ -389,6 +389,71 @@ const ActiveRound: React.FC = () => {
                   })}
                 </div>
               </div>
+              
+              {/* Player Stake Adjustments */}
+              <div className="mt-4 pt-3 border-t border-border/50">
+                <div className="text-xs font-bold text-muted-foreground uppercase mb-2">
+                  Adjust Player Stakes vs Banker
+                </div>
+                <div className="space-y-2">
+                  {currentRound.players.filter(p => p.id !== holeData['_META_BANKER_ID']).map(player => {
+                    const stakeAdjustKey = `_STAKE_ADJ_${player.id}`;
+                    const currentAdj = holeData[stakeAdjustKey] || 0;
+                    const baseStake = game.unitStake * bankerMult;
+                    const adjustedStake = baseStake + currentAdj;
+                    
+                    return (
+                      <div key={player.id} className="flex items-center justify-between bg-card rounded-lg p-2 border border-border">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-foreground">{player.name}</span>
+                          <span className="text-xs text-muted-foreground">vs Banker</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => updateGameData(game.id, activeHole, stakeAdjustKey, currentAdj - 5)}
+                            className="w-7 h-7 rounded bg-muted hover:bg-destructive/20 text-muted-foreground hover:text-destructive font-bold text-xs transition-colors"
+                          >
+                            -5
+                          </button>
+                          <button
+                            onClick={() => updateGameData(game.id, activeHole, stakeAdjustKey, currentAdj - 1)}
+                            className="w-7 h-7 rounded bg-muted hover:bg-destructive/20 text-muted-foreground hover:text-destructive font-bold text-xs transition-colors"
+                          >
+                            -1
+                          </button>
+                          <div className={`min-w-[60px] text-center px-2 py-1 rounded font-bold text-sm ${
+                            currentAdj > 0 ? 'bg-success/20 text-success' : 
+                            currentAdj < 0 ? 'bg-destructive/20 text-destructive' : 
+                            'bg-muted text-foreground'
+                          }`}>
+                            ${adjustedStake}
+                          </div>
+                          <button
+                            onClick={() => updateGameData(game.id, activeHole, stakeAdjustKey, currentAdj + 1)}
+                            className="w-7 h-7 rounded bg-muted hover:bg-success/20 text-muted-foreground hover:text-success font-bold text-xs transition-colors"
+                          >
+                            +1
+                          </button>
+                          <button
+                            onClick={() => updateGameData(game.id, activeHole, stakeAdjustKey, currentAdj + 5)}
+                            className="w-7 h-7 rounded bg-muted hover:bg-success/20 text-muted-foreground hover:text-success font-bold text-xs transition-colors"
+                          >
+                            +5
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {currentRound.players.some(p => {
+                  const adj = holeData[`_STAKE_ADJ_${p.id}`] || 0;
+                  return adj !== 0;
+                }) && (
+                  <div className="mt-2 text-xs text-muted-foreground text-center">
+                    Base: ${game.unitStake} × {bankerMult}x = ${game.unitStake * bankerMult}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
