@@ -397,15 +397,21 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
       const effectiveMultiplier = bankerBaseMultiplier * playerMultiplier;
       
       // For Bloody Banker on holes 16, 17, 18: use player's custom stake as the base bet
-      let baseUnit = unit;
+      // The custom stake REPLACES the unit × bankerMult calculation entirely
+      let payout: number;
       if (game.type === GameType.BLOODY_BANKER && h >= 16 && h <= 18) {
-        const customStake = holeBankerData[`_STAKE_ADJ_${p.id}`];
+        const customStake = holeBankerData[`_STAKE_${p.id}`];
         if (customStake !== undefined && customStake > 0) {
-          baseUnit = customStake;
+          // Custom stake is the new base bet, multiply by player-specific multipliers only
+          // (birdie/eagle multipliers for player), not bankerBaseMultiplier since it's baked into customStake
+          payout = customStake * playerMultiplier;
+        } else {
+          // No custom stake set, use default calculation
+          payout = unit * effectiveMultiplier;
         }
+      } else {
+        payout = unit * effectiveMultiplier;
       }
-      
-      const payout = baseUnit * effectiveMultiplier;
 
       if (bankerNet < playerNet) {
         // Banker wins
@@ -698,15 +704,20 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
             }
             
             // For Bloody Banker on holes 16, 17, 18: use player's custom stake as the base bet
-            let baseStake = game.unitStake;
+            // The custom stake REPLACES the unitStake × bankerMult calculation entirely
+            let betAmount: number;
             if (game.type === GameType.BLOODY_BANKER && holeNumber >= 16 && holeNumber <= 18) {
-              const customStake = holeData[`_STAKE_ADJ_${player.id}`];
+              const customStake = holeData[`_STAKE_${player.id}`];
               if (customStake !== undefined && customStake > 0) {
-                baseStake = customStake;
+                // Custom stake is the new base bet, multiply by player-specific multipliers only
+                betAmount = customStake * playerMult;
+              } else {
+                // No custom stake set, use default calculation
+                betAmount = game.unitStake * playerMult * effectiveBankerMult;
               }
+            } else {
+              betAmount = game.unitStake * playerMult * effectiveBankerMult;
             }
-            
-            const betAmount = baseStake * playerMult * effectiveBankerMult;
 
             // Determine winner and update P&L
             if (playerNetScore < bankerNetScore) {
