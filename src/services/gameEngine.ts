@@ -395,7 +395,14 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
       }
 
       const effectiveMultiplier = bankerBaseMultiplier * playerMultiplier;
-      const payout = unit * effectiveMultiplier;
+      
+      // Apply stake adjustment for Bloody Banker on holes 16, 17, 18
+      let stakeAdjustment = 0;
+      if (game.type === GameType.BLOODY_BANKER && h >= 16 && h <= 18) {
+        stakeAdjustment = holeBankerData[`_STAKE_ADJ_${p.id}`] || 0;
+      }
+      
+      const payout = (unit * effectiveMultiplier) + stakeAdjustment;
 
       if (bankerNet < playerNet) {
         // Banker wins
@@ -687,7 +694,13 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
               playerMult *= birdieMultiplier;
             }
             
-            const betAmount = game.unitStake * playerMult * effectiveBankerMult;
+            // Apply stake adjustment for Bloody Banker on holes 16, 17, 18
+            let stakeAdjustment = 0;
+            if (game.type === GameType.BLOODY_BANKER && holeNumber >= 16 && holeNumber <= 18) {
+              stakeAdjustment = holeData[`_STAKE_ADJ_${player.id}`] || 0;
+            }
+            
+            const betAmount = (game.unitStake * playerMult * effectiveBankerMult) + stakeAdjustment;
 
             // Determine winner and update P&L
             if (playerNetScore < bankerNetScore) {
