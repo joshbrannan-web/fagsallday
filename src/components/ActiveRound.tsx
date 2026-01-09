@@ -320,6 +320,77 @@ const ActiveRound: React.FC = () => {
           );
         })}
 
+        {/* Bloody Banker: Banker sets the custom bet on last 3 holes */}
+        {bloodyBankerGames.map(game => {
+          if (activeHole < 16 || activeHole > 18) return null;
+          
+          const holeData = currentRound.gameData?.[game.id]?.[activeHole] || {};
+          const bankerId = holeData['_META_BANKER_ID'];
+          const bankerPlayer = currentRound.players.find(p => p.id === bankerId);
+          const customBet = holeData['_META_BLOODY_BANKER_BET'] || game.unitStake;
+          
+          if (!bankerId || !bankerPlayer) return null;
+          
+          const handleBetChange = (delta: number) => {
+            const newBet = Math.max(1, customBet + delta);
+            updateGameData(game.id, activeHole, '_META_BLOODY_BANKER_BET', newBet);
+          };
+          
+          return (
+            <div key={`bloody-bet-${game.id}`} className="bg-gradient-to-r from-brand-gold/10 to-brand-gold/5 rounded-2xl shadow-sm border-2 border-brand-gold/50 p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="bg-brand-gold text-brand-dark p-1.5 rounded-lg">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground text-sm">🩸 Bloody Banker Bet - Hole {activeHole}</h3>
+                    <p className="text-xs text-muted-foreground">{bankerPlayer.name} sets the stake!</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-card rounded-xl p-4 border border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-bold text-foreground">Standard Bet Per Player</span>
+                  <span className="text-2xl font-bold text-brand-gold">${customBet}</span>
+                </div>
+                
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    onClick={() => handleBetChange(-5)}
+                    className="py-2 rounded-lg text-sm font-bold border border-border bg-muted text-muted-foreground hover:bg-destructive/10 hover:border-destructive hover:text-destructive transition-colors"
+                  >
+                    -$5
+                  </button>
+                  <button
+                    onClick={() => handleBetChange(-1)}
+                    className="py-2 rounded-lg text-sm font-bold border border-border bg-muted text-muted-foreground hover:bg-destructive/10 hover:border-destructive hover:text-destructive transition-colors"
+                  >
+                    -$1
+                  </button>
+                  <button
+                    onClick={() => handleBetChange(1)}
+                    className="py-2 rounded-lg text-sm font-bold border border-border bg-muted text-muted-foreground hover:bg-success/10 hover:border-success hover:text-success transition-colors"
+                  >
+                    +$1
+                  </button>
+                  <button
+                    onClick={() => handleBetChange(5)}
+                    className="py-2 rounded-lg text-sm font-bold border border-border bg-muted text-muted-foreground hover:bg-success/10 hover:border-success hover:text-success transition-colors"
+                  >
+                    +$5
+                  </button>
+                </div>
+                
+                <p className="text-xs text-muted-foreground mt-3 text-center">
+                  Each player (except banker) pays ${customBet} if they lose to {bankerPlayer.name}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+
         {/* Bloody Banker: Down the Most Player Gets to Set the Bet */}
         {bloodyBankerDownPlayer && bloodyBankerDownPlayer.map(({ game, playerId, amount }) => {
           const downPlayer = currentRound.players.find(p => p.id === playerId);
@@ -336,8 +407,8 @@ const ActiveRound: React.FC = () => {
                     <TrendingDown className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-foreground text-sm">🩸 Bloody Banker - Hole {activeHole}</h3>
-                    <p className="text-xs text-muted-foreground">Down player sets the stakes!</p>
+                    <h3 className="font-bold text-foreground text-sm">🩸 Down Player - Hole {activeHole}</h3>
+                    <p className="text-xs text-muted-foreground">Multiplier power!</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -359,7 +430,7 @@ const ActiveRound: React.FC = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-muted-foreground uppercase font-bold">Gets to set</div>
+                    <div className="text-xs text-muted-foreground uppercase font-bold">Multiplier</div>
                     <div className="text-lg font-bold text-brand-gold">{bankerMult}x</div>
                   </div>
                 </div>
