@@ -287,7 +287,6 @@ const AppContent: React.FC = () => {
   );
 };
 
-// Main App component with all providers
 const App: React.FC = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
