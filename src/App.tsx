@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { Round, Player, Course, GameSettings } from './types';
 import Landing from './components/Landing';
@@ -18,32 +18,10 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { useRounds } from '@/hooks/useRounds';
 import { useSavedCourses } from '@/hooks/useSavedCourses';
 import { useSavedPlayers } from '@/hooks/useSavedPlayers';
+import { AppContext, AppState } from './contexts/AppContext';
 
-// --- Context ---
-
-interface AppState {
-  currentRound: Round | null;
-  savedCourses: Course[];
-  roundHistory: Round[];
-  startNewRound: (course: Course, players: Player[], games: GameSettings[]) => void;
-  updateScore: (holeNumber: number, playerId: string, score: number) => void;
-  updateGameData: (gameId: string, holeNumber: number, key: string, value: any) => void;
-  finishRound: () => void;
-  loadPastRound: (round: Round) => void;
-  deleteRound: (roundId: string) => void;
-  saveCourse: (course: Course) => void;
-  deleteCourse: (courseId: string) => void;
-  roundTotals: { [playerId: string]: number };
-  isLoading: boolean;
-}
-
-const AppContext = createContext<AppState | undefined>(undefined);
-
-export const useApp = () => {
-  const context = useContext(AppContext);
-  if (!context) throw new Error("useApp must be used within AppProvider");
-  return context;
-};
+// Re-export useApp for backward compatibility
+export { useApp } from './contexts/AppContext';
 
 const queryClient = new QueryClient();
 

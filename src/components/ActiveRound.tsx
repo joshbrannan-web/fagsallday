@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame } from 'lucide-react';
 import { getNetScore, calculateStrokesReceived, calculateBankerMatchupStrokes, calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
