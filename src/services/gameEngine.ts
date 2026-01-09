@@ -394,22 +394,23 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
         playerMultiplier *= birdieMultiplier;
       }
 
-      const effectiveMultiplier = bankerBaseMultiplier * playerMultiplier;
-      
-      // For Bloody Banker on holes 16, 17, 18: use player's custom stake as the base bet
-      // The custom stake REPLACES the unit × bankerMult calculation entirely
+      // For Bloody Banker on holes 16, 17, 18: custom stake becomes the BASE BET
+      // Formula: Base Bet × Banker Multiplier (Double All) × Player Multiplier = Final Bet
       let payout: number;
       if (game.type === GameType.BLOODY_BANKER && h >= 16 && h <= 18) {
         const customStake = holeBankerData[`_STAKE_${p.id}`];
         if (customStake !== undefined && customStake > 0) {
-          // Custom stake is the new base bet, multiply by player-specific multipliers only
-          // (birdie/eagle multipliers for player), not bankerBaseMultiplier since it's baked into customStake
-          payout = customStake * playerMultiplier;
+          // Custom stake is the new base bet
+          // Multiply by bankerBaseMultiplier (Double All, Triple All, etc.) AND player multiplier
+          const effectiveMultiplier = bankerBaseMultiplier * playerMultiplier;
+          payout = customStake * effectiveMultiplier;
         } else {
           // No custom stake set, use default calculation
+          const effectiveMultiplier = bankerBaseMultiplier * playerMultiplier;
           payout = unit * effectiveMultiplier;
         }
       } else {
+        const effectiveMultiplier = bankerBaseMultiplier * playerMultiplier;
         payout = unit * effectiveMultiplier;
       }
 
@@ -703,20 +704,21 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
               playerMult *= birdieMultiplier;
             }
             
-            // For Bloody Banker on holes 16, 17, 18: use player's custom stake as the base bet
-            // The custom stake REPLACES the unitStake × bankerMult calculation entirely
+            // For Bloody Banker on holes 16, 17, 18: custom stake becomes the BASE BET
+            // Formula: Base Bet × Banker Multiplier (Double All) × Player Multiplier = Final Bet
             let betAmount: number;
             if (game.type === GameType.BLOODY_BANKER && holeNumber >= 16 && holeNumber <= 18) {
               const customStake = holeData[`_STAKE_${player.id}`];
               if (customStake !== undefined && customStake > 0) {
-                // Custom stake is the new base bet, multiply by player-specific multipliers only
-                betAmount = customStake * playerMult;
+                // Custom stake is the new base bet
+                // Multiply by effectiveBankerMult (Double All, etc.) AND playerMult (player's double + birdie/eagle)
+                betAmount = customStake * effectiveBankerMult * playerMult;
               } else {
                 // No custom stake set, use default calculation
-                betAmount = game.unitStake * playerMult * effectiveBankerMult;
+                betAmount = game.unitStake * effectiveBankerMult * playerMult;
               }
             } else {
-              betAmount = game.unitStake * playerMult * effectiveBankerMult;
+              betAmount = game.unitStake * effectiveBankerMult * playerMult;
             }
 
             // Determine winner and update P&L
