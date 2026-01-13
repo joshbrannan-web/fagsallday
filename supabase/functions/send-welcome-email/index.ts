@@ -27,7 +27,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Sending welcome email to:", email);
 
     const emailResponse = await resend.emails.send({
-      from: "F&Gs All Day <onboarding@resend.dev>",
+      from: "F&Gs All Day <noreply@fagsallday.com>",
       to: [email],
       subject: "Welcome to F&Gs All Day!",
       html: `
@@ -57,7 +57,7 @@ const handler = async (req: Request): Promise<Response> => {
               </div>
               
               <div style="text-align: center; margin: 30px 0;">
-                <a href="https://fagsallday.lovable.app" style="display: inline-block; background-color: #16a34a; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                <a href="https://fagsallday.com" style="display: inline-block; background-color: #16a34a; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px;">
                   Start Playing
                 </a>
               </div>
@@ -68,7 +68,7 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
             
             <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 20px;">
-              © 2024 F&Gs All Day. Track scores, bets, and payouts automatically.
+              © 2025 F&Gs All Day. Track scores, bets, and payouts automatically.
             </p>
           </div>
         </body>
