@@ -44,12 +44,15 @@ const handler = async (req: Request): Promise<Response> => {
       }
     );
 
+    // Always use production URL for password reset redirects
+    const PRODUCTION_URL = "https://fagsallday.com";
+    
     // Generate the reset link using Admin API (this does NOT send Supabase's default email)
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email: email,
       options: {
-        redirectTo: `${origin}/auth?mode=reset`,
+        redirectTo: `${PRODUCTION_URL}/auth?mode=reset`,
       },
     });
 
