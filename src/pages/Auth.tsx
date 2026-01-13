@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,21 +14,43 @@ const passwordSchema = z.string().min(6, 'Password must be at least 6 characters
 
 const Auth: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, signIn, signUp, isLoading } = useAuth();
   
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [handicapIndex, setHandicapIndex] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if already logged in
+  // Check URL params for mode on mount
   useEffect(() => {
-    if (user && !isLoading) {
+    const urlMode = searchParams.get('mode');
+    if (urlMode === 'reset') {
+      setMode('reset');
+    }
+  }, [searchParams]);
+
+  // Listen for PASSWORD_RECOVERY event
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setMode('reset');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Redirect if already logged in (but not in reset mode)
+  useEffect(() => {
+    if (user && !isLoading && mode !== 'reset') {
       navigate('/');
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, navigate, mode]);
 
   const sendWelcomeEmail = async (userEmail: string, userName: string, userPassword: string) => {
     try {
@@ -41,6 +63,20 @@ const Auth: React.FC = () => {
       }
     } catch (error) {
       console.error('Error sending welcome email:', error);
+    }
+  };
+
+  const sendResetEmail = async (userEmail: string, resetLink: string) => {
+    try {
+      const response = await supabase.functions.invoke('send-reset-email', {
+        body: { email: userEmail, resetLink }
+      });
+      
+      if (response.error) {
+        console.error('Failed to send reset email:', response.error);
+      }
+    } catch (error) {
+      console.error('Error sending reset email:', error);
     }
   };
 
@@ -59,15 +95,58 @@ const Auth: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      const redirectUrl = `${window.location.origin}/auth?mode=reset`;
+      
+      // Generate the reset link using Supabase
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth?mode=reset`,
+        redirectTo: redirectUrl,
       });
 
       if (error) {
         toast.error(error.message);
       } else {
+        // Send our custom branded email
+        await sendResetEmail(email, redirectUrl);
         toast.success('Check your email for a password reset link!');
         setMode('signin');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate passwords
+    try {
+      passwordSchema.parse(newPassword);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast.error(err.errors[0].message);
+        return;
+      }
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Password updated successfully!');
+        setNewPassword('');
+        setConfirmPassword('');
+        setMode('signin');
+        // Sign out to ensure clean state
+        await supabase.auth.signOut();
       }
     } finally {
       setIsSubmitting(false);
@@ -129,6 +208,15 @@ const Auth: React.FC = () => {
     }
   };
 
+  const getModeTitle = () => {
+    switch (mode) {
+      case 'signin': return 'Welcome back!';
+      case 'signup': return 'Create your account';
+      case 'forgot': return 'Reset your password';
+      case 'reset': return 'Set new password';
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -157,12 +245,66 @@ const Auth: React.FC = () => {
             F&Gs <span className="text-primary">All Day</span>
           </h1>
           <p className="text-muted-foreground mt-2">
-            {mode === 'signin' ? 'Welcome back!' : mode === 'signup' ? 'Create your account' : 'Reset your password'}
+            {getModeTitle()}
           </p>
         </div>
 
+        {/* Reset Password Form */}
+        {mode === 'reset' && (
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                placeholder="••••••••"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                'Update Password'
+              )}
+            </Button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setMode('signin')}
+                className="text-primary hover:underline"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          </form>
+        )}
+
         {/* Forgot Password Form */}
-        {mode === 'forgot' ? (
+        {mode === 'forgot' && (
           <form onSubmit={handleForgotPassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -200,9 +342,11 @@ const Auth: React.FC = () => {
               </button>
             </div>
           </form>
-        ) : (
+        )}
+
+        {/* Sign In / Sign Up Form */}
+        {(mode === 'signin' || mode === 'signup') && (
           <>
-            {/* Sign In / Sign Up Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
