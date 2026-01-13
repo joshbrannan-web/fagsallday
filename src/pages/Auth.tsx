@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Flag, Loader2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters');
@@ -15,7 +16,7 @@ const Auth: React.FC = () => {
   const navigate = useNavigate();
   const { user, signIn, signUp, isLoading } = useAuth();
   
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -28,6 +29,50 @@ const Auth: React.FC = () => {
       navigate('/');
     }
   }, [user, isLoading, navigate]);
+
+  const sendWelcomeEmail = async (userEmail: string, userName: string, userPassword: string) => {
+    try {
+      const response = await supabase.functions.invoke('send-welcome-email', {
+        body: { email: userEmail, displayName: userName, password: userPassword }
+      });
+      
+      if (response.error) {
+        console.error('Failed to send welcome email:', response.error);
+      }
+    } catch (error) {
+      console.error('Error sending welcome email:', error);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      emailSchema.parse(email);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast.error(err.errors[0].message);
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth?mode=reset`,
+      });
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Check your email for a password reset link!');
+        setMode('signin');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +118,9 @@ const Auth: React.FC = () => {
             toast.error(error.message);
           }
         } else {
-          toast.success('Account created! Welcome to F&Gs All Day!');
+          // Send welcome email with credentials
+          await sendWelcomeEmail(email, displayName.trim(), password);
+          toast.success('Account created! Check your email for your login details.');
           navigate('/');
         }
       }
@@ -110,95 +157,151 @@ const Auth: React.FC = () => {
             F&Gs <span className="text-primary">All Day</span>
           </h1>
           <p className="text-muted-foreground mt-2">
-            {mode === 'signin' ? 'Welcome back!' : 'Create your account'}
+            {mode === 'signin' ? 'Welcome back!' : mode === 'signup' ? 'Create your account' : 'Reset your password'}
           </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </div>
+        {/* Forgot Password Form */}
+        {mode === 'forgot' ? (
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-            />
-          </div>
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                'Send Reset Link'
+              )}
+            </Button>
 
-          {mode === 'signup' && (
-            <>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setMode('signin')}
+                className="text-primary hover:underline"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            {/* Sign In / Sign Up Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="displayName">Your Name</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
-                  id="displayName"
-                  type="text"
-                  placeholder="John Smith"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
-                  autoComplete="name"
+                  autoComplete="email"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="handicap">Handicap Index (optional)</Label>
+                <Label htmlFor="password">Password</Label>
                 <Input
-                  id="handicap"
-                  type="number"
-                  step="0.1"
-                  placeholder="e.g. 12.4"
-                  value={handicapIndex}
-                  onChange={(e) => setHandicapIndex(e.target.value)}
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                 />
               </div>
-            </>
-          )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            size="lg"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : mode === 'signin' ? (
-              'Sign In'
-            ) : (
-              'Create Account'
+              {mode === 'signup' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="displayName">Your Name</Label>
+                    <Input
+                      id="displayName"
+                      type="text"
+                      placeholder="John Smith"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      required
+                      autoComplete="name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="handicap">Handicap Index (optional)</Label>
+                    <Input
+                      id="handicap"
+                      type="number"
+                      step="0.1"
+                      placeholder="e.g. 12.4"
+                      value={handicapIndex}
+                      onChange={(e) => setHandicapIndex(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : mode === 'signin' ? (
+                  'Sign In'
+                ) : (
+                  'Create Account'
+                )}
+              </Button>
+            </form>
+
+            {/* Forgot Password Link */}
+            {mode === 'signin' && (
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => setMode('forgot')}
+                  className="text-sm text-muted-foreground hover:text-primary hover:underline"
+                >
+                  Forgot your password?
+                </button>
+              </div>
             )}
-          </Button>
-        </form>
 
-        {/* Toggle mode */}
-        <div className="mt-6 text-center">
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-            className="text-primary hover:underline"
-          >
-            {mode === 'signin'
-              ? "Don't have an account? Sign up"
-              : 'Already have an account? Sign in'}
-          </button>
-        </div>
+            {/* Toggle mode */}
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+                className="text-primary hover:underline"
+              >
+                {mode === 'signin'
+                  ? "Don't have an account? Sign up"
+                  : 'Already have an account? Sign in'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
