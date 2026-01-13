@@ -96,31 +96,52 @@ const Landing: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="space-y-4">
-          {currentRound && currentRound.status === 'ACTIVE' && (
-            <button
-              onClick={() => navigate('/active')}
-              className="w-full bg-success text-success-foreground font-bold py-4 px-6 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg animate-pulse-subtle"
-            >
-              <Play className="w-5 h-5 fill-current" />
-              Resume Round
-            </button>
-          )}
-          
-          <button
-            onClick={() => navigate('/setup')}
-            className="w-full bg-primary text-primary-foreground font-bold py-4 px-6 rounded-xl shadow-golf active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg"
-          >
-            <Play className="w-5 h-5 fill-current" />
-            Start New Round
-          </button>
+          {user ? (
+            <>
+              {currentRound && currentRound.status === 'ACTIVE' && (
+                <button
+                  onClick={() => navigate('/active')}
+                  className="w-full bg-success text-success-foreground font-bold py-4 px-6 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg animate-pulse-subtle"
+                >
+                  <Play className="w-5 h-5 fill-current" />
+                  Resume Round
+                </button>
+              )}
+              
+              <button
+                onClick={() => navigate('/setup')}
+                className="w-full bg-primary text-primary-foreground font-bold py-4 px-6 rounded-xl shadow-golf active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg"
+              >
+                <Play className="w-5 h-5 fill-current" />
+                Start New Round
+              </button>
 
-          <button
-            onClick={() => navigate('/history')}
-            className="w-full bg-card text-primary border-2 border-primary/20 font-bold py-3 px-6 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
-          >
-            <History className="w-5 h-5" />
-            View Past Rounds
-          </button>
+              <button
+                onClick={() => navigate('/history')}
+                className="w-full bg-card text-primary border-2 border-primary/20 font-bold py-3 px-6 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
+              >
+                <History className="w-5 h-5" />
+                View Past Rounds
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate('/auth')}
+                className="w-full bg-primary text-primary-foreground font-bold py-4 px-6 rounded-xl shadow-golf active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg"
+              >
+                <User className="w-5 h-5" />
+                Sign In to Start
+              </button>
+
+              <button
+                onClick={() => navigate('/auth?mode=signup')}
+                className="w-full bg-card text-primary border-2 border-primary/20 font-bold py-3 px-6 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
+              >
+                Create Account
+              </button>
+            </>
+          )}
         </div>
       </div>
 
