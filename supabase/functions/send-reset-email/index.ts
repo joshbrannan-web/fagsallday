@@ -26,7 +26,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Sending password reset email to:", email);
 
     const emailResponse = await resend.emails.send({
-      from: "F&Gs All Day <onboarding@resend.dev>",
+      from: "F&Gs All Day <noreply@fagsallday.com>",
       to: [email],
       subject: "Reset Your Password - F&Gs All Day",
       html: `
@@ -71,12 +71,12 @@ const handler = async (req: Request): Promise<Response> => {
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
               
               <p style="color: #9ca3af; font-size: 14px; text-align: center;">
-                Need help? Visit <a href="https://fagsallday.lovable.app" style="color: #16a34a;">fagsallday.lovable.app</a>
+                Need help? Visit <a href="https://fagsallday.com" style="color: #16a34a;">fagsallday.com</a>
               </p>
             </div>
             
             <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 20px;">
-              © 2024 F&Gs All Day. Track scores, bets, and payouts automatically.
+              © 2025 F&Gs All Day. Track scores, bets, and payouts automatically.
             </p>
           </div>
         </body>
