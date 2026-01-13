@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.send-reset-email]
 verify_jwt = false
+
+[functions.generate-reset-link]
+verify_jwt = false

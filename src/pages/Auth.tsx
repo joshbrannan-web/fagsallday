@@ -66,20 +66,6 @@ const Auth: React.FC = () => {
     }
   };
 
-  const sendResetEmail = async (userEmail: string, resetLink: string) => {
-    try {
-      const response = await supabase.functions.invoke('send-reset-email', {
-        body: { email: userEmail, resetLink }
-      });
-      
-      if (response.error) {
-        console.error('Failed to send reset email:', response.error);
-      }
-    } catch (error) {
-      console.error('Error sending reset email:', error);
-    }
-  };
-
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -95,21 +81,19 @@ const Auth: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const redirectUrl = `${window.location.origin}/auth?mode=reset`;
-      
-      // Generate the reset link using Supabase
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl,
+      // Call edge function that generates reset link and sends branded email
+      const { error } = await supabase.functions.invoke('generate-reset-link', {
+        body: { email, origin: window.location.origin }
       });
 
       if (error) {
-        toast.error(error.message);
+        toast.error(error.message || 'Failed to send reset email');
       } else {
-        // Send our custom branded email
-        await sendResetEmail(email, redirectUrl);
         toast.success('Check your email for a password reset link!');
         setMode('signin');
       }
+    } catch (error: any) {
+      toast.error('Failed to send reset email. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
