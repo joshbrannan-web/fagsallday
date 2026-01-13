@@ -17,7 +17,15 @@ const Auth: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user, signIn, signUp, isLoading } = useAuth();
   
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>('signin');
+  // Initialize mode synchronously from URL to prevent race condition with redirect
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>(() => {
+    const urlMode = searchParams.get('mode');
+    return urlMode === 'reset' ? 'reset' : 'signin';
+  });
+  
+  // Track if user arrived via reset link to block redirect
+  const isResetFromUrl = searchParams.get('mode') === 'reset';
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -25,14 +33,6 @@ const Auth: React.FC = () => {
   const [displayName, setDisplayName] = useState('');
   const [handicapIndex, setHandicapIndex] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Check URL params for mode on mount
-  useEffect(() => {
-    const urlMode = searchParams.get('mode');
-    if (urlMode === 'reset') {
-      setMode('reset');
-    }
-  }, [searchParams]);
 
   // Listen for PASSWORD_RECOVERY event
   useEffect(() => {
@@ -45,12 +45,12 @@ const Auth: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Redirect if already logged in (but not in reset mode)
+  // Redirect if already logged in (but not in reset mode or if arrived via reset link)
   useEffect(() => {
-    if (user && !isLoading && mode !== 'reset') {
+    if (user && !isLoading && mode !== 'reset' && !isResetFromUrl) {
       navigate('/');
     }
-  }, [user, isLoading, navigate, mode]);
+  }, [user, isLoading, navigate, mode, isResetFromUrl]);
 
   const sendWelcomeEmail = async (userEmail: string, userName: string, userPassword: string) => {
     try {
