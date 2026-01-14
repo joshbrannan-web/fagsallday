@@ -27,7 +27,16 @@ const Auth: React.FC = () => {
   
   // Initialize mode synchronously from URL to prevent race condition with redirect
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>(() => {
+    // Check for reset mode first (highest priority for password reset flow)
     if (hashModeIsReset || queryModeIsReset) return 'reset';
+    
+    // Check for signup/forgot mode from hash params or query params
+    const hashMode = searchParams.get('mode');
+    const queryMode = urlParams.get('mode');
+    
+    if (hashMode === 'signup' || queryMode === 'signup') return 'signup';
+    if (hashMode === 'forgot' || queryMode === 'forgot') return 'forgot';
+    
     return 'signin';
   });
   
