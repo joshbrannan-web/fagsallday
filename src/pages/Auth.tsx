@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -17,14 +17,19 @@ const Auth: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user, signIn, signUp, isLoading } = useAuth();
   
+  // Check both hash params (normal navigation) AND window.location.search (Supabase redirects)
+  const urlParams = new URLSearchParams(window.location.search);
+  const hashModeIsReset = searchParams.get('mode') === 'reset';
+  const queryModeIsReset = urlParams.get('mode') === 'reset';
+  
+  // Use ref to preserve initial value - won't change on re-renders
+  const isResetFromUrl = useRef(hashModeIsReset || queryModeIsReset);
+  
   // Initialize mode synchronously from URL to prevent race condition with redirect
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>(() => {
-    const urlMode = searchParams.get('mode');
-    return urlMode === 'reset' ? 'reset' : 'signin';
+    if (hashModeIsReset || queryModeIsReset) return 'reset';
+    return 'signin';
   });
-  
-  // Track if user arrived via reset link to block redirect
-  const isResetFromUrl = searchParams.get('mode') === 'reset';
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,10 +52,10 @@ const Auth: React.FC = () => {
 
   // Redirect if already logged in (but not in reset mode or if arrived via reset link)
   useEffect(() => {
-    if (user && !isLoading && mode !== 'reset' && !isResetFromUrl) {
+    if (user && !isLoading && mode !== 'reset' && !isResetFromUrl.current) {
       navigate('/');
     }
-  }, [user, isLoading, navigate, mode, isResetFromUrl]);
+  }, [user, isLoading, navigate, mode]);
 
   const sendWelcomeEmail = async (userEmail: string, userName: string, userPassword: string) => {
     try {
@@ -125,12 +130,11 @@ const Auth: React.FC = () => {
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success('Password updated successfully!');
+        toast.success('Password updated successfully! Redirecting...');
         setNewPassword('');
         setConfirmPassword('');
-        setMode('signin');
-        // Sign out to ensure clean state
-        await supabase.auth.signOut();
+        // User is already authenticated from the reset link - navigate to home
+        navigate('/');
       }
     } finally {
       setIsSubmitting(false);

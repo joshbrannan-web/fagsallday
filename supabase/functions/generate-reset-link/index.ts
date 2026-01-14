@@ -52,7 +52,7 @@ const handler = async (req: Request): Promise<Response> => {
       type: "recovery",
       email: email,
       options: {
-        redirectTo: `${PRODUCTION_URL}/auth?mode=reset`,
+        redirectTo: `${PRODUCTION_URL}/#/auth?mode=reset`,
       },
     });
 
