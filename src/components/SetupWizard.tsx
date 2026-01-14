@@ -68,6 +68,16 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     config: { birdieMultiplier: 1, eagleMultiplier: 1 }
   },
   {
+    type: GameType.STOCKTON_6,
+    name: "Stockton 6's",
+    description: '4-player teams: 1-Ball & 2-Ball Nassau over 6-hole stretches with auto-presses and dots.',
+    icon: '6️⃣',
+    defaultUnitStake: 5,
+    minPlayers: 4,
+    maxPlayers: 4,
+    config: { stockton6: { dotValue: 2 } }
+  },
+  {
     type: GameType.FBO,
     name: 'FBO (Front/Back/Overall)',
     description: 'Match play dots: 3 bets for Front 9, Back 9, and Overall 18.',

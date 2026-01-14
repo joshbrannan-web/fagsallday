@@ -31,7 +31,46 @@ export enum GameType {
   OPEN_BETTING = 'OPEN_BETTING',
   BANKER = 'BANKER',
   BLOODY_BANKER = 'BLOODY_BANKER',
-  FBO = 'FBO'
+  FBO = 'FBO',
+  STOCKTON_6 = 'STOCKTON_6'
+}
+
+// Stockton 6's types
+export type DotType = 'BIRDIE' | 'GREENIE' | 'SANDIE' | 'WATERY_PAR';
+
+export interface Stockton6TeamAssignment {
+  teamA: string[]; // Player IDs (exactly 2)
+  teamB: string[]; // Player IDs (exactly 2)
+  unitValue: number; // $ per unit (default 5)
+  dotValue: number; // $ per dot (default 2)
+  locked: boolean;
+}
+
+export interface Stockton6PressState {
+  startHole: number; // Hole where press started (1-6 within stretch)
+  teamAUp: number; // Stroke differential (positive = Team A winning)
+}
+
+export interface Stockton6BallState {
+  front: {
+    teamAUp: number;
+    presses: Stockton6PressState[];
+  };
+  back: {
+    teamAUp: number;
+    presses: Stockton6PressState[];
+  };
+  overall: {
+    teamAUp: number;
+  };
+}
+
+export interface Stockton6StretchState {
+  oneBall: Stockton6BallState;
+  twoBall: Stockton6BallState;
+  dots: {
+    [playerId: string]: DotType[];
+  }[];
 }
 
 export interface GameSettings {
@@ -48,6 +87,10 @@ export interface GameSettings {
     birdieMultiplier?: number; // For Banker: 1 = none, 3 = triple
     eagleMultiplier?: number; // For Banker: 1 = none, 3 = triple, 5 = quintuple
     fboPlayers?: string[]; // For FBO: player IDs participating in this game
+    // Stockton 6's config
+    stockton6?: {
+      dotValue: number; // Default $2 per dot
+    };
   };
 }
 
