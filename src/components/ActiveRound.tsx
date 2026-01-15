@@ -7,7 +7,7 @@ import { getNetScore, calculateStrokesReceived, calculateBankerMatchupStrokes, c
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
-import { isStretchStartHole, getTeamAssignment, getStretchForHole } from '../services/stockton6Engine';
+import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRelativeStrokes } from '../services/stockton6Engine';
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
@@ -684,6 +684,12 @@ const ActiveRound: React.FC = () => {
             autoBankerStrokes = matchupStrokes.bankerStrokes;
           }
           
+          // Stockton 6's: Calculate relative strokes if no banker game active
+          if (stockton6Game && !banker && courseHole) {
+            const relativeStrokes = calculateRelativeStrokes(currentRound.players, courseHole.handicapIndex);
+            autoPlayerStrokes = relativeStrokes[p.id] || 0;
+          }
+          
           // Use manual strokes if explicitly set, otherwise use auto-calculated
           const effectivePlayerStrokes = manualStrokes !== undefined && manualStrokes !== null 
             ? manualStrokes 
@@ -720,7 +726,7 @@ const ActiveRound: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-4">
                   {/* Manual Stroke Checkbox - shows player gets stroke */}
-                  {!isBanker && (
+                  {(!isBanker && bankerGames.length > 0) || stockton6Game ? (
                     <div className="flex flex-col items-end gap-1">
                       <label className="text-[10px] uppercase font-bold text-muted-foreground">
                         {isBankerStroking ? 'Banker +1' : 'Stroke'}
@@ -737,7 +743,7 @@ const ActiveRound: React.FC = () => {
                         {isBankerStroking && <span className="text-xs font-bold text-destructive">B</span>}
                       </button>
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Net Score Badge */}
                   <div className="flex flex-col items-end">
