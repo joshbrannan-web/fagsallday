@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, Menu, DollarSign, FileText, Crown, Home, Che
 import { getNetScore, calculateStrokesReceived, calculateBankerMatchupStrokes, calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 import { GameType, GameSettings } from '../types';
+import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
+import { isStretchStartHole, getTeamAssignment, getStretchForHole } from '../services/stockton6Engine';
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
@@ -88,6 +90,16 @@ const ActiveRound: React.FC = () => {
   const bankerGames = currentRound.games.filter(g => g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER);
   const bloodyBankerGames = currentRound.games.filter(g => g.type === GameType.BLOODY_BANKER);
   const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
+  const stockton6Games = currentRound.games.filter(g => g.type === GameType.STOCKTON_6);
+
+  // Stockton 6's: Check if we need to show team setup
+  const stockton6Game = stockton6Games[0];
+  const stockton6NeedsSetup = useMemo(() => {
+    if (!stockton6Game || !isStretchStartHole(activeHole)) return false;
+    const stretch = getStretchForHole(activeHole);
+    const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
+    return !teamAssignment;
+  }, [stockton6Game, activeHole, currentRound.gameData]);
   
   // Calculate per-hole P&L for all players
   const holePnL = calculateAggregatedHolePnL(currentRound);
@@ -254,8 +266,40 @@ const ActiveRound: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Scoring Area */}
+      {/* Stockton 6's Team Setup - Show at stretch starts if teams not set */}
+      {stockton6Game && stockton6NeedsSetup && (
+        <div className="flex-1 overflow-y-auto p-4">
+          <Stockton6TeamSetup
+            players={currentRound.players}
+            stretch={getStretchForHole(activeHole) as 1 | 2 | 3}
+            existingUnitValue={stockton6Game.unitStake}
+            existingDotValue={stockton6Game.config?.stockton6?.dotValue || 2}
+            onConfirm={(teamA, teamB, unitValue, dotValue) => {
+              const stretch = getStretchForHole(activeHole);
+              const stretchStartHole = stretch === 1 ? 1 : stretch === 2 ? 7 : 13;
+              updateGameData(stockton6Game.id, stretchStartHole, '_META_TEAM_A', teamA);
+              updateGameData(stockton6Game.id, stretchStartHole, '_META_TEAM_B', teamB);
+              updateGameData(stockton6Game.id, stretchStartHole, '_META_UNIT_VALUE', unitValue);
+              updateGameData(stockton6Game.id, stretchStartHole, '_META_DOT_VALUE', dotValue);
+              updateGameData(stockton6Game.id, stretchStartHole, '_META_LOCKED', true);
+            }}
+            onCancel={() => navigate('/summary')}
+          />
+        </div>
+      )}
+
+      {/* Main Scoring Area - Hidden when Stockton 6's team setup is needed */}
+      {!stockton6NeedsSetup && (
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32">
+        {/* Stockton 6's Status Bar */}
+        {stockton6Game && (
+          <Stockton6StatusBar
+            round={currentRound}
+            game={stockton6Game}
+            currentHole={activeHole}
+          />
+        )}
+
         {/* Banker Game: Selection Header */}
         {bankerGames.map(game => {
           const holeData = currentRound.gameData?.[game.id]?.[activeHole] || {};
@@ -533,6 +577,41 @@ const ActiveRound: React.FC = () => {
           );
         })}
 
+        {/* Stockton 6's Dots Input */}
+        {stockton6Game && (() => {
+          const stretch = getStretchForHole(activeHole);
+          const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
+          if (!teamAssignment) return null;
+          
+          const dotsData: { [playerId: string]: import('@/types').DotType[] } = {};
+          currentRound.players.forEach(p => {
+            const playerDots = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots?.[p.id] || [];
+            dotsData[p.id] = playerDots;
+          });
+          
+          return (
+            <Stockton6DotsInput
+              players={currentRound.players}
+              hole={activeHole}
+              dotsData={dotsData}
+              teamA={teamAssignment.teamA}
+              teamB={teamAssignment.teamB}
+              onToggleDot={(playerId, dotType) => {
+                const currentDots: import('@/types').DotType[] = 
+                  currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots?.[playerId] || [];
+                const newDots = currentDots.includes(dotType)
+                  ? currentDots.filter(d => d !== dotType)
+                  : [...currentDots, dotType];
+                
+                // Get existing dots object and update just this player
+                const existingDotsObj = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots || {};
+                const updatedDotsObj = { ...existingDotsObj, [playerId]: newDots };
+                updateGameData(stockton6Game.id, activeHole, 'dots', updatedDotsObj);
+              }}
+            />
+          );
+        })()}
+
         {/* Player Cards */}
         {currentRound.players.map(p => {
           const rawScore = currentRound.scores[activeHole]?.[p.id];
@@ -728,6 +807,7 @@ const ActiveRound: React.FC = () => {
           );
         })}
       </div>
+      )}
 
       {/* Floating Bottom Drawer / Summary Teaser */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
