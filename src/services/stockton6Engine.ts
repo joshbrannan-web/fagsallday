@@ -1,5 +1,5 @@
-import { Round, GameSettings, GameResult, DotType, Stockton6TeamAssignment, Stockton6BallState, Stockton6PressState, Player } from "../types";
-import { getNetScore, calculateStrokesReceived } from "./gameEngine";
+import { Round, GameSettings, GameResult, DotType, Stockton6TeamAssignment, Stockton6BallState, Stockton6PressState, Player, PlayerHoleDots } from "../types";
+import { getNetScore } from "./gameEngine";
 
 // Calculate strokes for all players on a given hole
 // Player gets a stroke if hole index <= their handicap
@@ -284,17 +284,109 @@ export const calculateBallState = (
   return { oneBall, twoBall };
 };
 
-// Get dots for a player on a specific hole
+// Get player dots object for a specific hole
+export const getPlayerDotsForHole = (
+  gameData: any,
+  gameId: string,
+  hole: number,
+  playerId: string
+): PlayerHoleDots => {
+  return gameData?.[gameId]?.[hole]?.dots?.[playerId] || {};
+};
+
+// Legacy function for backward compatibility - returns count of dots (weighted)
 export const getDotsForHole = (
   gameData: any,
   gameId: string,
   hole: number,
   playerId: string
 ): DotType[] => {
-  return gameData?.[gameId]?.[hole]?.dots?.[playerId] || [];
+  // For backward compatibility, return an array based on new structure
+  const dots = getPlayerDotsForHole(gameData, gameId, hole, playerId);
+  const result: DotType[] = [];
+  if (dots.birdie) result.push('BIRDIE');
+  if (dots.greenie) result.push('GREENIE');
+  if (dots.dotMultiplier) result.push('DOT');
+  return result;
 };
 
-// Count dots for a team in a stretch
+// Calculate weighted dot count for a player on a hole (includes multipliers and carryover)
+export const getWeightedDotCount = (
+  round: Round,
+  gameId: string,
+  hole: number,
+  playerId: string
+): number => {
+  const dots = getPlayerDotsForHole(round.gameData, gameId, hole, playerId);
+  let count = 0;
+  
+  if (dots.birdie) count += 1;
+  
+  if (dots.greenie) {
+    // Calculate Greenie carryover for this hole
+    const greenieValue = calculateGreenieCarryoverForHole(round, gameId, hole);
+    count += greenieValue;
+  }
+  
+  if (dots.dotMultiplier) {
+    count += dots.dotMultiplier;
+  }
+  
+  return count;
+};
+
+// Calculate Greenie carryover value for a specific hole
+export const calculateGreenieCarryoverForHole = (
+  round: Round,
+  gameId: string,
+  hole: number
+): number => {
+  const courseHole = round.course.holes.find(h => h.number === hole);
+  if (!courseHole) return 1;
+  
+  // Get all Par 3 holes
+  const par3Holes = round.course.holes
+    .filter(h => h.par === 3)
+    .map(h => h.number)
+    .sort((a, b) => a - b);
+  
+  const lastPar3 = par3Holes.length > 0 ? Math.max(...par3Holes) : 0;
+  const isThisHolePar3 = courseHole.par === 3;
+  const isRolloverHole = hole === lastPar3 + 1; // Hole right after last Par 3
+  
+  // If not a Par 3 and not a rollover hole, no Greenie possible
+  if (!isThisHolePar3 && !isRolloverHole) return 1;
+  
+  let carryover = 1;
+  
+  // Check all Par 3 holes before this one
+  for (const par3Hole of par3Holes) {
+    if (par3Hole >= hole) break; // Only check holes before current
+    
+    const holeDots = round.gameData?.[gameId]?.[par3Hole]?.dots || {};
+    const anyoneGotGreenie = round.players.some(p => holeDots[p.id]?.greenie === true);
+    
+    if (!anyoneGotGreenie) {
+      carryover++;
+    } else {
+      carryover = 1; // Reset after someone gets a Greenie
+    }
+  }
+  
+  // For rollover hole, check if last Par 3 also had no Greenie
+  if (isRolloverHole && !isThisHolePar3) {
+    const lastPar3Dots = round.gameData?.[gameId]?.[lastPar3]?.dots || {};
+    const anyoneGotGreenieOnLast = round.players.some(p => lastPar3Dots[p.id]?.greenie === true);
+    if (!anyoneGotGreenieOnLast) {
+      // Carryover applies to this rollover hole
+      return carryover;
+    }
+  }
+  
+  return carryover;
+};
+
+// Count weighted dots for a team in a stretch
 export const countTeamDots = (
   round: Round,
   gameId: string,
@@ -306,8 +398,7 @@ export const countTeamDots = (
   
   for (const hole of stretchHoles) {
     for (const playerId of teamPlayerIds) {
-      const dots = getDotsForHole(round.gameData, gameId, hole, playerId);
-      total += dots.length;
+      total += getWeightedDotCount(round, gameId, hole, playerId);
     }
   }
   
@@ -436,18 +527,16 @@ export const calculateHoleDotPayouts = (
   
   const { teamA, teamB, dotValue } = teamAssignment;
   
-  // Count dots for each team on this specific hole
+  // Count weighted dots for each team on this specific hole
   let teamADots = 0;
   let teamBDots = 0;
   
   for (const playerId of teamA) {
-    const dots = getDotsForHole(round.gameData, gameId, hole, playerId);
-    teamADots += dots.length;
+    teamADots += getWeightedDotCount(round, gameId, hole, playerId);
   }
   
   for (const playerId of teamB) {
-    const dots = getDotsForHole(round.gameData, gameId, hole, playerId);
-    teamBDots += dots.length;
+    teamBDots += getWeightedDotCount(round, gameId, hole, playerId);
   }
   
   // Calculate net dots (positive = Team A advantage)

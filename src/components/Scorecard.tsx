@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus } from 'lucide-react';
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
-import { calculateRelativeStrokes, getDotsForHole as getStockton6DotsForHole, STRETCH_HOLES } from '../services/stockton6Engine';
+import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES } from '../services/stockton6Engine';
 import { Button } from '@/components/ui/button';
 import { GameType, GameSettings, Player, HoleScores, GameData, Hole } from '../types';
 
@@ -234,11 +234,10 @@ const Scorecard: React.FC = () => {
     return total;
   };
 
-  // Stockton 6's dot helpers
+  // Stockton 6's dot helpers - use weighted dot counts
   const getStockton6DotCount = (playerId: string, holeNum: number): number => {
     if (!stockton6Game) return 0;
-    const dots = getStockton6DotsForHole(currentRound.gameData, stockton6Game.id, holeNum, playerId);
-    return dots.length;
+    return getWeightedDotCount(currentRound, stockton6Game.id, holeNum, playerId);
   };
 
   const getStockton6StretchDots = (playerId: string, stretch: 1 | 2 | 3): number => {
