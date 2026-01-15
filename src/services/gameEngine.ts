@@ -1,4 +1,5 @@
 import { Course, GameSettings, GameType, Player, Round, GameResult } from "../types";
+import { calculateStockton6 } from "./stockton6Engine";
 
 // --- Handicap Utilities ---
 
@@ -613,6 +614,9 @@ export const calculateRoundTotals = (round: Round): { [playerId: string]: number
       case GameType.FBO:
         result = calculateFBO(round, game);
         break;
+      case GameType.STOCKTON_6:
+        result = calculateStockton6(round, game);
+        break;
       default:
         return;
     }
@@ -763,6 +767,18 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
       .filter((g) => g.type === GameType.NASSAU)
       .forEach((game) => {
         const result = calculateNassau(round, game);
+        if (result.holeResults?.[holeNumber]) {
+          Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
+            holePnL[holeNumber][playerId] += amount;
+          });
+        }
+      });
+
+    // Process Stockton 6's games - attribute P&L to stretch end holes (6, 12, 18)
+    round.games
+      .filter((g) => g.type === GameType.STOCKTON_6)
+      .forEach((game) => {
+        const result = calculateStockton6(round, game);
         if (result.holeResults?.[holeNumber]) {
           Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
             holePnL[holeNumber][playerId] += amount;
