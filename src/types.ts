@@ -36,7 +36,14 @@ export enum GameType {
 }
 
 // Stockton 6's types
-export type DotType = 'BIRDIE' | 'GREENIE' | 'SANDIE' | 'WATERY_PAR';
+export type DotType = 'BIRDIE' | 'GREENIE' | 'DOT';
+
+// New structure for player dots on a hole
+export interface PlayerHoleDots {
+  birdie?: boolean;
+  greenie?: boolean;
+  dotMultiplier?: number; // 2, 3, 4, or 5 (undefined = no dot)
+}
 
 export interface Stockton6TeamAssignment {
   teamA: string[]; // Player IDs (exactly 2)
@@ -68,8 +75,9 @@ export interface Stockton6BallState {
 export interface Stockton6StretchState {
   oneBall: Stockton6BallState;
   twoBall: Stockton6BallState;
+  greenieCarryover?: number; // Multiplier for next greenie (1 = normal, 2+ = carried over)
   dots: {
-    [playerId: string]: DotType[];
+    [playerId: string]: PlayerHoleDots;
   }[];
 }
 

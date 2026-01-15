@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame } from 'lucide-react';
-import { GameType, GameSettings, DotType } from '../types';
-import { getNetScore, calculateStrokesReceived, calculateBankerMatchupStrokes, calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete } from '../services/gameEngine';
+import { GameType, GameSettings } from '../types';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
@@ -98,20 +98,20 @@ const ActiveRound: React.FC = () => {
     
     currentRound.players.forEach(player => {
       const playerScore = currentRound.scores[activeHole]?.[player.id];
-      const currentDots: DotType[] = 
-        currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots?.[player.id] || [];
-      const hasBirdieDot = currentDots.includes('BIRDIE');
+      const currentPlayerDots = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots?.[player.id] || {};
+      const hasBirdieDot = currentPlayerDots.birdie === true;
       
       if (playerScore === birdieScore && !hasBirdieDot) {
         // Player scored birdie, auto-add BIRDIE dot
         const existingDotsObj = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots || {};
-        const updatedDotsObj = { ...existingDotsObj, [player.id]: [...currentDots, 'BIRDIE' as DotType] };
+        const updatedPlayerDots = { ...currentPlayerDots, birdie: true };
+        const updatedDotsObj = { ...existingDotsObj, [player.id]: updatedPlayerDots };
         updateGameData(stockton6Game.id, activeHole, 'dots', updatedDotsObj);
       } else if (playerScore !== birdieScore && hasBirdieDot) {
         // Player no longer has birdie, remove BIRDIE dot
         const existingDotsObj = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots || {};
-        const newDots = currentDots.filter(d => d !== 'BIRDIE');
-        const updatedDotsObj = { ...existingDotsObj, [player.id]: newDots };
+        const updatedPlayerDots = { ...currentPlayerDots, birdie: false };
+        const updatedDotsObj = { ...existingDotsObj, [player.id]: updatedPlayerDots };
         updateGameData(stockton6Game.id, activeHole, 'dots', updatedDotsObj);
       }
     });
@@ -622,29 +622,80 @@ const ActiveRound: React.FC = () => {
           const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
           if (!teamAssignment) return null;
           
-          const dotsData: { [playerId: string]: import('@/types').DotType[] } = {};
+          const dotsData: { [playerId: string]: import('@/types').PlayerHoleDots } = {};
           currentRound.players.forEach(p => {
-            const playerDots = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots?.[p.id] || [];
+            const playerDots = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots?.[p.id] || {};
             dotsData[p.id] = playerDots;
           });
+
+          // Calculate Greenie carryover based on previous Par 3 holes
+          const calculateGreenieCarryover = (): number => {
+            // Find all Par 3 holes up to (but not including) current hole
+            const par3Holes = currentRound.course.holes
+              .filter(h => h.par === 3 && h.number < activeHole)
+              .map(h => h.number);
+            
+            // Also check if current is last Par 3 and if carryover needs to roll to next hole
+            const allPar3s = currentRound.course.holes.filter(h => h.par === 3).map(h => h.number);
+            const lastPar3 = allPar3s.length > 0 ? Math.max(...allPar3s) : 0;
+            
+            let carryover = 1;
+            
+            for (const par3Hole of par3Holes) {
+              // Check if any player got a Greenie on this Par 3
+              const holeDots = currentRound.gameData?.[stockton6Game.id]?.[par3Hole]?.dots || {};
+              const anyoneGotGreenie = currentRound.players.some(p => holeDots[p.id]?.greenie);
+              
+              if (!anyoneGotGreenie) {
+                carryover++;
+              } else {
+                carryover = 1; // Reset after someone gets a Greenie
+              }
+            }
+            
+            // If current hole is NOT a Par 3, but comes right after last Par 3 with carryover
+            if (courseHole?.par !== 3 && activeHole === lastPar3 + 1) {
+              const lastPar3Dots = currentRound.gameData?.[stockton6Game.id]?.[lastPar3]?.dots || {};
+              const anyoneGotGreenieOnLast = currentRound.players.some(p => lastPar3Dots[p.id]?.greenie);
+              if (!anyoneGotGreenieOnLast && carryover > 1) {
+                // Carryover rolls to this hole
+                return carryover;
+              }
+            }
+            
+            return carryover;
+          };
+          
+          const greenieCarryover = calculateGreenieCarryover();
           
           return (
             <Stockton6DotsInput
               players={currentRound.players}
               hole={activeHole}
+              holePar={courseHole?.par || 4}
               dotsData={dotsData}
               teamA={teamAssignment.teamA}
               teamB={teamAssignment.teamB}
-              onToggleDot={(playerId, dotType) => {
-                const currentDots: import('@/types').DotType[] = 
-                  currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots?.[playerId] || [];
-                const newDots = currentDots.includes(dotType)
-                  ? currentDots.filter(d => d !== dotType)
-                  : [...currentDots, dotType];
-                
-                // Get existing dots object and update just this player
+              greenieCarryover={greenieCarryover}
+              onToggleBirdie={(playerId) => {
                 const existingDotsObj = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots || {};
-                const updatedDotsObj = { ...existingDotsObj, [playerId]: newDots };
+                const currentPlayerDots = existingDotsObj[playerId] || {};
+                const updatedPlayerDots = { ...currentPlayerDots, birdie: !currentPlayerDots.birdie };
+                const updatedDotsObj = { ...existingDotsObj, [playerId]: updatedPlayerDots };
+                updateGameData(stockton6Game.id, activeHole, 'dots', updatedDotsObj);
+              }}
+              onToggleGreenie={(playerId) => {
+                const existingDotsObj = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots || {};
+                const currentPlayerDots = existingDotsObj[playerId] || {};
+                const updatedPlayerDots = { ...currentPlayerDots, greenie: !currentPlayerDots.greenie };
+                const updatedDotsObj = { ...existingDotsObj, [playerId]: updatedPlayerDots };
+                updateGameData(stockton6Game.id, activeHole, 'dots', updatedDotsObj);
+              }}
+              onSetDotMultiplier={(playerId, multiplier) => {
+                const existingDotsObj = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots || {};
+                const currentPlayerDots = existingDotsObj[playerId] || {};
+                const updatedPlayerDots = { ...currentPlayerDots, dotMultiplier: multiplier };
+                const updatedDotsObj = { ...existingDotsObj, [playerId]: updatedPlayerDots };
                 updateGameData(stockton6Game.id, activeHole, 'dots', updatedDotsObj);
               }}
             />
