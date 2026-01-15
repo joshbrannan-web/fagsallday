@@ -421,6 +421,122 @@ export const calculateStretchPayouts = (
   
   return { playerPayouts, details };
 };
+// Calculate dot payouts for a single hole
+export const calculateHoleDotPayouts = (
+  round: Round,
+  gameId: string,
+  hole: number
+): { playerPayouts: { [playerId: string]: number } } | null => {
+  // Determine which stretch this hole belongs to
+  const stretch = getStretchForHole(hole);
+  
+  // Get team assignment for this stretch
+  const teamAssignment = getTeamAssignment(round.gameData, gameId, stretch);
+  if (!teamAssignment) return null;
+  
+  const { teamA, teamB, dotValue } = teamAssignment;
+  
+  // Count dots for each team on this specific hole
+  let teamADots = 0;
+  let teamBDots = 0;
+  
+  for (const playerId of teamA) {
+    const dots = getDotsForHole(round.gameData, gameId, hole, playerId);
+    teamADots += dots.length;
+  }
+  
+  for (const playerId of teamB) {
+    const dots = getDotsForHole(round.gameData, gameId, hole, playerId);
+    teamBDots += dots.length;
+  }
+  
+  // Calculate net dots (positive = Team A advantage)
+  const netDots = teamADots - teamBDots;
+  const dotPayout = netDots * dotValue;
+  
+  // Apply "no-split" rule: each player gets full amount
+  const playerPayouts: { [playerId: string]: number } = {};
+  
+  for (const pid of teamA) {
+    playerPayouts[pid] = dotPayout;
+  }
+  for (const pid of teamB) {
+    playerPayouts[pid] = -dotPayout;
+  }
+  
+  return { playerPayouts };
+};
+
+// Calculate stretch ball payouts (1-Ball and 2-Ball only, no dots)
+export const calculateStretchBallPayouts = (
+  round: Round,
+  game: GameSettings,
+  stretch: 1 | 2 | 3
+): { playerPayouts: { [playerId: string]: number }; details: string[] } | null => {
+  const teamAssignment = getTeamAssignment(round.gameData, game.id, stretch);
+  if (!teamAssignment) return null;
+  
+  const { teamA, teamB, unitValue } = teamAssignment;
+  const stretchEndHole = stretch * 6;
+  
+  // Check if stretch is complete
+  const stretchHoles = STRETCH_HOLES[stretch];
+  const allComplete = stretchHoles.every(hole => {
+    const holeScores = round.scores[hole];
+    if (!holeScores) return false;
+    return [...teamA, ...teamB].every(pid => typeof holeScores[pid] === 'number');
+  });
+  
+  if (!allComplete) return null;
+  
+  const ballState = calculateBallState(round, game.id, stretch, stretchEndHole);
+  if (!ballState) return null;
+  
+  const { oneBall, twoBall } = ballState;
+  const details: string[] = [];
+  
+  // Calculate 1-Ball units
+  const oneBallFrontUnits = calculateSideUnits(oneBall.front.teamAUp, oneBall.front.presses, 1);
+  const oneBallBackUnits = calculateSideUnits(oneBall.back.teamAUp, oneBall.back.presses, 2);
+  const oneBallOverallUnits = oneBall.overall.teamAUp > 0 ? 1 : (oneBall.overall.teamAUp < 0 ? -1 : 0);
+  const totalOneBallUnits = oneBallFrontUnits + oneBallBackUnits + oneBallOverallUnits;
+  
+  // Calculate 2-Ball units
+  const twoBallFrontUnits = calculateSideUnits(twoBall.front.teamAUp, twoBall.front.presses, 1);
+  const twoBallBackUnits = calculateSideUnits(twoBall.back.teamAUp, twoBall.back.presses, 2);
+  const twoBallOverallUnits = twoBall.overall.teamAUp > 0 ? 1 : (twoBall.overall.teamAUp < 0 ? -1 : 0);
+  const totalTwoBallUnits = twoBallFrontUnits + twoBallBackUnits + twoBallOverallUnits;
+  
+  // Calculate ball payouts only (no dots)
+  const oneBallPayout = totalOneBallUnits * unitValue;
+  const twoBallPayout = totalTwoBallUnits * unitValue;
+  const ballPayout = oneBallPayout + twoBallPayout;
+  
+  // Apply "no-split" rule: each player gets full amount
+  const playerPayouts: { [playerId: string]: number } = {};
+  
+  for (const pid of teamA) {
+    playerPayouts[pid] = ballPayout;
+  }
+  for (const pid of teamB) {
+    playerPayouts[pid] = -ballPayout;
+  }
+  
+  // Build details
+  details.push(`Stretch ${stretch} (Holes ${stretchHoles[0]}-${stretchHoles[5]}):`);
+  details.push(`  1-Ball: Front ${oneBallFrontUnits > 0 ? '+' : ''}${oneBallFrontUnits}u, Back ${oneBallBackUnits > 0 ? '+' : ''}${oneBallBackUnits}u, Overall ${oneBallOverallUnits > 0 ? '+' : ''}${oneBallOverallUnits}u`);
+  details.push(`  2-Ball: Front ${twoBallFrontUnits > 0 ? '+' : ''}${twoBallFrontUnits}u, Back ${twoBallBackUnits > 0 ? '+' : ''}${twoBallBackUnits}u, Overall ${twoBallOverallUnits > 0 ? '+' : ''}${twoBallOverallUnits}u`);
+  
+  if (ballPayout > 0) {
+    details.push(`  → Team A each: +$${ballPayout} (balls)`);
+  } else if (ballPayout < 0) {
+    details.push(`  → Team B each: +$${Math.abs(ballPayout)} (balls)`);
+  } else {
+    details.push(`  → Ball bets push`);
+  }
+  
+  return { playerPayouts, details };
+};
 
 // Main calculation function
 export const calculateStockton6 = (round: Round, game: GameSettings): GameResult => {
@@ -433,19 +549,43 @@ export const calculateStockton6 = (round: Round, game: GameSettings): GameResult
     results[p.id] = 0;
   });
   
-  // Calculate each stretch
+  // Initialize hole results for all holes
+  for (let hole = 1; hole <= 18; hole++) {
+    holeResults[hole] = {};
+    round.players.forEach(p => { holeResults[hole][p.id] = 0; });
+  }
+  
+  // Process EACH hole for dot payouts
+  for (let hole = 1; hole <= 18; hole++) {
+    // Check if hole has scores for at least one team
+    const holeScores = round.scores[hole];
+    if (!holeScores) continue;
+    
+    const dotResult = calculateHoleDotPayouts(round, game.id, hole);
+    if (dotResult) {
+      // Add dot payouts to this hole's results
+      Object.entries(dotResult.playerPayouts).forEach(([pid, amount]) => {
+        holeResults[hole][pid] += amount;
+        results[pid] += amount;
+      });
+    }
+  }
+  
+  // Calculate each stretch for 1-Ball/2-Ball payouts (added at stretch-end holes)
   for (const stretch of [1, 2, 3] as const) {
-    const stretchResult = calculateStretchPayouts(round, game, stretch);
+    const stretchResult = calculateStretchBallPayouts(round, game, stretch);
     if (!stretchResult) continue;
     
     // Add to totals
     Object.entries(stretchResult.playerPayouts).forEach(([pid, amount]) => {
-      results[pid] = (results[pid] || 0) + amount;
+      results[pid] += amount;
     });
     
-    // Store per-hole breakdown for the stretch end hole
+    // Add ball payouts to stretch end hole
     const stretchEndHole = stretch * 6;
-    holeResults[stretchEndHole] = stretchResult.playerPayouts;
+    Object.entries(stretchResult.playerPayouts).forEach(([pid, amount]) => {
+      holeResults[stretchEndHole][pid] += amount;
+    });
     
     // Add details
     details.push(...stretchResult.details);
