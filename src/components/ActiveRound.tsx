@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { ChevronLeft, ChevronRight, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame } from 'lucide-react';
+import { GameType, GameSettings, DotType } from '../types';
 import { getNetScore, calculateStrokesReceived, calculateBankerMatchupStrokes, calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
-import { GameType, GameSettings } from '../types';
+
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
 import { isStretchStartHole, getTeamAssignment, getStretchForHole } from '../services/stockton6Engine';
 
@@ -20,6 +21,7 @@ const ActiveRound: React.FC = () => {
   });
   const [isListening, setIsListening] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(false);
 
   // All hooks must be called before any early returns!
   // Bloody Banker "Down the Most" logic for holes 16, 17, 18
@@ -80,6 +82,40 @@ const ActiveRound: React.FC = () => {
       // Allow the component to render the empty state
     }
   }, [currentRound, navigate]);
+
+  // Auto-select birdie dot when player scores exactly par - 1 on Stockton 6's
+  useEffect(() => {
+    if (!currentRound) return;
+    
+    const stockton6Games = currentRound.games.filter(g => g.type === GameType.STOCKTON_6);
+    const stockton6Game = stockton6Games[0];
+    if (!stockton6Game) return;
+    
+    const courseHole = currentRound.course.holes.find(h => h.number === activeHole);
+    if (!courseHole) return;
+    
+    const birdieScore = courseHole.par - 1;
+    
+    currentRound.players.forEach(player => {
+      const playerScore = currentRound.scores[activeHole]?.[player.id];
+      const currentDots: DotType[] = 
+        currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots?.[player.id] || [];
+      const hasBirdieDot = currentDots.includes('BIRDIE');
+      
+      if (playerScore === birdieScore && !hasBirdieDot) {
+        // Player scored birdie, auto-add BIRDIE dot
+        const existingDotsObj = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots || {};
+        const updatedDotsObj = { ...existingDotsObj, [player.id]: [...currentDots, 'BIRDIE' as DotType] };
+        updateGameData(stockton6Game.id, activeHole, 'dots', updatedDotsObj);
+      } else if (playerScore !== birdieScore && hasBirdieDot) {
+        // Player no longer has birdie, remove BIRDIE dot
+        const existingDotsObj = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots || {};
+        const newDots = currentDots.filter(d => d !== 'BIRDIE');
+        const updatedDotsObj = { ...existingDotsObj, [player.id]: newDots };
+        updateGameData(stockton6Game.id, activeHole, 'dots', updatedDotsObj);
+      }
+    });
+  }, [currentRound, activeHole, updateGameData]);
 
   if (!currentRound) {
     return (
@@ -293,7 +329,7 @@ const ActiveRound: React.FC = () => {
 
       {/* Main Scoring Area - Hidden when Stockton 6's team setup is needed */}
       {!stockton6NeedsSetup && (
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32">
+      <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${isBottomBarMinimized ? 'pb-16' : 'pb-48'}`}>
         {/* Stockton 6's Status Bar */}
         {stockton6Game && (
           <Stockton6StatusBar
@@ -813,31 +849,53 @@ const ActiveRound: React.FC = () => {
       )}
 
       {/* Floating Bottom Drawer / Summary Teaser */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-        <div className="flex justify-between items-center text-sm font-bold text-muted-foreground mb-2">
-          <span>Round Totals</span>
-          <span>Live Bets</span>
-        </div>
-        <div className="flex gap-4 overflow-x-auto no-scrollbar">
-          {currentRound.players.map(p => {
-            const totalGross = getPlayerTotalGross(p.id);
-            return (
-              <div key={p.id} className="flex flex-col items-center min-w-[60px]">
-                <div className="w-8 h-8 rounded-full bg-muted text-foreground flex items-center justify-center text-xs font-bold mb-1 border border-border">
-                  {p.name.substring(0, 2).toUpperCase()}
-                </div>
-                <div className="flex flex-col items-center leading-none gap-0.5">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase">
-                    {totalGross}
-                  </span>
-                  <span className={`text-xs font-bold ${roundTotals[p.id] > 0 ? 'text-success' : (roundTotals[p.id] < 0 ? 'text-destructive' : 'text-muted-foreground')}`}>
-                    {roundTotals[p.id] > 0 ? '+' : (roundTotals[p.id] < 0 ? '-' : '')}${Math.abs(roundTotals[p.id] || 0)}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <div className={`fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] transition-all duration-300 ${isBottomBarMinimized ? 'pb-safe' : 'p-4 pb-safe'}`}>
+        {/* Toggle Button */}
+        <button
+          onClick={() => setIsBottomBarMinimized(!isBottomBarMinimized)}
+          className="absolute -top-8 left-1/2 -translate-x-1/2 bg-card border border-border border-b-0 rounded-t-lg px-4 py-1 shadow-sm"
+        >
+          {isBottomBarMinimized ? (
+            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          )}
+        </button>
+        
+        {/* Minimized State - Just a thin bar */}
+        {isBottomBarMinimized && (
+          <div className="h-2" />
+        )}
+        
+        {/* Expanded State - Full Content */}
+        {!isBottomBarMinimized && (
+          <>
+            <div className="flex justify-between items-center text-sm font-bold text-muted-foreground mb-2">
+              <span>Round Totals</span>
+              <span>Live Bets</span>
+            </div>
+            <div className="flex gap-4 overflow-x-auto no-scrollbar">
+              {currentRound.players.map(p => {
+                const totalGross = getPlayerTotalGross(p.id);
+                return (
+                  <div key={p.id} className="flex flex-col items-center min-w-[60px]">
+                    <div className="w-8 h-8 rounded-full bg-muted text-foreground flex items-center justify-center text-xs font-bold mb-1 border border-border">
+                      {p.name.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex flex-col items-center leading-none gap-0.5">
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase">
+                        {totalGross}
+                      </span>
+                      <span className={`text-xs font-bold ${roundTotals[p.id] > 0 ? 'text-success' : (roundTotals[p.id] < 0 ? 'text-destructive' : 'text-muted-foreground')}`}>
+                        {roundTotals[p.id] > 0 ? '+' : (roundTotals[p.id] < 0 ? '-' : '')}${Math.abs(roundTotals[p.id] || 0)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
