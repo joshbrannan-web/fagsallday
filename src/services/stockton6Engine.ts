@@ -357,7 +357,8 @@ export const calculateGreenieCarryoverForHole = (
   // If not a Par 3 and not a rollover hole, no Greenie possible
   if (!isThisHolePar3 && !isRolloverHole) return 1;
   
-  let carryover = 1;
+  // Count only the number of consecutive Par 3 holes where no one got a Greenie
+  let missedPar3Count = 0;
   
   // Check all Par 3 holes before this one
   for (const par3Hole of par3Holes) {
@@ -367,23 +368,24 @@ export const calculateGreenieCarryoverForHole = (
     const anyoneGotGreenie = round.players.some(p => holeDots[p.id]?.greenie === true);
     
     if (!anyoneGotGreenie) {
-      carryover++;
+      missedPar3Count++;
     } else {
-      carryover = 1; // Reset after someone gets a Greenie
+      missedPar3Count = 0; // Reset after someone gets a Greenie
     }
   }
   
-  // For rollover hole, check if last Par 3 also had no Greenie
+  // For rollover hole, include the last Par 3 in the count if it was also missed
   if (isRolloverHole && !isThisHolePar3) {
     const lastPar3Dots = round.gameData?.[gameId]?.[lastPar3]?.dots || {};
     const anyoneGotGreenieOnLast = round.players.some(p => lastPar3Dots[p.id]?.greenie === true);
     if (!anyoneGotGreenieOnLast) {
-      // Carryover applies to this rollover hole
-      return carryover;
+      // Return the count of missed Par 3s (rollover hole doesn't add to count)
+      return missedPar3Count > 0 ? missedPar3Count : 1;
     }
   }
   
-  return carryover;
+  // For Par 3 holes, return missed count + 1 for the current Par 3 opportunity
+  return missedPar3Count > 0 ? missedPar3Count + 1 : 1;
 };
 
 // Count weighted dots for a team in a stretch

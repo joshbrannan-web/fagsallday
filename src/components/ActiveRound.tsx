@@ -658,7 +658,8 @@ const ActiveRound: React.FC = () => {
             const allPar3s = currentRound.course.holes.filter(h => h.par === 3).map(h => h.number);
             const lastPar3 = allPar3s.length > 0 ? Math.max(...allPar3s) : 0;
             
-            let carryover = 1;
+            // Count only the number of consecutive Par 3 holes where no one got a Greenie
+            let missedPar3Count = 0;
             
             for (const par3Hole of par3Holes) {
               // Check if any player got a Greenie on this Par 3
@@ -666,9 +667,9 @@ const ActiveRound: React.FC = () => {
               const anyoneGotGreenie = currentRound.players.some(p => holeDots[p.id]?.greenie);
               
               if (!anyoneGotGreenie) {
-                carryover++;
+                missedPar3Count++;
               } else {
-                carryover = 1; // Reset after someone gets a Greenie
+                missedPar3Count = 0; // Reset after someone gets a Greenie
               }
             }
             
@@ -677,10 +678,16 @@ const ActiveRound: React.FC = () => {
             if (courseHole?.par !== 3 && activeHole === lastPar3 + 1) {
               const lastPar3Dots = currentRound.gameData?.[stockton6Game.id]?.[lastPar3]?.dots || {};
               const anyoneGotGreenieOnLast = currentRound.players.some(p => lastPar3Dots[p.id]?.greenie);
-              if (!anyoneGotGreenieOnLast && carryover > 1) {
+              if (!anyoneGotGreenieOnLast && missedPar3Count > 0) {
                 isRolloverHole = true;
               }
             }
+            
+            // Return the count of missed Par 3s (rollover hole doesn't add to count)
+            // For Par 3 holes, add 1 for the current opportunity
+            const carryover = courseHole?.par === 3 
+              ? (missedPar3Count > 0 ? missedPar3Count + 1 : 1)
+              : (missedPar3Count > 0 ? missedPar3Count : 1);
             
             return { carryover, isRolloverHole };
           };
