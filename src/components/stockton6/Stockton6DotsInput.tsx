@@ -19,6 +19,7 @@ interface Stockton6DotsInputProps {
   teamA: string[];
   teamB: string[];
   greenieCarryover: number; // Current Greenie value (1 = normal, 2+ = carried)
+  isGreenieRolloverHole?: boolean; // True if this hole is after last Par 3 with carryover
 }
 
 const Stockton6DotsInput: React.FC<Stockton6DotsInputProps> = ({
@@ -31,7 +32,8 @@ const Stockton6DotsInput: React.FC<Stockton6DotsInputProps> = ({
   onSetDotMultiplier,
   teamA,
   teamB,
-  greenieCarryover
+  greenieCarryover,
+  isGreenieRolloverHole = false
 }) => {
   const getPlayerTeam = (playerId: string): 'A' | 'B' | null => {
     if (teamA.includes(playerId)) return 'A';
@@ -44,6 +46,7 @@ const Stockton6DotsInput: React.FC<Stockton6DotsInputProps> = ({
   };
 
   const isPar3 = holePar === 3;
+  const showGreenieButton = isPar3 || isGreenieRolloverHole;
 
   // Count team dots for totals
   const countTeamDots = (teamPlayerIds: string[]): number => {
@@ -64,14 +67,14 @@ const Stockton6DotsInput: React.FC<Stockton6DotsInputProps> = ({
           <span className="text-lg">🎯</span> Dots
         </h3>
         <div className="flex items-center gap-2">
-          {isPar3 && greenieCarryover > 1 && (
+          {showGreenieButton && greenieCarryover > 1 && (
             <span className="text-xs font-bold bg-green-500 text-white px-2 py-0.5 rounded-full animate-pulse">
-              Greenie {greenieCarryover}x!
+              {isGreenieRolloverHole ? 'Rollover ' : ''}Greenie {greenieCarryover}x!
             </span>
           )}
           <div className="flex gap-1 text-xs">
             <span title="Birdie">🐦</span>
-            {isPar3 && <span title="Greenie">⛳️</span>}
+            {showGreenieButton && <span title="Greenie">⛳️</span>}
             <span title="Dot">🎯</span>
           </div>
         </div>
@@ -112,8 +115,8 @@ const Stockton6DotsInput: React.FC<Stockton6DotsInputProps> = ({
                   🐦
                 </button>
 
-                {/* Greenie Button - Only on Par 3 */}
-                {isPar3 ? (
+                {/* Greenie Button - On Par 3 or Rollover Hole */}
+                {showGreenieButton ? (
                   <button
                     onClick={() => onToggleGreenie(player.id)}
                     className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-all relative ${
@@ -121,7 +124,9 @@ const Stockton6DotsInput: React.FC<Stockton6DotsInputProps> = ({
                         ? 'bg-green-500 text-white shadow-md scale-110' 
                         : 'bg-muted text-muted-foreground hover:bg-muted/80'
                     }`}
-                    title={`Greenie (worth ${greenieCarryover} dot${greenieCarryover > 1 ? 's' : ''})`}
+                    title={isGreenieRolloverHole 
+                      ? `Rollover Greenie (worth ${greenieCarryover} dots!)` 
+                      : `Greenie (worth ${greenieCarryover} dot${greenieCarryover > 1 ? 's' : ''})`}
                   >
                     ⛳️
                     {greenieCarryover > 1 && playerDots.greenie && (
