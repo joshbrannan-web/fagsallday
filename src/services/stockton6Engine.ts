@@ -1,24 +1,20 @@
 import { Round, GameSettings, GameResult, DotType, Stockton6TeamAssignment, Stockton6BallState, Stockton6PressState, Player } from "../types";
 import { getNetScore, calculateStrokesReceived } from "./gameEngine";
 
-// Calculate relative strokes for all players on a given hole
-// Players only get strokes relative to the lowest handicap player
+// Calculate strokes for all players on a given hole
+// Player gets a stroke if hole index <= their handicap
 // If ALL players would receive a stroke, cancel them all out
 export const calculateRelativeStrokes = (
   players: Player[],
   holeHandicapIndex: number
 ): { [playerId: string]: number } => {
-  // Find the lowest handicap among all players
-  const lowestHandicap = Math.min(...players.map(p => p.courseHandicap));
-  
   // Calculate stroke eligibility for each player
   const strokes: { [playerId: string]: number } = {};
   let playersReceivingStrokes = 0;
   
   players.forEach(player => {
-    const differential = player.courseHandicap - lowestHandicap;
-    // Player gets a stroke if the hole's handicap index is <= their differential
-    const getsStroke = holeHandicapIndex <= differential;
+    // Player gets a stroke if hole index <= their handicap
+    const getsStroke = holeHandicapIndex <= player.courseHandicap;
     strokes[player.id] = getsStroke ? 1 : 0;
     if (getsStroke) playersReceivingStrokes++;
   });
