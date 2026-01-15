@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus } from 'lucide-react';
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
+import { calculateRelativeStrokes } from '../services/stockton6Engine';
 import { Button } from '@/components/ui/button';
 import { GameType, GameSettings, Player, HoleScores, GameData, Hole } from '../types';
 
@@ -205,6 +206,9 @@ const Scorecard: React.FC = () => {
   const fboPlayerIds = fboGame?.config.fboPlayers || currentRound.players.map(p => p.id);
   const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
   
+  // Find Stockton 6's game
+  const stockton6Game = currentRound.games.find(g => g.type === GameType.STOCKTON_6);
+  
   const getDotsForHole = (holeNum: number): string[] => {
     if (!fboGame) return [];
     return currentRound.gameData?.[fboGame.id]?.[holeNum]?.dots || [];
@@ -295,7 +299,12 @@ const Scorecard: React.FC = () => {
                     {activeHoles.map(h => {
                       const score = getPlayerScore(player.id, h.number);
                       const diff = typeof score === 'number' ? score - h.par : 0;
-                      const hasStroke = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id] === 1;
+                      // Check for manual stroke OR auto-calculated Stockton 6's stroke
+                      let hasStroke = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id] === 1;
+                      if (!hasStroke && stockton6Game) {
+                        const autoStrokes = calculateRelativeStrokes(currentRound.players, h.handicapIndex);
+                        hasStroke = autoStrokes[player.id] === 1;
+                      }
                       const isBanker = getBankerForHole(h.number) === player.id;
                       return (
                         <td key={h.number} className="p-2 border-r border-border/50">
