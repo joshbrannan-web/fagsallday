@@ -1,5 +1,37 @@
-import { Round, GameSettings, GameResult, DotType, Stockton6TeamAssignment, Stockton6BallState, Stockton6PressState } from "../types";
+import { Round, GameSettings, GameResult, DotType, Stockton6TeamAssignment, Stockton6BallState, Stockton6PressState, Player } from "../types";
 import { getNetScore, calculateStrokesReceived } from "./gameEngine";
+
+// Calculate relative strokes for all players on a given hole
+// Players only get strokes relative to the lowest handicap player
+// If ALL players would receive a stroke, cancel them all out
+export const calculateRelativeStrokes = (
+  players: Player[],
+  holeHandicapIndex: number
+): { [playerId: string]: number } => {
+  // Find the lowest handicap among all players
+  const lowestHandicap = Math.min(...players.map(p => p.courseHandicap));
+  
+  // Calculate stroke eligibility for each player
+  const strokes: { [playerId: string]: number } = {};
+  let playersReceivingStrokes = 0;
+  
+  players.forEach(player => {
+    const differential = player.courseHandicap - lowestHandicap;
+    // Player gets a stroke if the hole's handicap index is <= their differential
+    const getsStroke = holeHandicapIndex <= differential;
+    strokes[player.id] = getsStroke ? 1 : 0;
+    if (getsStroke) playersReceivingStrokes++;
+  });
+  
+  // If ALL players would get a stroke, cancel them all out
+  if (playersReceivingStrokes === players.length) {
+    players.forEach(player => {
+      strokes[player.id] = 0;
+    });
+  }
+  
+  return strokes;
+};
 
 // Stretch definitions (6 holes each)
 export const STRETCH_HOLES = {
@@ -75,7 +107,10 @@ export const calculateHoleBallResults = (
   
   if (!holeData || !holeScores) return null;
   
-  // Get net scores for all players
+  // Calculate relative strokes for all players on this hole
+  const relativeStrokes = calculateRelativeStrokes(round.players, holeData.handicapIndex);
+  
+  // Get net scores for all players using relative handicap strokes
   const getPlayerNet = (playerId: string): number | null => {
     const gross = holeScores[playerId];
     if (typeof gross !== 'number') return null;
@@ -83,14 +118,16 @@ export const calculateHoleBallResults = (
     const player = round.players.find(p => p.id === playerId);
     if (!player) return null;
     
+    // Check for manual override first
     const manualStrokes = round.gameData?.['MANUAL_STROKES']?.[hole]?.[playerId];
-    return getCappedNetScore(
-      gross,
-      holeData.par,
-      holeData.handicapIndex,
-      player.courseHandicap,
-      manualStrokes
-    );
+    
+    // Use manual stroke if set, otherwise use relative stroke calculation
+    const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null 
+      ? manualStrokes 
+      : relativeStrokes[playerId];
+    
+    // Apply net score with relative strokes (pass 0 for courseHandicap since we're using explicit strokes)
+    return getCappedNetScore(gross, holeData.par, holeData.handicapIndex, 0, effectiveStrokes);
   };
   
   // Calculate team nets
