@@ -71,7 +71,7 @@ const Stockton6DotsInput: React.FC<Stockton6DotsInputProps> = ({
           )}
           <div className="flex gap-1 text-xs">
             <span title="Birdie">🐦</span>
-            {isPar3 && <span title="Greenie">🟢</span>}
+            {isPar3 && <span title="Greenie">⛳️</span>}
             <span title="Dot">🎯</span>
           </div>
         </div>
@@ -123,7 +123,7 @@ const Stockton6DotsInput: React.FC<Stockton6DotsInputProps> = ({
                     }`}
                     title={`Greenie (worth ${greenieCarryover} dot${greenieCarryover > 1 ? 's' : ''})`}
                   >
-                    🟢
+                    ⛳️
                     {greenieCarryover > 1 && playerDots.greenie && (
                       <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-green-700 text-white w-4 h-4 rounded-full flex items-center justify-center">
                         {greenieCarryover}
@@ -160,7 +160,7 @@ const Stockton6DotsInput: React.FC<Stockton6DotsInputProps> = ({
                     >
                       None
                     </DropdownMenuItem>
-                    {[2, 3, 4, 5].map(mult => (
+                    {[1, 2, 3, 4, 5].map(mult => (
                       <DropdownMenuItem 
                         key={mult}
                         onClick={() => onSetDotMultiplier(player.id, mult)}
