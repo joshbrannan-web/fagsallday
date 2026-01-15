@@ -64,6 +64,17 @@ const ActiveRound: React.FC = () => {
     return downPlayers.length > 0 ? downPlayers : null;
   }, [currentRound, activeHole]);
 
+  // Stockton 6's: Check if we need to show team setup (must be before early return!)
+  const stockton6NeedsSetup = useMemo(() => {
+    if (!currentRound) return false;
+    const stockton6Games = currentRound.games.filter(g => g.type === GameType.STOCKTON_6);
+    const stockton6Game = stockton6Games[0];
+    if (!stockton6Game || !isStretchStartHole(activeHole)) return false;
+    const stretch = getStretchForHole(activeHole);
+    const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
+    return !teamAssignment;
+  }, [currentRound, activeHole]);
+
   useEffect(() => {
     if (!currentRound) {
       // Allow the component to render the empty state
@@ -91,15 +102,7 @@ const ActiveRound: React.FC = () => {
   const bloodyBankerGames = currentRound.games.filter(g => g.type === GameType.BLOODY_BANKER);
   const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
   const stockton6Games = currentRound.games.filter(g => g.type === GameType.STOCKTON_6);
-
-  // Stockton 6's: Check if we need to show team setup
   const stockton6Game = stockton6Games[0];
-  const stockton6NeedsSetup = useMemo(() => {
-    if (!stockton6Game || !isStretchStartHole(activeHole)) return false;
-    const stretch = getStretchForHole(activeHole);
-    const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
-    return !teamAssignment;
-  }, [stockton6Game, activeHole, currentRound.gameData]);
   
   // Calculate per-hole P&L for all players
   const holePnL = calculateAggregatedHolePnL(currentRound);
