@@ -10,6 +10,7 @@ interface Stockton6TeamSetupProps {
   existingTeamB?: string[];
   existingUnitValue?: number;
   existingDotValue?: number;
+  previousStretchTeams?: { teamA: string[]; teamB: string[] }[];
   onConfirm: (teamA: string[], teamB: string[], unitValue: number, dotValue: number) => void;
   onCancel: () => void;
 }
@@ -21,6 +22,7 @@ const Stockton6TeamSetup: React.FC<Stockton6TeamSetupProps> = ({
   existingTeamB,
   existingUnitValue = 5,
   existingDotValue = 2,
+  previousStretchTeams = [],
   onConfirm,
   onCancel
 }) => {
@@ -29,14 +31,64 @@ const Stockton6TeamSetup: React.FC<Stockton6TeamSetupProps> = ({
   const [unitValue, setUnitValue] = useState(existingUnitValue);
   const [dotValue, setDotValue] = useState(existingDotValue);
 
+  // Generate rotated teams ensuring no two players are on the same team twice
+  const getRotatedTeams = (
+    playerIds: string[],
+    previousTeams: { teamA: string[]; teamB: string[] }[]
+  ): { teamA: string[]; teamB: string[] } => {
+    if (playerIds.length !== 4) return { teamA: [], teamB: [] };
+
+    // Get all previous pairings
+    const previousPairings: Set<string> = new Set();
+    previousTeams.forEach(t => {
+      if (t.teamA.length === 2) {
+        previousPairings.add([...t.teamA].sort().join(','));
+      }
+      if (t.teamB.length === 2) {
+        previousPairings.add([...t.teamB].sort().join(','));
+      }
+    });
+
+    // Find a pairing not used before
+    for (let i = 0; i < 4; i++) {
+      for (let j = i + 1; j < 4; j++) {
+        const pairA = [playerIds[i], playerIds[j]].sort().join(',');
+        const remaining = playerIds.filter(id => id !== playerIds[i] && id !== playerIds[j]);
+        const pairB = [...remaining].sort().join(',');
+
+        if (!previousPairings.has(pairA) && !previousPairings.has(pairB)) {
+          return {
+            teamA: [playerIds[i], playerIds[j]],
+            teamB: remaining
+          };
+        }
+      }
+    }
+
+    // Fallback to first 2 vs last 2
+    return {
+      teamA: [playerIds[0], playerIds[1]],
+      teamB: [playerIds[2], playerIds[3]]
+    };
+  };
+
   // Auto-assign if 4 players and no existing assignment
   useEffect(() => {
     if (players.length === 4 && !existingTeamA && !existingTeamB && teamA.length === 0 && teamB.length === 0) {
-      // Default: first 2 vs last 2
-      setTeamA([players[0].id, players[1].id]);
-      setTeamB([players[2].id, players[3].id]);
+      const playerIds = players.map(p => p.id);
+      
+      if (stretch === 1 || previousStretchTeams.length === 0) {
+        // Stretch 1: Default first 2 vs last 2
+        setTeamA([players[0].id, players[1].id]);
+        setTeamB([players[2].id, players[3].id]);
+      } else {
+        // Stretch 2 or 3: Use rotation to avoid repeat pairings
+        const rotated = getRotatedTeams(playerIds, previousStretchTeams);
+        setTeamA(rotated.teamA);
+        setTeamB(rotated.teamB);
+      }
     }
-  }, [players, existingTeamA, existingTeamB]);
+  }, [players, existingTeamA, existingTeamB, stretch, previousStretchTeams]);
 
   const handlePlayerToggle = (playerId: string) => {
     // If in Team A, move to Team B

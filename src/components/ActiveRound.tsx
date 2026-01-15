@@ -306,26 +306,45 @@ const ActiveRound: React.FC = () => {
       </div>
 
       {/* Stockton 6's Team Setup - Show at stretch starts if teams not set */}
-      {stockton6Game && stockton6NeedsSetup && (
-        <div className="flex-1 overflow-y-auto p-4">
-          <Stockton6TeamSetup
-            players={currentRound.players}
-            stretch={getStretchForHole(activeHole) as 1 | 2 | 3}
-            existingUnitValue={stockton6Game.unitStake}
-            existingDotValue={stockton6Game.config?.stockton6?.dotValue || 2}
-            onConfirm={(teamA, teamB, unitValue, dotValue) => {
-              const stretch = getStretchForHole(activeHole);
-              const stretchStartHole = stretch === 1 ? 1 : stretch === 2 ? 7 : 13;
-              updateGameData(stockton6Game.id, stretchStartHole, '_META_TEAM_A', teamA);
-              updateGameData(stockton6Game.id, stretchStartHole, '_META_TEAM_B', teamB);
-              updateGameData(stockton6Game.id, stretchStartHole, '_META_UNIT_VALUE', unitValue);
-              updateGameData(stockton6Game.id, stretchStartHole, '_META_DOT_VALUE', dotValue);
-              updateGameData(stockton6Game.id, stretchStartHole, '_META_LOCKED', true);
-            }}
-            onCancel={() => navigate('/summary')}
-          />
-        </div>
-      )}
+      {stockton6Game && stockton6NeedsSetup && (() => {
+        const stretch = getStretchForHole(activeHole) as 1 | 2 | 3;
+        
+        // Gather previous stretch teams for auto-rotation
+        const previousStretchTeams: { teamA: string[]; teamB: string[] }[] = [];
+        if (stretch >= 2) {
+          const stretch1Teams = getTeamAssignment(currentRound.gameData, stockton6Game.id, 1);
+          if (stretch1Teams) {
+            previousStretchTeams.push({ teamA: stretch1Teams.teamA, teamB: stretch1Teams.teamB });
+          }
+        }
+        if (stretch >= 3) {
+          const stretch2Teams = getTeamAssignment(currentRound.gameData, stockton6Game.id, 2);
+          if (stretch2Teams) {
+            previousStretchTeams.push({ teamA: stretch2Teams.teamA, teamB: stretch2Teams.teamB });
+          }
+        }
+        
+        return (
+          <div className="flex-1 overflow-y-auto p-4">
+            <Stockton6TeamSetup
+              players={currentRound.players}
+              stretch={stretch}
+              existingUnitValue={stockton6Game.unitStake}
+              existingDotValue={stockton6Game.config?.stockton6?.dotValue || 2}
+              previousStretchTeams={previousStretchTeams}
+              onConfirm={(teamA, teamB, unitValue, dotValue) => {
+                const stretchStartHole = stretch === 1 ? 1 : stretch === 2 ? 7 : 13;
+                updateGameData(stockton6Game.id, stretchStartHole, '_META_TEAM_A', teamA);
+                updateGameData(stockton6Game.id, stretchStartHole, '_META_TEAM_B', teamB);
+                updateGameData(stockton6Game.id, stretchStartHole, '_META_UNIT_VALUE', unitValue);
+                updateGameData(stockton6Game.id, stretchStartHole, '_META_DOT_VALUE', dotValue);
+                updateGameData(stockton6Game.id, stretchStartHole, '_META_LOCKED', true);
+              }}
+              onCancel={() => navigate('/summary')}
+            />
+          </div>
+        );
+      })()}
 
       {/* Main Scoring Area - Hidden when Stockton 6's team setup is needed */}
       {!stockton6NeedsSetup && (
@@ -629,7 +648,7 @@ const ActiveRound: React.FC = () => {
           });
 
           // Calculate Greenie carryover based on previous Par 3 holes
-          const calculateGreenieCarryover = (): number => {
+          const calculateGreenieCarryover = (): { carryover: number; isRolloverHole: boolean } => {
             // Find all Par 3 holes up to (but not including) current hole
             const par3Holes = currentRound.course.holes
               .filter(h => h.par === 3 && h.number < activeHole)
@@ -653,20 +672,20 @@ const ActiveRound: React.FC = () => {
               }
             }
             
-            // If current hole is NOT a Par 3, but comes right after last Par 3 with carryover
+            // Check if this is a rollover hole (not Par 3, but after last Par 3 with unclaimed greenie)
+            let isRolloverHole = false;
             if (courseHole?.par !== 3 && activeHole === lastPar3 + 1) {
               const lastPar3Dots = currentRound.gameData?.[stockton6Game.id]?.[lastPar3]?.dots || {};
               const anyoneGotGreenieOnLast = currentRound.players.some(p => lastPar3Dots[p.id]?.greenie);
               if (!anyoneGotGreenieOnLast && carryover > 1) {
-                // Carryover rolls to this hole
-                return carryover;
+                isRolloverHole = true;
               }
             }
             
-            return carryover;
+            return { carryover, isRolloverHole };
           };
           
-          const greenieCarryover = calculateGreenieCarryover();
+          const greenieResult = calculateGreenieCarryover();
           
           return (
             <Stockton6DotsInput
@@ -676,7 +695,8 @@ const ActiveRound: React.FC = () => {
               dotsData={dotsData}
               teamA={teamAssignment.teamA}
               teamB={teamAssignment.teamB}
-              greenieCarryover={greenieCarryover}
+              greenieCarryover={greenieResult.carryover}
+              isGreenieRolloverHole={greenieResult.isRolloverHole}
               onToggleBirdie={(playerId) => {
                 const existingDotsObj = currentRound.gameData?.[stockton6Game.id]?.[activeHole]?.dots || {};
                 const currentPlayerDots = existingDotsObj[playerId] || {};
