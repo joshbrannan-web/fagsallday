@@ -388,6 +388,39 @@ const Scorecard: React.FC = () => {
                   </tr>
                 </React.Fragment>
               ))}
+              {/* Press Row for Stockton 6's */}
+              {stockton6Game && (
+                <tr className="bg-amber-500/5 border-t border-amber-500/20">
+                  <td className="p-3 text-left font-semibold sticky left-0 bg-amber-500/5 border-r border-border z-10 text-amber-600">
+                    Press
+                  </td>
+                  {activeHoles.map(h => {
+                    const presses = getHolePresses(h.number);
+                    const hasPress = presses.oneBall || presses.twoBall;
+                    
+                    if (!hasPress) {
+                      return (
+                        <td key={h.number} className="p-2 border-r border-border/50">
+                          <span className="text-muted-foreground/30">-</span>
+                        </td>
+                      );
+                    }
+                    
+                    const labels: string[] = [];
+                    if (presses.oneBall) labels.push('1B');
+                    if (presses.twoBall) labels.push('2B');
+                    
+                    return (
+                      <td key={h.number} className="p-2 border-r border-border/50">
+                        <span className="text-xs font-bold text-amber-500">
+                          {labels.join('/')}
+                        </span>
+                      </td>
+                    );
+                  })}
+                  <td className="p-2 font-bold text-foreground">-</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -518,38 +551,6 @@ const Scorecard: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {/* Press Row */}
-                <tr className="bg-amber-500/5 border-t border-amber-500/20">
-                  <td className="p-3 text-left font-semibold sticky left-0 bg-amber-500/5 border-r border-border z-10 text-amber-600">
-                    Press
-                  </td>
-                  {activeHoles.map(h => {
-                    const presses = getHolePresses(h.number);
-                    const hasPress = presses.oneBall || presses.twoBall;
-                    
-                    if (!hasPress) {
-                      return (
-                        <td key={h.number} className="p-2 border-r border-border/50">
-                          <span className="text-muted-foreground/30">-</span>
-                        </td>
-                      );
-                    }
-                    
-                    const labels: string[] = [];
-                    if (presses.oneBall) labels.push('1B');
-                    if (presses.twoBall) labels.push('2B');
-                    
-                    return (
-                      <td key={h.number} className="p-2 border-r border-border/50">
-                        <span className="text-xs font-bold text-amber-500">
-                          {labels.join('/')}
-                        </span>
-                      </td>
-                    );
-                  })}
-                  <td className="p-2 font-bold text-foreground">-</td>
-                  <td className="p-2 font-bold bg-amber-500/5">-</td>
-                </tr>
               </tbody>
             </table>
           </div>
