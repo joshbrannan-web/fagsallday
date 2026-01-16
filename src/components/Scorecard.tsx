@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus } from 'lucide-react';
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
-import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES } from '../services/stockton6Engine';
+import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo } from '../services/stockton6Engine';
 import { Button } from '@/components/ui/button';
 import { GameType, GameSettings, Player, HoleScores, GameData, Hole } from '../types';
 
@@ -259,6 +259,17 @@ const Scorecard: React.FC = () => {
     return total;
   };
 
+  // Get press indicators for a hole
+  const getHolePresses = (holeNum: number): { oneBall: boolean; twoBall: boolean } => {
+    if (!stockton6Game) return { oneBall: false, twoBall: false };
+    const pressInfo = getHolePressInfo(currentRound, stockton6Game.id, holeNum);
+    return {
+      oneBall: pressInfo.oneBall.front || pressInfo.oneBall.back,
+      twoBall: pressInfo.twoBall.front || pressInfo.twoBall.back
+    };
+  };
+
+
   const calculateSubtotalScore = (pid: string, holesToSum: typeof activeHoles) => {
     let total = 0;
     holesToSum.forEach(h => {
@@ -507,6 +518,38 @@ const Scorecard: React.FC = () => {
                     </td>
                   </tr>
                 ))}
+                {/* Press Row */}
+                <tr className="bg-amber-500/5 border-t border-amber-500/20">
+                  <td className="p-3 text-left font-semibold sticky left-0 bg-amber-500/5 border-r border-border z-10 text-amber-600">
+                    Press
+                  </td>
+                  {activeHoles.map(h => {
+                    const presses = getHolePresses(h.number);
+                    const hasPress = presses.oneBall || presses.twoBall;
+                    
+                    if (!hasPress) {
+                      return (
+                        <td key={h.number} className="p-2 border-r border-border/50">
+                          <span className="text-muted-foreground/30">-</span>
+                        </td>
+                      );
+                    }
+                    
+                    const labels: string[] = [];
+                    if (presses.oneBall) labels.push('1B');
+                    if (presses.twoBall) labels.push('2B');
+                    
+                    return (
+                      <td key={h.number} className="p-2 border-r border-border/50">
+                        <span className="text-xs font-bold text-amber-500">
+                          {labels.join('/')}
+                        </span>
+                      </td>
+                    );
+                  })}
+                  <td className="p-2 font-bold text-foreground">-</td>
+                  <td className="p-2 font-bold bg-amber-500/5">-</td>
+                </tr>
               </tbody>
             </table>
           </div>

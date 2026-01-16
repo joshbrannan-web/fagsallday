@@ -1,5 +1,4 @@
 import React from 'react';
-import { Flame } from 'lucide-react';
 import { Round, GameSettings } from '@/types';
 import { calculateBallState, getStretchForHole, getHoleInStretch, getTeamAssignment } from '@/services/stockton6Engine';
 
@@ -35,34 +34,33 @@ const Stockton6StatusBar: React.FC<Stockton6StatusBarProps> = ({
     return up > 0 ? 'text-primary' : 'text-destructive';
   };
 
-  const PressIndicator = ({ count }: { count: number }) => {
-    if (count === 0) return null;
+  const PressColumns = ({ presses }: { presses: { teamAUp: number }[] }) => {
+    if (presses.length === 0) return null;
+    
+    // Max 2 presses per side
+    const displayPresses = presses.slice(0, 2);
     
     return (
-      <div className={`
-        inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full
-        ${count >= 3 ? 'bg-red-500/20 animate-pulse' : 
-          count >= 2 ? 'bg-orange-500/20' : 'bg-amber-500/20'}
-        transition-all duration-300
-      `}>
-        <Flame 
-          className={`w-3 h-3 ${count >= 3 ? 'text-red-500' : 
-            count >= 2 ? 'text-orange-500' : 'text-amber-500'}`}
-          fill={count >= 2 ? 'currentColor' : 'none'}
-        />
-        <span className={`text-xs font-bold ${count >= 3 ? 'text-red-500' : 
-          count >= 2 ? 'text-orange-500' : 'text-amber-500'}`}>
-          PRESS{count > 1 ? ` x${count}` : ''}
-        </span>
+      <div className="flex gap-2">
+        {displayPresses.map((press, idx) => (
+          <div key={idx} className="text-center min-w-[36px]">
+            <div className="text-[10px] font-bold text-amber-500 uppercase">Press</div>
+            <div className={`text-xs font-bold ${getUpColor(press.teamAUp)}`}>
+              {formatUp(press.teamAUp)}
+            </div>
+          </div>
+        ))}
       </div>
     );
   };
 
   const SideStatus = ({ label, up, presses }: { label: string; up: number; presses: { teamAUp: number }[] }) => (
-    <div className="flex items-center gap-1">
-      <span className="text-xs text-muted-foreground">{label}:</span>
-      <span className={`text-xs font-bold ${getUpColor(up)}`}>{formatUp(up)}</span>
-      <PressIndicator count={presses.length} />
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 min-w-[48px]">
+        <span className="text-xs text-muted-foreground">{label}:</span>
+        <span className={`text-xs font-bold ${getUpColor(up)}`}>{formatUp(up)}</span>
+      </div>
+      <PressColumns presses={presses} />
     </div>
   );
 

@@ -514,6 +514,59 @@ export const calculateStretchPayouts = (
   
   return { playerPayouts, details };
 };
+
+// Get press info for a specific hole - returns which balls had presses triggered on this hole
+export const getHolePressInfo = (
+  round: Round,
+  gameId: string,
+  hole: number
+): { oneBall: { front: boolean; back: boolean }; twoBall: { front: boolean; back: boolean } } => {
+  const result = {
+    oneBall: { front: false, back: false },
+    twoBall: { front: false, back: false }
+  };
+  
+  const stretch = getStretchForHole(hole);
+  const holeInStretch = getHoleInStretch(hole);
+  
+  // Presses can only start on holes 2, 3 (front) or 5, 6 (back)
+  if (holeInStretch === 1 || holeInStretch === 4) return result;
+  
+  // Calculate ball state up to previous hole
+  const prevHole = hole - 1;
+  const prevBallState = prevHole >= (stretch - 1) * 6 + 1 
+    ? calculateBallState(round, gameId, stretch, prevHole) 
+    : null;
+  
+  // Calculate ball state up to current hole
+  const currentBallState = calculateBallState(round, gameId, stretch, hole);
+  
+  if (!currentBallState) return result;
+  
+  // Compare press counts to see if new presses were created on this hole
+  const isFront = holeInStretch <= 3;
+  
+  if (isFront) {
+    const prevOneBallFrontPresses = prevBallState?.oneBall.front.presses.length || 0;
+    const currOneBallFrontPresses = currentBallState.oneBall.front.presses.length;
+    result.oneBall.front = currOneBallFrontPresses > prevOneBallFrontPresses;
+    
+    const prevTwoBallFrontPresses = prevBallState?.twoBall.front.presses.length || 0;
+    const currTwoBallFrontPresses = currentBallState.twoBall.front.presses.length;
+    result.twoBall.front = currTwoBallFrontPresses > prevTwoBallFrontPresses;
+  } else {
+    const prevOneBallBackPresses = prevBallState?.oneBall.back.presses.length || 0;
+    const currOneBallBackPresses = currentBallState.oneBall.back.presses.length;
+    result.oneBall.back = currOneBallBackPresses > prevOneBallBackPresses;
+    
+    const prevTwoBallBackPresses = prevBallState?.twoBall.back.presses.length || 0;
+    const currTwoBallBackPresses = currentBallState.twoBall.back.presses.length;
+    result.twoBall.back = currTwoBallBackPresses > prevTwoBallBackPresses;
+  }
+  
+  return result;
+};
+
 // Calculate dot payouts for a single hole
 export const calculateHoleDotPayouts = (
   round: Round,
