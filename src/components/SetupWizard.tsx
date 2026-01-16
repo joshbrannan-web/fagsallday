@@ -22,6 +22,8 @@ import {
   Globe,
   UserPlus,
   Save,
+  Star,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +33,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 // Types for tee box data
 interface TeeBox {
@@ -154,7 +157,7 @@ const getTeeColorClass = (color: string): string => {
 
 const SetupWizard: React.FC = () => {
   const navigate = useNavigate();
-  const { startNewRound, savedCourses, saveCourse } = useApp();
+  const { startNewRound, savedCourses, favoriteCourses, nonFavoriteCourses, saveCourse, updateCourse, deleteCourse, toggleFavorite, isFavorite, roundHistory, deleteRound } = useApp();
   const { user, profile } = useAuth();
   const { savedPlayers, addPlayer: addSavedPlayer } = useSavedPlayers();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -170,6 +173,7 @@ const SetupWizard: React.FC = () => {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [holes, setHoles] = useState<Hole[]>([]);
   const [editingHoles, setEditingHoles] = useState(false);
+  const [holesModified, setHolesModified] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Array<{ name: string; url: string; description: string }>>([]);
@@ -537,6 +541,25 @@ const SetupWizard: React.FC = () => {
 
   const handleUpdateHole = (holeNumber: number, field: keyof Hole, value: number) => {
     setHoles(holes.map((h) => (h.number === holeNumber ? { ...h, [field]: value } : h)));
+    setHolesModified(true);
+  };
+
+  const handleSaveHoleChanges = async () => {
+    if (!selectedCourse || !holesModified) return;
+    
+    const updatedCourse: Course = {
+      ...selectedCourse,
+      holes: holes,
+    };
+    
+    await updateCourse(updatedCourse);
+    setSelectedCourse(updatedCourse);
+    setHolesModified(false);
+  };
+
+  const formatRoundDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const handleNext = () => {
@@ -684,28 +707,149 @@ const SetupWizard: React.FC = () => {
               </button>
             </div>
 
-            {/* Saved Courses */}
-            {savedCourses.length > 0 && (
+            {/* Favorite Courses */}
+            {favoriteCourses.length > 0 && (
+              <div className="space-y-3 pt-4 border-t border-border">
+                <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                  Favorites
+                </Label>
+                <div className="grid gap-3">
+                  {favoriteCourses.map((course) => (
+                    <div
+                      key={course.id}
+                      className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 text-left transition-all flex items-center gap-3"
+                    >
+                      <button
+                        onClick={() => {
+                          handleSelectSavedCourse(course);
+                          setCourseMode("search");
+                        }}
+                        className="flex-1 text-left"
+                      >
+                        <div className="font-semibold">{course.name}</div>
+                        <div className="text-sm text-muted-foreground flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {course.location || "No location"}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => toggleFavorite(course.id)}
+                        className="p-2 hover:bg-muted rounded-full transition-colors"
+                      >
+                        <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recently Played Courses */}
+            {nonFavoriteCourses.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-border">
                 <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                   Recently Played
                 </Label>
                 <div className="grid gap-3">
-                  {savedCourses.slice(0, 3).map((course) => (
-                    <button
+                  {nonFavoriteCourses.slice(0, 3).map((course) => (
+                    <div
                       key={course.id}
-                      onClick={() => {
-                        handleSelectSavedCourse(course);
-                        setCourseMode("search");
-                      }}
-                      className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 text-left transition-all"
+                      className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 text-left transition-all flex items-center gap-3"
                     >
-                      <div className="font-semibold">{course.name}</div>
-                      <div className="text-sm text-muted-foreground flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        {course.location || "No location"}
+                      <button
+                        onClick={() => {
+                          handleSelectSavedCourse(course);
+                          setCourseMode("search");
+                        }}
+                        className="flex-1 text-left"
+                      >
+                        <div className="font-semibold">{course.name}</div>
+                        <div className="text-sm text-muted-foreground flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {course.location || "No location"}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => toggleFavorite(course.id)}
+                        className="p-2 hover:bg-muted rounded-full transition-colors"
+                      >
+                        <Star className="w-5 h-5 text-muted-foreground hover:text-yellow-400" />
+                      </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button className="p-2 hover:bg-destructive/10 rounded-full transition-colors">
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Course?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will remove {course.name} from your saved courses. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteCourse(course.id)}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Rounds */}
+            {roundHistory.length > 0 && (
+              <div className="space-y-3 pt-4 border-t border-border">
+                <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Calendar className="w-4 h-4" />
+                  Recent Rounds
+                </Label>
+                <div className="grid gap-3">
+                  {roundHistory.slice(0, 3).map((round) => (
+                    <div
+                      key={round.id}
+                      className="w-full p-4 rounded-xl border-2 border-border bg-card text-left transition-all flex items-center gap-3"
+                    >
+                      <div className="flex-1">
+                        <div className="font-semibold">{round.course.name}</div>
+                        <div className="text-sm text-muted-foreground flex items-center gap-2">
+                          <span>{formatRoundDate(round.startTime)}</span>
+                          <span>•</span>
+                          <span>{round.players.length} players</span>
+                          <span>•</span>
+                          <span className={round.status === 'COMPLETE' ? 'text-green-600' : 'text-yellow-600'}>
+                            {round.status === 'COMPLETE' ? 'Complete' : 'In Progress'}
+                          </span>
+                        </div>
                       </div>
-                    </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button className="p-2 hover:bg-destructive/10 rounded-full transition-colors">
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Round?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete the round at {round.course.name} from {formatRoundDate(round.startTime)}. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteRound(round.id)}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -879,6 +1023,18 @@ const SetupWizard: React.FC = () => {
                         </tbody>
                       </table>
                     </div>
+                    {holesModified && selectedCourse && (
+                      <div className="p-3 border-t border-border">
+                        <Button
+                          onClick={handleSaveHoleChanges}
+                          className="w-full gap-2"
+                          size="sm"
+                        >
+                          <Save className="w-4 h-4" />
+                          Save Hole Changes
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
