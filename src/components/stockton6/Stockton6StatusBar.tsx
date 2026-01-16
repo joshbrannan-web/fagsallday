@@ -34,15 +34,37 @@ const Stockton6StatusBar: React.FC<Stockton6StatusBarProps> = ({
     return up > 0 ? 'text-primary' : 'text-destructive';
   };
 
+  const PressIndicator = ({ count }: { count: number }) => {
+    if (count === 0) return null;
+    
+    return (
+      <div className={`
+        inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full
+        ${count >= 3 ? 'bg-red-500/20 animate-pulse' : 
+          count >= 2 ? 'bg-orange-500/20' : 'bg-amber-500/20'}
+        transition-all duration-300
+      `}>
+        {Array.from({ length: Math.min(count, 3) }).map((_, i) => (
+          <span 
+            key={i} 
+            className={`text-xs ${count >= 2 ? 'animate-bounce' : ''}`}
+            style={{ animationDelay: `${i * 100}ms` }}
+          >
+            🔥
+          </span>
+        ))}
+        {count > 3 && (
+          <span className="text-xs font-bold text-orange-500">+{count - 3}</span>
+        )}
+      </div>
+    );
+  };
+
   const SideStatus = ({ label, up, presses }: { label: string; up: number; presses: { teamAUp: number }[] }) => (
     <div className="flex items-center gap-1">
       <span className="text-xs text-muted-foreground">{label}:</span>
       <span className={`text-xs font-bold ${getUpColor(up)}`}>{formatUp(up)}</span>
-      {presses.length > 0 && (
-        <span className="text-xs bg-muted px-1 rounded text-muted-foreground">
-          +{presses.length}P
-        </span>
-      )}
+      <PressIndicator count={presses.length} />
     </div>
   );
 
