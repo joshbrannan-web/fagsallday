@@ -41,52 +41,61 @@ const Stockton6StatusBar: React.FC<Stockton6StatusBarProps> = ({
     label: string; 
     ballState: Stockton6BallState;
   }) => {
-    // Combine all active presses (front + back) into a single array
-    const allPresses = [
-      ...ballState.front.presses.slice(0, 2),
-      ...ballState.back.presses.slice(0, 2)
-    ];
+    const frontPresses = ballState.front.presses.slice(0, 2);
+    const backPresses = ballState.back.presses.slice(0, 2);
+    const maxPresses = Math.max(frontPresses.length, backPresses.length);
     
     return (
       <div className="bg-muted/50 rounded-lg p-2">
         {/* Header row: Ball label + Press headers */}
-        <div className="flex items-center gap-3 mb-1">
-          <span className="text-xs font-bold text-foreground min-w-[44px]">{label}</span>
-          {allPresses.map((_, idx) => (
-            <span key={idx} className="text-[10px] font-bold text-amber-500 min-w-[32px] text-center uppercase">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs font-bold text-foreground w-[48px]">{label}</span>
+          {Array.from({ length: maxPresses }).map((_, idx) => (
+            <span key={idx} className="text-[10px] font-bold text-amber-500 w-[40px] text-center uppercase">
               Press
             </span>
           ))}
         </div>
         
-        {/* F row: Front status + ALL press values */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 min-w-[44px]">
+        {/* F row: Front status + front press values */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 w-[48px]">
             <span className="text-xs text-muted-foreground">F:</span>
             <span className={`text-xs font-bold ${getUpColor(ballState.front.teamAUp)}`}>
               {formatUp(ballState.front.teamAUp)}
             </span>
           </div>
-          {allPresses.map((press, idx) => (
-            <span key={idx} className={`text-xs font-bold min-w-[32px] text-center ${getUpColor(press.teamAUp)}`}>
-              {formatUp(press.teamAUp)}
-            </span>
-          ))}
+          {Array.from({ length: maxPresses }).map((_, idx) => {
+            const press = frontPresses[idx];
+            return (
+              <span key={idx} className={`text-xs font-bold w-[40px] text-center ${press ? getUpColor(press.teamAUp) : ''}`}>
+                {press ? formatUp(press.teamAUp) : ''}
+              </span>
+            );
+          })}
         </div>
         
-        {/* B row: Back status only */}
-        <div className="flex items-center">
-          <div className="flex items-center gap-1 min-w-[44px]">
+        {/* B row: Back status + back press values */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 w-[48px]">
             <span className="text-xs text-muted-foreground">B:</span>
             <span className={`text-xs font-bold ${getUpColor(ballState.back.teamAUp)}`}>
               {formatUp(ballState.back.teamAUp)}
             </span>
           </div>
+          {Array.from({ length: maxPresses }).map((_, idx) => {
+            const press = backPresses[idx];
+            return (
+              <span key={idx} className={`text-xs font-bold w-[40px] text-center ${press ? getUpColor(press.teamAUp) : ''}`}>
+                {press ? formatUp(press.teamAUp) : ''}
+              </span>
+            );
+          })}
         </div>
         
         {/* O row: Overall status only */}
-        <div className="flex items-center pt-0.5 border-t border-border">
-          <div className="flex items-center gap-1 min-w-[44px]">
+        <div className="flex items-center gap-2 pt-0.5 border-t border-border">
+          <div className="flex items-center gap-1 w-[48px]">
             <span className="text-xs text-muted-foreground">O:</span>
             <span className={`text-xs font-bold ${getUpColor(ballState.overall.teamAUp)}`}>
               {formatUp(ballState.overall.teamAUp)}
