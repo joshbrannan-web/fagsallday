@@ -10,6 +10,7 @@ export interface AppState {
   startNewRound: (course: Course, players: Player[], games: GameSettings[]) => void;
   updateScore: (holeNumber: number, playerId: string, score: number) => void;
   updateGameData: (gameId: string, holeNumber: number, key: string, value: any) => void;
+  updateGameDataBatch: (gameId: string, holeNumber: number, updates: Record<string, any>) => void;
   finishRound: () => void;
   loadPastRound: (round: Round) => void;
   deleteRound: (roundId: string) => void;
