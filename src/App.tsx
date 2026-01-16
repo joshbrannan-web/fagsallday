@@ -38,10 +38,15 @@ const AppContent: React.FC = () => {
     loadRound
   } = useRounds();
   const { 
-    savedCourses: dbSavedCourses, 
+    savedCourses: dbSavedCourses,
+    favoriteCourses: dbFavoriteCourses,
+    nonFavoriteCourses: dbNonFavoriteCourses,
     isLoading: coursesLoading, 
-    saveCourse: dbSaveCourse, 
-    deleteCourse: dbDeleteCourse 
+    saveCourse: dbSaveCourse,
+    updateCourse: dbUpdateCourse,
+    deleteCourse: dbDeleteCourse,
+    toggleFavorite: dbToggleFavorite,
+    isFavorite: dbIsFavorite
   } = useSavedCourses();
   const { addPlayer: addSavedPlayer } = useSavedPlayers();
 
@@ -67,6 +72,8 @@ const AppContent: React.FC = () => {
   const isAuthenticated = !!user;
   const currentRound = isAuthenticated ? dbCurrentRound : localCurrentRound;
   const savedCourses = isAuthenticated ? dbSavedCourses : localSavedCourses;
+  const favoriteCourses = isAuthenticated ? dbFavoriteCourses : [];
+  const nonFavoriteCourses = isAuthenticated ? dbNonFavoriteCourses : localSavedCourses;
   const roundHistory = isAuthenticated ? rounds : localRoundHistory;
   const isLoading = authLoading || (isAuthenticated && (roundsLoading || coursesLoading));
 
@@ -231,9 +238,33 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const updateCourse = async (course: Course) => {
+    if (isAuthenticated) {
+      await dbUpdateCourse(course);
+    } else {
+      setLocalSavedCourses(prev => prev.map(c => c.id === course.id ? course : c));
+    }
+  };
+
+  const toggleFavorite = async (courseId: string) => {
+    if (isAuthenticated) {
+      await dbToggleFavorite(courseId);
+    }
+    // Non-authenticated users cannot use favorites
+  };
+
+  const isFavorite = (courseId: string) => {
+    if (isAuthenticated) {
+      return dbIsFavorite(courseId);
+    }
+    return false;
+  };
+
   const value: AppState = {
     currentRound,
     savedCourses,
+    favoriteCourses,
+    nonFavoriteCourses,
     roundHistory,
     startNewRound,
     updateScore,
@@ -242,7 +273,10 @@ const AppContent: React.FC = () => {
     loadPastRound,
     deleteRound,
     saveCourse,
+    updateCourse,
     deleteCourse,
+    toggleFavorite,
+    isFavorite,
     roundTotals,
     isLoading
   };

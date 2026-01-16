@@ -93,18 +93,21 @@ export type Database = {
           course_data: Json
           created_at: string
           id: string
+          is_favorite: boolean
           user_id: string
         }
         Insert: {
           course_data: Json
           created_at?: string
           id?: string
+          is_favorite?: boolean
           user_id: string
         }
         Update: {
           course_data?: Json
           created_at?: string
           id?: string
+          is_favorite?: boolean
           user_id?: string
         }
         Relationships: [
