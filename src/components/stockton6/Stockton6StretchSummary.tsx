@@ -1,7 +1,7 @@
 import React from 'react';
 import { Round, GameSettings } from '@/types';
 import { calculateStretchPayouts, getTeamAssignment, calculateBallState, countTeamDots, STRETCH_HOLES } from '@/services/stockton6Engine';
-import { Trophy, TrendingDown, AlertCircle } from 'lucide-react';
+import { Trophy, TrendingDown, AlertCircle, Flame } from 'lucide-react';
 
 interface Stockton6StretchSummaryProps {
   round: Round;
@@ -75,11 +75,9 @@ const Stockton6StretchSummary: React.FC<Stockton6StretchSummaryProps> = ({
             <div className={`font-bold flex items-center gap-1 ${frontUnits > 0 ? 'text-primary' : frontUnits < 0 ? 'text-destructive' : ''}`}>
               {frontUnits > 0 ? '+' : ''}{frontUnits}u
               {frontPresses.length > 0 && (
-                <span className="inline-flex">
-                  {Array.from({ length: Math.min(frontPresses.length, 3) }).map((_, i) => (
-                    <span key={i} className="text-xs">🔥</span>
-                  ))}
-                  {frontPresses.length > 3 && <span className="text-xs text-orange-500">+{frontPresses.length - 3}</span>}
+                <span className="inline-flex items-center gap-0.5">
+                  <Flame className="w-3 h-3 text-orange-500" />
+                  <span className="text-xs text-orange-500 font-medium">x{frontPresses.length}</span>
                 </span>
               )}
             </div>
@@ -89,11 +87,9 @@ const Stockton6StretchSummary: React.FC<Stockton6StretchSummaryProps> = ({
             <div className={`font-bold flex items-center gap-1 ${backUnits > 0 ? 'text-primary' : backUnits < 0 ? 'text-destructive' : ''}`}>
               {backUnits > 0 ? '+' : ''}{backUnits}u
               {backPresses.length > 0 && (
-                <span className="inline-flex">
-                  {Array.from({ length: Math.min(backPresses.length, 3) }).map((_, i) => (
-                    <span key={i} className="text-xs">🔥</span>
-                  ))}
-                  {backPresses.length > 3 && <span className="text-xs text-orange-500">+{backPresses.length - 3}</span>}
+                <span className="inline-flex items-center gap-0.5">
+                  <Flame className="w-3 h-3 text-orange-500" />
+                  <span className="text-xs text-orange-500 font-medium">x{backPresses.length}</span>
                 </span>
               )}
             </div>
