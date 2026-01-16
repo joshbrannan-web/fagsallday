@@ -72,16 +72,30 @@ const Stockton6StretchSummary: React.FC<Stockton6StretchSummaryProps> = ({
         <div className="grid grid-cols-4 gap-2 text-xs">
           <div>
             <span className="text-muted-foreground">Front</span>
-            <div className={`font-bold ${frontUnits > 0 ? 'text-primary' : frontUnits < 0 ? 'text-destructive' : ''}`}>
+            <div className={`font-bold flex items-center gap-1 ${frontUnits > 0 ? 'text-primary' : frontUnits < 0 ? 'text-destructive' : ''}`}>
               {frontUnits > 0 ? '+' : ''}{frontUnits}u
-              {frontPresses.length > 0 && <span className="text-muted-foreground"> ({frontPresses.length}P)</span>}
+              {frontPresses.length > 0 && (
+                <span className="inline-flex">
+                  {Array.from({ length: Math.min(frontPresses.length, 3) }).map((_, i) => (
+                    <span key={i} className="text-xs">🔥</span>
+                  ))}
+                  {frontPresses.length > 3 && <span className="text-xs text-orange-500">+{frontPresses.length - 3}</span>}
+                </span>
+              )}
             </div>
           </div>
           <div>
             <span className="text-muted-foreground">Back</span>
-            <div className={`font-bold ${backUnits > 0 ? 'text-primary' : backUnits < 0 ? 'text-destructive' : ''}`}>
+            <div className={`font-bold flex items-center gap-1 ${backUnits > 0 ? 'text-primary' : backUnits < 0 ? 'text-destructive' : ''}`}>
               {backUnits > 0 ? '+' : ''}{backUnits}u
-              {backPresses.length > 0 && <span className="text-muted-foreground"> ({backPresses.length}P)</span>}
+              {backPresses.length > 0 && (
+                <span className="inline-flex">
+                  {Array.from({ length: Math.min(backPresses.length, 3) }).map((_, i) => (
+                    <span key={i} className="text-xs">🔥</span>
+                  ))}
+                  {backPresses.length > 3 && <span className="text-xs text-orange-500">+{backPresses.length - 3}</span>}
+                </span>
+              )}
             </div>
           </div>
           <div>
