@@ -47,8 +47,8 @@ const Stockton6StatusBar: React.FC<Stockton6StatusBarProps> = ({
       `}>
         <Flame 
           className={`w-3 h-3 ${count >= 3 ? 'text-red-500' : 
-            count >= 2 ? 'text-orange-500' : 'text-amber-500'} 
-            ${count >= 2 ? 'animate-bounce' : ''}`} 
+            count >= 2 ? 'text-orange-500' : 'text-amber-500'}`}
+          fill={count >= 2 ? 'currentColor' : 'none'}
         />
         <span className={`text-xs font-bold ${count >= 3 ? 'text-red-500' : 
           count >= 2 ? 'text-orange-500' : 'text-amber-500'}`}>
