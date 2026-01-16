@@ -41,67 +41,51 @@ const Stockton6StatusBar: React.FC<Stockton6StatusBarProps> = ({
     label: string; 
     ballState: Stockton6BallState;
   }) => {
-    const frontPresses = ballState.front.presses.slice(0, 2);
-    const backPresses = ballState.back.presses.slice(0, 2);
-    const totalPressColumns = frontPresses.length + backPresses.length;
+    // Combine all active presses (front + back) into a single array
+    const allPresses = [
+      ...ballState.front.presses.slice(0, 2),
+      ...ballState.back.presses.slice(0, 2)
+    ];
     
     return (
       <div className="bg-muted/50 rounded-lg p-2">
-        {/* Header row with Ball label + Press headers */}
-        <div className="flex items-center gap-2 mb-1">
+        {/* Header row: Ball label + Press headers */}
+        <div className="flex items-center gap-3 mb-1">
           <span className="text-xs font-bold text-foreground min-w-[44px]">{label}</span>
-          {frontPresses.map((_, idx) => (
-            <span key={`fp-${idx}`} className="text-[10px] font-bold text-amber-500 min-w-[32px] text-center uppercase">
-              Press
-            </span>
-          ))}
-          {backPresses.map((_, idx) => (
-            <span key={`bp-${idx}`} className="text-[10px] font-bold text-amber-500 min-w-[32px] text-center uppercase">
+          {allPresses.map((_, idx) => (
+            <span key={idx} className="text-[10px] font-bold text-amber-500 min-w-[32px] text-center uppercase">
               Press
             </span>
           ))}
         </div>
         
-        {/* F row - show front press values here */}
-        <div className="flex items-center gap-2">
+        {/* F row: Front status + ALL press values */}
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 min-w-[44px]">
             <span className="text-xs text-muted-foreground">F:</span>
             <span className={`text-xs font-bold ${getUpColor(ballState.front.teamAUp)}`}>
               {formatUp(ballState.front.teamAUp)}
             </span>
           </div>
-          {frontPresses.map((press, idx) => (
+          {allPresses.map((press, idx) => (
             <span key={idx} className={`text-xs font-bold min-w-[32px] text-center ${getUpColor(press.teamAUp)}`}>
               {formatUp(press.teamAUp)}
             </span>
           ))}
-          {/* Empty cells for back press columns */}
-          {backPresses.map((_, idx) => (
-            <span key={`empty-${idx}`} className="min-w-[32px]"></span>
-          ))}
         </div>
         
-        {/* B row - show back press values here */}
-        <div className="flex items-center gap-2">
+        {/* B row: Back status only */}
+        <div className="flex items-center">
           <div className="flex items-center gap-1 min-w-[44px]">
             <span className="text-xs text-muted-foreground">B:</span>
             <span className={`text-xs font-bold ${getUpColor(ballState.back.teamAUp)}`}>
               {formatUp(ballState.back.teamAUp)}
             </span>
           </div>
-          {/* Empty cells for front press columns */}
-          {frontPresses.map((_, idx) => (
-            <span key={`empty-${idx}`} className="min-w-[32px]"></span>
-          ))}
-          {backPresses.map((press, idx) => (
-            <span key={idx} className={`text-xs font-bold min-w-[32px] text-center ${getUpColor(press.teamAUp)}`}>
-              {formatUp(press.teamAUp)}
-            </span>
-          ))}
         </div>
         
-        {/* O row - no presses for overall */}
-        <div className="flex items-center gap-2 pt-0.5 border-t border-border">
+        {/* O row: Overall status only */}
+        <div className="flex items-center pt-0.5 border-t border-border">
           <div className="flex items-center gap-1 min-w-[44px]">
             <span className="text-xs text-muted-foreground">O:</span>
             <span className={`text-xs font-bold ${getUpColor(ballState.overall.teamAUp)}`}>
