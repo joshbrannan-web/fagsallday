@@ -1,7 +1,7 @@
 import React from 'react';
 import { Round, GameSettings } from '@/types';
 import { calculateStretchPayouts, getTeamAssignment, calculateBallState, countTeamDots, STRETCH_HOLES } from '@/services/stockton6Engine';
-import { Trophy, TrendingDown, AlertCircle, Flame } from 'lucide-react';
+import { Trophy, TrendingDown, AlertCircle } from 'lucide-react';
 
 interface Stockton6StretchSummaryProps {
   round: Round;
@@ -41,6 +41,33 @@ const Stockton6StretchSummary: React.FC<Stockton6StretchSummaryProps> = ({
     round.players.find(p => p.id === id)?.name.split(' ')[0]
   ).join(' & ');
 
+  const formatUp = (up: number): string => {
+    if (up === 0) return 'AS';
+    return up > 0 ? `A+${up}` : `B+${Math.abs(up)}`;
+  };
+
+  const getUpColor = (up: number): string => {
+    if (up === 0) return 'text-muted-foreground';
+    return up > 0 ? 'text-primary' : 'text-destructive';
+  };
+
+  const PressColumns = ({ presses }: { presses: { teamAUp: number }[] }) => {
+    if (presses.length === 0) return null;
+    const displayPresses = presses.slice(0, 2);
+    return (
+      <div className="flex gap-2">
+        {displayPresses.map((press, idx) => (
+          <div key={idx} className="text-center min-w-[36px]">
+            <div className="text-[10px] font-bold text-amber-500 uppercase">Press</div>
+            <div className={`text-xs font-bold ${getUpColor(press.teamAUp)}`}>
+              {formatUp(press.teamAUp)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const BallBreakdown = ({ 
     label, 
     frontUp, 
@@ -68,42 +95,37 @@ const Stockton6StretchSummary: React.FC<Stockton6StretchSummaryProps> = ({
     
     return (
       <div className="bg-muted/50 rounded-lg p-3">
-        <div className="font-bold text-foreground mb-2">{label}</div>
-        <div className="grid grid-cols-4 gap-2 text-xs">
-          <div>
-            <span className="text-muted-foreground">Front</span>
-            <div className={`font-bold flex items-center gap-1 ${frontUnits > 0 ? 'text-primary' : frontUnits < 0 ? 'text-destructive' : ''}`}>
-              {frontUnits > 0 ? '+' : ''}{frontUnits}u
-              {frontPresses.length > 0 && (
-                <span className="inline-flex items-center gap-0.5">
-                  <Flame className="w-3 h-3 text-orange-500" />
-                  <span className="text-xs text-orange-500 font-medium">x{frontPresses.length}</span>
-                </span>
-              )}
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-bold text-foreground">{label}</span>
+        </div>
+        <div className="space-y-1 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground w-12">Front:</span>
+              <span className={`font-bold ${frontUnits > 0 ? 'text-primary' : frontUnits < 0 ? 'text-destructive' : ''}`}>
+                {frontUnits > 0 ? '+' : ''}{frontUnits}u
+              </span>
             </div>
+            <PressColumns presses={frontPresses} />
           </div>
-          <div>
-            <span className="text-muted-foreground">Back</span>
-            <div className={`font-bold flex items-center gap-1 ${backUnits > 0 ? 'text-primary' : backUnits < 0 ? 'text-destructive' : ''}`}>
-              {backUnits > 0 ? '+' : ''}{backUnits}u
-              {backPresses.length > 0 && (
-                <span className="inline-flex items-center gap-0.5">
-                  <Flame className="w-3 h-3 text-orange-500" />
-                  <span className="text-xs text-orange-500 font-medium">x{backPresses.length}</span>
-                </span>
-              )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground w-12">Back:</span>
+              <span className={`font-bold ${backUnits > 0 ? 'text-primary' : backUnits < 0 ? 'text-destructive' : ''}`}>
+                {backUnits > 0 ? '+' : ''}{backUnits}u
+              </span>
             </div>
+            <PressColumns presses={backPresses} />
           </div>
-          <div>
-            <span className="text-muted-foreground">Overall</span>
-            <div className={`font-bold ${overallUnits > 0 ? 'text-primary' : overallUnits < 0 ? 'text-destructive' : ''}`}>
-              {overallUnits > 0 ? '+' : ''}{overallUnits}u
+          <div className="flex items-center justify-between pt-1 border-t border-border">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground w-12">Overall:</span>
+              <span className={`font-bold ${overallUnits > 0 ? 'text-primary' : overallUnits < 0 ? 'text-destructive' : ''}`}>
+                {overallUnits > 0 ? '+' : ''}{overallUnits}u
+              </span>
             </div>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Total</span>
             <div className={`font-bold ${totalUnits > 0 ? 'text-primary' : totalUnits < 0 ? 'text-destructive' : ''}`}>
-              {totalUnits > 0 ? '+' : ''}${totalUnits * unitValue}
+              Total: {totalUnits > 0 ? '+' : ''}${totalUnits * unitValue}
             </div>
           </div>
         </div>
