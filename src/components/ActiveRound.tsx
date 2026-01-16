@@ -12,7 +12,7 @@ import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRela
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentRound, updateScore, updateGameData, roundTotals } = useApp();
+  const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals } = useApp();
   
   // Initialize active hole from navigation state if available
   const [activeHole, setActiveHole] = useState(() => {
@@ -334,11 +334,13 @@ const ActiveRound: React.FC = () => {
               previousStretchTeams={previousStretchTeams}
               onConfirm={(teamA, teamB, unitValue, dotValue) => {
                 const stretchStartHole = stretch === 1 ? 1 : stretch === 2 ? 7 : 13;
-                updateGameData(stockton6Game.id, stretchStartHole, '_META_TEAM_A', teamA);
-                updateGameData(stockton6Game.id, stretchStartHole, '_META_TEAM_B', teamB);
-                updateGameData(stockton6Game.id, stretchStartHole, '_META_UNIT_VALUE', unitValue);
-                updateGameData(stockton6Game.id, stretchStartHole, '_META_DOT_VALUE', dotValue);
-                updateGameData(stockton6Game.id, stretchStartHole, '_META_LOCKED', true);
+                updateGameDataBatch(stockton6Game.id, stretchStartHole, {
+                  _META_TEAM_A: teamA,
+                  _META_TEAM_B: teamB,
+                  _META_UNIT_VALUE: unitValue,
+                  _META_DOT_VALUE: dotValue,
+                  _META_LOCKED: true
+                });
               }}
               onCancel={() => navigate('/summary')}
             />

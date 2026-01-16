@@ -177,6 +177,24 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const updateGameDataBatch = async (gameId: string, holeNumber: number, updates: Record<string, any>) => {
+    if (!currentRound) return;
+
+    const newGameData = { ...currentRound.gameData };
+    if (!newGameData[gameId]) newGameData[gameId] = {};
+    if (!newGameData[gameId][holeNumber]) newGameData[gameId][holeNumber] = {};
+    newGameData[gameId][holeNumber] = {
+      ...newGameData[gameId][holeNumber],
+      ...updates
+    };
+
+    if (isAuthenticated) {
+      await updateRound(currentRound.id, { gameData: newGameData });
+    } else {
+      setLocalCurrentRound(prev => prev ? { ...prev, gameData: newGameData } : null);
+    }
+  };
+
   const finishRound = async () => {
     if (!currentRound) return;
 
@@ -269,6 +287,7 @@ const AppContent: React.FC = () => {
     startNewRound,
     updateScore,
     updateGameData,
+    updateGameDataBatch,
     finishRound,
     loadPastRound,
     deleteRound,
