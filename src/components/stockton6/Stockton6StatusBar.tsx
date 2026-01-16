@@ -1,5 +1,5 @@
 import React from 'react';
-import { Round, GameSettings } from '@/types';
+import { Round, GameSettings, Stockton6BallState } from '@/types';
 import { calculateBallState, getStretchForHole, getHoleInStretch, getTeamAssignment } from '@/services/stockton6Engine';
 
 interface Stockton6StatusBarProps {
@@ -34,35 +34,84 @@ const Stockton6StatusBar: React.FC<Stockton6StatusBarProps> = ({
     return up > 0 ? 'text-primary' : 'text-destructive';
   };
 
-  const PressColumns = ({ presses }: { presses: { teamAUp: number }[] }) => {
-    if (presses.length === 0) return null;
-    
-    // Max 2 presses per side
-    const displayPresses = presses.slice(0, 2);
+  const BallSection = ({ 
+    label, 
+    ballState 
+  }: { 
+    label: string; 
+    ballState: Stockton6BallState;
+  }) => {
+    const frontPresses = ballState.front.presses.slice(0, 2);
+    const backPresses = ballState.back.presses.slice(0, 2);
+    const totalPressColumns = frontPresses.length + backPresses.length;
     
     return (
-      <div className="flex gap-2">
-        {displayPresses.map((press, idx) => (
-          <div key={idx} className="text-center min-w-[36px]">
-            <div className="text-[10px] font-bold text-amber-500 uppercase">Press</div>
-            <div className={`text-xs font-bold ${getUpColor(press.teamAUp)}`}>
-              {formatUp(press.teamAUp)}
-            </div>
+      <div className="bg-muted/50 rounded-lg p-2">
+        {/* Header row with Ball label + Press headers */}
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs font-bold text-foreground min-w-[44px]">{label}</span>
+          {frontPresses.map((_, idx) => (
+            <span key={`fp-${idx}`} className="text-[10px] font-bold text-amber-500 min-w-[32px] text-center uppercase">
+              Press
+            </span>
+          ))}
+          {backPresses.map((_, idx) => (
+            <span key={`bp-${idx}`} className="text-[10px] font-bold text-amber-500 min-w-[32px] text-center uppercase">
+              Press
+            </span>
+          ))}
+        </div>
+        
+        {/* F row - show front press values here */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 min-w-[44px]">
+            <span className="text-xs text-muted-foreground">F:</span>
+            <span className={`text-xs font-bold ${getUpColor(ballState.front.teamAUp)}`}>
+              {formatUp(ballState.front.teamAUp)}
+            </span>
           </div>
-        ))}
+          {frontPresses.map((press, idx) => (
+            <span key={idx} className={`text-xs font-bold min-w-[32px] text-center ${getUpColor(press.teamAUp)}`}>
+              {formatUp(press.teamAUp)}
+            </span>
+          ))}
+          {/* Empty cells for back press columns */}
+          {backPresses.map((_, idx) => (
+            <span key={`empty-${idx}`} className="min-w-[32px]"></span>
+          ))}
+        </div>
+        
+        {/* B row - show back press values here */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 min-w-[44px]">
+            <span className="text-xs text-muted-foreground">B:</span>
+            <span className={`text-xs font-bold ${getUpColor(ballState.back.teamAUp)}`}>
+              {formatUp(ballState.back.teamAUp)}
+            </span>
+          </div>
+          {/* Empty cells for front press columns */}
+          {frontPresses.map((_, idx) => (
+            <span key={`empty-${idx}`} className="min-w-[32px]"></span>
+          ))}
+          {backPresses.map((press, idx) => (
+            <span key={idx} className={`text-xs font-bold min-w-[32px] text-center ${getUpColor(press.teamAUp)}`}>
+              {formatUp(press.teamAUp)}
+            </span>
+          ))}
+        </div>
+        
+        {/* O row - no presses for overall */}
+        <div className="flex items-center gap-2 pt-0.5 border-t border-border">
+          <div className="flex items-center gap-1 min-w-[44px]">
+            <span className="text-xs text-muted-foreground">O:</span>
+            <span className={`text-xs font-bold ${getUpColor(ballState.overall.teamAUp)}`}>
+              {formatUp(ballState.overall.teamAUp)}
+            </span>
+          </div>
+        </div>
       </div>
     );
   };
-
-  const SideStatus = ({ label, up, presses }: { label: string; up: number; presses: { teamAUp: number }[] }) => (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1 min-w-[48px]">
-        <span className="text-xs text-muted-foreground">{label}:</span>
-        <span className={`text-xs font-bold ${getUpColor(up)}`}>{formatUp(up)}</span>
-      </div>
-      <PressColumns presses={presses} />
-    </div>
-  );
 
   return (
     <div className="bg-card rounded-xl shadow-sm border border-border p-3">
@@ -79,35 +128,8 @@ const Stockton6StatusBar: React.FC<Stockton6StatusBarProps> = ({
       </div>
       
       <div className="grid grid-cols-2 gap-3">
-        {/* 1-Ball */}
-        <div className="bg-muted/50 rounded-lg p-2">
-          <div className="text-xs font-bold text-foreground mb-1">1-Ball</div>
-          <div className="space-y-0.5">
-            <SideStatus label="F" up={oneBall.front.teamAUp} presses={oneBall.front.presses} />
-            <SideStatus label="B" up={oneBall.back.teamAUp} presses={oneBall.back.presses} />
-            <div className="flex items-center gap-1 pt-0.5 border-t border-border">
-              <span className="text-xs text-muted-foreground">O:</span>
-              <span className={`text-xs font-bold ${getUpColor(oneBall.overall.teamAUp)}`}>
-                {formatUp(oneBall.overall.teamAUp)}
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        {/* 2-Ball */}
-        <div className="bg-muted/50 rounded-lg p-2">
-          <div className="text-xs font-bold text-foreground mb-1">2-Ball</div>
-          <div className="space-y-0.5">
-            <SideStatus label="F" up={twoBall.front.teamAUp} presses={twoBall.front.presses} />
-            <SideStatus label="B" up={twoBall.back.teamAUp} presses={twoBall.back.presses} />
-            <div className="flex items-center gap-1 pt-0.5 border-t border-border">
-              <span className="text-xs text-muted-foreground">O:</span>
-              <span className={`text-xs font-bold ${getUpColor(twoBall.overall.teamAUp)}`}>
-                {formatUp(twoBall.overall.teamAUp)}
-              </span>
-            </div>
-          </div>
-        </div>
+        <BallSection label="1-Ball" ballState={oneBall} />
+        <BallSection label="2-Ball" ballState={twoBall} />
       </div>
       
       {/* Team indicator */}
