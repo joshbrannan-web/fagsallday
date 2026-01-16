@@ -451,6 +451,38 @@ const SetupWizard: React.FC = () => {
     setCourseMode("search"); // Go to course details view
   };
 
+  const handleSaveScannedCourse = async () => {
+    if (!selectedCourse && availableTeeBoxes.length === 0) {
+      toast.error("No course data to save");
+      return;
+    }
+
+    // If course already selected, save it
+    if (selectedCourse) {
+      await saveCourse(selectedCourse);
+      toast.success("Course saved!");
+      return;
+    }
+
+    // If we have tee boxes but no selection yet, use first one
+    const teeBox = availableTeeBoxes[0];
+    const course: Course = {
+      id: Date.now().toString(),
+      name: courseName || "Scanned Course",
+      location: courseLocation || "",
+      holes: teeBox.holes.map((h) => ({
+        number: h.number,
+        par: h.par,
+        yardage: h.yardage,
+        handicapIndex: h.handicapIndex,
+      })),
+    };
+
+    await saveCourse(course);
+    setSelectedCourse(course);
+    toast.success("Course saved!");
+  };
+
   const handleAddPlayer = () => {
     if (players.length >= 8) return;
     setPlayers([
@@ -621,12 +653,11 @@ const SetupWizard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Hidden file input for camera */}
+      {/* Hidden file input for camera/photo upload */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -701,7 +732,7 @@ const SetupWizard: React.FC = () => {
                 </div>
                 <div className="flex-1">
                   <div className="font-semibold text-lg">Scan Scorecard</div>
-                  <div className="text-sm text-muted-foreground">Take a photo to auto-fill course data</div>
+                  <div className="text-sm text-muted-foreground">Take or upload a photo to auto-fill course data</div>
                 </div>
                 <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
               </button>
@@ -1073,6 +1104,15 @@ const SetupWizard: React.FC = () => {
                     className="mt-1"
                   />
                 </div>
+
+                <Button
+                  variant="outline"
+                  onClick={handleSaveScannedCourse}
+                  className="w-full gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  Save Course
+                </Button>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -1137,6 +1177,15 @@ const SetupWizard: React.FC = () => {
                   </button>
                 );
               })}
+
+              <Button
+                variant="outline"
+                onClick={handleSaveScannedCourse}
+                className="w-full gap-2 mt-2"
+              >
+                <Save className="w-4 h-4" />
+                Save Course for Later
+              </Button>
             </div>
 
             {/* Hole Details Preview */}
