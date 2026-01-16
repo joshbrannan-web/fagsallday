@@ -1,4 +1,5 @@
 import React from 'react';
+import { Flame } from 'lucide-react';
 import { Round, GameSettings } from '@/types';
 import { calculateBallState, getStretchForHole, getHoleInStretch, getTeamAssignment } from '@/services/stockton6Engine';
 
@@ -39,23 +40,20 @@ const Stockton6StatusBar: React.FC<Stockton6StatusBarProps> = ({
     
     return (
       <div className={`
-        inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full
+        inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full
         ${count >= 3 ? 'bg-red-500/20 animate-pulse' : 
           count >= 2 ? 'bg-orange-500/20' : 'bg-amber-500/20'}
         transition-all duration-300
       `}>
-        {Array.from({ length: Math.min(count, 3) }).map((_, i) => (
-          <span 
-            key={i} 
-            className={`text-xs ${count >= 2 ? 'animate-bounce' : ''}`}
-            style={{ animationDelay: `${i * 100}ms` }}
-          >
-            🔥
-          </span>
-        ))}
-        {count > 3 && (
-          <span className="text-xs font-bold text-orange-500">+{count - 3}</span>
-        )}
+        <Flame 
+          className={`w-3 h-3 ${count >= 3 ? 'text-red-500' : 
+            count >= 2 ? 'text-orange-500' : 'text-amber-500'} 
+            ${count >= 2 ? 'animate-bounce' : ''}`} 
+        />
+        <span className={`text-xs font-bold ${count >= 3 ? 'text-red-500' : 
+          count >= 2 ? 'text-orange-500' : 'text-amber-500'}`}>
+          PRESS{count > 1 ? ` x${count}` : ''}
+        </span>
       </div>
     );
   };
