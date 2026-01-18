@@ -36,9 +36,9 @@ const Stockton6RoundSummary: React.FC<Stockton6RoundSummaryProps> = ({
       `Player Results:`,
       ...sortedPlayers.map((p, i) => {
         const total = result.playerResults[p.id] || 0;
-        const prefix = total > 0 ? '+' : '';
+        const prefix = total > 0 ? '+' : total < 0 ? '-' : '';
         const rank = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-        return `${rank} ${p.name}: ${prefix}$${total}`;
+        return `${rank} ${p.name}: ${prefix}$${Math.abs(total)}`;
       }),
       ``,
       isBalanced ? '✓ Totals balanced' : '⚠️ Check results - totals do not balance'
