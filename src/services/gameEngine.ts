@@ -804,7 +804,7 @@ export const getScoreLabel = (gross: number, par: number): string => {
 
 export const formatMoney = (amount: number): string => {
   if (amount === 0) return "$0";
-  const prefix = amount > 0 ? "+" : "";
+  const prefix = amount > 0 ? "+" : "-";
   return `${prefix}$${Math.abs(amount)}`;
 };
 
