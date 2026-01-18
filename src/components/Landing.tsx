@@ -1,9 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroIllustration from './HeroIllustration';
-import { Play, History, Flag, User, LogOut, Loader2, Users } from 'lucide-react';
+import { Play, History, Flag, User, LogOut, Loader2, Users, Shield } from 'lucide-react';
 import { useApp } from '../App';
 import { useAuth } from '@/hooks/useAuth';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -17,6 +18,7 @@ const Landing: React.FC = () => {
   const navigate = useNavigate();
   const { currentRound, isLoading: appLoading } = useApp();
   const { user, profile, signOut, isLoading: authLoading } = useAuth();
+  const { isAdmin } = useAdminAuth();
 
   const isLoading = appLoading || authLoading;
 
@@ -56,6 +58,12 @@ const Landing: React.FC = () => {
                 <Users className="w-4 h-4 mr-2" />
                 My Players
               </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem onClick={() => navigate('/admin')}>
+                  <Shield className="w-4 h-4 mr-2" />
+                  Admin Panel
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                 <LogOut className="w-4 h-4 mr-2" />
