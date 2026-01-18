@@ -146,6 +146,7 @@ export const calculateHoleBallResults = (
 };
 
 // Process presses for a side (front or back)
+// IMPORTANT: Only creates a new press when a team CROSSES from <2 down to >=2 down
 const processPresses = (
   currentUp: number,
   presses: Stockton6PressState[],
@@ -162,26 +163,37 @@ const processPresses = (
   // Update existing presses
   for (const press of presses) {
     if (holeInStretch >= press.startHole) {
+      const prevPressUp = press.teamAUp;
       const updatedPress = {
         ...press,
         teamAUp: press.teamAUp + holeResult
       };
       newPresses.push(updatedPress);
       
-      // Check if this press triggers a new press
-      if (Math.abs(updatedPress.teamAUp) >= 2 && holeInStretch < sideEndHole) {
-        newPressesCreated.push({
-          startHole: holeInStretch + 1,
-          teamAUp: 0
-        });
+      // Check if this press CROSSED from <2 down to >=2 down (triggers a new press)
+      const wasTwoDown = Math.abs(prevPressUp) >= 2;
+      const isNowTwoDown = Math.abs(updatedPress.teamAUp) >= 2;
+      
+      if (!wasTwoDown && isNowTwoDown && holeInStretch < sideEndHole) {
+        const nextHole = holeInStretch + 1;
+        const existingPress = [...newPresses, ...newPressesCreated].find(p => p.startHole === nextHole);
+        if (!existingPress) {
+          newPressesCreated.push({
+            startHole: nextHole,
+            teamAUp: 0
+          });
+        }
       }
     } else {
       newPresses.push(press);
     }
   }
   
-  // Check if main bet triggers a new press
-  if (Math.abs(newUp) >= 2 && holeInStretch < sideEndHole) {
+  // Check if main bet CROSSED from <2 down to >=2 down (triggers a new press)
+  const mainWasTwoDown = Math.abs(currentUp) >= 2;
+  const mainIsNowTwoDown = Math.abs(newUp) >= 2;
+  
+  if (!mainWasTwoDown && mainIsNowTwoDown && holeInStretch < sideEndHole) {
     // Only create press if we haven't already created one starting on the next hole
     const nextHole = holeInStretch + 1;
     const existingPress = [...newPresses, ...newPressesCreated].find(p => p.startHole === nextHole);
