@@ -327,8 +327,12 @@ const Admin = () => {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        rounds.map((round) => (
-                          <TableRow key={round.id}>
+                      rounds.map((round) => (
+                          <TableRow 
+                            key={round.id}
+                            className="cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => navigate(`/admin/round/${round.id}`)}
+                          >
                             <TableCell className="font-medium">{round.user_display_name}</TableCell>
                             <TableCell>{round.course_name}</TableCell>
                             <TableCell>{format(new Date(round.start_time), 'MMM d, yyyy')}</TableCell>
