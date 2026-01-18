@@ -9,6 +9,7 @@ import RoundHistory from './components/RoundHistory';
 import Scorecard from './components/Scorecard';
 import Auth from './pages/Auth';
 import Players from './pages/Players';
+import Admin from './pages/Admin';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -312,6 +313,7 @@ const AppContent: React.FC = () => {
           <Route path="/scorecard" element={<Scorecard />} />
           <Route path="/summary" element={<RoundSummary />} />
           <Route path="/history" element={<RoundHistory />} />
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </HashRouter>
     </AppContext.Provider>
