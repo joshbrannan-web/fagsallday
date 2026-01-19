@@ -12,7 +12,6 @@ const corsHeaders = {
 interface WelcomeEmailRequest {
   email: string;
   displayName: string;
-  password: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -22,7 +21,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { email, displayName, password }: WelcomeEmailRequest = await req.json();
+    const { email, displayName }: WelcomeEmailRequest = await req.json();
 
     console.log("Sending welcome email to:", email);
 
@@ -51,9 +50,8 @@ const handler = async (req: Request): Promise<Response> => {
               </p>
               
               <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin: 24px 0;">
-                <h3 style="color: #166534; margin: 0 0 12px 0; font-size: 16px;">Your Login Credentials</h3>
+                <h3 style="color: #166534; margin: 0 0 12px 0; font-size: 16px;">Your Account</h3>
                 <p style="color: #4b5563; margin: 4px 0;"><strong>Email:</strong> ${email}</p>
-                <p style="color: #4b5563; margin: 4px 0;"><strong>Password:</strong> ${password}</p>
               </div>
               
               <div style="text-align: center; margin: 30px 0;">

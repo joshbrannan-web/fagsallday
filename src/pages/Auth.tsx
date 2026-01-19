@@ -66,10 +66,10 @@ const Auth: React.FC = () => {
     }
   }, [user, isLoading, navigate, mode]);
 
-  const sendWelcomeEmail = async (userEmail: string, userName: string, userPassword: string) => {
+  const sendWelcomeEmail = async (userEmail: string, userName: string) => {
     try {
       const response = await supabase.functions.invoke('send-welcome-email', {
-        body: { email: userEmail, displayName: userName, password: userPassword }
+        body: { email: userEmail, displayName: userName }
       });
       
       if (response.error) {
@@ -195,7 +195,7 @@ const Auth: React.FC = () => {
           }
         } else {
           // Send welcome email with credentials
-          await sendWelcomeEmail(email, displayName.trim(), password);
+          await sendWelcomeEmail(email, displayName.trim());
           toast.success('Account created! Check your email for your login details.');
           navigate('/');
         }
