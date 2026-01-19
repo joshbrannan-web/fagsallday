@@ -186,7 +186,81 @@ Return ONLY the JSON object with the list of matching courses, including their B
 async function fetchCourseDetails(apiKey: string, courseUrl: string, courseName: string): Promise<Response> {
   console.log(`Fetching scorecard details from: ${courseUrl}`);
 
-  const systemPrompt = `You are a golf course data expert. Your task is to find the complete scorecard data for a specific golf course from course.bluegolf.com.
+  // Step 1: Use Firecrawl to scrape the BlueGolf page
+  const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  
+  if (!FIRECRAWL_API_KEY) {
+    console.error('FIRECRAWL_API_KEY not configured');
+    return new Response(
+      JSON.stringify({ success: false, error: 'Firecrawl API key not configured' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  if (!LOVABLE_API_KEY) {
+    console.error('LOVABLE_API_KEY not configured');
+    return new Response(
+      JSON.stringify({ success: false, error: 'Lovable API key not configured' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Ensure URL is properly formatted
+  let formattedUrl = courseUrl.trim();
+  if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+    formattedUrl = `https://${formattedUrl}`;
+  }
+
+  console.log('Scraping BlueGolf page with Firecrawl:', formattedUrl);
+
+  const firecrawlResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      url: formattedUrl,
+      formats: ['markdown'],
+      onlyMainContent: false, // We need the full page including scorecard tables
+      waitFor: 2000, // Wait for dynamic content to load
+    }),
+  });
+
+  if (!firecrawlResponse.ok) {
+    const errorText = await firecrawlResponse.text();
+    console.error('Firecrawl API error:', firecrawlResponse.status, errorText);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: `Failed to scrape BlueGolf page: ${firecrawlResponse.status}`,
+        details: errorText
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const firecrawlData = await firecrawlResponse.json();
+  const scrapedMarkdown = firecrawlData.data?.markdown || firecrawlData.markdown;
+  
+  if (!scrapedMarkdown) {
+    console.error('No markdown content from Firecrawl:', JSON.stringify(firecrawlData, null, 2));
+    return new Response(
+      JSON.stringify({ success: false, error: 'No content scraped from BlueGolf page' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  console.log('Scraped content length:', scrapedMarkdown.length);
+  console.log('Scraped content preview:', scrapedMarkdown.substring(0, 500));
+
+  // Step 2: Use Lovable AI to parse the scraped content
+  const systemPrompt = `You are a golf course data parser. Your task is to extract scorecard data from BlueGolf page content.
+
+The content contains a scorecard table with this structure:
+- Rows for: Tee names (Black, Blue, White, etc.), yardage, par, and handicap (Hcp)
+- Columns for holes 1-18 plus Out (front 9), In (back 9), and Tot (total)
 
 Return a JSON object with this EXACT structure:
 {
@@ -202,65 +276,62 @@ Return a JSON object with this EXACT structure:
 }
 
 Guidelines:
-- Get data from the course.bluegolf.com scorecard
-- Use the "Blue" or "Back" tees for yardage (standard men's tees)
-- handicapIndex is the stroke index/handicap ranking (1-18)
-- IMPORTANT: Verify par values match official scorecard
-- Ensure all 18 holes are included
-- totalPar and totalYardage should match the sum of individual holes`;
+- Use the "Blue" or "Back" tees for yardage (second row typically)
+- The "Par" row contains par values for each hole
+- The "Hcp" or "Handicap" row contains stroke index values
+- IMPORTANT: Parse the ACTUAL numbers from the table, do not make up values
+- If a value is unclear, use reasonable defaults but flag it
+- Ensure all 18 holes are extracted in order`;
 
-  const userPrompt = `Get the complete scorecard data for "${courseName}" from this BlueGolf page: ${courseUrl}
+  const userPrompt = `Parse the golf course scorecard from this BlueGolf page content for "${courseName}":
 
-I need:
-1. Official course name
-2. Location (city, state)
-3. All 18 holes with par, yardage (Blue/Back tees), and handicap/stroke index
-4. Total par and total yardage
+${scrapedMarkdown}
 
-Return ONLY the JSON object, no additional text.`;
+Extract all 18 holes with their par, yardage (from Blue/Back tees), and handicap index.
+Return ONLY the JSON object with the parsed data.`;
 
-  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+  console.log('Calling Lovable AI to parse scorecard...');
+
+  const parseResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'sonar',
+      model: 'google/gemini-2.5-flash',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      search_domain_filter: ['course.bluegolf.com'],
-      temperature: 0.1,
     }),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Perplexity API error:', response.status, errorText);
+  if (!parseResponse.ok) {
+    const errorText = await parseResponse.text();
+    console.error('Lovable AI error:', parseResponse.status, errorText);
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: `Perplexity API error: ${response.status}`,
+        error: `Failed to parse scorecard: ${parseResponse.status}`,
         details: errorText
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
-  const data = await response.json();
-  console.log('Perplexity fetch response:', JSON.stringify(data, null, 2));
-
-  const content = data.choices?.[0]?.message?.content;
-  const citations = data.citations || [];
+  const parseData = await parseResponse.json();
+  const content = parseData.choices?.[0]?.message?.content;
 
   if (!content) {
+    console.error('No content from Lovable AI:', JSON.stringify(parseData, null, 2));
     return new Response(
-      JSON.stringify({ success: false, error: 'No content in Perplexity response' }),
+      JSON.stringify({ success: false, error: 'No parsed content from AI' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
+
+  console.log('Lovable AI response:', content.substring(0, 500));
 
   try {
     const courseData: CourseData = parseJsonFromContent(content);
@@ -277,27 +348,29 @@ Return ONLY the JSON object, no additional text.`;
       handicapIndex: hole.handicapIndex || (index + 1)
     }));
 
-    // Recalculate totals
+    // Recalculate totals from parsed data
     courseData.totalPar = courseData.holes.reduce((sum, h) => sum + h.par, 0);
     courseData.totalYardage = courseData.holes.reduce((sum, h) => sum + h.yardage, 0);
+
+    console.log(`Parsed course: ${courseData.name}, Par ${courseData.totalPar}, ${courseData.totalYardage} yards`);
 
     return new Response(
       JSON.stringify({
         success: true,
         course: courseData,
-        citations,
-        source: 'bluegolf'
+        sourceUrl: formattedUrl,
+        source: 'bluegolf-scraped'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (parseError) {
     console.error('Failed to parse course data:', parseError);
+    console.error('Raw AI content:', content);
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: 'Failed to parse course data from response',
-        rawContent: content,
-        citations
+        error: 'Failed to parse course data from AI response',
+        rawContent: content
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
