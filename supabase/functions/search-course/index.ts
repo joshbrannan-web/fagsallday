@@ -74,7 +74,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in search-course-perplexity:', error);
+    console.error('Error in search-course:', error);
     return new Response(
       JSON.stringify({ 
         success: false, 
