@@ -13,8 +13,8 @@ interface CourseSearchResponse {
   };
   courses?: Array<{
     name: string;
+    location: string;
     url: string;
-    description: string;
   }>;
   sourceUrl?: string;
   message?: string;
@@ -23,11 +23,11 @@ interface CourseSearchResponse {
 export async function searchCourse(courseName: string, location?: string): Promise<CourseSearchResponse> {
   try {
     const { data, error } = await supabase.functions.invoke('search-course-perplexity', {
-      body: { courseName, location },
+      body: { courseName, location, mode: 'search' },
     });
 
     if (error) {
-      console.error('Error calling scrape-course:', error);
+      console.error('Error calling search-course-perplexity:', error);
       return { success: false, error: error.message };
     }
 
@@ -37,6 +37,31 @@ export async function searchCourse(courseName: string, location?: string): Promi
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to search course' 
+    };
+  }
+}
+
+export async function fetchCourseDetails(courseUrl: string, courseName: string): Promise<CourseSearchResponse> {
+  try {
+    const { data, error } = await supabase.functions.invoke('search-course-perplexity', {
+      body: { 
+        mode: 'fetch', 
+        selectedCourseUrl: courseUrl,
+        courseName 
+      },
+    });
+
+    if (error) {
+      console.error('Error fetching course details:', error);
+      return { success: false, error: error.message };
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error fetching course details:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to fetch course details' 
     };
   }
 }
