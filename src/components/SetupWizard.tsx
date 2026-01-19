@@ -321,7 +321,7 @@ const SetupWizard: React.FC = () => {
     }
 
     setIsSearching(true);
-    toast.info("Searching 18birdies.com for course data...");
+    toast.info("Searching course database...");
 
     try {
       const result = await searchCourse(courseName, courseLocation);
@@ -936,12 +936,12 @@ const SetupWizard: React.FC = () => {
                 {isSearching ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Searching 18birdies.com...
+                    Searching course database...
                   </>
                 ) : (
                   <>
                     <Globe className="w-4 h-4" />
-                    Fetch Course Data from 18birdies
+                    Search Course Database
                   </>
                 )}
               </Button>

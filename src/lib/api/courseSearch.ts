@@ -22,7 +22,7 @@ interface CourseSearchResponse {
 
 export async function searchCourse(courseName: string, location?: string): Promise<CourseSearchResponse> {
   try {
-    const { data, error } = await supabase.functions.invoke('scrape-course', {
+    const { data, error } = await supabase.functions.invoke('search-course-perplexity', {
       body: { courseName, location },
     });
 
