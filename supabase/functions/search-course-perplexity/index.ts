@@ -76,6 +76,36 @@ serve(async (req) => {
   }
 });
 
+// Helper function to normalize BlueGolf URLs to the detailedscorecard.htm format
+function normalizeBlueGolfUrl(url: string): string {
+  // If URL already contains detailedscorecard.htm, return as is
+  if (url.includes('detailedscorecard.htm')) {
+    return url;
+  }
+  
+  // Extract the course slug from various URL formats
+  // Format 1: /bluegolf/course/course/[slug]/...
+  // Format 2: /bluegolf/coursehome/[slug]/...
+  let slug = '';
+  
+  const courseMatch = url.match(/\/bluegolf\/course\/course\/([^\/]+)/);
+  if (courseMatch) {
+    slug = courseMatch[1];
+  } else {
+    const homepageMatch = url.match(/\/bluegolf\/coursehome\/([^\/]+)/);
+    if (homepageMatch) {
+      slug = homepageMatch[1];
+    }
+  }
+  
+  if (slug) {
+    return `https://course.bluegolf.com/bluegolf/course/course/${slug}/detailedscorecard.htm`;
+  }
+  
+  // If we can't parse it, return original
+  return url;
+}
+
 async function searchCourses(apiKey: string, courseName: string, location?: string): Promise<Response> {
   const searchQuery = location 
     ? `${courseName} ${location}` 
@@ -85,27 +115,35 @@ async function searchCourses(apiKey: string, courseName: string, location?: stri
 
   const systemPrompt = `You are a golf course search assistant. Your task is to search course.bluegolf.com for golf courses matching the user's query.
 
+IMPORTANT: BlueGolf URLs follow this format:
+https://course.bluegolf.com/bluegolf/course/course/[course-slug]/detailedscorecard.htm
+
+Examples of correct URLs:
+- https://course.bluegolf.com/bluegolf/course/course/stocktongcc/detailedscorecard.htm
+- https://course.bluegolf.com/bluegolf/course/course/pebblebeach/detailedscorecard.htm
+
 Return a JSON object with this structure:
 {
   "courses": [
     {
       "name": "Full Course Name",
       "location": "City, State",
-      "url": "https://course.bluegolf.com/..."
+      "url": "https://course.bluegolf.com/bluegolf/course/course/[slug]/detailedscorecard.htm"
     }
   ]
 }
 
 Guidelines:
 - Search ONLY on course.bluegolf.com
+- Return URLs in the detailedscorecard.htm format
+- The course slug is typically the course name in lowercase without spaces (e.g., "stocktongcc", "pebblebeach")
 - Return all matching courses (up to 10)
-- Include the exact BlueGolf URL for each course
-- If only one course matches exactly, still return it in the courses array
 - If no courses are found, return an empty courses array`;
 
   const userPrompt = `Find golf courses on course.bluegolf.com matching: "${searchQuery}"
 
-Return ONLY the JSON object with the list of matching courses, including their BlueGolf URLs.`;
+Return ONLY the JSON object with the list of matching courses.
+Use the detailedscorecard.htm URL format: https://course.bluegolf.com/bluegolf/course/course/[slug]/detailedscorecard.htm`;
 
   const response = await fetch('https://api.perplexity.ai/chat/completions', {
     method: 'POST',
@@ -152,7 +190,15 @@ Return ONLY the JSON object with the list of matching courses, including their B
 
   try {
     const parsed = parseJsonFromContent(content);
-    const courses: CourseListItem[] = parsed.courses || [];
+    let courses: CourseListItem[] = parsed.courses || [];
+    
+    // Normalize all URLs to the detailedscorecard.htm format
+    courses = courses.map(course => ({
+      ...course,
+      url: normalizeBlueGolfUrl(course.url)
+    }));
+    
+    console.log('Normalized course URLs:', courses.map(c => c.url));
 
     // If only one course found, automatically fetch its details
     if (courses.length === 1 && courses[0].url) {
@@ -206,11 +252,14 @@ async function fetchCourseDetails(apiKey: string, courseUrl: string, courseName:
     );
   }
 
-  // Ensure URL is properly formatted
+  // Ensure URL is properly formatted and normalized to detailedscorecard.htm
   let formattedUrl = courseUrl.trim();
   if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
     formattedUrl = `https://${formattedUrl}`;
   }
+  
+  // Normalize URL to use the detailedscorecard.htm format
+  formattedUrl = normalizeBlueGolfUrl(formattedUrl);
 
   console.log('Scraping BlueGolf page with Firecrawl:', formattedUrl);
 
