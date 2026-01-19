@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../App";
 import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from "../types";
 import { calculateCourseHandicap } from "../services/gameEngine";
-import { searchCourse, courseDataToCourse } from "@/lib/api/courseSearch";
+import { searchCourse, fetchCourseDetails, courseDataToCourse } from "@/lib/api/courseSearch";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSavedPlayers } from "@/hooks/useSavedPlayers";
@@ -176,7 +176,8 @@ const SetupWizard: React.FC = () => {
   const [holesModified, setHolesModified] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<Array<{ name: string; url: string; description: string }>>([]);
+  const [searchResults, setSearchResults] = useState<Array<{ name: string; location: string; url: string }>>([]);
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
   // Tee box selection (from scanned scorecard)
   const [availableTeeBoxes, setAvailableTeeBoxes] = useState<TeeBox[]>([]);
@@ -949,23 +950,47 @@ const SetupWizard: React.FC = () => {
               {/* Search Results */}
               {searchResults.length > 0 && (
                 <div className="space-y-2">
-                  <Label className="text-sm text-muted-foreground">Search Results</Label>
+                  <Label className="text-sm text-muted-foreground">Select a course ({searchResults.length} found)</Label>
                   {searchResults.map((result, idx) => (
                     <button
                       key={idx}
-                      onClick={() => {
-                        setCourseName(result.name);
+                      onClick={async () => {
+                        setIsFetchingDetails(true);
                         setSearchResults([]);
-                        handleFetchCourseData();
+                        toast.info(`Fetching scorecard for ${result.name}...`);
+                        
+                        const detailsResult = await fetchCourseDetails(result.url, result.name);
+                        
+                        if (detailsResult.success && detailsResult.course) {
+                          const course = courseDataToCourse(detailsResult.course);
+                          if (course) {
+                            setSelectedCourse(course);
+                            setHoles(course.holes);
+                            setCourseName(course.name);
+                            setCourseLocation(course.location);
+                            toast.success(`Loaded ${course.name} scorecard!`);
+                          }
+                        } else {
+                          toast.error(detailsResult.error || "Failed to fetch course details");
+                        }
+                        setIsFetchingDetails(false);
                       }}
-                      className="w-full p-3 rounded-lg border border-border bg-card hover:border-primary/50 text-left transition-all"
+                      disabled={isFetchingDetails}
+                      className="w-full p-3 rounded-lg border border-border bg-card hover:border-primary/50 text-left transition-all disabled:opacity-50"
                     >
                       <div className="font-medium text-sm">{result.name}</div>
-                      {result.description && (
-                        <div className="text-xs text-muted-foreground truncate">{result.description}</div>
+                      {result.location && (
+                        <div className="text-xs text-muted-foreground truncate">{result.location}</div>
                       )}
                     </button>
                   ))}
+                </div>
+              )}
+              
+              {isFetchingDetails && (
+                <div className="flex items-center justify-center gap-2 p-4 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading scorecard data...</span>
                 </div>
               )}
 
