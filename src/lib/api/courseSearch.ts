@@ -22,12 +22,12 @@ interface CourseSearchResponse {
 
 export async function searchCourse(courseName: string, location?: string): Promise<CourseSearchResponse> {
   try {
-    const { data, error } = await supabase.functions.invoke('search-course-perplexity', {
+    const { data, error } = await supabase.functions.invoke('search-course', {
       body: { courseName, location, mode: 'search' },
     });
 
     if (error) {
-      console.error('Error calling search-course-perplexity:', error);
+      console.error('Error calling search-course:', error);
       return { success: false, error: error.message };
     }
 
@@ -43,7 +43,7 @@ export async function searchCourse(courseName: string, location?: string): Promi
 
 export async function fetchCourseDetails(courseUrl: string, courseName: string): Promise<CourseSearchResponse> {
   try {
-    const { data, error } = await supabase.functions.invoke('search-course-perplexity', {
+    const { data, error } = await supabase.functions.invoke('search-course', {
       body: { 
         mode: 'fetch', 
         selectedCourseUrl: courseUrl,
