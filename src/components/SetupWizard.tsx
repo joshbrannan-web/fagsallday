@@ -927,7 +927,7 @@ const SetupWizard: React.FC = () => {
                 />
               </div>
 
-              {/* Fetch from 18birdies button */}
+              {/* Search Course Database button */}
               <Button
                 onClick={handleFetchCourseData}
                 disabled={isSearching || !courseName.trim()}
