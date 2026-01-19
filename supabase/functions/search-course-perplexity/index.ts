@@ -41,22 +41,31 @@ serve(async (req) => {
       );
     }
 
-    const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
-    if (!PERPLEXITY_API_KEY) {
+    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+
+    if (!FIRECRAWL_API_KEY) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Perplexity API key not configured' }),
+        JSON.stringify({ success: false, error: 'Firecrawl API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Mode 1: Search for courses on BlueGolf
+    if (!LOVABLE_API_KEY) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Lovable API key not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Mode 1: Search for courses on BlueGolf using Firecrawl
     if (mode === 'search') {
-      return await searchCourses(PERPLEXITY_API_KEY, courseName, location);
+      return await searchCourses(FIRECRAWL_API_KEY, LOVABLE_API_KEY, courseName, location);
     }
     
     // Mode 2: Fetch detailed scorecard for a specific course
     if (mode === 'fetch' && selectedCourseUrl) {
-      return await fetchCourseDetails(PERPLEXITY_API_KEY, selectedCourseUrl, courseName);
+      return await fetchCourseDetails(FIRECRAWL_API_KEY, LOVABLE_API_KEY, selectedCourseUrl, courseName);
     }
 
     return new Response(
@@ -86,6 +95,7 @@ function normalizeBlueGolfUrl(url: string): string {
   // Extract the course slug from various URL formats
   // Format 1: /bluegolf/course/course/[slug]/...
   // Format 2: /bluegolf/coursehome/[slug]/...
+  // Format 3: course.bluegolf.com/bluegolf/[slug]/...
   let slug = '';
   
   const courseMatch = url.match(/\/bluegolf\/course\/course\/([^\/]+)/);
@@ -95,6 +105,12 @@ function normalizeBlueGolfUrl(url: string): string {
     const homepageMatch = url.match(/\/bluegolf\/coursehome\/([^\/]+)/);
     if (homepageMatch) {
       slug = homepageMatch[1];
+    } else {
+      // Try to extract from simpler URL patterns
+      const simpleMatch = url.match(/course\.bluegolf\.com\/bluegolf\/([^\/]+)/);
+      if (simpleMatch && !simpleMatch[1].includes('course')) {
+        slug = simpleMatch[1];
+      }
     }
   }
   
@@ -106,69 +122,86 @@ function normalizeBlueGolfUrl(url: string): string {
   return url;
 }
 
-async function searchCourses(apiKey: string, courseName: string, location?: string): Promise<Response> {
-  const searchQuery = location 
-    ? `${courseName} ${location}` 
-    : courseName;
-
-  console.log(`Searching BlueGolf for courses: ${searchQuery}`);
-
-  const systemPrompt = `You are a golf course search assistant. Your task is to search course.bluegolf.com for golf courses matching the user's query.
-
-IMPORTANT: BlueGolf URLs follow this format:
-https://course.bluegolf.com/bluegolf/course/course/[course-slug]/detailedscorecard.htm
-
-Examples of correct URLs:
-- https://course.bluegolf.com/bluegolf/course/course/stocktongcc/detailedscorecard.htm
-- https://course.bluegolf.com/bluegolf/course/course/pebblebeach/detailedscorecard.htm
-
-Return a JSON object with this structure:
-{
-  "courses": [
-    {
-      "name": "Full Course Name",
-      "location": "City, State",
-      "url": "https://course.bluegolf.com/bluegolf/course/course/[slug]/detailedscorecard.htm"
+// Extract location from search result description or title
+function extractLocationFromResult(result: { title?: string; description?: string; url?: string }): string {
+  const text = `${result.title || ''} ${result.description || ''}`;
+  
+  // Common patterns for location in golf course descriptions
+  const patterns = [
+    /in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})/,
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})/,
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z][a-z]+)/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      return match[1];
     }
-  ]
+  }
+  
+  return 'Location not specified';
 }
 
-Guidelines:
-- Search ONLY on course.bluegolf.com
-- Return URLs in the detailedscorecard.htm format
-- The course slug is typically the course name in lowercase without spaces (e.g., "stocktongcc", "pebblebeach")
-- Return all matching courses (up to 10)
-- If no courses are found, return an empty courses array`;
+// Extract course name from search result
+function extractCourseName(result: { title?: string; url?: string }): string {
+  // Try to get name from title first
+  if (result.title) {
+    // Remove common suffixes like "- BlueGolf", "| BlueGolf", etc.
+    const cleanTitle = result.title
+      .replace(/\s*[-|]\s*BlueGolf.*$/i, '')
+      .replace(/\s*[-|]\s*Scorecard.*$/i, '')
+      .replace(/\s*Detailed\s*Scorecard.*$/i, '')
+      .trim();
+    
+    if (cleanTitle) {
+      return cleanTitle;
+    }
+  }
+  
+  // Try to extract from URL
+  if (result.url) {
+    const urlMatch = result.url.match(/\/course\/([^\/]+)/);
+    if (urlMatch) {
+      // Convert slug to title case
+      return urlMatch[1]
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[_-]/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+    }
+  }
+  
+  return 'Unknown Course';
+}
 
-  const userPrompt = `Find golf courses on course.bluegolf.com matching: "${searchQuery}"
+async function searchCourses(firecrawlKey: string, lovableKey: string, courseName: string, location?: string): Promise<Response> {
+  const searchQuery = location 
+    ? `site:course.bluegolf.com ${courseName} ${location} scorecard`
+    : `site:course.bluegolf.com ${courseName} scorecard`;
 
-Return ONLY the JSON object with the list of matching courses.
-Use the detailedscorecard.htm URL format: https://course.bluegolf.com/bluegolf/course/course/[slug]/detailedscorecard.htm`;
+  console.log(`Searching BlueGolf for courses with Firecrawl: ${searchQuery}`);
 
-  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+  const response = await fetch('https://api.firecrawl.dev/v1/search', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${firecrawlKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'sonar',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      search_domain_filter: ['course.bluegolf.com'],
-      temperature: 0.1,
+      query: searchQuery,
+      limit: 10,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Perplexity API error:', response.status, errorText);
+    console.error('Firecrawl search error:', response.status, errorText);
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: `Perplexity API error: ${response.status}`,
+        error: `Firecrawl search error: ${response.status}`,
         details: errorText
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -176,81 +209,59 @@ Use the detailedscorecard.htm URL format: https://course.bluegolf.com/bluegolf/c
   }
 
   const data = await response.json();
-  console.log('Perplexity search response:', JSON.stringify(data, null, 2));
+  console.log('Firecrawl search response:', JSON.stringify(data, null, 2));
 
-  const content = data.choices?.[0]?.message?.content;
-  const citations = data.citations || [];
+  const searchResults = data.data || [];
 
-  if (!content) {
+  if (searchResults.length === 0) {
     return new Response(
-      JSON.stringify({ success: false, error: 'No content in Perplexity response' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  try {
-    const parsed = parseJsonFromContent(content);
-    let courses: CourseListItem[] = parsed.courses || [];
-    
-    // Normalize all URLs to the detailedscorecard.htm format
-    courses = courses.map(course => ({
-      ...course,
-      url: normalizeBlueGolfUrl(course.url)
-    }));
-    
-    console.log('Normalized course URLs:', courses.map(c => c.url));
-
-    // If only one course found, automatically fetch its details
-    if (courses.length === 1 && courses[0].url) {
-      console.log('Single course found, fetching details...');
-      return await fetchCourseDetails(apiKey, courses[0].url, courses[0].name);
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        courses,
-        citations,
-        source: 'bluegolf'
+      JSON.stringify({ 
+        success: true, 
+        courses: [],
+        message: 'No courses found on BlueGolf matching your search'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (parseError) {
-    console.error('Failed to parse course list:', parseError);
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: 'Failed to parse course list from response',
-        rawContent: content,
-        citations
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   }
+
+  // Filter and transform results to course list
+  const courses: CourseListItem[] = searchResults
+    .filter((result: any) => {
+      const url = result.url || '';
+      // Only include BlueGolf course URLs
+      return url.includes('course.bluegolf.com') && 
+             (url.includes('/course/') || url.includes('/bluegolf/'));
+    })
+    .map((result: any) => ({
+      name: extractCourseName(result),
+      location: extractLocationFromResult(result),
+      url: normalizeBlueGolfUrl(result.url),
+    }))
+    // Remove duplicates by URL
+    .filter((course: CourseListItem, index: number, self: CourseListItem[]) => 
+      index === self.findIndex(c => c.url === course.url)
+    );
+
+  console.log('Parsed courses:', courses);
+
+  // If only one course found, automatically fetch its details
+  if (courses.length === 1 && courses[0].url) {
+    console.log('Single course found, fetching details...');
+    return await fetchCourseDetails(firecrawlKey, lovableKey, courses[0].url, courses[0].name);
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      courses,
+      source: 'bluegolf-firecrawl'
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
-async function fetchCourseDetails(apiKey: string, courseUrl: string, courseName: string): Promise<Response> {
+async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, courseUrl: string, courseName: string): Promise<Response> {
   console.log(`Fetching scorecard details from: ${courseUrl}`);
-
-  // Step 1: Use Firecrawl to scrape the BlueGolf page
-  const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  
-  if (!FIRECRAWL_API_KEY) {
-    console.error('FIRECRAWL_API_KEY not configured');
-    return new Response(
-      JSON.stringify({ success: false, error: 'Firecrawl API key not configured' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  if (!LOVABLE_API_KEY) {
-    console.error('LOVABLE_API_KEY not configured');
-    return new Response(
-      JSON.stringify({ success: false, error: 'Lovable API key not configured' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
 
   // Ensure URL is properly formatted and normalized to detailedscorecard.htm
   let formattedUrl = courseUrl.trim();
@@ -266,7 +277,7 @@ async function fetchCourseDetails(apiKey: string, courseUrl: string, courseName:
   const firecrawlResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+      'Authorization': `Bearer ${firecrawlKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -303,6 +314,19 @@ async function fetchCourseDetails(apiKey: string, courseUrl: string, courseName:
 
   console.log('Scraped content length:', scrapedMarkdown.length);
   console.log('Scraped content preview:', scrapedMarkdown.substring(0, 500));
+
+  // Check if the page contains a 404 error
+  if (scrapedMarkdown.includes('404') && scrapedMarkdown.includes('Page Not Found')) {
+    console.error('BlueGolf page returned 404');
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: 'Course page not found on BlueGolf. The course may not be listed or the URL may be incorrect.',
+        sourceUrl: formattedUrl
+      }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 
   // Step 2: Use Lovable AI to parse the scraped content
   const systemPrompt = `You are a golf course data parser. Your task is to extract scorecard data from BlueGolf page content.
@@ -344,7 +368,7 @@ Return ONLY the JSON object with the parsed data.`;
   const parseResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Authorization': `Bearer ${lovableKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
