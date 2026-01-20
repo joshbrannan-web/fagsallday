@@ -22,6 +22,7 @@ const ActiveRound: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(false);
+  const [isFboMinimized, setIsFboMinimized] = useState(false);
 
   // All hooks must be called before any early returns!
   // Bloody Banker "Down the Most" logic for holes 16, 17, 18
@@ -379,7 +380,13 @@ const ActiveRound: React.FC = () => {
 
       {/* Main Scoring Area - Hidden when Stockton 6's team setup is needed */}
       {!stockton6NeedsSetup && (
-      <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${isBottomBarMinimized ? 'pb-16' : 'pb-48'}`}>
+      <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
+        fboGames.length > 0 
+          ? (isFboMinimized && isBottomBarMinimized ? 'pb-28' : 
+             isFboMinimized && !isBottomBarMinimized ? 'pb-56' :
+             !isFboMinimized && isBottomBarMinimized ? 'pb-64' : 'pb-80')
+          : (isBottomBarMinimized ? 'pb-16' : 'pb-48')
+      }`}>
         {/* Stockton 6's Status Bar */}
         {stockton6Game && (
           <Stockton6StatusBar
@@ -590,97 +597,7 @@ const ActiveRound: React.FC = () => {
           );
         })}
 
-        {/* FBO Game: Auto-Calculated Hole Winners */}
-        {fboGames.map(game => {
-          const fboPlayerIds = game.config.fboPlayers || currentRound.players.map(p => p.id);
-          const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
-          const currentDots: string[] = currentRound.gameData?.[game.id]?.[activeHole]?.dots || [];
-          const netScores = getFBOHoleNetScores(currentRound, game, activeHole);
-          const allScored = netScores.every(s => s.gross > 0);
-
-          return (
-            <div key={game.id} className="bg-card rounded-2xl shadow-sm border border-primary/50 p-4 mb-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-foreground flex items-center gap-2">
-                  <span className="bg-primary text-primary-foreground p-1 rounded">🎱</span> FBO - Hole Winner
-                </h3>
-                <div className="text-xs font-medium text-muted-foreground">
-                  Hole {activeHole} {activeHole <= 9 ? '(Front 9)' : '(Back 9)'}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mb-3">
-                Dot awarded to lowest net score (auto-calculated)
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {fboPlayers.map(p => {
-                  const hasDot = currentDots.includes(p.id);
-                  const totalDots = getFboDotsForPlayer(game.id, p.id);
-                  const playerNetInfo = netScores.find(s => s.playerId === p.id);
-                  const hasScore = playerNetInfo && playerNetInfo.gross > 0;
-                  
-                  return (
-                    <div
-                      key={p.id}
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl border-2 transition-all ${
-                        hasDot 
-                          ? 'bg-primary/10 border-primary text-foreground' 
-                          : 'bg-muted border-border text-muted-foreground'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          hasDot ? 'bg-primary border-primary' : 'border-muted-foreground/30'
-                        }`}>
-                          {hasDot && <Check className="w-3 h-3 text-primary-foreground" />}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-sm">{p.name.split(' ')[0]}</span>
-                          {hasScore && playerNetInfo && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {playerNetInfo.gross}{playerNetInfo.strokes > 0 ? ` - ${playerNetInfo.strokes}` : ''} = {playerNetInfo.net} net
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs font-bold bg-background px-2 py-0.5 rounded-full">
-                          {totalDots}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {!allScored && (
-                <p className="text-xs text-muted-foreground/70 text-center mt-2 italic">
-                  Enter all scores to auto-award dot
-                </p>
-              )}
-              
-              {/* Running Totals Summary */}
-              <div className="mt-3 pt-3 border-t border-border">
-                <div className="flex items-center justify-between text-xs font-medium">
-                  <span className="text-muted-foreground uppercase">Running Totals</span>
-                  <span className="text-muted-foreground">${game.unitStake} × 3 bets</span>
-                </div>
-                <div className="flex gap-2 mt-2 overflow-x-auto no-scrollbar">
-                  {fboPlayers.map(p => {
-                    const totalDots = getFboDotsForPlayer(game.id, p.id);
-                    return (
-                      <div key={p.id} className="flex flex-col items-center min-w-[50px] px-2 py-1 bg-muted rounded-lg">
-                        <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[50px]">
-                          {p.name.split(' ')[0]}
-                        </span>
-                        <span className="text-sm font-bold text-foreground">{totalDots}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {/* FBO section moved to bottom bar */}
 
         {/* Stockton 6's Dots Input */}
         {stockton6Game && (() => {
@@ -1023,8 +940,154 @@ const ActiveRound: React.FC = () => {
       </div>
       )}
 
+      {/* FBO Bottom Bar - positioned above Round Totals */}
+      {fboGames.length > 0 && fboGames.map(game => {
+        const fboPlayerIds = game.config.fboPlayers || currentRound.players.map(p => p.id);
+        const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
+        const currentDots: string[] = currentRound.gameData?.[game.id]?.[activeHole]?.dots || [];
+        const netScores = getFBOHoleNetScores(currentRound, game, activeHole);
+        const allScored = netScores.every(s => s.gross > 0);
+
+        return (
+          <div 
+            key={`fbo-bar-${game.id}`}
+            className={`fixed left-0 right-0 bg-card border-t border-primary/30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] transition-all duration-300 z-40 ${
+              isBottomBarMinimized ? 'bottom-4' : 'bottom-[120px]'
+            }`}
+          >
+            {/* FBO Header - Always Visible */}
+            <div 
+              className="flex items-center justify-between px-4 py-2 cursor-pointer"
+              onClick={() => setIsFboMinimized(!isFboMinimized)}
+            >
+              <div className="flex items-center gap-2">
+                <span className="bg-primary text-primary-foreground p-1 rounded text-sm">🎱</span>
+                <h3 className="font-bold text-foreground text-sm">FBO - Hole Winner</h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Hole {activeHole} {activeHole <= 9 ? '(Front 9)' : '(Back 9)'}
+                </span>
+                {isFboMinimized ? (
+                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+
+            {/* Minimized View - Compact Summary */}
+            {isFboMinimized && (
+              <div className="px-4 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm">
+                  {currentDots.length > 0 ? (
+                    <span className="text-foreground font-medium">
+                      Winner: {currentDots.map(id => 
+                        fboPlayers.find(p => p.id === id)?.name.split(' ')[0]
+                      ).join(', ')}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground italic">
+                      {allScored ? 'Push' : 'Awaiting scores...'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-1.5">
+                  {fboPlayers.map(p => (
+                    <span 
+                      key={p.id} 
+                      className={`text-xs px-2 py-0.5 rounded font-bold ${
+                        currentDots.includes(p.id) 
+                          ? 'bg-primary/20 text-primary' 
+                          : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {p.name.split(' ')[0].charAt(0)}: {getFboDotsForPlayer(game.id, p.id)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Expanded View - Full Details */}
+            {!isFboMinimized && (
+              <div className="px-4 pb-4">
+                <p className="text-xs text-muted-foreground mb-3">
+                  Dot awarded to lowest net score (auto-calculated)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {fboPlayers.map(p => {
+                    const hasDot = currentDots.includes(p.id);
+                    const totalDots = getFboDotsForPlayer(game.id, p.id);
+                    const playerNetInfo = netScores.find(s => s.playerId === p.id);
+                    const hasScore = playerNetInfo && playerNetInfo.gross > 0;
+                    
+                    return (
+                      <div
+                        key={p.id}
+                        className={`flex items-center justify-between px-3 py-2 rounded-xl border-2 transition-all ${
+                          hasDot 
+                            ? 'bg-primary/10 border-primary text-foreground' 
+                            : 'bg-muted border-border text-muted-foreground'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            hasDot ? 'bg-primary border-primary' : 'border-muted-foreground/30'
+                          }`}>
+                            {hasDot && <Check className="w-3 h-3 text-primary-foreground" />}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{p.name.split(' ')[0]}</span>
+                            {hasScore && playerNetInfo && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {playerNetInfo.gross}{playerNetInfo.strokes > 0 ? ` - ${playerNetInfo.strokes}` : ''} = {playerNetInfo.net} net
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold bg-background px-2 py-0.5 rounded-full">
+                          {totalDots}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {!allScored && (
+                  <p className="text-xs text-muted-foreground/70 text-center mt-2 italic">
+                    Enter all scores to auto-award dot
+                  </p>
+                )}
+                
+                {/* Running Totals Summary */}
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center justify-between text-xs font-medium">
+                    <span className="text-muted-foreground uppercase">Running Totals</span>
+                    <span className="text-muted-foreground">${game.unitStake} × 3 bets</span>
+                  </div>
+                  <div className="flex gap-2 mt-2 overflow-x-auto no-scrollbar">
+                    {fboPlayers.map(p => {
+                      const totalDots = getFboDotsForPlayer(game.id, p.id);
+                      return (
+                        <div key={p.id} className="flex flex-col items-center min-w-[50px] px-2 py-1 bg-muted rounded-lg">
+                          <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[50px]">
+                            {p.name.split(' ')[0]}
+                          </span>
+                          <span className="text-sm font-bold text-foreground">{totalDots}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
       {/* Floating Bottom Drawer / Summary Teaser */}
-      <div className={`fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] transition-all duration-300 ${isBottomBarMinimized ? 'pb-safe' : 'p-4 pb-safe'}`}>
+      <div className={`fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] transition-all duration-300 z-50 ${isBottomBarMinimized ? 'pb-safe' : 'p-4 pb-safe'}`}>
         {/* Toggle Button */}
         <button
           onClick={() => setIsBottomBarMinimized(!isBottomBarMinimized)}
