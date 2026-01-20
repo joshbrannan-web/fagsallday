@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame } from 'lucide-react';
 import { GameType, GameSettings } from '../types';
-import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
@@ -751,23 +751,52 @@ const ActiveRound: React.FC = () => {
 
           const isBanker = currentBankerId === p.id;
           
-          // Calculate auto strokes based on handicap difference vs banker
+          // Calculate auto strokes based on game configuration
           let autoPlayerStrokes = 0;
           let autoBankerStrokes = 0;
-          if (banker && !isBanker && courseHole) {
-            const matchupStrokes = calculateBankerMatchupStrokes(
-              p.courseHandicap,
-              banker.courseHandicap,
-              courseHole.handicapIndex
-            );
-            autoPlayerStrokes = matchupStrokes.playerStrokes;
-            autoBankerStrokes = matchupStrokes.bankerStrokes;
-          }
           
-          // Stockton 6's: Calculate relative strokes if no banker game active
-          if (stockton6Game && !banker && courseHole) {
+          // Stockton 6's always uses its own stroke calculation (not configurable)
+          if (stockton6Game && courseHole) {
             const relativeStrokes = calculateRelativeStrokes(currentRound.players, courseHole.handicapIndex);
             autoPlayerStrokes = relativeStrokes[p.id] || 0;
+          }
+          // For Banker games, calculate strokes based on game's handicap config
+          else if (activeBankerGame && banker && !isBanker && courseHole) {
+            if (activeBankerGame.config.useHandicaps) {
+              if (activeBankerGame.config.handicapMode === 'absolute') {
+                // Stockton 6 style for Banker game
+                const allPlayersGetStrokes = currentRound.players.every(
+                  (pl) => courseHole.handicapIndex <= pl.courseHandicap
+                );
+                if (!allPlayersGetStrokes) {
+                  autoPlayerStrokes = courseHole.handicapIndex <= p.courseHandicap ? 1 : 0;
+                  autoBankerStrokes = courseHole.handicapIndex <= banker.courseHandicap ? 1 : 0;
+                }
+              } else {
+                // Relative mode (default Banker style)
+                const matchupStrokes = calculateBankerMatchupStrokes(
+                  p.courseHandicap,
+                  banker.courseHandicap,
+                  courseHole.handicapIndex
+                );
+                autoPlayerStrokes = matchupStrokes.playerStrokes;
+                autoBankerStrokes = matchupStrokes.bankerStrokes;
+              }
+            }
+            // If useHandicaps is false, both autoPlayerStrokes and autoBankerStrokes remain 0
+          }
+          // For other games (Skins, Nassau, FBO, etc.), use calculateGameStrokes
+          else if (!stockton6Game && !activeBankerGame) {
+            // Find the first non-Stockton game to determine handicap config
+            const otherGames = currentRound.games.filter(g => 
+              g.type !== GameType.STOCKTON_6 && 
+              g.type !== GameType.BANKER && 
+              g.type !== GameType.BLOODY_BANKER
+            );
+            if (otherGames.length > 0 && courseHole) {
+              // Use the first game's handicap config for display
+              autoPlayerStrokes = calculateGameStrokes(currentRound, otherGames[0], activeHole, p.id);
+            }
           }
           
           // Use manual strokes if explicitly set, otherwise use auto-calculated
@@ -806,24 +835,39 @@ const ActiveRound: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-4">
                   {/* Manual Stroke Checkbox - shows player gets stroke */}
-                  {(!isBanker && bankerGames.length > 0) || stockton6Game ? (
-                    <div className="flex flex-col items-end gap-1">
-                      <label className="text-[10px] uppercase font-bold text-muted-foreground">
-                        {isBankerStroking ? 'Banker +1' : 'Stroke'}
-                      </label>
-                      <button 
-                        onClick={() => handleStrokeToggle(p.id, autoPlayerStrokes)}
-                        className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${
-                          isPlayerStroking ? 'bg-primary border-primary' : 
-                          isBankerStroking ? 'bg-destructive/20 border-destructive' :
-                          'bg-background border-border'
-                        }`}
-                      >
-                        {isPlayerStroking && <CheckSquare className="w-4 h-4 text-primary-foreground" />}
-                        {isBankerStroking && <span className="text-xs font-bold text-destructive">B</span>}
-                      </button>
-                    </div>
-                  ) : null}
+                  {/* Show for: Banker games (non-banker), Stockton 6, or any game with useHandicaps enabled */}
+                  {(() => {
+                    // Determine if any game has handicaps enabled
+                    const hasHandicapGame = currentRound.games.some(g => 
+                      g.type === GameType.STOCKTON_6 || 
+                      (g.config.useHandicaps && g.type !== GameType.OPEN_BETTING)
+                    );
+                    const showStrokeCheckbox = 
+                      ((!isBanker && bankerGames.length > 0 && bankerGames[0].config.useHandicaps) || 
+                       stockton6Game || 
+                       (hasHandicapGame && !bankerGames.length));
+                    
+                    if (!showStrokeCheckbox) return null;
+                    
+                    return (
+                      <div className="flex flex-col items-end gap-1">
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground">
+                          {isBankerStroking ? 'Banker +1' : 'Stroke'}
+                        </label>
+                        <button 
+                          onClick={() => handleStrokeToggle(p.id, autoPlayerStrokes)}
+                          className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${
+                            isPlayerStroking ? 'bg-primary border-primary' : 
+                            isBankerStroking ? 'bg-destructive/20 border-destructive' :
+                            'bg-background border-border'
+                          }`}
+                        >
+                          {isPlayerStroking && <CheckSquare className="w-4 h-4 text-primary-foreground" />}
+                          {isBankerStroking && <span className="text-xs font-bold text-destructive">B</span>}
+                        </button>
+                      </div>
+                    );
+                  })()}
 
                   {/* Net Score Badge */}
                   <div className="flex flex-col items-end">

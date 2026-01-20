@@ -101,6 +101,66 @@ export const getMatchStrokesReceived = (
   return diff > 0 ? totalStrokes : 0;
 };
 
+// --- Universal Stroke Calculation for Games ---
+// Respects game's handicap configuration (useHandicaps, handicapMode)
+// Returns the number of strokes a player receives on a specific hole
+
+export const calculateGameStrokes = (
+  round: Round,
+  game: GameSettings,
+  holeNumber: number,
+  playerId: string,
+  referencePlayerId?: string // For relative mode (e.g., banker or lowest handicap player)
+): number => {
+  // Check for manual override first - this always takes precedence
+  const manualStrokes = round.gameData?.["MANUAL_STROKES"]?.[holeNumber]?.[playerId];
+  if (manualStrokes !== undefined && manualStrokes !== null) {
+    return manualStrokes;
+  }
+
+  // If handicaps are disabled for this game, return 0
+  if (!game.config.useHandicaps) {
+    return 0;
+  }
+
+  const player = round.players.find((p) => p.id === playerId);
+  const hole = round.course.holes.find((h) => h.number === holeNumber);
+  if (!player || !hole) return 0;
+
+  if (game.config.handicapMode === 'absolute') {
+    // Stockton 6 style: stroke if holeIndex <= courseHandicap
+    // Cancel if ALL players would get strokes (strokes cancel out)
+    const allPlayersGetStrokes = round.players.every(
+      (p) => hole.handicapIndex <= p.courseHandicap
+    );
+    if (allPlayersGetStrokes) return 0;
+    
+    return hole.handicapIndex <= player.courseHandicap ? 1 : 0;
+  } else {
+    // Relative mode (Banker style): strokes based on differential from reference player
+    let refPlayerId = referencePlayerId;
+    
+    if (!refPlayerId) {
+      // Find lowest handicap player as reference
+      const lowestHandicapPlayer = round.players.reduce(
+        (min, p) => (p.courseHandicap < min.courseHandicap ? p : min),
+        round.players[0]
+      );
+      refPlayerId = lowestHandicapPlayer.id;
+    }
+
+    const refPlayer = round.players.find((p) => p.id === refPlayerId);
+    if (!refPlayer || refPlayer.id === playerId) return 0;
+
+    const diff = player.courseHandicap - refPlayer.courseHandicap;
+    if (diff <= 0) return 0;
+    
+    // Player gets a stroke if diff >= hole handicap index
+    if (diff >= hole.handicapIndex) return 1;
+    return 0;
+  }
+};
+
 // --- Betting Engine ---
 
 export const calculateSkins = (round: Round, game: GameSettings): GameResult => {
@@ -128,12 +188,11 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
     const activePlayers = players.filter((p) => typeof holeScores[p.id] === "number");
     if (activePlayers.length < players.length) break; // Incomplete hole
 
-    // Calculate net scores - only apply manual strokes, no automatic calculation
+    // Calculate net scores using game's handicap configuration
     const nets = activePlayers.map((p) => {
       const gross = holeScores[p.id]!;
-      const manualStrokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p.id];
-      // Only apply strokes if manually set, otherwise use gross score
-      const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null ? manualStrokes : 0;
+      // Use calculateGameStrokes which respects manual overrides and game config
+      const effectiveStrokes = calculateGameStrokes(round, game, h, p.id);
       return {
         id: p.id,
         net: gross - effectiveStrokes,
@@ -220,12 +279,9 @@ export const calculateNassau = (round: Round, game: GameSettings): GameResult =>
 
     holeResults[h] = { [p1.id]: 0, [p2.id]: 0 };
 
-    const m1Strokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p1.id];
-    const m2Strokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p2.id];
-
-    // Only apply strokes if manually set, otherwise use gross score
-    const effectiveStrokes1 = m1Strokes !== undefined && m1Strokes !== null ? m1Strokes : 0;
-    const effectiveStrokes2 = m2Strokes !== undefined && m2Strokes !== null ? m2Strokes : 0;
+    // Use calculateGameStrokes which respects manual overrides and game config
+    const effectiveStrokes1 = calculateGameStrokes(round, game, h, p1.id);
+    const effectiveStrokes2 = calculateGameStrokes(round, game, h, p2.id);
     const net1 = holeScores[p1.id]! - effectiveStrokes1;
     const net2 = holeScores[p2.id]! - effectiveStrokes2;
 
@@ -352,13 +408,13 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
       const playerGross = holeScores[p.id];
       if (typeof playerGross !== "number") return;
 
+      // Calculate strokes based on game's handicap configuration
+      let playerStrokesReceived = 0;
+      let bankerStrokesReceived = 0;
+
       // Check for manual stroke override first
       const playerManualStrokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[p.id];
       const bankerManualStrokes = round.gameData?.["MANUAL_STROKES"]?.[h]?.[`${bankerId}_vs_${p.id}`];
-
-      // Calculate strokes for both player and banker in this matchup
-      let playerStrokesReceived: number;
-      let bankerStrokesReceived: number;
 
       if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
         // Use manual override if set for player
@@ -368,16 +424,30 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
         // Use manual override if set for banker
         playerStrokesReceived = 0;
         bankerStrokesReceived = bankerManualStrokes;
-      } else {
-        // Calculate based on handicap difference vs hole handicap index
-        const matchupStrokes = calculateBankerMatchupStrokes(
-          p.courseHandicap,
-          banker.courseHandicap,
-          holeData.handicapIndex,
-        );
-        playerStrokesReceived = matchupStrokes.playerStrokes;
-        bankerStrokesReceived = matchupStrokes.bankerStrokes;
+      } else if (game.config.useHandicaps) {
+        // Auto-calculate strokes based on handicap mode
+        if (game.config.handicapMode === 'absolute') {
+          // Stockton 6 style: each player gets strokes independently
+          // Cancel if ALL players would get strokes
+          const allPlayersGetStrokes = players.every(
+            (pl) => holeData.handicapIndex <= pl.courseHandicap
+          );
+          if (!allPlayersGetStrokes) {
+            playerStrokesReceived = holeData.handicapIndex <= p.courseHandicap ? 1 : 0;
+            bankerStrokesReceived = holeData.handicapIndex <= banker.courseHandicap ? 1 : 0;
+          }
+        } else {
+          // Relative mode (default Banker style): strokes based on differential
+          const matchupStrokes = calculateBankerMatchupStrokes(
+            p.courseHandicap,
+            banker.courseHandicap,
+            holeData.handicapIndex,
+          );
+          playerStrokesReceived = matchupStrokes.playerStrokes;
+          bankerStrokesReceived = matchupStrokes.bankerStrokes;
+        }
       }
+      // If useHandicaps is false and no manual override, both remain 0
 
       const playerNet = playerGross - playerStrokesReceived;
       const bankerNet = bankerGross - bankerStrokesReceived;

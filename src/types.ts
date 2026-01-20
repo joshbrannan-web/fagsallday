@@ -99,6 +99,9 @@ export interface GameSettings {
     stockton6?: {
       dotValue: number; // Default $2 per dot
     };
+    // Universal handicap configuration (not for Stockton 6's - it has its own logic)
+    useHandicaps?: boolean; // true = use handicaps, false = gross scores only
+    handicapMode?: 'absolute' | 'relative'; // 'absolute' = Stockton 6 style, 'relative' = Banker style (lowest HCP = 0)
   };
 }
 
