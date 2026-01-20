@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame } from 'lucide-react';
 import { GameType, GameSettings } from '../types';
-import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
@@ -116,6 +116,31 @@ const ActiveRound: React.FC = () => {
       }
     });
   }, [currentRound, activeHole, updateGameData]);
+
+  // Auto-calculate FBO dots when scores change (based on lowest net score)
+  useEffect(() => {
+    if (!currentRound) return;
+    
+    const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
+    if (fboGames.length === 0) return;
+    
+    fboGames.forEach(game => {
+      // Calculate winners for current hole based on net scores
+      const winners = calculateFBOHoleWinners(currentRound, game, activeHole);
+      const currentDots: string[] = currentRound.gameData?.[game.id]?.[activeHole]?.dots || [];
+      
+      // Only update if different (to avoid infinite loop)
+      const winnersSet = new Set(winners);
+      const currentSet = new Set(currentDots);
+      const isDifferent = winners.length !== currentDots.length || 
+                          winners.some(w => !currentSet.has(w)) ||
+                          currentDots.some(d => !winnersSet.has(d));
+      
+      if (isDifferent && winners.length > 0) {
+        updateGameData(game.id, activeHole, 'dots', winners);
+      }
+    });
+  }, [currentRound?.scores, activeHole, currentRound?.games, updateGameData]);
 
   if (!currentRound) {
     if (isLoading) {
@@ -237,13 +262,7 @@ const ActiveRound: React.FC = () => {
     updateGameData(gameId, activeHole, '_META_BANKER_MULT', currentMult);
   };
 
-  const handleFboDotToggle = (gameId: string, playerId: string) => {
-    const currentDots: string[] = currentRound.gameData?.[gameId]?.[activeHole]?.dots || [];
-    const newDots = currentDots.includes(playerId)
-      ? currentDots.filter(id => id !== playerId)
-      : [...currentDots, playerId];
-    updateGameData(gameId, activeHole, 'dots', newDots);
-  };
+  // handleFboDotToggle removed - FBO dots are now auto-calculated based on net scores
 
   const getFboDotsForPlayer = (gameId: string, playerId: string): number => {
     const fboData = currentRound.gameData?.[gameId] || {};
@@ -571,57 +590,73 @@ const ActiveRound: React.FC = () => {
           );
         })}
 
-        {/* FBO Game: Dot Selection */}
+        {/* FBO Game: Auto-Calculated Hole Winners */}
         {fboGames.map(game => {
           const fboPlayerIds = game.config.fboPlayers || currentRound.players.map(p => p.id);
           const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
           const currentDots: string[] = currentRound.gameData?.[game.id]?.[activeHole]?.dots || [];
+          const netScores = getFBOHoleNetScores(currentRound, game, activeHole);
+          const allScored = netScores.every(s => s.gross > 0);
 
           return (
             <div key={game.id} className="bg-card rounded-2xl shadow-sm border border-primary/50 p-4 mb-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold text-foreground flex items-center gap-2">
-                  <span className="bg-primary text-primary-foreground p-1 rounded">🎱</span> FBO - Award Dots
+                  <span className="bg-primary text-primary-foreground p-1 rounded">🎱</span> FBO - Hole Winner
                 </h3>
                 <div className="text-xs font-medium text-muted-foreground">
                   Hole {activeHole} {activeHole <= 9 ? '(Front 9)' : '(Back 9)'}
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mb-3">
-                Select all players who win this hole (ties allowed)
+                Dot awarded to lowest net score (auto-calculated)
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {fboPlayers.map(p => {
                   const hasDot = currentDots.includes(p.id);
                   const totalDots = getFboDotsForPlayer(game.id, p.id);
+                  const playerNetInfo = netScores.find(s => s.playerId === p.id);
+                  const hasScore = playerNetInfo && playerNetInfo.gross > 0;
                   
                   return (
-                    <button
+                    <div
                       key={p.id}
-                      onClick={() => handleFboDotToggle(game.id, p.id)}
                       className={`flex items-center justify-between px-3 py-2.5 rounded-xl border-2 transition-all ${
                         hasDot 
                           ? 'bg-primary/10 border-primary text-foreground' 
-                          : 'bg-muted border-border text-muted-foreground hover:border-primary/50'
+                          : 'bg-muted border-border text-muted-foreground'
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          hasDot ? 'bg-primary border-primary' : 'border-muted-foreground/50'
+                          hasDot ? 'bg-primary border-primary' : 'border-muted-foreground/30'
                         }`}>
                           {hasDot && <Check className="w-3 h-3 text-primary-foreground" />}
                         </div>
-                        <span className="font-medium text-sm">{p.name}</span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm">{p.name.split(' ')[0]}</span>
+                          {hasScore && playerNetInfo && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {playerNetInfo.gross}{playerNetInfo.strokes > 0 ? ` - ${playerNetInfo.strokes}` : ''} = {playerNetInfo.net} net
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <span className="text-xs font-bold bg-background px-2 py-0.5 rounded-full">
-                          {totalDots} dots
+                          {totalDots}
                         </span>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
+              
+              {!allScored && (
+                <p className="text-xs text-muted-foreground/70 text-center mt-2 italic">
+                  Enter all scores to auto-award dot
+                </p>
+              )}
               
               {/* Running Totals Summary */}
               <div className="mt-3 pt-3 border-t border-border">
