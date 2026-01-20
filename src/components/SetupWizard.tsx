@@ -61,7 +61,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 3,
     minPlayers: 3,
     maxPlayers: 8,
-    config: { birdieMultiplier: 1, eagleMultiplier: 1 },
+    config: { birdieMultiplier: 1, eagleMultiplier: 1, useHandicaps: true, handicapMode: 'relative' },
   },
   {
     type: GameType.BLOODY_BANKER,
@@ -71,7 +71,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 3,
     minPlayers: 3,
     maxPlayers: 8,
-    config: { birdieMultiplier: 1, eagleMultiplier: 1 },
+    config: { birdieMultiplier: 1, eagleMultiplier: 1, useHandicaps: true, handicapMode: 'relative' },
   },
   {
     type: GameType.STOCKTON_6,
@@ -91,7 +91,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 10,
     minPlayers: 2,
     maxPlayers: 8,
-    config: { fboPlayers: [] },
+    config: { fboPlayers: [], useHandicaps: false },
   },
   {
     type: GameType.SKINS,
@@ -101,7 +101,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 3,
     minPlayers: 2,
     maxPlayers: 8,
-    config: { carryovers: true },
+    config: { carryovers: true, useHandicaps: true, handicapMode: 'relative' },
   },
   {
     type: GameType.NASSAU,
@@ -111,7 +111,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 3,
     minPlayers: 2,
     maxPlayers: 2,
-    config: { presses: false },
+    config: { presses: false, useHandicaps: true, handicapMode: 'relative' },
   },
   {
     type: GameType.OPEN_BETTING,
@@ -121,7 +121,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 3,
     minPlayers: 2,
     maxPlayers: 8,
-    config: {},
+    config: { useHandicaps: false },
   },
 ];
 
@@ -1555,6 +1555,78 @@ const SetupWizard: React.FC = () => {
                                 handleUpdateGameConfig(selectedGame.id, "carryovers", checked)
                               }
                             />
+                          </div>
+                        )}
+
+                        {/* Handicap Configuration - for all games except Stockton 6's */}
+                        {game.type !== GameType.STOCKTON_6 && (
+                          <div className="space-y-4 pt-3 border-t border-border/50">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <Label className="text-sm font-medium">Use Handicaps</Label>
+                                <p className="text-xs text-muted-foreground">Apply strokes based on player handicaps</p>
+                              </div>
+                              <Switch
+                                checked={selectedGame.config.useHandicaps ?? false}
+                                onCheckedChange={(checked) => {
+                                  setSelectedGames(
+                                    selectedGames.map((g) =>
+                                      g.id === selectedGame.id
+                                        ? { ...g, config: { ...g.config, useHandicaps: checked } }
+                                        : g,
+                                    ),
+                                  );
+                                }}
+                              />
+                            </div>
+
+                            {selectedGame.config.useHandicaps && (
+                              <div className="space-y-2 animate-fade-in">
+                                <Label className="text-sm font-medium">Handicap Mode</Label>
+                                <RadioGroup
+                                  value={selectedGame.config.handicapMode || 'relative'}
+                                  onValueChange={(value: 'absolute' | 'relative') => {
+                                    setSelectedGames(
+                                      selectedGames.map((g) =>
+                                        g.id === selectedGame.id
+                                          ? { ...g, config: { ...g.config, handicapMode: value } }
+                                          : g,
+                                      ),
+                                    );
+                                  }}
+                                  className="space-y-2"
+                                >
+                                  <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                                    <RadioGroupItem value="absolute" id={`handicap-absolute-${selectedGame.id}`} className="mt-1" />
+                                    <div className="flex-1">
+                                      <Label
+                                        htmlFor={`handicap-absolute-${selectedGame.id}`}
+                                        className="font-medium cursor-pointer"
+                                      >
+                                        All Players Get Strokes
+                                      </Label>
+                                      <p className="text-xs text-muted-foreground">
+                                        Each player's strokes calculated independently based on course handicap. If all players would get a stroke on a hole, no one does.
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                                    <RadioGroupItem value="relative" id={`handicap-relative-${selectedGame.id}`} className="mt-1" />
+                                    <div className="flex-1">
+                                      <Label
+                                        htmlFor={`handicap-relative-${selectedGame.id}`}
+                                        className="font-medium cursor-pointer"
+                                      >
+                                        Lowest Handicap = 0
+                                      </Label>
+                                      <p className="text-xs text-muted-foreground">
+                                        Strokes based on handicap differential from the lowest handicap player (or banker in Banker games).
+                                      </p>
+                                    </div>
+                                  </div>
+                                </RadioGroup>
+                              </div>
+                            )}
                           </div>
                         )}
 
