@@ -1,6 +1,96 @@
 import { Course, GameSettings, GameType, Player, Round, GameResult } from "../types";
 import { calculateStockton6 } from "./stockton6Engine";
 
+// --- FBO Stroke Calculation (Stockton 6 style: if ALL get strokes, none do) ---
+
+export const calculateFBOStrokes = (
+  players: Player[],
+  holeHandicapIndex: number
+): { [playerId: string]: number } => {
+  const strokes: { [playerId: string]: number } = {};
+  let playersReceivingStrokes = 0;
+  
+  players.forEach(player => {
+    const getsStroke = holeHandicapIndex <= player.courseHandicap;
+    strokes[player.id] = getsStroke ? 1 : 0;
+    if (getsStroke) playersReceivingStrokes++;
+  });
+  
+  // If ALL players get a stroke, cancel them all
+  if (playersReceivingStrokes === players.length) {
+    players.forEach(player => {
+      strokes[player.id] = 0;
+    });
+  }
+  
+  return strokes;
+};
+
+// --- FBO Hole Winner Calculation ---
+// Returns array of player IDs who won (lowest net score) - allows ties
+
+export const calculateFBOHoleWinners = (
+  round: Round,
+  game: GameSettings,
+  holeNumber: number
+): string[] => {
+  const fboPlayerIds = game.config.fboPlayers || round.players.map(p => p.id);
+  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(p.id));
+  const hole = round.course.holes.find(h => h.number === holeNumber);
+  const holeScores = round.scores[holeNumber];
+  
+  if (!hole || !holeScores) return [];
+  
+  // Check all FBO players have scores (> 0)
+  const allScored = fboPlayers.every(p => {
+    const score = holeScores[p.id];
+    return typeof score === 'number' && score > 0;
+  });
+  if (!allScored) return [];
+  
+  // Calculate strokes using Stockton 6 logic
+  const strokes = calculateFBOStrokes(fboPlayers, hole.handicapIndex);
+  
+  // Calculate net scores
+  const netScores: { playerId: string; gross: number; strokes: number; net: number }[] = fboPlayers.map(p => ({
+    playerId: p.id,
+    gross: holeScores[p.id]!,
+    strokes: strokes[p.id],
+    net: holeScores[p.id]! - strokes[p.id]
+  }));
+  
+  // Find lowest net score(s) - ties allowed
+  const lowestNet = Math.min(...netScores.map(s => s.net));
+  return netScores.filter(s => s.net === lowestNet).map(s => s.playerId);
+};
+
+// Get FBO net score info for UI display
+export const getFBOHoleNetScores = (
+  round: Round,
+  game: GameSettings,
+  holeNumber: number
+): { playerId: string; gross: number; strokes: number; net: number }[] => {
+  const fboPlayerIds = game.config.fboPlayers || round.players.map(p => p.id);
+  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(p.id));
+  const hole = round.course.holes.find(h => h.number === holeNumber);
+  const holeScores = round.scores[holeNumber];
+  
+  if (!hole) return [];
+  
+  // Calculate strokes using Stockton 6 logic
+  const strokes = calculateFBOStrokes(fboPlayers, hole.handicapIndex);
+  
+  return fboPlayers.map(p => {
+    const gross = holeScores?.[p.id] ?? 0;
+    return {
+      playerId: p.id,
+      gross,
+      strokes: strokes[p.id],
+      net: gross > 0 ? gross - strokes[p.id] : 0
+    };
+  });
+};
+
 // --- Handicap Utilities ---
 
 export const calculateCourseHandicap = (handicapIndex: number, par: number): number => {
