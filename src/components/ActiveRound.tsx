@@ -12,7 +12,7 @@ import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRela
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals } = useApp();
+  const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals, isLoading } = useApp();
   
   // Initialize active hole from navigation state if available
   const [activeHole, setActiveHole] = useState(() => {
@@ -118,6 +118,16 @@ const ActiveRound: React.FC = () => {
   }, [currentRound, activeHole, updateGameData]);
 
   if (!currentRound) {
+    if (isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-background p-6 text-center space-y-6">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <h2 className="text-xl font-bold text-foreground">Loading Course...</h2>
+          <p className="text-muted-foreground">Preparing your round</p>
+        </div>
+      );
+    }
+    
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background p-6 text-center space-y-6">
         <h2 className="text-xl font-bold text-foreground">No Active Round</h2>
