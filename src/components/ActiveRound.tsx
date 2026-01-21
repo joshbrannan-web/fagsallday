@@ -10,6 +10,8 @@ import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistan
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
 import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRelativeStrokes } from '../services/stockton6Engine';
+import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
+import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole } from '../services/sixesEngine';
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
@@ -79,6 +81,17 @@ const ActiveRound: React.FC = () => {
     if (!stockton6Game || !isStretchStartHole(activeHole)) return false;
     const stretch = getStretchForHole(activeHole);
     const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
+    return !teamAssignment;
+  }, [currentRound, activeHole]);
+
+  // 6's: Check if we need to show team setup (must be before early return!)
+  const sixesNeedsSetup = useMemo(() => {
+    if (!currentRound) return false;
+    const sixesGames = currentRound.games.filter(g => g.type === GameType.SIXES);
+    const sixesGame = sixesGames[0];
+    if (!sixesGame || !isSixesStretchStartHole(activeHole)) return false;
+    const stretch = getSixesStretchForHole(activeHole);
+    const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
     return !teamAssignment;
   }, [currentRound, activeHole]);
 
@@ -183,6 +196,8 @@ const ActiveRound: React.FC = () => {
   const wolfGame = wolfGames[0];
   const ninePointsGames = currentRound.games.filter(g => g.type === GameType.NINE_POINTS);
   const ninePointsGame = ninePointsGames[0];
+  const sixesGames = currentRound.games.filter(g => g.type === GameType.SIXES);
+  const sixesGame = sixesGames[0];
   
   // Calculate per-hole P&L for all players
   const holePnL = calculateAggregatedHolePnL(currentRound);
@@ -400,8 +415,53 @@ const ActiveRound: React.FC = () => {
         );
       })()}
 
-      {/* Main Scoring Area - Hidden when Stockton 6's team setup is needed */}
-      {!stockton6NeedsSetup && (
+      {/* 6's Team Setup - Show at stretch starts if teams not set */}
+      {sixesGame && sixesNeedsSetup && (() => {
+        const stretch = getSixesStretchForHole(activeHole) as 1 | 2 | 3;
+        
+        // Gather previous stretch teams for auto-rotation
+        const previousStretchTeams: { teamA: string[]; teamB: string[] }[] = [];
+        if (stretch >= 2) {
+          const stretch1Teams = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, 1);
+          if (stretch1Teams) {
+            previousStretchTeams.push({ teamA: stretch1Teams.teamA, teamB: stretch1Teams.teamB });
+          }
+        }
+        if (stretch >= 3) {
+          const stretch2Teams = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, 2);
+          if (stretch2Teams) {
+            previousStretchTeams.push({ teamA: stretch2Teams.teamA, teamB: stretch2Teams.teamB });
+          }
+        }
+        
+        return (
+          <div className="flex-1 overflow-y-auto p-4">
+            <SixesTeamSetup
+              players={currentRound.players}
+              stretch={stretch}
+              existingUnitValue={sixesGame.unitStake}
+              existingUseHandicaps={sixesGame.config?.useHandicaps ?? true}
+              existingUseSecondBall={sixesGame.config?.sixes?.useSecondBallTiebreaker ?? false}
+              previousStretchTeams={previousStretchTeams}
+              onConfirm={(teamA, teamB, unitValue, useHandicaps, useSecondBall) => {
+                const stretchStartHole = stretch === 1 ? 1 : stretch === 2 ? 7 : 13;
+                updateGameDataBatch(sixesGame.id, stretchStartHole, {
+                  _META_TEAM_A: teamA,
+                  _META_TEAM_B: teamB,
+                  _META_UNIT_VALUE: unitValue,
+                  _META_USE_HANDICAPS: useHandicaps,
+                  _META_USE_SECOND_BALL: useSecondBall,
+                  _META_LOCKED: true
+                });
+              }}
+              onCancel={() => navigate('/summary')}
+            />
+          </div>
+        );
+      })()}
+
+      {/* Main Scoring Area - Hidden when team setup is needed */}
+      {!stockton6NeedsSetup && !sixesNeedsSetup && (
       <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
         fboGames.length > 0 
           ? (isFboMinimized && isBottomBarMinimized ? 'pb-28' : 
@@ -415,6 +475,15 @@ const ActiveRound: React.FC = () => {
             round={currentRound}
             game={stockton6Game}
             currentHole={activeHole}
+          />
+        )}
+
+        {/* 6's Status Bar */}
+        {sixesGame && (
+          <SixesStatusBar
+            round={currentRound}
+            game={sixesGame}
+            activeHole={activeHole}
           />
         )}
 

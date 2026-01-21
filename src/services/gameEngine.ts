@@ -1,5 +1,6 @@
 import { Course, GameSettings, GameType, Player, Round, GameResult, WolfHoleData } from "../types";
 import { calculateStockton6 } from "./stockton6Engine";
+import { calculateSixes } from "./sixesEngine";
 
 // --- FBO Stroke Calculation (Stockton 6 style: if ALL get strokes, none do) ---
 
@@ -1009,6 +1010,9 @@ export const calculateRoundTotals = (round: Round): { [playerId: string]: number
         break;
       case GameType.NINE_POINTS:
         result = calculateNinePoints(round, game);
+        break;
+      case GameType.SIXES:
+        result = calculateSixes(round, game);
         break;
       default:
         return;

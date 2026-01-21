@@ -143,6 +143,16 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     maxPlayers: 3,
     config: { useHandicaps: true, handicapMode: 'relative' },
   },
+  {
+    type: GameType.SIXES,
+    name: "6's",
+    description: "2v2 match play: lowest ball wins each hole. Most holes won in 6 takes the bet.",
+    icon: "🎲",
+    defaultUnitStake: 10,
+    minPlayers: 4,
+    maxPlayers: 4,
+    config: { useHandicaps: true, handicapMode: 'absolute', sixes: { useSecondBallTiebreaker: false } },
+  },
 ];
 
 // Default 18 holes
