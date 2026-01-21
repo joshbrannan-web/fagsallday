@@ -35,6 +35,15 @@ export enum GameType {
   STOCKTON_6 = 'STOCKTON_6'
 }
 
+// Wolf game types
+export interface WolfHoleData {
+  wolfId: string;           // Player ID of the Wolf this hole
+  partnerId?: string;       // Partner ID if selected, null for Lone Wolf
+  isLoneWolf: boolean;      // true if Wolf is playing alone
+  isBlindLoneWolf: boolean; // true if declared before tee shots (2x points)
+  confirmed: boolean;       // true once decision is locked in
+}
+
 // Stockton 6's types
 export type DotType = 'BIRDIE' | 'GREENIE' | 'DOT';
 
@@ -98,6 +107,10 @@ export interface GameSettings {
     // Stockton 6's config
     stockton6?: {
       dotValue: number; // Default $2 per dot
+    };
+    // Wolf game config
+    wolf?: {
+      teesFirst: boolean; // true = Wolf tees first, false = Wolf tees last
     };
     // Universal handicap configuration (not for Stockton 6's - it has its own logic)
     useHandicaps?: boolean; // true = use handicaps, false = gross scores only

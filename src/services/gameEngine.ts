@@ -1,4 +1,4 @@
-import { Course, GameSettings, GameType, Player, Round, GameResult } from "../types";
+import { Course, GameSettings, GameType, Player, Round, GameResult, WolfHoleData } from "../types";
 import { calculateStockton6 } from "./stockton6Engine";
 
 // --- FBO Stroke Calculation (Stockton 6 style: if ALL get strokes, none do) ---
@@ -748,6 +748,226 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
   return { gameId: game.id, playerResults: results, details, holeResults };
 };
 
+// --- Wolf Game ---
+
+export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
+  const { players, scores, course } = round;
+  const unit = game.unitStake;
+
+  if (players.length !== 4) {
+    return {
+      gameId: game.id,
+      playerResults: {},
+      details: ["Wolf requires exactly 4 players"],
+    };
+  }
+
+  const results: { [id: string]: number } = {};
+  const holeResults: { [hole: number]: { [id: string]: number } } = {};
+  const details: string[] = [];
+
+  players.forEach((p) => (results[p.id] = 0));
+
+  const wolfData = round.gameData?.[game.id] || {};
+
+  for (let h = 1; h <= course.holes.length; h++) {
+    const holeData = course.holes.find((hole) => hole.number === h);
+    if (!holeData) continue;
+
+    const holeScores = scores[h];
+    if (!holeScores) break;
+
+    holeResults[h] = {};
+    players.forEach((p) => (holeResults[h][p.id] = 0));
+
+    // Support both direct WolfHoleData and _WOLF_DATA nested format
+    const rawWolfData = wolfData[h];
+    const holeWolfData = (rawWolfData?.['_WOLF_DATA'] || rawWolfData) as WolfHoleData | undefined;
+    if (!holeWolfData?.confirmed) continue;
+
+    // Check if all players have scores
+    const allHaveScores = players.every((p) => typeof holeScores[p.id] === "number");
+    if (!allHaveScores) continue;
+
+    const wolfId = holeWolfData.wolfId;
+    const partnerId = holeWolfData.partnerId;
+    const isLoneWolf = holeWolfData.isLoneWolf;
+    const isBlindLoneWolf = holeWolfData.isBlindLoneWolf;
+
+    // Determine teams
+    const teamWolf = isLoneWolf ? [wolfId] : [wolfId, partnerId!];
+    const teamOpponents = players.filter((p) => !teamWolf.includes(p.id)).map((p) => p.id);
+
+    // Calculate best ball net scores for each team
+    const getBestBallNet = (teamIds: string[]): number => {
+      const nets = teamIds.map((pid) => {
+        const gross = holeScores[pid]!;
+        const strokes = calculateGameStrokes(round, game, h, pid);
+        return gross - strokes;
+      });
+      return Math.min(...nets);
+    };
+
+    const wolfTeamNet = getBestBallNet(teamWolf);
+    const opponentTeamNet = getBestBallNet(teamOpponents);
+
+    // Determine points based on game mode
+    let wolfWinPoints: number;
+    let opponentWinPoints: number;
+
+    if (isBlindLoneWolf) {
+      // Blind Lone Wolf: 2x points
+      wolfWinPoints = 8;
+      opponentWinPoints = 2;
+    } else if (isLoneWolf) {
+      // Regular Lone Wolf
+      wolfWinPoints = 4;
+      opponentWinPoints = 1;
+    } else {
+      // 2v2 with partner
+      wolfWinPoints = 2;
+      opponentWinPoints = 3;
+    }
+
+    // Award points based on winner
+    if (wolfTeamNet < opponentTeamNet) {
+      // Wolf team wins
+      if (isLoneWolf) {
+        results[wolfId] += wolfWinPoints * unit;
+        holeResults[h][wolfId] = wolfWinPoints * unit;
+        teamOpponents.forEach((pid) => {
+          const loss = (wolfWinPoints / teamOpponents.length) * unit;
+          results[pid] -= loss;
+          holeResults[h][pid] = -loss;
+        });
+        details.push(`Hole ${h}: ${players.find((p) => p.id === wolfId)?.name} ${isBlindLoneWolf ? "(Blind) " : ""}Lone Wolf wins +${wolfWinPoints * unit}`);
+      } else {
+        // 2v2 win
+        teamWolf.forEach((pid) => {
+          results[pid] += wolfWinPoints * unit;
+          holeResults[h][pid] = wolfWinPoints * unit;
+        });
+        teamOpponents.forEach((pid) => {
+          results[pid] -= wolfWinPoints * unit;
+          holeResults[h][pid] = -wolfWinPoints * unit;
+        });
+        const wolfName = players.find((p) => p.id === wolfId)?.name;
+        const partnerName = players.find((p) => p.id === partnerId)?.name;
+        details.push(`Hole ${h}: ${wolfName} + ${partnerName} win +${wolfWinPoints * unit} each`);
+      }
+    } else if (opponentTeamNet < wolfTeamNet) {
+      // Opponents win
+      teamOpponents.forEach((pid) => {
+        results[pid] += opponentWinPoints * unit;
+        holeResults[h][pid] = opponentWinPoints * unit;
+      });
+      if (isLoneWolf) {
+        const totalLoss = opponentWinPoints * teamOpponents.length * unit;
+        results[wolfId] -= totalLoss;
+        holeResults[h][wolfId] = -totalLoss;
+        details.push(`Hole ${h}: ${players.find((p) => p.id === wolfId)?.name} ${isBlindLoneWolf ? "(Blind) " : ""}Lone Wolf loses -${totalLoss}`);
+      } else {
+        teamWolf.forEach((pid) => {
+          const loss = (opponentWinPoints * teamOpponents.length * unit) / teamWolf.length;
+          results[pid] -= loss;
+          holeResults[h][pid] = -loss;
+        });
+        details.push(`Hole ${h}: Opponents beat Wolf team`);
+      }
+    } else {
+      // Tie - push
+      details.push(`Hole ${h}: Push (tie)`);
+    }
+  }
+
+  return { gameId: game.id, playerResults: results, details, holeResults };
+};
+
+// --- Nine Points Game ---
+
+export const calculateNinePoints = (round: Round, game: GameSettings): GameResult => {
+  const { players, scores, course } = round;
+  const unit = game.unitStake;
+
+  if (players.length !== 3) {
+    return {
+      gameId: game.id,
+      playerResults: {},
+      details: ["Nine Points requires exactly 3 players"],
+    };
+  }
+
+  const results: { [id: string]: number } = {};
+  const holeResults: { [hole: number]: { [id: string]: number } } = {};
+  const details: string[] = [];
+
+  players.forEach((p) => (results[p.id] = 0));
+
+  for (let h = 1; h <= course.holes.length; h++) {
+    const holeData = course.holes.find((hole) => hole.number === h);
+    if (!holeData) continue;
+
+    const holeScores = scores[h];
+    if (!holeScores) break;
+
+    holeResults[h] = {};
+    players.forEach((p) => (holeResults[h][p.id] = 0));
+
+    // Check if all players have scores
+    const allHaveScores = players.every((p) => typeof holeScores[p.id] === "number");
+    if (!allHaveScores) continue;
+
+    // Calculate net scores for all players
+    const netScores = players.map((p) => {
+      const gross = holeScores[p.id]!;
+      const strokes = calculateGameStrokes(round, game, h, p.id);
+      return {
+        playerId: p.id,
+        name: p.name,
+        net: gross - strokes,
+      };
+    }).sort((a, b) => a.net - b.net);
+
+    // Distribute 9 points based on rankings
+    const [first, second, third] = netScores;
+    let points: { [id: string]: number } = {};
+
+    if (first.net === second.net && second.net === third.net) {
+      // Three-way tie: 3-3-3
+      points = { [first.playerId]: 3, [second.playerId]: 3, [third.playerId]: 3 };
+      details.push(`Hole ${h}: Three-way tie - 3 pts each`);
+    } else if (first.net === second.net) {
+      // Tie for 1st: 4-4-1
+      points = { [first.playerId]: 4, [second.playerId]: 4, [third.playerId]: 1 };
+      details.push(`Hole ${h}: ${first.name} & ${second.name} tie for low - 4 pts each, ${third.name} gets 1`);
+    } else if (second.net === third.net) {
+      // Tie for 3rd: 5-2-2
+      points = { [first.playerId]: 5, [second.playerId]: 2, [third.playerId]: 2 };
+      details.push(`Hole ${h}: ${first.name} wins 5 pts, ${second.name} & ${third.name} tie - 2 pts each`);
+    } else {
+      // No ties: 5-3-1
+      points = { [first.playerId]: 5, [second.playerId]: 3, [third.playerId]: 1 };
+      details.push(`Hole ${h}: ${first.name} 5 pts, ${second.name} 3 pts, ${third.name} 1 pt`);
+    }
+
+    // Apply points and convert to money
+    Object.entries(points).forEach(([pid, pts]) => {
+      const money = pts * unit;
+      results[pid] += money;
+      holeResults[h][pid] = money;
+    });
+  }
+
+  // Nine Points is a "pot" game - subtract average to make it zero-sum
+  const totalAwarded = Object.values(results).reduce((sum, val) => sum + val, 0);
+  const perPlayerShare = totalAwarded / players.length;
+  players.forEach((p) => {
+    results[p.id] -= perPlayerShare;
+  });
+
+  return { gameId: game.id, playerResults: results, details, holeResults };
+};
+
 // --- Aggregation Utilities ---
 
 export const calculateRoundTotals = (round: Round): { [playerId: string]: number } => {
@@ -776,6 +996,12 @@ export const calculateRoundTotals = (round: Round): { [playerId: string]: number
         break;
       case GameType.STOCKTON_6:
         result = calculateStockton6(round, game);
+        break;
+      case GameType.WOLF:
+        result = calculateWolf(round, game);
+        break;
+      case GameType.NINE_POINTS:
+        result = calculateNinePoints(round, game);
         break;
       default:
         return;
@@ -939,6 +1165,30 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
       .filter((g) => g.type === GameType.STOCKTON_6)
       .forEach((game) => {
         const result = calculateStockton6(round, game);
+        if (result.holeResults?.[holeNumber]) {
+          Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
+            holePnL[holeNumber][playerId] += amount;
+          });
+        }
+      });
+
+    // Process Wolf games
+    round.games
+      .filter((g) => g.type === GameType.WOLF)
+      .forEach((game) => {
+        const result = calculateWolf(round, game);
+        if (result.holeResults?.[holeNumber]) {
+          Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
+            holePnL[holeNumber][playerId] += amount;
+          });
+        }
+      });
+
+    // Process Nine Points games
+    round.games
+      .filter((g) => g.type === GameType.NINE_POINTS)
+      .forEach((game) => {
+        const result = calculateNinePoints(round, game);
         if (result.holeResults?.[holeNumber]) {
           Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
             holePnL[holeNumber][playerId] += amount;

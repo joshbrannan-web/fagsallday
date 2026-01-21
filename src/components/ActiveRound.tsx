@@ -4,7 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
-import { GameType, GameSettings } from '../types';
+import { GameType, GameSettings, WolfHoleData } from '../types';
 import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
@@ -179,6 +179,10 @@ const ActiveRound: React.FC = () => {
   const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
   const stockton6Games = currentRound.games.filter(g => g.type === GameType.STOCKTON_6);
   const stockton6Game = stockton6Games[0];
+  const wolfGames = currentRound.games.filter(g => g.type === GameType.WOLF);
+  const wolfGame = wolfGames[0];
+  const ninePointsGames = currentRound.games.filter(g => g.type === GameType.NINE_POINTS);
+  const ninePointsGame = ninePointsGames[0];
   
   // Calculate per-hole P&L for all players
   const holePnL = calculateAggregatedHolePnL(currentRound);
@@ -614,6 +618,245 @@ const ActiveRound: React.FC = () => {
             </div>
           );
         })}
+
+        {/* Wolf Game UI */}
+        {wolfGame && (() => {
+          const wolfData = currentRound.gameData?.[wolfGame.id]?.[activeHole] as WolfHoleData | undefined;
+          const wolfIndex = (activeHole - 1) % currentRound.players.length;
+          const currentWolf = currentRound.players[wolfIndex];
+          const opponents = currentRound.players.filter((_, i) => i !== wolfIndex);
+          const hasAnyScores = currentRound.players.some(p => currentRound.scores[activeHole]?.[p.id] !== undefined);
+          const isConfirmed = wolfData?.confirmed;
+          
+          // Wolf selection handlers
+          const handleBlindLoneWolf = () => {
+            updateGameData(wolfGame.id, activeHole, '_WOLF_DATA', {
+              wolfId: currentWolf.id,
+              partnerId: undefined,
+              isLoneWolf: true,
+              isBlindLoneWolf: true,
+              confirmed: true
+            } as WolfHoleData);
+          };
+          
+          const handleSelectPartner = (partnerId: string) => {
+            updateGameData(wolfGame.id, activeHole, '_WOLF_DATA', {
+              wolfId: currentWolf.id,
+              partnerId,
+              isLoneWolf: false,
+              isBlindLoneWolf: false,
+              confirmed: true
+            } as WolfHoleData);
+          };
+          
+          const handleLoneWolf = () => {
+            updateGameData(wolfGame.id, activeHole, '_WOLF_DATA', {
+              wolfId: currentWolf.id,
+              partnerId: undefined,
+              isLoneWolf: true,
+              isBlindLoneWolf: false,
+              confirmed: true
+            } as WolfHoleData);
+          };
+          
+          // Sync wolf data to proper format (read from _WOLF_DATA)
+          const actualWolfData = (currentRound.gameData?.[wolfGame.id]?.[activeHole]?.['_WOLF_DATA'] || wolfData) as WolfHoleData | undefined;
+          const isActuallyConfirmed = actualWolfData?.confirmed;
+          
+          return (
+            <div className={`rounded-2xl shadow-sm border p-4 mb-4 ${isActuallyConfirmed ? 'bg-card border-border' : 'bg-amber-500/5 border-amber-500/50'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-foreground flex items-center gap-2">
+                  <span className="bg-amber-500/20 text-amber-600 p-1.5 rounded text-lg">🐺</span>
+                  <div>
+                    <span>Wolf: {currentWolf.name}</span>
+                    <span className="text-xs text-muted-foreground font-normal ml-2">Hole {activeHole}</span>
+                  </div>
+                </h3>
+                {isActuallyConfirmed && (
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                    actualWolfData?.isBlindLoneWolf ? 'bg-amber-500 text-amber-950' :
+                    actualWolfData?.isLoneWolf ? 'bg-destructive/20 text-destructive' :
+                    'bg-success/20 text-success'
+                  }`}>
+                    {actualWolfData?.isBlindLoneWolf ? '2x BLIND WOLF' :
+                     actualWolfData?.isLoneWolf ? 'LONE WOLF' :
+                     `+ ${currentRound.players.find(p => p.id === actualWolfData?.partnerId)?.name}`}
+                  </span>
+                )}
+              </div>
+              
+              {/* Phase 1: Blind Lone Wolf - before any scores */}
+              {!isActuallyConfirmed && !hasAnyScores && (
+                <div className="space-y-3">
+                  <button 
+                    onClick={handleBlindLoneWolf}
+                    className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    🎲 Blind Lone Wolf! (2x Points)
+                  </button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Or enter scores first, then pick partner
+                  </p>
+                </div>
+              )}
+              
+              {/* Phase 2: Partner Selection - after scores entered but not confirmed */}
+              {!isActuallyConfirmed && hasAnyScores && (
+                <div className="space-y-3">
+                  <div className="text-xs text-muted-foreground font-medium mb-2">Pick a Partner</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {opponents.map(p => (
+                      <button 
+                        key={p.id}
+                        onClick={() => handleSelectPartner(p.id)}
+                        className="py-2.5 rounded-lg bg-muted hover:bg-primary/20 text-foreground font-medium text-sm transition-colors border border-border hover:border-primary"
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                  <button 
+                    onClick={handleLoneWolf}
+                    className="w-full py-2.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive font-bold text-sm transition-colors border border-destructive/30"
+                  >
+                    Lone Wolf (1v3)
+                  </button>
+                </div>
+              )}
+              
+              {/* Phase 3: Confirmed - show teams */}
+              {isActuallyConfirmed && (
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Wolf Team:</span>
+                    <span className="font-medium text-foreground">
+                      {currentWolf.name}
+                      {actualWolfData?.partnerId && ` + ${currentRound.players.find(p => p.id === actualWolfData.partnerId)?.name}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">vs</span>
+                    <span className="font-medium text-foreground">
+                      {opponents.filter(p => p.id !== actualWolfData?.partnerId).map(p => p.name).join(', ')}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Nine Points UI */}
+        {ninePointsGame && (() => {
+          // Calculate current point distribution based on net scores
+          const netScores = currentRound.players.map(p => {
+            const gross = currentRound.scores[activeHole]?.[p.id];
+            if (typeof gross !== 'number') return { playerId: p.id, name: p.name, net: null };
+            const strokes = calculateGameStrokes(currentRound, ninePointsGame, activeHole, p.id);
+            return { playerId: p.id, name: p.name, net: gross - strokes };
+          });
+          
+          const allScored = netScores.every(s => s.net !== null);
+          
+          // Calculate point distribution
+          let points: { [id: string]: number } = {};
+          if (allScored) {
+            const sorted = [...netScores].sort((a, b) => (a.net ?? 99) - (b.net ?? 99));
+            const [first, second, third] = sorted;
+            
+            if (first.net === second.net && second.net === third.net) {
+              points = { [first.playerId]: 3, [second.playerId]: 3, [third.playerId]: 3 };
+            } else if (first.net === second.net) {
+              points = { [first.playerId]: 4, [second.playerId]: 4, [third.playerId]: 1 };
+            } else if (second.net === third.net) {
+              points = { [first.playerId]: 5, [second.playerId]: 2, [third.playerId]: 2 };
+            } else {
+              points = { [first.playerId]: 5, [second.playerId]: 3, [third.playerId]: 1 };
+            }
+          }
+          
+          // Calculate running totals
+          const runningTotals: { [id: string]: number } = {};
+          currentRound.players.forEach(p => runningTotals[p.id] = 0);
+          for (let h = 1; h < activeHole; h++) {
+            const holeScores = currentRound.players.map(pl => {
+              const gross = currentRound.scores[h]?.[pl.id];
+              if (typeof gross !== 'number') return null;
+              const strokes = calculateGameStrokes(currentRound, ninePointsGame, h, pl.id);
+              return { playerId: pl.id, net: gross - strokes };
+            });
+            
+            if (holeScores.every(s => s !== null)) {
+              const sorted = [...holeScores].sort((a, b) => (a?.net ?? 99) - (b?.net ?? 99));
+              const [f, s, t] = sorted;
+              if (f && s && t) {
+                if (f.net === s.net && s.net === t.net) {
+                  runningTotals[f.playerId] += 3;
+                  runningTotals[s.playerId] += 3;
+                  runningTotals[t.playerId] += 3;
+                } else if (f.net === s.net) {
+                  runningTotals[f.playerId] += 4;
+                  runningTotals[s.playerId] += 4;
+                  runningTotals[t.playerId] += 1;
+                } else if (s.net === t.net) {
+                  runningTotals[f.playerId] += 5;
+                  runningTotals[s.playerId] += 2;
+                  runningTotals[t.playerId] += 2;
+                } else {
+                  runningTotals[f.playerId] += 5;
+                  runningTotals[s.playerId] += 3;
+                  runningTotals[t.playerId] += 1;
+                }
+              }
+            }
+          }
+          
+          return (
+            <div className="bg-card rounded-2xl shadow-sm border border-indigo-500/50 p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-foreground flex items-center gap-2">
+                  <span className="bg-indigo-500/20 text-indigo-500 p-1.5 rounded text-lg">9️⃣</span>
+                  Nine Points
+                </h3>
+                <span className="text-xs text-muted-foreground">
+                  ${ninePointsGame.unitStake}/pt • Hole {activeHole}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2">
+                {currentRound.players.map(p => {
+                  const playerNet = netScores.find(s => s.playerId === p.id);
+                  const holePoints = points[p.id] ?? 0;
+                  const total = runningTotals[p.id] + (allScored ? holePoints : 0);
+                  
+                  return (
+                    <div key={p.id} className="text-center p-3 bg-muted/50 rounded-xl">
+                      <div className="font-medium text-sm text-foreground truncate">{p.name}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Net: {playerNet?.net !== null ? playerNet?.net : '-'}
+                      </div>
+                      <div className={`text-2xl font-bold mt-1 ${
+                        holePoints === 5 ? 'text-success' :
+                        holePoints === 1 ? 'text-destructive' :
+                        'text-foreground'
+                      }`}>
+                        {allScored ? holePoints : '-'}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground uppercase mt-1">
+                        Total: {total} pts
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div className="mt-3 text-xs text-center text-muted-foreground">
+                {allScored ? '5-3-1 points • Ties split evenly' : 'Enter all scores to see points'}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* FBO section moved to bottom bar */}
 
