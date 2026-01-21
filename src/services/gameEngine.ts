@@ -815,14 +815,14 @@ export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
     let wolfWinPoints: number;
     let opponentWinPoints: number;
 
-    if (isBlindLoneWolf) {
-      // Blind Lone Wolf: 2x points
-      wolfWinPoints = 8;
-      opponentWinPoints = 2;
-    } else if (isLoneWolf) {
-      // Regular Lone Wolf
-      wolfWinPoints = 4;
-      opponentWinPoints = 1;
+      if (isBlindLoneWolf) {
+        // Blind Lone Wolf: 2x points (+4 from each opponent)
+        wolfWinPoints = 4;
+        opponentWinPoints = 1;
+      } else if (isLoneWolf) {
+        // Regular Lone Wolf (+2 from each opponent)
+        wolfWinPoints = 2;
+        opponentWinPoints = 1;
     } else {
       // 2v2 with partner
       wolfWinPoints = 2;
