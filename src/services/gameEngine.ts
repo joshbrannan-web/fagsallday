@@ -833,14 +833,15 @@ export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
     if (wolfTeamNet < opponentTeamNet) {
       // Wolf team wins
       if (isLoneWolf) {
-        results[wolfId] += wolfWinPoints * unit;
-        holeResults[h][wolfId] = wolfWinPoints * unit;
+        // Lone Wolf wins wolfWinPoints FROM EACH opponent
+        const totalWin = wolfWinPoints * teamOpponents.length * unit;
+        results[wolfId] += totalWin;
+        holeResults[h][wolfId] = totalWin;
         teamOpponents.forEach((pid) => {
-          const loss = (wolfWinPoints / teamOpponents.length) * unit;
-          results[pid] -= loss;
-          holeResults[h][pid] = -loss;
+          results[pid] -= wolfWinPoints * unit;
+          holeResults[h][pid] = -wolfWinPoints * unit;
         });
-        details.push(`Hole ${h}: ${players.find((p) => p.id === wolfId)?.name} ${isBlindLoneWolf ? "(Blind) " : ""}Lone Wolf wins +${wolfWinPoints * unit}`);
+        details.push(`Hole ${h}: ${players.find((p) => p.id === wolfId)?.name} ${isBlindLoneWolf ? "(Blind) " : ""}Lone Wolf wins +${totalWin}`);
       } else {
         // 2v2 win
         teamWolf.forEach((pid) => {
@@ -857,16 +858,22 @@ export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
       }
     } else if (opponentTeamNet < wolfTeamNet) {
       // Opponents win
-      teamOpponents.forEach((pid) => {
-        results[pid] += opponentWinPoints * unit;
-        holeResults[h][pid] = opponentWinPoints * unit;
-      });
       if (isLoneWolf) {
-        const totalLoss = opponentWinPoints * teamOpponents.length * unit;
+        // Each opponent wins wolfWinPoints from the Wolf
+        teamOpponents.forEach((pid) => {
+          results[pid] += wolfWinPoints * unit;
+          holeResults[h][pid] = wolfWinPoints * unit;
+        });
+        const totalLoss = wolfWinPoints * teamOpponents.length * unit;
         results[wolfId] -= totalLoss;
         holeResults[h][wolfId] = -totalLoss;
         details.push(`Hole ${h}: ${players.find((p) => p.id === wolfId)?.name} ${isBlindLoneWolf ? "(Blind) " : ""}Lone Wolf loses -${totalLoss}`);
       } else {
+        // 2v2 loss - opponents win opponentWinPoints each
+        teamOpponents.forEach((pid) => {
+          results[pid] += opponentWinPoints * unit;
+          holeResults[h][pid] = opponentWinPoints * unit;
+        });
         teamWolf.forEach((pid) => {
           const loss = (opponentWinPoints * teamOpponents.length * unit) / teamWolf.length;
           results[pid] -= loss;
