@@ -1,0 +1,253 @@
+import { Round, GameSettings, GameResult, SixesTeamAssignment, Player } from "../types";
+import { getNetScore } from "./gameEngine";
+
+// Stretch definitions (6 holes each) - same as Stockton 6's
+export const SIXES_STRETCH_HOLES = {
+  1: [1, 2, 3, 4, 5, 6],
+  2: [7, 8, 9, 10, 11, 12],
+  3: [13, 14, 15, 16, 17, 18],
+};
+
+// Get stretch number for a hole (1-18)
+export const getSixesStretchForHole = (hole: number): 1 | 2 | 3 => {
+  if (hole <= 6) return 1;
+  if (hole <= 12) return 2;
+  return 3;
+};
+
+// Is this a stretch start hole?
+export const isSixesStretchStartHole = (hole: number): boolean => {
+  return hole === 1 || hole === 7 || hole === 13;
+};
+
+// Is this a stretch end hole?
+export const isSixesStretchEndHole = (hole: number): boolean => {
+  return hole === 6 || hole === 12 || hole === 18;
+};
+
+// Get team assignment from gameData
+export const getSixesTeamAssignment = (
+  gameData: any,
+  gameId: string,
+  stretch: 1 | 2 | 3
+): SixesTeamAssignment | null => {
+  const stretchStartHole = (stretch - 1) * 6 + 1;
+  const data = gameData?.[gameId]?.[stretchStartHole];
+  
+  if (!data?._META_TEAM_A || !data?._META_TEAM_B) return null;
+  
+  return {
+    teamA: data._META_TEAM_A,
+    teamB: data._META_TEAM_B,
+    unitValue: data._META_UNIT_VALUE ?? 10,
+    useHandicaps: data._META_USE_HANDICAPS ?? true,
+    useSecondBallTiebreaker: data._META_USE_SECOND_BALL ?? false,
+    locked: data._META_LOCKED ?? false,
+  };
+};
+
+// Calculate strokes for all players on a given hole (absolute mode)
+// Player gets a stroke if hole index <= their handicap
+// If ALL players would receive a stroke, cancel them all out
+export const calculateSixesStrokes = (
+  players: Player[],
+  holeHandicapIndex: number
+): { [playerId: string]: number } => {
+  const strokes: { [playerId: string]: number } = {};
+  let playersReceivingStrokes = 0;
+  
+  players.forEach(player => {
+    const getsStroke = holeHandicapIndex <= player.courseHandicap;
+    strokes[player.id] = getsStroke ? 1 : 0;
+    if (getsStroke) playersReceivingStrokes++;
+  });
+  
+  // If ALL players would get a stroke, cancel them all out
+  if (playersReceivingStrokes === players.length) {
+    players.forEach(player => {
+      strokes[player.id] = 0;
+    });
+  }
+  
+  return strokes;
+};
+
+// Determine hole winner: 'A', 'B', or 'TIE'
+export const calculateSixesHoleResult = (
+  round: Round,
+  hole: number,
+  teamA: string[],
+  teamB: string[],
+  useHandicaps: boolean,
+  useSecondBallTiebreaker: boolean
+): 'A' | 'B' | 'TIE' | null => {
+  const holeData = round.course.holes.find(h => h.number === hole);
+  const holeScores = round.scores[hole];
+  
+  if (!holeData || !holeScores) return null;
+  
+  // Get all 4 players
+  const allPlayerIds = [...teamA, ...teamB];
+  const allPlayers = round.players.filter(p => allPlayerIds.includes(p.id));
+  
+  // Check if all players have scores
+  const allHaveScores = allPlayerIds.every(pid => typeof holeScores[pid] === 'number');
+  if (!allHaveScores) return null;
+  
+  // Calculate strokes if using handicaps
+  const strokes = useHandicaps 
+    ? calculateSixesStrokes(allPlayers, holeData.handicapIndex)
+    : allPlayerIds.reduce((acc, pid) => ({ ...acc, [pid]: 0 }), {} as { [playerId: string]: number });
+  
+  // Calculate net scores
+  const getPlayerNet = (playerId: string): number => {
+    const gross = holeScores[playerId]!;
+    const playerStrokes = strokes[playerId] || 0;
+    return gross - playerStrokes;
+  };
+  
+  const teamANets = teamA.map(getPlayerNet);
+  const teamBNets = teamB.map(getPlayerNet);
+  
+  // 1st Ball: Compare lowest scores
+  const teamA1stBall = Math.min(...teamANets);
+  const teamB1stBall = Math.min(...teamBNets);
+  
+  if (teamA1stBall < teamB1stBall) return 'A';
+  if (teamB1stBall < teamA1stBall) return 'B';
+  
+  // Tie on 1st ball - check if 2nd ball tiebreaker is enabled
+  if (useSecondBallTiebreaker) {
+    const teamA2ndBall = Math.max(...teamANets);
+    const teamB2ndBall = Math.max(...teamBNets);
+    
+    if (teamA2ndBall < teamB2ndBall) return 'A';
+    if (teamB2ndBall < teamA2ndBall) return 'B';
+  }
+  
+  return 'TIE';
+};
+
+// Calculate stretch result: holes won by each team
+export const calculateSixesStretchResult = (
+  round: Round,
+  game: GameSettings,
+  stretch: 1 | 2 | 3
+): { teamAWins: number; teamBWins: number; ties: number; complete: boolean } | null => {
+  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch);
+  if (!teamAssignment) return null;
+  
+  const { teamA, teamB, useHandicaps, useSecondBallTiebreaker } = teamAssignment;
+  const stretchHoles = SIXES_STRETCH_HOLES[stretch];
+  
+  let teamAWins = 0;
+  let teamBWins = 0;
+  let ties = 0;
+  let holesPlayed = 0;
+  
+  for (const hole of stretchHoles) {
+    const result = calculateSixesHoleResult(round, hole, teamA, teamB, useHandicaps, useSecondBallTiebreaker);
+    if (result === null) continue;
+    
+    holesPlayed++;
+    if (result === 'A') teamAWins++;
+    else if (result === 'B') teamBWins++;
+    else ties++;
+  }
+  
+  return {
+    teamAWins,
+    teamBWins,
+    ties,
+    complete: holesPlayed === 6
+  };
+};
+
+// Calculate stretch payouts
+export const calculateSixesStretchPayouts = (
+  round: Round,
+  game: GameSettings,
+  stretch: 1 | 2 | 3
+): { playerPayouts: { [playerId: string]: number }; details: string[] } | null => {
+  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch);
+  if (!teamAssignment) return null;
+  
+  const { teamA, teamB, unitValue } = teamAssignment;
+  const stretchResult = calculateSixesStretchResult(round, game, stretch);
+  
+  if (!stretchResult || !stretchResult.complete) return null;
+  
+  const { teamAWins, teamBWins } = stretchResult;
+  const details: string[] = [];
+  const playerPayouts: { [playerId: string]: number } = {};
+  
+  // Initialize all payouts to 0
+  [...teamA, ...teamB].forEach(pid => playerPayouts[pid] = 0);
+  
+  const stretchName = stretch === 1 ? 'Holes 1-6' : stretch === 2 ? 'Holes 7-12' : 'Holes 13-18';
+  
+  if (teamAWins > teamBWins) {
+    // Team A wins: each Team A player gets +unitValue from each Team B player
+    const totalWin = unitValue * 2; // Win from 2 opponents
+    teamA.forEach(pid => playerPayouts[pid] = totalWin);
+    teamB.forEach(pid => playerPayouts[pid] = -totalWin);
+    
+    const teamANames = teamA.map(pid => round.players.find(p => p.id === pid)?.name || 'Unknown').join(' & ');
+    details.push(`${stretchName}: Team A (${teamANames}) wins ${teamAWins}-${teamBWins} (+$${totalWin} each)`);
+  } else if (teamBWins > teamAWins) {
+    // Team B wins
+    const totalWin = unitValue * 2;
+    teamB.forEach(pid => playerPayouts[pid] = totalWin);
+    teamA.forEach(pid => playerPayouts[pid] = -totalWin);
+    
+    const teamBNames = teamB.map(pid => round.players.find(p => p.id === pid)?.name || 'Unknown').join(' & ');
+    details.push(`${stretchName}: Team B (${teamBNames}) wins ${teamBWins}-${teamAWins} (+$${totalWin} each)`);
+  } else {
+    // Push - no money changes hands
+    details.push(`${stretchName}: Push ${teamAWins}-${teamBWins} (tie)`);
+  }
+  
+  return { playerPayouts, details };
+};
+
+// Main calculation function
+export const calculateSixes = (round: Round, game: GameSettings): GameResult => {
+  const results: { [playerId: string]: number } = {};
+  const details: string[] = [];
+  const holeResults: { [holeNumber: number]: { [playerId: string]: number } } = {};
+  
+  // Initialize results for all players
+  round.players.forEach(p => results[p.id] = 0);
+  
+  // Calculate payouts for each stretch
+  for (const stretch of [1, 2, 3] as const) {
+    const stretchPayouts = calculateSixesStretchPayouts(round, game, stretch);
+    
+    if (stretchPayouts) {
+      // Add to overall results
+      Object.entries(stretchPayouts.playerPayouts).forEach(([playerId, amount]) => {
+        results[playerId] = (results[playerId] || 0) + amount;
+      });
+      
+      // Add details
+      details.push(...stretchPayouts.details);
+      
+      // Record at stretch end hole for per-hole breakdown
+      const stretchEndHole = stretch * 6;
+      holeResults[stretchEndHole] = { ...stretchPayouts.playerPayouts };
+    }
+  }
+  
+  return {
+    gameId: game.id,
+    playerResults: results,
+    details,
+    holeResults
+  };
+};
+
+// Validate that totals sum to zero
+export const validateSixesTotals = (results: { [playerId: string]: number }): boolean => {
+  const total = Object.values(results).reduce((sum, val) => sum + val, 0);
+  return Math.abs(total) < 0.01;
+};

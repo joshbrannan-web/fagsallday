@@ -32,7 +32,8 @@ export enum GameType {
   BANKER = 'BANKER',
   BLOODY_BANKER = 'BLOODY_BANKER',
   FBO = 'FBO',
-  STOCKTON_6 = 'STOCKTON_6'
+  STOCKTON_6 = 'STOCKTON_6',
+  SIXES = 'SIXES'
 }
 
 // Wolf game types
@@ -112,10 +113,24 @@ export interface GameSettings {
     wolf?: {
       teesFirst: boolean; // true = Wolf tees first, false = Wolf tees last
     };
+    // 6's game config
+    sixes?: {
+      useSecondBallTiebreaker: boolean; // Use 2nd ball to break 1st ball ties
+    };
     // Universal handicap configuration (not for Stockton 6's - it has its own logic)
     useHandicaps?: boolean; // true = use handicaps, false = gross scores only
     handicapMode?: 'absolute' | 'relative'; // 'absolute' = Stockton 6 style, 'relative' = Banker style (lowest HCP = 0)
   };
+}
+
+// 6's Team Assignment
+export interface SixesTeamAssignment {
+  teamA: string[]; // Player IDs (exactly 2)
+  teamB: string[]; // Player IDs (exactly 2)
+  unitValue: number; // $ per player bet
+  useHandicaps: boolean;
+  useSecondBallTiebreaker: boolean;
+  locked: boolean;
 }
 
 // Stores the raw strokes entered. Key is playerId.
