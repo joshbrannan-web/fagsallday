@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud } from 'lucide-react';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { offlineStorage } from '@/services/offlineStorage';
 import { GameType, GameSettings } from '../types';
 import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
@@ -23,6 +25,8 @@ const ActiveRound: React.FC = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(false);
   const [isFboMinimized, setIsFboMinimized] = useState(false);
+  const isOnline = useOnlineStatus();
+  const pendingSyncCount = offlineStorage.getPendingSyncCount();
 
   // All hooks must be called before any early returns!
   // Bloody Banker "Down the Most" logic for holes 16, 17, 18
@@ -299,6 +303,20 @@ const ActiveRound: React.FC = () => {
               <span className="opacity-50">|</span>
               <span>IDX {courseHole?.handicapIndex}</span>
             </div>
+          </div>
+          {/* Offline/Sync Status Indicator */}
+          <div className="absolute right-0">
+            {!isOnline ? (
+              <div className="bg-warning/20 text-warning px-2 py-1 rounded-full text-xs flex items-center gap-1">
+                <WifiOff className="w-3 h-3" />
+                Offline
+              </div>
+            ) : pendingSyncCount > 0 ? (
+              <div className="bg-primary/20 text-primary px-2 py-1 rounded-full text-xs flex items-center gap-1">
+                <Cloud className="w-3 h-3 animate-pulse" />
+                Syncing...
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="flex justify-between items-center gap-4">

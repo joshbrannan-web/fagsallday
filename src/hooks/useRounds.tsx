@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { Round, Course, Player, GameSettings } from '@/types';
 import { toast } from 'sonner';
+import { offlineStorage } from '@/services/offlineStorage';
 
 interface DbRound {
   id: string;
@@ -96,6 +97,10 @@ export const useRounds = () => {
       const newRound = dbRoundToRound(data as DbRound);
       setCurrentRound(newRound);
       setRounds(prev => [newRound, ...prev]);
+      
+      // Cache for offline play
+      offlineStorage.cacheRound(newRound);
+      
       return newRound;
     } catch (error) {
       console.error('Error creating round:', error);
@@ -107,34 +112,60 @@ export const useRounds = () => {
   const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status'>>) => {
     if (!user) return false;
 
-    try {
-      const dbUpdates: any = {};
-      if (updates.scores !== undefined) dbUpdates.scores = updates.scores;
-      if (updates.gameData !== undefined) dbUpdates.game_data = updates.gameData;
-      if (updates.status !== undefined) dbUpdates.status = updates.status;
+    // 1. ALWAYS update local state immediately (optimistic update)
+    setRounds(prev => prev.map(r => 
+      r.id === roundId ? { ...r, ...updates } : r
+    ));
 
-      const { error } = await supabase
-        .from('rounds')
-        .update(dbUpdates)
-        .eq('id', roundId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      // Update local state
-      setRounds(prev => prev.map(r => 
-        r.id === roundId ? { ...r, ...updates } : r
-      ));
-
-      if (currentRound?.id === roundId) {
-        setCurrentRound(prev => prev ? { ...prev, ...updates } : null);
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Error updating round:', error);
-      return false;
+    if (currentRound?.id === roundId) {
+      setCurrentRound(prev => prev ? { ...prev, ...updates } : null);
     }
+
+    // 2. Cache the updated round locally for offline access
+    offlineStorage.updateCachedRound(roundId, updates);
+
+    // 3. If online, sync to Supabase
+    if (navigator.onLine) {
+      try {
+        const dbUpdates: any = {};
+        if (updates.scores !== undefined) dbUpdates.scores = updates.scores;
+        if (updates.gameData !== undefined) dbUpdates.game_data = updates.gameData;
+        if (updates.status !== undefined) dbUpdates.status = updates.status;
+
+        const { error } = await supabase
+          .from('rounds')
+          .update(dbUpdates)
+          .eq('id', roundId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } catch (error) {
+        console.error('Error syncing to server, queuing for later:', error);
+        // Queue for later sync
+        if (updates.scores !== undefined) {
+          offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: updates.scores } });
+        }
+        if (updates.gameData !== undefined) {
+          offlineStorage.addToSyncQueue({ roundId, type: 'gameData', data: { game_data: updates.gameData } });
+        }
+        if (updates.status !== undefined) {
+          offlineStorage.addToSyncQueue({ roundId, type: 'status', data: { status: updates.status } });
+        }
+      }
+    } else {
+      // Offline - queue for sync when back online
+      if (updates.scores !== undefined) {
+        offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: updates.scores } });
+      }
+      if (updates.gameData !== undefined) {
+        offlineStorage.addToSyncQueue({ roundId, type: 'gameData', data: { game_data: updates.gameData } });
+      }
+      if (updates.status !== undefined) {
+        offlineStorage.addToSyncQueue({ roundId, type: 'status', data: { status: updates.status } });
+      }
+    }
+
+    return true; // Always return success since local update worked
   };
 
   const deleteRound = async (roundId: string) => {
@@ -167,6 +198,8 @@ export const useRounds = () => {
     const success = await updateRound(roundId, { status: 'COMPLETE' });
     if (success) {
       setCurrentRound(null);
+      // Clear offline cache when round is complete
+      offlineStorage.clearCachedRound();
     }
     return success;
   };

@@ -20,7 +20,11 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { useRounds } from '@/hooks/useRounds';
 import { useSavedCourses } from '@/hooks/useSavedCourses';
 import { useSavedPlayers } from '@/hooks/useSavedPlayers';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { offlineStorage } from '@/services/offlineStorage';
+import { supabase } from '@/integrations/supabase/client';
 import { AppContext, AppState } from './contexts/AppContext';
+import { toast } from 'sonner';
 
 // Re-export useApp for backward compatibility
 export { useApp } from './contexts/AppContext';
@@ -51,7 +55,8 @@ const AppContent: React.FC = () => {
     isFavorite: dbIsFavorite
   } = useSavedCourses();
   const { addPlayer: addSavedPlayer } = useSavedPlayers();
-
+  const isOnline = useOnlineStatus();
+  const [isSyncing, setIsSyncing] = useState(false);
   // Fallback to localStorage for non-authenticated users
   const [localCurrentRound, setLocalCurrentRound] = useState<Round | null>(() => {
     const saved = localStorage.getItem('fg_current_round');
@@ -78,6 +83,45 @@ const AppContent: React.FC = () => {
   const nonFavoriteCourses = isAuthenticated ? dbNonFavoriteCourses : localSavedCourses;
   const roundHistory = isAuthenticated ? rounds : localRoundHistory;
   const isLoading = authLoading || (isAuthenticated && (roundsLoading || coursesLoading));
+  const pendingSyncCount = offlineStorage.getPendingSyncCount();
+
+  // Sync pending changes when coming back online
+  useEffect(() => {
+    if (isOnline && isAuthenticated && user) {
+      const syncPendingChanges = async () => {
+        const queue = offlineStorage.getSyncQueue();
+        if (queue.length === 0) return;
+
+        setIsSyncing(true);
+        const successfulIds: string[] = [];
+
+        for (const item of queue) {
+          try {
+            const { error } = await supabase
+              .from('rounds')
+              .update(item.data)
+              .eq('id', item.roundId)
+              .eq('user_id', user.id);
+
+            if (!error) {
+              successfulIds.push(item.id);
+            }
+          } catch (error) {
+            console.error('Failed to sync item:', error);
+          }
+        }
+
+        offlineStorage.removeFromSyncQueue(successfulIds);
+        setIsSyncing(false);
+
+        if (successfulIds.length > 0) {
+          toast.success(`Synced ${successfulIds.length} offline changes`);
+        }
+      };
+
+      syncPendingChanges();
+    }
+  }, [isOnline, isAuthenticated, user]);
 
   // Calculate totals when round changes
   useEffect(() => {
