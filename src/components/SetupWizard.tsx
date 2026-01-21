@@ -123,6 +123,26 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     maxPlayers: 8,
     config: { useHandicaps: false },
   },
+  {
+    type: GameType.WOLF,
+    name: "Wolf",
+    description: "Strategic 4-player game. Wolf picks partner after tee shots or goes solo for more points.",
+    icon: "🐺",
+    defaultUnitStake: 1,
+    minPlayers: 4,
+    maxPlayers: 4,
+    config: { useHandicaps: true, handicapMode: 'relative', wolf: { teesFirst: true } },
+  },
+  {
+    type: GameType.NINE_POINTS,
+    name: "Nine Points",
+    description: "9 points split each hole: 5-3-1 for 1st-2nd-3rd place based on net scores.",
+    icon: "9️⃣",
+    defaultUnitStake: 1,
+    minPlayers: 3,
+    maxPlayers: 3,
+    config: { useHandicaps: true, handicapMode: 'relative' },
+  },
 ];
 
 // Default 18 holes
@@ -1627,6 +1647,58 @@ const SetupWizard: React.FC = () => {
                                 </RadioGroup>
                               </div>
                             )}
+                          </div>
+                        )}
+
+                        {/* Wolf Tee Order Configuration */}
+                        {game.type === GameType.WOLF && (
+                          <div className="space-y-2 pt-3 border-t border-border/50">
+                            <Label className="text-sm font-medium">Wolf Tees Off</Label>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              {selectedGame.config.wolf?.teesFirst 
+                                ? "Wolf tees first, then picks partner after seeing opponent shots"
+                                : "Others tee first, Wolf tees last after making partner decision"}
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedGames(
+                                    selectedGames.map((g) =>
+                                      g.id === selectedGame.id
+                                        ? { ...g, config: { ...g.config, wolf: { teesFirst: true } } }
+                                        : g,
+                                    ),
+                                  );
+                                }}
+                                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                                  selectedGame.config.wolf?.teesFirst 
+                                    ? "bg-primary text-primary-foreground border-primary" 
+                                    : "bg-background text-muted-foreground border-border hover:border-primary"
+                                }`}
+                              >
+                                First
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedGames(
+                                    selectedGames.map((g) =>
+                                      g.id === selectedGame.id
+                                        ? { ...g, config: { ...g.config, wolf: { teesFirst: false } } }
+                                        : g,
+                                    ),
+                                  );
+                                }}
+                                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                                  !selectedGame.config.wolf?.teesFirst 
+                                    ? "bg-primary text-primary-foreground border-primary" 
+                                    : "bg-background text-muted-foreground border-border hover:border-primary"
+                                }`}
+                              >
+                                Last
+                              </button>
+                            </div>
                           </div>
                         )}
 

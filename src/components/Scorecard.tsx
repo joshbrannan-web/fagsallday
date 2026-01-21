@@ -5,7 +5,7 @@ import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus } from 'lucid
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo } from '../services/stockton6Engine';
 import { Button } from '@/components/ui/button';
-import { GameType, GameSettings, Player, HoleScores, GameData, Hole } from '../types';
+import { GameType, GameSettings, Player, HoleScores, GameData, Hole, WolfHoleData } from '../types';
 
 // FBO Segment Results Component
 interface FBOSegmentResultsProps {
@@ -209,6 +209,18 @@ const Scorecard: React.FC = () => {
   // Find Stockton 6's game
   const stockton6Game = currentRound.games.find(g => g.type === GameType.STOCKTON_6);
   
+  // Find Wolf game
+  const wolfGame = currentRound.games.find(g => g.type === GameType.WOLF);
+  
+  // Find Nine Points game
+  const ninePointsGame = currentRound.games.find(g => g.type === GameType.NINE_POINTS);
+  
+  // Wolf data helper
+  const getWolfDataForHole = (holeNum: number): WolfHoleData | null => {
+    if (!wolfGame) return null;
+    const holeData = currentRound.gameData?.[wolfGame.id]?.[holeNum];
+    return (holeData?.['_WOLF_DATA'] || holeData) as WolfHoleData | null;
+  };
   const getDotsForHole = (holeNum: number): string[] => {
     if (!fboGame) return [];
     return currentRound.gameData?.[fboGame.id]?.[holeNum]?.dots || [];
