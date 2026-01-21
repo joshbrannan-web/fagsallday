@@ -686,25 +686,25 @@ const ActiveRound: React.FC = () => {
                 )}
               </div>
               
-              {/* Phase 1: Blind Lone Wolf - before any scores */}
-              {!isActuallyConfirmed && !hasAnyScores && (
-                <div className="space-y-3">
+              {/* All Wolf options visible at once - once selected, they disappear */}
+              {!isActuallyConfirmed && (
+                <div className="space-y-4">
+                  {/* Blind Lone Wolf - Premium option at top */}
                   <button 
                     onClick={handleBlindLoneWolf}
                     className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold text-sm transition-colors flex items-center justify-center gap-2"
                   >
                     🎲 Blind Lone Wolf! (2x Points)
                   </button>
-                  <p className="text-xs text-muted-foreground text-center">
-                    Or enter scores first, then pick partner
-                  </p>
-                </div>
-              )}
-              
-              {/* Phase 2: Partner Selection - after scores entered but not confirmed */}
-              {!isActuallyConfirmed && hasAnyScores && (
-                <div className="space-y-3">
-                  <div className="text-xs text-muted-foreground font-medium mb-2">Pick a Partner</div>
+                  
+                  {/* Divider */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-px bg-border"></div>
+                    <span className="text-xs text-muted-foreground">or pick a partner</span>
+                    <div className="flex-1 h-px bg-border"></div>
+                  </div>
+                  
+                  {/* Partner Selection */}
                   <div className="grid grid-cols-3 gap-2">
                     {opponents.map(p => (
                       <button 
@@ -716,6 +716,8 @@ const ActiveRound: React.FC = () => {
                       </button>
                     ))}
                   </div>
+                  
+                  {/* Lone Wolf */}
                   <button 
                     onClick={handleLoneWolf}
                     className="w-full py-2.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive font-bold text-sm transition-colors border border-destructive/30"
