@@ -62,7 +62,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 3,
     minPlayers: 3,
     maxPlayers: 8,
-    config: { birdieMultiplier: 1, eagleMultiplier: 1, useHandicaps: true, handicapMode: 'relative' },
+    config: { birdieMultiplier: 3, eagleMultiplier: 5, useHandicaps: true, handicapMode: 'relative' },
   },
   {
     type: GameType.BLOODY_BANKER,
@@ -72,7 +72,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 3,
     minPlayers: 3,
     maxPlayers: 8,
-    config: { birdieMultiplier: 1, eagleMultiplier: 1, useHandicaps: true, handicapMode: 'relative' },
+    config: { birdieMultiplier: 3, eagleMultiplier: 5, useHandicaps: true, handicapMode: 'relative' },
   },
   {
     type: GameType.STOCKTON_6,
@@ -92,7 +92,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 10,
     minPlayers: 2,
     maxPlayers: 8,
-    config: { fboPlayers: [], useHandicaps: false, fbo: { allowPresses: false } },
+    config: { fboPlayers: [], useHandicaps: true, fbo: { allowPresses: true } },
   },
   {
     type: GameType.SKINS,
