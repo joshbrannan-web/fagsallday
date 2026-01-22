@@ -164,7 +164,7 @@ const AppContent: React.FC = () => {
     }
   }, [localRoundHistory, isAuthenticated]);
 
-  const startNewRound = async (course: Course, players: Player[], games: GameSettings[]) => {
+  const startNewRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>) => {
     // Auto-save all players when authenticated
     if (isAuthenticated) {
       for (const player of players) {
@@ -172,7 +172,7 @@ const AppContent: React.FC = () => {
           await addSavedPlayer(player.name, player.handicapIndex || 0, player.tee);
         }
       }
-      await createRound(course, players, games);
+      await createRound(course, players, games, initialGameData);
     } else {
       const newRound: Round = {
         id: Date.now().toString(),
@@ -180,7 +180,7 @@ const AppContent: React.FC = () => {
         players,
         games,
         scores: {},
-        gameData: {},
+        gameData: initialGameData || {},
         status: 'ACTIVE',
         startTime: Date.now()
       };
