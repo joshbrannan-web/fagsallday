@@ -55,11 +55,12 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
 
   for (let h = 1; h <= courseHoles.length; h++) {
     const holeDots = fboData[h]?.dots || [];
-    holeDots.forEach((playerId: string) => {
-      if (dotCounts.overall[playerId] !== undefined) {
-        dotCounts.overall[playerId]++;
-        if (h <= 9) dotCounts.front[playerId]++;
-        else dotCounts.back[playerId]++;
+    holeDots.forEach((playerId: string | number) => {
+      const normalizedId = String(playerId);
+      if (dotCounts.overall[normalizedId] !== undefined) {
+        dotCounts.overall[normalizedId]++;
+        if (h <= 9) dotCounts.front[normalizedId]++;
+        else dotCounts.back[normalizedId]++;
       }
     });
   }
@@ -174,8 +175,8 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
                 <span className="font-semibold text-sm">Presses</span>
               </div>
               <div className="space-y-2">
-                {presses.map((press, idx) => {
-                  const player = fboPlayers.find(p => p.id === press.playerId);
+              {presses.map((press, idx) => {
+                  const player = fboPlayers.find(p => p.id === String(press.playerId));
                   const segmentEnd = press.segment === 'front' ? 9 : 18;
                   const isComplete = press.segment === 'front' ? frontNineComplete : backNineComplete;
                   
@@ -187,9 +188,10 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
                     
                     for (let h = press.startHole; h <= segmentEnd; h++) {
                       const holeDots = fboData[h]?.dots || [];
-                      holeDots.forEach((playerId: string) => {
-                        if (pressDots[playerId] !== undefined) {
-                          pressDots[playerId]++;
+                      holeDots.forEach((playerId: string | number) => {
+                        const normalizedId = String(playerId);
+                        if (pressDots[normalizedId] !== undefined) {
+                          pressDots[normalizedId]++;
                         }
                       });
                     }
@@ -287,10 +289,10 @@ const Scorecard: React.FC = () => {
     return holeData?.bankerId || null;
   };
 
-  // Find FBO game and get dots data
+  // Find FBO game and get dots data (normalize IDs to strings)
   const fboGame = currentRound.games.find(g => g.type === GameType.FBO);
-  const fboPlayerIds = fboGame?.config.fboPlayers || currentRound.players.map(p => p.id);
-  const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
+  const fboPlayerIds = (fboGame?.config.fboPlayers || currentRound.players.map(p => p.id)).map(id => String(id));
+  const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(String(p.id)));
   
   // Find Stockton 6's game
   const stockton6Game = currentRound.games.find(g => g.type === GameType.STOCKTON_6);
