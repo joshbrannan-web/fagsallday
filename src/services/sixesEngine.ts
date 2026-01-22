@@ -42,31 +42,52 @@ export const getSixesTeamAssignment = (
     unitValue: data._META_UNIT_VALUE ?? 10,
     useHandicaps: data._META_USE_HANDICAPS ?? true,
     useSecondBallTiebreaker: data._META_USE_SECOND_BALL ?? false,
+    handicapMode: data._META_HANDICAP_MODE ?? 'absolute',
     locked: data._META_LOCKED ?? false,
   };
 };
 
-// Calculate strokes for all players on a given hole (absolute mode)
-// Player gets a stroke if hole index <= their handicap
-// If ALL players would receive a stroke, cancel them all out
+// Calculate strokes for all players on a given hole
+// Supports both 'absolute' mode (Stockton 6 style) and 'relative' mode (lowest HCP = 0)
 export const calculateSixesStrokes = (
   players: Player[],
-  holeHandicapIndex: number
+  holeHandicapIndex: number,
+  handicapMode: 'absolute' | 'relative' = 'absolute'
 ): { [playerId: string]: number } => {
   const strokes: { [playerId: string]: number } = {};
-  let playersReceivingStrokes = 0;
   
-  players.forEach(player => {
-    const getsStroke = holeHandicapIndex <= player.courseHandicap;
-    strokes[player.id] = getsStroke ? 1 : 0;
-    if (getsStroke) playersReceivingStrokes++;
-  });
-  
-  // If ALL players would get a stroke, cancel them all out
-  if (playersReceivingStrokes === players.length) {
+  if (handicapMode === 'relative') {
+    // Relative mode: Find lowest handicap player as reference (gets 0 strokes)
+    const refPlayer = players.reduce(
+      (min, p) => (p.courseHandicap < min.courseHandicap ? p : min),
+      players[0]
+    );
+    
     players.forEach(player => {
-      strokes[player.id] = 0;
+      if (player.id === refPlayer.id) {
+        strokes[player.id] = 0;
+        return;
+      }
+      const diff = player.courseHandicap - refPlayer.courseHandicap;
+      strokes[player.id] = diff >= holeHandicapIndex ? 1 : 0;
     });
+  } else {
+    // Absolute mode: Player gets a stroke if hole index <= their handicap
+    // If ALL players would receive a stroke, cancel them all out
+    let playersReceivingStrokes = 0;
+    
+    players.forEach(player => {
+      const getsStroke = holeHandicapIndex <= player.courseHandicap;
+      strokes[player.id] = getsStroke ? 1 : 0;
+      if (getsStroke) playersReceivingStrokes++;
+    });
+    
+    // If ALL players would get a stroke, cancel them all out
+    if (playersReceivingStrokes === players.length) {
+      players.forEach(player => {
+        strokes[player.id] = 0;
+      });
+    }
   }
   
   return strokes;
@@ -79,7 +100,8 @@ export const calculateSixesHoleResult = (
   teamA: string[],
   teamB: string[],
   useHandicaps: boolean,
-  useSecondBallTiebreaker: boolean
+  useSecondBallTiebreaker: boolean,
+  handicapMode: 'absolute' | 'relative' = 'absolute'
 ): 'A' | 'B' | 'TIE' | null => {
   const holeData = round.course.holes.find(h => h.number === hole);
   const holeScores = round.scores[hole];
@@ -96,7 +118,7 @@ export const calculateSixesHoleResult = (
   
   // Calculate strokes if using handicaps
   const strokes = useHandicaps 
-    ? calculateSixesStrokes(allPlayers, holeData.handicapIndex)
+    ? calculateSixesStrokes(allPlayers, holeData.handicapIndex, handicapMode)
     : allPlayerIds.reduce((acc, pid) => ({ ...acc, [pid]: 0 }), {} as { [playerId: string]: number });
   
   // Calculate net scores
@@ -137,7 +159,7 @@ export const calculateSixesStretchResult = (
   const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch);
   if (!teamAssignment) return null;
   
-  const { teamA, teamB, useHandicaps, useSecondBallTiebreaker } = teamAssignment;
+  const { teamA, teamB, useHandicaps, useSecondBallTiebreaker, handicapMode } = teamAssignment;
   const stretchHoles = SIXES_STRETCH_HOLES[stretch];
   
   let teamAWins = 0;
@@ -146,7 +168,7 @@ export const calculateSixesStretchResult = (
   let holesPlayed = 0;
   
   for (const hole of stretchHoles) {
-    const result = calculateSixesHoleResult(round, hole, teamA, teamB, useHandicaps, useSecondBallTiebreaker);
+    const result = calculateSixesHoleResult(round, hole, teamA, teamB, useHandicaps, useSecondBallTiebreaker, handicapMode);
     if (result === null) continue;
     
     holesPlayed++;

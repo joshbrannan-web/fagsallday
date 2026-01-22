@@ -130,6 +130,7 @@ export interface SixesTeamAssignment {
   unitValue: number; // $ per player bet
   useHandicaps: boolean;
   useSecondBallTiebreaker: boolean;
+  handicapMode: 'absolute' | 'relative'; // Which stroke calculation mode to use
   locked: boolean;
 }
 
