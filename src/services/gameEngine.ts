@@ -1,4 +1,4 @@
-import { Course, GameSettings, GameType, Player, Round, GameResult, WolfHoleData } from "../types";
+import { Course, GameSettings, GameType, Player, Round, GameResult, WolfHoleData, FBOPressState } from "../types";
 import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
 
@@ -601,6 +601,84 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
   };
 };
 
+// --- FBO Dormie Detection ---
+
+// Check if a player is dormie (mathematically cannot win a segment)
+export const isFBOPlayerDormie = (
+  playerDots: number,
+  leaderDots: number,
+  holesRemaining: number
+): boolean => {
+  // Player is dormie if they can't catch the leader even winning all remaining holes
+  return playerDots + holesRemaining < leaderDots;
+};
+
+// Get dormie status for all players in a segment
+export const getFBODormieStatus = (
+  round: Round,
+  game: GameSettings,
+  currentHole: number
+): { [playerId: string]: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' } } => {
+  const fboPlayerIds = game.config.fboPlayers || round.players.map(p => p.id);
+  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(p.id));
+  const fboData = round.gameData?.[game.id] || {};
+  
+  // Determine which segment we're in
+  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
+  const segmentStart = segment === 'front' ? 1 : 10;
+  const segmentEnd = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEnd - currentHole + 1;
+  
+  // Count dots earned so far in this segment
+  const dotCounts: { [id: string]: number } = {};
+  fboPlayers.forEach(p => dotCounts[p.id] = 0);
+  
+  for (let h = segmentStart; h < currentHole; h++) {
+    const holeDots = fboData[h]?.dots || [];
+    holeDots.forEach((playerId: string) => {
+      if (dotCounts[playerId] !== undefined) {
+        dotCounts[playerId]++;
+      }
+    });
+  }
+  
+  // Find the leader
+  const maxDots = Math.max(...Object.values(dotCounts));
+  
+  // Calculate dormie status for each player
+  const result: { [playerId: string]: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' } } = {};
+  
+  fboPlayers.forEach(p => {
+    const playerDots = dotCounts[p.id];
+    const isDormie = isFBOPlayerDormie(playerDots, maxDots, holesRemaining);
+    result[p.id] = {
+      isDormie,
+      dotsBehind: maxDots - playerDots,
+      holesRemaining,
+      segment
+    };
+  });
+  
+  return result;
+};
+
+// Check if a player already has a press for this segment starting at or after a specific hole
+export const hasExistingFBOPress = (
+  round: Round,
+  gameId: string,
+  playerId: string,
+  segment: 'front' | 'back',
+  afterHole: number
+): boolean => {
+  const gameData = round.gameData?.[gameId] as { _META_PRESSES?: FBOPressState[]; [key: number]: any } | undefined;
+  const presses: FBOPressState[] = gameData?._META_PRESSES || [];
+  return presses.some(p => 
+    p.playerId === playerId && 
+    p.segment === segment && 
+    p.startHole >= afterHole
+  );
+};
+
 // --- FBO (Front/Back/Overall) ---
 
 export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
@@ -744,6 +822,76 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     calculateSegmentWinner(dotCounts.overall, 'Overall');
   } else {
     details.push('Overall: In progress');
+  }
+
+  // Process FBO presses if enabled
+  const gameData = round.gameData?.[game.id] as { _META_PRESSES?: FBOPressState[]; [key: number]: any } | undefined;
+  const presses: FBOPressState[] = gameData?._META_PRESSES || [];
+  
+  if (presses.length > 0) {
+    presses.forEach((press, idx) => {
+      if (press.settled) {
+        // Already settled - apply result
+        if (press.result && press.result.winnerId) {
+          const winner = fboPlayers.find(p => p.id === press.result!.winnerId);
+          if (winner) {
+            results[press.result.winnerId] += press.result.amount;
+            // Deduct from other players
+            fboPlayers.forEach(p => {
+              if (p.id !== press.result!.winnerId) {
+                results[p.id] -= press.result!.amount / (fboPlayers.length - 1);
+              }
+            });
+          }
+        }
+        return;
+      }
+
+      // Calculate press result
+      const segmentEnd = press.segment === 'front' ? 9 : 18;
+      const isSegmentComplete = press.segment === 'front' ? frontNineComplete : backNineComplete;
+      
+      if (!isSegmentComplete) {
+        details.push(`Press #${idx + 1} (${press.segment === 'front' ? 'Front' : 'Back'} from hole ${press.startHole}): In progress`);
+        return;
+      }
+
+      // Count dots in press range (from startHole to segment end)
+      const pressDots: { [id: string]: number } = {};
+      fboPlayers.forEach(p => pressDots[p.id] = 0);
+      
+      for (let h = press.startHole; h <= segmentEnd; h++) {
+        const holeDots = fboData[h]?.dots || [];
+        holeDots.forEach((playerId: string) => {
+          if (pressDots[playerId] !== undefined) {
+            pressDots[playerId]++;
+          }
+        });
+      }
+
+      // Determine press winner
+      const maxPressDots = Math.max(...Object.values(pressDots));
+      const pressWinners = Object.entries(pressDots).filter(([_, dots]) => dots === maxPressDots);
+      const pressLosers = Object.entries(pressDots).filter(([_, dots]) => dots < maxPressDots);
+      
+      const pressingPlayer = fboPlayers.find(p => p.id === press.playerId);
+      
+      if (pressWinners.length === 1 && maxPressDots > 0) {
+        const winnerId = pressWinners[0][0];
+        const winnerName = fboPlayers.find(p => p.id === winnerId)?.name;
+        const winAmount = press.unitValue * pressLosers.length;
+        
+        results[winnerId] += winAmount;
+        pressLosers.forEach(([loserId]) => {
+          results[loserId] -= press.unitValue;
+        });
+        
+        details.push(`Press by ${pressingPlayer?.name} (${press.segment === 'front' ? 'Front' : 'Back'} from hole ${press.startHole}): ${winnerName} wins $${winAmount}`);
+      } else if (pressWinners.length > 1 || maxPressDots === 0) {
+        // Push or tie
+        details.push(`Press by ${pressingPlayer?.name} (${press.segment === 'front' ? 'Front' : 'Back'} from hole ${press.startHole}): Push`);
+      }
+    });
   }
 
   return { gameId: game.id, playerResults: results, details, holeResults };

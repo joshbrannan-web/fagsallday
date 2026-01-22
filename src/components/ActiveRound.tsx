@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
-import { GameType, GameSettings, WolfHoleData } from '../types';
-import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores } from '../services/gameEngine';
+import { GameType, GameSettings, WolfHoleData, FBOPressState } from '../types';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores, getFBODormieStatus, hasExistingFBOPress } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
@@ -381,6 +381,31 @@ const ActiveRound: React.FC = () => {
   };
 
   // handleFboDotToggle removed - FBO dots are now auto-calculated based on net scores
+
+  // FBO Press handler
+  const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back') => {
+    const fboGame = currentRound.games.find(g => g.id === gameId);
+    if (!fboGame) return;
+    
+    const newPress: FBOPressState = {
+      playerId,
+      segment,
+      startHole: activeHole,
+      unitValue: fboGame.unitStake,
+      settled: false
+    };
+    
+    const gameData = currentRound.gameData?.[gameId] as { _META_PRESSES?: FBOPressState[] } | undefined;
+    const existingPresses: FBOPressState[] = gameData?._META_PRESSES || [];
+    
+    // Store presses at hole 1 to keep them at the game level
+    updateGameData(gameId, 1 as any, '_META_PRESSES' as any, [...existingPresses, newPress]);
+    
+    const player = currentRound.players.find(p => p.id === playerId);
+    import('sonner').then(({ toast }) => {
+      toast.success(`${player?.name} pressed the ${segment === 'front' ? 'Front 9' : 'Back 9'}!`);
+    });
+  };
 
   const getFboDotsForPlayer = (gameId: string, playerId: string): number => {
     const fboData = currentRound.gameData?.[gameId] || {};
@@ -1025,7 +1050,63 @@ const ActiveRound: React.FC = () => {
           );
         })()}
 
-        {/* FBO section moved to bottom bar */}
+        {/* FBO Press UI - shown when presses enabled and player is dormie */}
+        {fboGames.filter(g => g.config.fbo?.allowPresses).map(fboGame => {
+          const fboPlayerIds = fboGame.config.fboPlayers || currentRound.players.map(p => p.id);
+          const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
+          const dormieStatus = getFBODormieStatus(currentRound, fboGame, activeHole);
+          
+          // Only show if we're not on hole 1 or 10 (need history to detect dormie)
+          const segmentStartHole = activeHole <= 9 ? 1 : 10;
+          if (activeHole === segmentStartHole) return null;
+          
+          // Find players who are dormie and don't have a press yet
+          const dormiePlayers = fboPlayers.filter(p => {
+            const status = dormieStatus[p.id];
+            if (!status?.isDormie) return false;
+            return !hasExistingFBOPress(currentRound, fboGame.id, p.id, status.segment, activeHole);
+          });
+          
+          if (dormiePlayers.length === 0) return null;
+          
+          return (
+            <div key={fboGame.id} className="bg-card rounded-2xl shadow-sm border border-amber-500/50 p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-foreground flex items-center gap-2">
+                  <span className="bg-amber-500/20 text-amber-500 p-1.5 rounded text-lg">🎱</span>
+                  FBO Press Available
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {dormiePlayers.map(player => {
+                  const status = dormieStatus[player.id];
+                  return (
+                    <div key={player.id} className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                        <div>
+                          <span className="text-sm font-medium">{player.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {status.dotsBehind} dot{status.dotsBehind !== 1 ? 's' : ''} behind • {status.holesRemaining} hole{status.holesRemaining !== 1 ? 's' : ''} left
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleFBOPress(fboGame.id, player.id, status.segment)}
+                        className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors"
+                      >
+                        Press (${fboGame.unitStake})
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                Double-or-nothing for remaining holes in {activeHole <= 9 ? 'Front 9' : 'Back 9'}
+              </p>
+            </div>
+          );
+        })}
 
         {/* Stockton 6's Dots Input */}
         {stockton6Game && (() => {
