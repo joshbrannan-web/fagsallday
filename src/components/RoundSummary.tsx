@@ -3,9 +3,67 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { formatMoney } from '../services/gameEngine';
 import { Home, Trophy, Share2, Edit2, Check, X } from 'lucide-react';
+import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+
+const getGameConfigDetails = (game: GameSettings): string[] => {
+  const details: string[] = [];
+  const { config, type } = game;
+  
+  // Handicap settings (most games)
+  if (config.useHandicaps !== undefined) {
+    details.push(config.useHandicaps ? 'Handicaps: On' : 'Handicaps: Off');
+    if (config.useHandicaps && config.handicapMode) {
+      details.push(`Mode: ${config.handicapMode === 'absolute' ? 'Absolute' : 'Relative'}`);
+    }
+  }
+  
+  // Skins-specific
+  if (type === GameType.SKINS && config.carryovers !== undefined) {
+    details.push(config.carryovers ? 'Carryovers: On' : 'Carryovers: Off');
+  }
+  
+  // Nassau-specific
+  if (type === GameType.NASSAU && config.presses !== undefined) {
+    details.push(config.presses ? 'Presses: On' : 'Presses: Off');
+  }
+  
+  // Banker/Bloody Banker multipliers
+  if (type === GameType.BANKER || type === GameType.BLOODY_BANKER) {
+    if (config.birdieMultiplier && config.birdieMultiplier > 1) {
+      details.push(`Birdie: ${config.birdieMultiplier}x`);
+    }
+    if (config.eagleMultiplier && config.eagleMultiplier > 1) {
+      details.push(`Eagle: ${config.eagleMultiplier}x`);
+    }
+  }
+  
+  // Stockton 6's dot value
+  if (type === GameType.STOCKTON_6 && config.stockton6?.dotValue) {
+    details.push(`Dots: $${config.stockton6.dotValue}/dot`);
+  }
+  
+  // 6's second ball tiebreaker
+  if (type === GameType.SIXES && config.sixes?.useSecondBallTiebreaker !== undefined) {
+    details.push(config.sixes.useSecondBallTiebreaker ? '2nd Ball Tiebreaker: On' : '2nd Ball Tiebreaker: Off');
+  }
+  
+  // Wolf tees first/last
+  if (type === GameType.WOLF && config.wolf?.teesFirst !== undefined) {
+    details.push(config.wolf.teesFirst ? 'Wolf Tees First' : 'Wolf Tees Last');
+  }
+  
+  // FBO players count
+  if (type === GameType.FBO && config.fboPlayers?.length) {
+    details.push(`${config.fboPlayers.length} players`);
+  }
+  
+  // Nine Points - no special config to show
+  
+  return details;
+};
 
 const RoundSummary: React.FC = () => {
   const navigate = useNavigate();
@@ -179,13 +237,31 @@ const RoundSummary: React.FC = () => {
 
         <div className="space-y-3">
           <h2 className="text-lg font-bold">Games Played</h2>
-          <div className="bg-card rounded-xl border border-border p-4 space-y-2">
-            {currentRound.games.map(game => (
-              <div key={game.id} className="flex justify-between text-sm">
-                <span>{game.name}</span>
-                <span className="text-muted-foreground">${game.unitStake}/unit</span>
-              </div>
-            ))}
+          <div className="space-y-3">
+            {currentRound.games.map(game => {
+              const configDetails = getGameConfigDetails(game);
+              
+              return (
+                <div key={game.id} className="bg-card rounded-xl border border-border p-4">
+                  <div className="flex justify-between items-start">
+                    <span className="font-semibold">{game.name}</span>
+                    <span className="text-muted-foreground font-mono text-sm">${game.unitStake}/unit</span>
+                  </div>
+                  {configDetails.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {configDetails.map((detail, idx) => (
+                        <span 
+                          key={idx} 
+                          className="text-xs bg-muted px-2 py-1 rounded-full text-muted-foreground"
+                        >
+                          {detail}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
