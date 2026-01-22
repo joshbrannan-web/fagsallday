@@ -133,6 +133,35 @@ const ActiveRound: React.FC = () => {
     }
   }, [currentRound?.gameData, activeHole, isBottomBarMinimized]);
 
+  // Get which team a player is on for the current hole (6's or Stockton 6's)
+  const getPlayerTeamColor = (playerId: string): 'A' | 'B' | null => {
+    if (!currentRound) return null;
+    
+    // Check Stockton 6's first
+    const stockton6Game = currentRound.games.find(g => g.type === GameType.STOCKTON_6);
+    if (stockton6Game) {
+      const stretch = getStretchForHole(activeHole);
+      const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
+      if (teamAssignment) {
+        if (teamAssignment.teamA.includes(playerId)) return 'A';
+        if (teamAssignment.teamB.includes(playerId)) return 'B';
+      }
+    }
+    
+    // Then check 6's
+    const sixesGame = currentRound.games.find(g => g.type === GameType.SIXES);
+    if (sixesGame) {
+      const stretch = getSixesStretchForHole(activeHole);
+      const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+      if (teamAssignment) {
+        if (teamAssignment.teamA.includes(playerId)) return 'A';
+        if (teamAssignment.teamB.includes(playerId)) return 'B';
+      }
+    }
+    
+    return null;
+  };
+
   useEffect(() => {
     if (!currentRound) {
       // Allow the component to render the empty state
@@ -1151,11 +1180,34 @@ const ActiveRound: React.FC = () => {
             bankerData = { isBanker, playerMult, totalBet, gameId: activeBankerGame.id };
           }
 
+          const playerTeam = getPlayerTeamColor(p.id);
+          
           return (
-            <div key={p.id} className={`bg-card rounded-2xl shadow-sm border overflow-hidden ${isBanker ? 'border-brand-gold ring-2 ring-brand-gold/20' : 'border-border'}`}>
-              <div className={`p-4 flex items-center justify-between border-b ${isBanker ? 'bg-brand-gold/10 border-brand-gold/20' : 'border-border'}`}>
+            <div key={p.id} className={`rounded-2xl shadow-sm border overflow-hidden ${
+              isBanker 
+                ? 'border-brand-gold ring-2 ring-brand-gold/20 bg-card' 
+                : playerTeam === 'A'
+                ? 'border-primary/30 bg-primary/10'
+                : playerTeam === 'B'
+                ? 'border-destructive/30 bg-destructive/10'
+                : 'border-border bg-card'
+            }`}>
+              <div className={`p-4 flex items-center justify-between border-b ${
+                isBanker 
+                  ? 'bg-brand-gold/10 border-brand-gold/20' 
+                  : playerTeam === 'A'
+                  ? 'bg-primary/15 border-primary/20'
+                  : playerTeam === 'B'
+                  ? 'bg-destructive/15 border-destructive/20'
+                  : 'border-border'
+              }`}>
                 <div className="flex items-center gap-3">
                   {isBanker && <Crown className="w-5 h-5 text-brand-gold fill-current" />}
+                  {!isBanker && playerTeam && (
+                    <div className={`w-3 h-3 rounded-full ${
+                      playerTeam === 'A' ? 'bg-primary' : 'bg-destructive'
+                    }`} />
+                  )}
                   <div>
                     <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
                       {p.name}
