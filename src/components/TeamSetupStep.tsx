@@ -125,7 +125,7 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
           _META_USE_HANDICAPS: sixesGame.config?.useHandicaps ?? true,
           _META_USE_SECOND_BALL: sixesUseSecondBall,
           _META_ALLOW_PRESSES: sixesAllowPresses,
-          _META_HANDICAP_MODE: sixesGame.config?.handicapMode ?? 'relative',
+          _META_HANDICAP_MODE: sixesGame.config?.handicapMode ?? 'absolute',
           _META_LOCKED: true,
         }
       };

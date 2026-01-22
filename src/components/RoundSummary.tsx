@@ -12,8 +12,8 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
   const details: string[] = [];
   const { config, type } = game;
   
-  // Handicap settings (most games)
-  if (config.useHandicaps !== undefined) {
+  // Handicap settings (most games - 6's handled separately below)
+  if (config.useHandicaps !== undefined && type !== GameType.SIXES) {
     details.push(config.useHandicaps ? 'Handicaps: On' : 'Handicaps: Off');
     if (config.useHandicaps) {
       // FBO is always Absolute mode (hardcoded in engine)
@@ -61,7 +61,7 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
       details.push(useHandicaps ? 'Handicaps: On' : 'Handicaps: Off');
       
       if (useHandicaps) {
-        const handicapMode = sixesData._META_HANDICAP_MODE ?? config.handicapMode ?? 'relative';
+        const handicapMode = sixesData._META_HANDICAP_MODE ?? config.handicapMode ?? 'absolute';
         details.push(`Mode: ${handicapMode === 'absolute' ? 'Absolute' : 'Relative'}`);
       }
       
