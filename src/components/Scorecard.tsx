@@ -298,7 +298,8 @@ const Scorecard: React.FC = () => {
       teamAssignment.teamA, 
       teamAssignment.teamB, 
       teamAssignment.useHandicaps, 
-      teamAssignment.useSecondBallTiebreaker
+      teamAssignment.useSecondBallTiebreaker,
+      teamAssignment.handicapMode
     );
   };
 
