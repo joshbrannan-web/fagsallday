@@ -105,23 +105,27 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
     const initialGameData: Record<string, any> = {};
 
     if (stockton6Game && stockton6TeamA.length === 2 && stockton6TeamB.length === 2) {
-      initialGameData[`${stockton6Game.id}_stretch_1`] = {
-        _META_TEAM_A: stockton6TeamA,
-        _META_TEAM_B: stockton6TeamB,
-        _META_UNIT_VALUE: stockton6UnitValue,
-        _META_DOT_VALUE: stockton6DotValue,
-        _META_LOCKED: true,
+      initialGameData[stockton6Game.id] = {
+        1: {  // Hole 1 is the stretch start hole
+          _META_TEAM_A: stockton6TeamA,
+          _META_TEAM_B: stockton6TeamB,
+          _META_UNIT_VALUE: stockton6UnitValue,
+          _META_DOT_VALUE: stockton6DotValue,
+          _META_LOCKED: true,
+        }
       };
     }
 
     if (sixesGame && sixesTeamA.length === 2 && sixesTeamB.length === 2) {
-      initialGameData[`${sixesGame.id}_stretch_1`] = {
-        _META_TEAM_A: sixesTeamA,
-        _META_TEAM_B: sixesTeamB,
-        _META_UNIT_VALUE: sixesUnitValue,
-        _META_USE_HANDICAPS: sixesUseHandicaps,
-        _META_USE_SECOND_BALL: sixesUseSecondBall,
-        _META_LOCKED: true,
+      initialGameData[sixesGame.id] = {
+        1: {  // Hole 1 is the stretch start hole
+          _META_TEAM_A: sixesTeamA,
+          _META_TEAM_B: sixesTeamB,
+          _META_UNIT_VALUE: sixesUnitValue,
+          _META_USE_HANDICAPS: sixesUseHandicaps,
+          _META_USE_SECOND_BALL: sixesUseSecondBall,
+          _META_LOCKED: true,
+        }
       };
     }
 
