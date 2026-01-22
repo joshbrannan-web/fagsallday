@@ -1473,8 +1473,8 @@ const SetupWizard: React.FC = () => {
 
                     {selectedGame && (
                       <div className="ml-4 p-4 bg-muted rounded-xl space-y-3 animate-fade-in">
-                        {/* FBO uses $5 increments, others use $1 */}
-                        {game.type === GameType.FBO ? (
+                        {/* FBO and 6's use $5 increments, others use $1 */}
+                        {(game.type === GameType.FBO || game.type === GameType.SIXES) ? (
                           <div className="flex items-center justify-between">
                             <Label>Bet Amount (per segment)</Label>
                             <div className="flex items-center gap-2">
