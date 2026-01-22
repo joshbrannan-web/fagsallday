@@ -34,7 +34,7 @@ const SixesStretchSummary: React.FC<SixesStretchSummaryProps> = ({ round, game, 
   if (teamAWins > teamBWins) winnerTeam = 'A';
   else if (teamBWins > teamAWins) winnerTeam = 'B';
   
-  const winAmount = unitValue * 2; // Each winner gets $unitValue from each opponent
+  const winAmount = unitValue; // Each winner wins the bet amount per stretch
 
   return (
     <div className="bg-card rounded-xl border border-border p-4 space-y-4">
