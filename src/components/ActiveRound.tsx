@@ -4,14 +4,14 @@ import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
-import { GameType, GameSettings, WolfHoleData, FBOPressState } from '../types';
+import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
 import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores, getFBODormieStatus, hasExistingFBOPress } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
 import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRelativeStrokes } from '../services/stockton6Engine';
 import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
-import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole } from '../services/sixesEngine';
+import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses } from '../services/sixesEngine';
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
@@ -407,6 +407,33 @@ const ActiveRound: React.FC = () => {
     });
   };
 
+  // 6's Press handler
+  const handleSixesPress = (gameId: string, teamDormie: 'A' | 'B') => {
+    const sixesGame = currentRound.games.find(g => g.id === gameId);
+    if (!sixesGame) return;
+    
+    const stretch = getSixesStretchForHole(activeHole);
+    const stretchStartHole = (stretch - 1) * 6 + 1;
+    const sixesData = currentRound.gameData?.[gameId]?.[stretchStartHole] || {};
+    const existingPresses: SixesPressState[] = sixesData._META_PRESSES || [];
+    const unitValue = sixesData._META_UNIT_VALUE || sixesGame.unitStake;
+    
+    const newPress: SixesPressState = {
+      triggeredBy: '', // Could track which player clicked
+      teamDormie,
+      stretch,
+      startHole: activeHole,
+      unitValue,
+      settled: false
+    };
+    
+    updateGameData(gameId, stretchStartHole, '_META_PRESSES', [...existingPresses, newPress]);
+    
+    import('sonner').then(({ toast }) => {
+      toast.success(`Team ${teamDormie} pressed! $${unitValue} side bet active.`);
+    });
+  };
+
   const getFboDotsForPlayer = (gameId: string, playerId: string): number => {
     const fboData = currentRound.gameData?.[gameId] || {};
     let total = 0;
@@ -566,8 +593,9 @@ const ActiveRound: React.FC = () => {
               existingUnitValue={stretch1Settings?.unitValue ?? sixesGame.unitStake}
               existingUseHandicaps={stretch1Settings?.useHandicaps ?? sixesGame.config?.useHandicaps ?? true}
               existingUseSecondBall={stretch1Settings?.useSecondBallTiebreaker ?? sixesGame.config?.sixes?.useSecondBallTiebreaker ?? false}
+              existingAllowPresses={stretch1Settings?.allowPresses ?? sixesGame.config?.sixes?.allowPresses ?? false}
               previousStretchTeams={previousStretchTeams}
-              onConfirm={(teamA, teamB, unitValue, useHandicaps, useSecondBall) => {
+              onConfirm={(teamA, teamB, unitValue, useHandicaps, useSecondBall, allowPresses) => {
                 const stretchStartHole = stretch === 1 ? 1 : stretch === 2 ? 7 : 13;
                 updateGameDataBatch(sixesGame.id, stretchStartHole, {
                   _META_TEAM_A: teamA,
@@ -575,6 +603,7 @@ const ActiveRound: React.FC = () => {
                   _META_UNIT_VALUE: unitValue,
                   _META_USE_HANDICAPS: useHandicaps,
                   _META_USE_SECOND_BALL: useSecondBall,
+                  _META_ALLOW_PRESSES: allowPresses,
                   _META_HANDICAP_MODE: stretch1Settings?.handicapMode ?? sixesGame.config?.handicapMode ?? 'absolute',
                   _META_LOCKED: true
                 });
@@ -605,6 +634,7 @@ const ActiveRound: React.FC = () => {
             round={currentRound}
             game={sixesGame}
             activeHole={activeHole}
+            onTriggerPress={(teamDormie) => handleSixesPress(sixesGame.id, teamDormie)}
           />
         )}
 

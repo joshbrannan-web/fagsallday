@@ -4,9 +4,9 @@ import { useApp } from '../App';
 import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo } from '../services/stockton6Engine';
-import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole } from '../services/sixesEngine';
+import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, SIXES_STRETCH_HOLES } from '../services/sixesEngine';
 import { Button } from '@/components/ui/button';
-import { GameType, GameSettings, Player, HoleScores, GameData, Hole, WolfHoleData, FBOPressState } from '../types';
+import { GameType, GameSettings, Player, HoleScores, GameData, Hole, WolfHoleData, FBOPressState, SixesPressState } from '../types';
 
 // FBO Segment Results Component
 interface FBOSegmentResultsProps {
@@ -808,6 +808,83 @@ const Scorecard: React.FC = () => {
                     );
                   })}
                 </tr>
+
+                {/* 6's Presses Row */}
+                {(() => {
+                  const stretch = viewMode === 'FRONT' ? 1 : 2;
+                  const presses = getSixesPresses(currentRound.gameData, sixesGame.id, stretch);
+                  const stretchEndHole = stretch * 6;
+                  
+                  if (presses.length === 0) return null;
+                  
+                  // Calculate press results
+                  const pressResults = presses.map(press => {
+                    const assignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+                    if (!assignment) return { press, result: null };
+                    
+                    let teamAWins = 0;
+                    let teamBWins = 0;
+                    let holesComplete = 0;
+                    
+                    for (let h = press.startHole; h <= stretchEndHole; h++) {
+                      const result = getSixesHoleResultForHole(h);
+                      if (result === null) continue;
+                      holesComplete++;
+                      if (result === 'A') teamAWins++;
+                      else if (result === 'B') teamBWins++;
+                    }
+                    
+                    const totalPressHoles = stretchEndHole - press.startHole + 1;
+                    const isComplete = holesComplete >= totalPressHoles;
+                    
+                    let winner: 'A' | 'B' | 'PUSH' | null = null;
+                    if (isComplete) {
+                      winner = teamAWins > teamBWins ? 'A' : teamBWins > teamAWins ? 'B' : 'PUSH';
+                    }
+                    
+                    return { press, result: { teamAWins, teamBWins, isComplete, winner } };
+                  });
+                  
+                  return (
+                    <tr className="bg-amber-500/5">
+                      <td className="p-3 text-left font-semibold sticky left-0 bg-amber-500/5 border-r border-border z-10 text-amber-600">
+                        <div className="flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span className="text-xs">Presses</span>
+                        </div>
+                      </td>
+                      {activeHoles.map(h => {
+                        const pressOnHole = pressResults.find(pr => pr.press.startHole === h.number);
+                        if (!pressOnHole) return <td key={h.number} className="p-2 border-r border-border/50">-</td>;
+                        
+                        return (
+                          <td key={h.number} className="p-2 border-r border-border/50">
+                            <span className="inline-flex items-center justify-center px-1.5 py-0.5 bg-amber-500/20 border border-amber-500 rounded text-xs font-bold text-amber-600">
+                              {pressOnHole.press.teamDormie}
+                            </span>
+                          </td>
+                        );
+                      })}
+                      <td className="p-2 border-l border-border">
+                        <div className="flex flex-col items-center gap-0.5">
+                          {pressResults.map((pr, idx) => (
+                            <div key={idx} className="text-xs">
+                              {!pr.result?.isComplete ? (
+                                <span className="text-amber-500">#{pr.press.startHole}</span>
+                              ) : pr.result.winner === 'PUSH' ? (
+                                <span className="text-muted-foreground">Push</span>
+                              ) : (
+                                <span className={pr.result.winner === 'A' ? 'text-primary font-bold' : 'text-destructive font-bold'}>
+                                  {pr.result.winner} ({pr.result.teamAWins}-{pr.result.teamBWins})
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })()}
               </tbody>
             </table>
           </div>

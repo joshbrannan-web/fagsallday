@@ -13,8 +13,9 @@ interface SixesTeamSetupProps {
   existingUnitValue?: number;
   existingUseHandicaps?: boolean;
   existingUseSecondBall?: boolean;
+  existingAllowPresses?: boolean;
   previousStretchTeams?: { teamA: string[]; teamB: string[] }[];
-  onConfirm: (teamA: string[], teamB: string[], unitValue: number, useHandicaps: boolean, useSecondBall: boolean) => void;
+  onConfirm: (teamA: string[], teamB: string[], unitValue: number, useHandicaps: boolean, useSecondBall: boolean, allowPresses: boolean) => void;
   onCancel: () => void;
 }
 
@@ -26,6 +27,7 @@ const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
   existingUnitValue = 10,
   existingUseHandicaps = true,
   existingUseSecondBall = false,
+  existingAllowPresses = false,
   previousStretchTeams = [],
   onConfirm,
   onCancel
@@ -35,6 +37,7 @@ const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
   const [unitValue, setUnitValue] = useState(existingUnitValue);
   const [useHandicaps, setUseHandicaps] = useState(existingUseHandicaps);
   const [useSecondBall, setUseSecondBall] = useState(existingUseSecondBall);
+  const [allowPresses, setAllowPresses] = useState(existingAllowPresses);
 
   // Generate rotated teams ensuring no two players are on the same team twice
   const getRotatedTeams = (
@@ -285,6 +288,18 @@ const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
                 onCheckedChange={setUseSecondBall}
               />
             </div>
+
+            {/* Allow Presses */}
+            <div className="flex items-center justify-between pt-2 border-t border-border/50">
+              <div>
+                <Label className="text-sm font-medium">Allow Presses</Label>
+                <p className="text-xs text-muted-foreground">Double-or-nothing when behind</p>
+              </div>
+              <Switch
+                checked={allowPresses}
+                onCheckedChange={setAllowPresses}
+              />
+            </div>
           </div>
         </div>
       ) : (
@@ -306,6 +321,11 @@ const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
                   2nd Ball Tiebreaker
                 </span>
               )}
+              {allowPresses && (
+                <span className="bg-background px-3 py-1 rounded-full text-xs font-medium">
+                  Presses: On
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -321,7 +341,7 @@ const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
           Cancel
         </Button>
         <Button
-          onClick={() => onConfirm(teamA, teamB, unitValue, useHandicaps, useSecondBall)}
+          onClick={() => onConfirm(teamA, teamB, unitValue, useHandicaps, useSecondBall, allowPresses)}
           disabled={!canConfirm}
           className="flex-1 gap-2"
         >
