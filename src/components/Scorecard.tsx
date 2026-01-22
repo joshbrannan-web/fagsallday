@@ -4,6 +4,7 @@ import { useApp } from '../App';
 import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus } from 'lucide-react';
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo } from '../services/stockton6Engine';
+import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole } from '../services/sixesEngine';
 import { Button } from '@/components/ui/button';
 import { GameType, GameSettings, Player, HoleScores, GameData, Hole, WolfHoleData } from '../types';
 
@@ -215,6 +216,9 @@ const Scorecard: React.FC = () => {
   // Find Nine Points game
   const ninePointsGame = currentRound.games.find(g => g.type === GameType.NINE_POINTS);
   
+  // Find 6's game
+  const sixesGame = currentRound.games.find(g => g.type === GameType.SIXES);
+  
   // Wolf data helper
   const getWolfDataForHole = (holeNum: number): WolfHoleData | null => {
     if (!wolfGame) return null;
@@ -279,6 +283,29 @@ const Scorecard: React.FC = () => {
       oneBall: pressInfo.oneBall.front || pressInfo.oneBall.back,
       twoBall: pressInfo.twoBall.front || pressInfo.twoBall.back
     };
+  };
+
+  // 6's hole result helper
+  const getSixesHoleResultForHole = (holeNum: number): 'A' | 'B' | 'TIE' | null => {
+    if (!sixesGame) return null;
+    const stretch = getSixesStretchForHole(holeNum);
+    const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+    if (!teamAssignment) return null;
+    
+    return calculateSixesHoleResult(
+      currentRound, 
+      holeNum, 
+      teamAssignment.teamA, 
+      teamAssignment.teamB, 
+      teamAssignment.useHandicaps, 
+      teamAssignment.useSecondBallTiebreaker
+    );
+  };
+
+  // Get stretch result for 6's
+  const getSixesStretchData = (stretch: 1 | 2 | 3) => {
+    if (!sixesGame) return null;
+    return calculateSixesStretchResult(currentRound, sixesGame, stretch);
   };
 
 
@@ -563,6 +590,131 @@ const Scorecard: React.FC = () => {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 6's Match Play Section */}
+        {sixesGame && (
+          <div className="mt-4 inline-block min-w-full bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
+            <div className="bg-primary/10 px-4 py-2 border-b border-primary/20">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⚔️</span>
+                <h3 className="font-bold text-foreground">6's Match Play</h3>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  ${sixesGame.unitStake} per stretch
+                </span>
+              </div>
+            </div>
+            <table className="w-full text-center border-collapse text-sm">
+              <thead>
+                <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
+                  <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Hole</th>
+                  {activeHoles.map(h => (
+                    <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
+                      {h.number}
+                    </th>
+                  ))}
+                  <th className="p-2 min-w-[70px] bg-muted">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Winner Row - shows which team won each hole */}
+                <tr className="bg-card">
+                  <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
+                    Winner
+                  </td>
+                  {activeHoles.map(h => {
+                    const result = getSixesHoleResultForHole(h.number);
+                    return (
+                      <td key={h.number} className="p-2 border-r border-border/50">
+                        {result === 'A' ? (
+                          <span className="inline-flex items-center justify-center w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold">
+                            A
+                          </span>
+                        ) : result === 'B' ? (
+                          <span className="inline-flex items-center justify-center w-6 h-6 bg-destructive text-destructive-foreground rounded-full text-xs font-bold">
+                            B
+                          </span>
+                        ) : result === 'TIE' ? (
+                          <span className="inline-flex items-center justify-center w-6 h-6 bg-muted text-muted-foreground rounded-full text-xs font-bold">
+                            T
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/30">-</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="p-2 font-bold">
+                    {/* Show stretch result for current view */}
+                    {(() => {
+                      const stretch = viewMode === 'FRONT' ? 1 : 2;
+                      const result = getSixesStretchData(stretch);
+                      if (!result) return '-';
+                      return `${result.teamAWins}-${result.teamBWins}`;
+                    })()}
+                  </td>
+                </tr>
+                
+                {/* Team A Row - shows team members */}
+                <tr className="bg-primary/5">
+                  <td className="p-3 text-left font-semibold sticky left-0 bg-primary/5 border-r border-border z-10 text-primary">
+                    Team A
+                  </td>
+                  {activeHoles.map(h => {
+                    const stretch = getSixesStretchForHole(h.number);
+                    const assignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+                    if (!assignment) return <td key={h.number} className="p-2 border-r border-border/50">-</td>;
+                    
+                    const teamANames = assignment.teamA
+                      .map(pid => currentRound.players.find(p => p.id === pid)?.name?.charAt(0) || '?')
+                      .join('/');
+                    
+                    return (
+                      <td key={h.number} className="p-2 border-r border-border/50 text-xs text-primary">
+                        {teamANames}
+                      </td>
+                    );
+                  })}
+                  <td className="p-2 font-bold text-primary">
+                    {(() => {
+                      const stretch = viewMode === 'FRONT' ? 1 : 2;
+                      const result = getSixesStretchData(stretch);
+                      return result?.teamAWins ?? '-';
+                    })()}
+                  </td>
+                </tr>
+                
+                {/* Team B Row - shows team members */}
+                <tr className="bg-destructive/5">
+                  <td className="p-3 text-left font-semibold sticky left-0 bg-destructive/5 border-r border-border z-10 text-destructive">
+                    Team B
+                  </td>
+                  {activeHoles.map(h => {
+                    const stretch = getSixesStretchForHole(h.number);
+                    const assignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+                    if (!assignment) return <td key={h.number} className="p-2 border-r border-border/50">-</td>;
+                    
+                    const teamBNames = assignment.teamB
+                      .map(pid => currentRound.players.find(p => p.id === pid)?.name?.charAt(0) || '?')
+                      .join('/');
+                    
+                    return (
+                      <td key={h.number} className="p-2 border-r border-border/50 text-xs text-destructive">
+                        {teamBNames}
+                      </td>
+                    );
+                  })}
+                  <td className="p-2 font-bold text-destructive">
+                    {(() => {
+                      const stretch = viewMode === 'FRONT' ? 1 : 2;
+                      const result = getSixesStretchData(stretch);
+                      return result?.teamBWins ?? '-';
+                    })()}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
