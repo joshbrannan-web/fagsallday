@@ -267,35 +267,6 @@ const AdminActiveRound: React.FC = () => {
           );
         })}
 
-        {/* FBO Dots Display */}
-        {fboGames.map(game => {
-          const fboPlayerIds = game.config.fboPlayers || currentRound.players.map(p => p.id);
-          const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
-          const currentDots: string[] = currentRound.gameData?.[game.id]?.[activeHole]?.dots || [];
-
-          if (currentDots.length === 0) return null;
-
-          return (
-            <div key={game.id} className="bg-card rounded-xl border border-primary/50 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-foreground flex items-center gap-2">
-                  <span className="bg-primary text-primary-foreground p-1 rounded">🎱</span> FBO Dots Awarded
-                </h3>
-                <div className="text-xs font-medium text-muted-foreground">
-                  Hole {activeHole} {activeHole <= 9 ? '(Front 9)' : '(Back 9)'}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {fboPlayers.filter(p => currentDots.includes(p.id)).map(p => (
-                  <div key={p.id} className="flex items-center gap-2 bg-primary/10 border border-primary px-3 py-1.5 rounded-lg">
-                    <Check className="w-4 h-4 text-primary" />
-                    <span className="font-medium text-sm">{p.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
 
         {/* Stockton 6's Dots Display */}
         {stockton6Game && stockton6Dots && Object.values(stockton6Dots).some(d => d.birdie || d.greenie || d.dotMultiplier) && (
