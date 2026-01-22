@@ -1627,51 +1627,61 @@ const SetupWizard: React.FC = () => {
                             </div>
 
                             {selectedGame.config.useHandicaps && (
-                              <div className="space-y-2 animate-fade-in">
-                                <Label className="text-sm font-medium">Handicap Mode</Label>
-                                <RadioGroup
-                                  value={selectedGame.config.handicapMode || 'relative'}
-                                  onValueChange={(value: 'absolute' | 'relative') => {
-                                    setSelectedGames(
-                                      selectedGames.map((g) =>
-                                        g.id === selectedGame.id
-                                          ? { ...g, config: { ...g.config, handicapMode: value } }
-                                          : g,
-                                      ),
-                                    );
-                                  }}
-                                  className="space-y-2"
-                                >
-                                  <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
-                                    <RadioGroupItem value="absolute" id={`handicap-absolute-${selectedGame.id}`} className="mt-1" />
-                                    <div className="flex-1">
-                                      <Label
-                                        htmlFor={`handicap-absolute-${selectedGame.id}`}
-                                        className="font-medium cursor-pointer"
-                                      >
-                                        All Players Get Strokes
-                                      </Label>
-                                      <p className="text-xs text-muted-foreground">
-                                        Each player's strokes calculated independently based on course handicap. If all players would get a stroke on a hole, no one does.
-                                      </p>
+                              game.type === GameType.FBO ? (
+                                // FBO is locked to Absolute mode - show static indicator
+                                <div className="p-2 rounded-lg bg-background/50 animate-fade-in">
+                                  <span className="text-sm font-medium">Mode: Absolute</span>
+                                  <p className="text-xs text-muted-foreground">
+                                    Each player's strokes calculated independently. If all players get a stroke, none do.
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="space-y-2 animate-fade-in">
+                                  <Label className="text-sm font-medium">Handicap Mode</Label>
+                                  <RadioGroup
+                                    value={selectedGame.config.handicapMode || 'relative'}
+                                    onValueChange={(value: 'absolute' | 'relative') => {
+                                      setSelectedGames(
+                                        selectedGames.map((g) =>
+                                          g.id === selectedGame.id
+                                            ? { ...g, config: { ...g.config, handicapMode: value } }
+                                            : g,
+                                        ),
+                                      );
+                                    }}
+                                    className="space-y-2"
+                                  >
+                                    <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                                      <RadioGroupItem value="absolute" id={`handicap-absolute-${selectedGame.id}`} className="mt-1" />
+                                      <div className="flex-1">
+                                        <Label
+                                          htmlFor={`handicap-absolute-${selectedGame.id}`}
+                                          className="font-medium cursor-pointer"
+                                        >
+                                          All Players Get Strokes
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                          Each player's strokes calculated independently based on course handicap. If all players would get a stroke on a hole, no one does.
+                                        </p>
+                                      </div>
                                     </div>
-                                  </div>
-                                  <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
-                                    <RadioGroupItem value="relative" id={`handicap-relative-${selectedGame.id}`} className="mt-1" />
-                                    <div className="flex-1">
-                                      <Label
-                                        htmlFor={`handicap-relative-${selectedGame.id}`}
-                                        className="font-medium cursor-pointer"
-                                      >
-                                        Lowest Handicap = 0
-                                      </Label>
-                                      <p className="text-xs text-muted-foreground">
-                                        Strokes based on handicap differential from the lowest handicap player (or banker in Banker games).
-                                      </p>
+                                    <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                                      <RadioGroupItem value="relative" id={`handicap-relative-${selectedGame.id}`} className="mt-1" />
+                                      <div className="flex-1">
+                                        <Label
+                                          htmlFor={`handicap-relative-${selectedGame.id}`}
+                                          className="font-medium cursor-pointer"
+                                        >
+                                          Lowest Handicap = 0
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                          Strokes based on handicap differential from the lowest handicap player (or banker in Banker games).
+                                        </p>
+                                      </div>
                                     </div>
-                                  </div>
-                                </RadioGroup>
-                              </div>
+                                  </RadioGroup>
+                                </div>
+                              )
                             )}
                           </div>
                         )}

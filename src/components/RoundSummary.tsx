@@ -15,8 +15,13 @@ const getGameConfigDetails = (game: GameSettings): string[] => {
   // Handicap settings (most games)
   if (config.useHandicaps !== undefined) {
     details.push(config.useHandicaps ? 'Handicaps: On' : 'Handicaps: Off');
-    if (config.useHandicaps && config.handicapMode) {
-      details.push(`Mode: ${config.handicapMode === 'absolute' ? 'Absolute' : 'Relative'}`);
+    if (config.useHandicaps) {
+      // FBO is always Absolute mode (hardcoded in engine)
+      if (type === GameType.FBO) {
+        details.push('Mode: Absolute');
+      } else if (config.handicapMode) {
+        details.push(`Mode: ${config.handicapMode === 'absolute' ? 'Absolute' : 'Relative'}`);
+      }
     }
   }
   
