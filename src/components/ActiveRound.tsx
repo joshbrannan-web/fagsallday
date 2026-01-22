@@ -513,6 +513,11 @@ const ActiveRound: React.FC = () => {
       {sixesGame && sixesNeedsSetup && (() => {
         const stretch = getSixesStretchForHole(activeHole) as 1 | 2 | 3;
         
+        // Get Stretch 1 settings to carry forward to subsequent stretches
+        const stretch1Settings = stretch > 1 
+          ? getSixesTeamAssignment(currentRound.gameData, sixesGame.id, 1)
+          : null;
+        
         // Gather previous stretch teams for auto-rotation
         const previousStretchTeams: { teamA: string[]; teamB: string[] }[] = [];
         if (stretch >= 2) {
@@ -533,9 +538,9 @@ const ActiveRound: React.FC = () => {
             <SixesTeamSetup
               players={currentRound.players}
               stretch={stretch}
-              existingUnitValue={sixesGame.unitStake}
-              existingUseHandicaps={sixesGame.config?.useHandicaps ?? true}
-              existingUseSecondBall={sixesGame.config?.sixes?.useSecondBallTiebreaker ?? false}
+              existingUnitValue={stretch1Settings?.unitValue ?? sixesGame.unitStake}
+              existingUseHandicaps={stretch1Settings?.useHandicaps ?? sixesGame.config?.useHandicaps ?? true}
+              existingUseSecondBall={stretch1Settings?.useSecondBallTiebreaker ?? sixesGame.config?.sixes?.useSecondBallTiebreaker ?? false}
               previousStretchTeams={previousStretchTeams}
               onConfirm={(teamA, teamB, unitValue, useHandicaps, useSecondBall) => {
                 const stretchStartHole = stretch === 1 ? 1 : stretch === 2 ? 7 : 13;
@@ -545,7 +550,7 @@ const ActiveRound: React.FC = () => {
                   _META_UNIT_VALUE: unitValue,
                   _META_USE_HANDICAPS: useHandicaps,
                   _META_USE_SECOND_BALL: useSecondBall,
-                  _META_HANDICAP_MODE: sixesGame.config?.handicapMode ?? 'absolute',
+                  _META_HANDICAP_MODE: stretch1Settings?.handicapMode ?? sixesGame.config?.handicapMode ?? 'absolute',
                   _META_LOCKED: true
                 });
               }}
