@@ -152,7 +152,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 10,
     minPlayers: 4,
     maxPlayers: 4,
-    config: { useHandicaps: true, handicapMode: 'relative', sixes: { useSecondBallTiebreaker: false } },
+    config: { useHandicaps: true, handicapMode: 'absolute', sixes: { useSecondBallTiebreaker: false } },
   },
 ];
 
@@ -1659,7 +1659,7 @@ const SetupWizard: React.FC = () => {
                                 <div className="space-y-2 animate-fade-in">
                                   <Label className="text-sm font-medium">Handicap Mode</Label>
                                   <RadioGroup
-                                    value={selectedGame.config.handicapMode || 'relative'}
+                                    value={selectedGame.config.handicapMode || 'absolute'}
                                     onValueChange={(value: 'absolute' | 'relative') => {
                                       setSelectedGames(
                                         selectedGames.map((g) =>

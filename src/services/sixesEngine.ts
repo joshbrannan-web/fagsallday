@@ -42,7 +42,7 @@ export const getSixesTeamAssignment = (
     unitValue: data._META_UNIT_VALUE ?? 10,
     useHandicaps: data._META_USE_HANDICAPS ?? true,
     useSecondBallTiebreaker: data._META_USE_SECOND_BALL ?? false,
-    handicapMode: data._META_HANDICAP_MODE ?? 'relative',
+    handicapMode: data._META_HANDICAP_MODE ?? 'absolute',
     allowPresses: data._META_ALLOW_PRESSES ?? false,
     locked: data._META_LOCKED ?? false,
   };
@@ -119,7 +119,7 @@ export const hasExistingSixesPress = (
 export const calculateSixesStrokes = (
   players: Player[],
   holeHandicapIndex: number,
-  handicapMode: 'absolute' | 'relative' = 'relative'
+  handicapMode: 'absolute' | 'relative' = 'absolute'
 ): { [playerId: string]: number } => {
   const strokes: { [playerId: string]: number } = {};
   
@@ -168,7 +168,7 @@ export const calculateSixesHoleResult = (
   teamB: string[],
   useHandicaps: boolean,
   useSecondBallTiebreaker: boolean,
-  handicapMode: 'absolute' | 'relative' = 'relative'
+  handicapMode: 'absolute' | 'relative' = 'absolute'
 ): 'A' | 'B' | 'TIE' | null => {
   const holeData = round.course.holes.find(h => h.number === hole);
   const holeScores = round.scores[hole];
