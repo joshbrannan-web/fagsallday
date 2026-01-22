@@ -235,58 +235,81 @@ const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
         </div>
       )}
 
-      {/* Bet Configuration */}
-      <div className="space-y-3 pt-2 border-t border-border">
-        {/* Bet Amount */}
-        <div className="bg-muted rounded-xl p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-foreground">Bet Amount (per player)</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setUnitValue(v => Math.max(5, v - 5))}
-                className="bg-card border border-border w-10 h-8 rounded-lg text-sm font-bold"
-              >
-                -$5
-              </button>
-              <span className="text-xl font-bold text-foreground min-w-[60px] text-center">${unitValue}</span>
-              <button
-                onClick={() => setUnitValue(v => v + 5)}
-                className="bg-card border border-border w-10 h-8 rounded-lg text-sm font-bold"
-              >
-                +$5
-              </button>
+      {/* Bet Configuration - Only editable on Stretch 1 */}
+      {stretch === 1 ? (
+        <div className="space-y-3 pt-2 border-t border-border">
+          {/* Bet Amount */}
+          <div className="bg-muted rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">Bet Amount (per player)</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setUnitValue(v => Math.max(5, v - 5))}
+                  className="bg-card border border-border w-10 h-8 rounded-lg text-sm font-bold"
+                >
+                  -$5
+                </button>
+                <span className="text-xl font-bold text-foreground min-w-[60px] text-center">${unitValue}</span>
+                <button
+                  onClick={() => setUnitValue(v => v + 5)}
+                  className="bg-card border border-border w-10 h-8 rounded-lg text-sm font-bold"
+                >
+                  +$5
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Handicap Toggle */}
-        <div className="bg-muted rounded-xl p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label className="text-sm font-medium">Use Handicaps</Label>
-              <p className="text-xs text-muted-foreground">Apply strokes based on player handicaps</p>
+          {/* Options */}
+          <div className="bg-muted rounded-xl p-3 space-y-3">
+            {/* Use Handicaps */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-medium">Use Handicaps</Label>
+                <p className="text-xs text-muted-foreground">Apply strokes based on player handicaps</p>
+              </div>
+              <Switch
+                checked={useHandicaps}
+                onCheckedChange={setUseHandicaps}
+              />
             </div>
-            <Switch
-              checked={useHandicaps}
-              onCheckedChange={setUseHandicaps}
-            />
-          </div>
-        </div>
 
-        {/* 2nd Ball Tiebreaker Toggle */}
-        <div className="bg-muted rounded-xl p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label className="text-sm font-medium">2nd Ball Tiebreaker</Label>
-              <p className="text-xs text-muted-foreground">Use 2nd ball if 1st balls tie</p>
+            {/* 2nd Ball Tiebreaker */}
+            <div className="flex items-center justify-between pt-2 border-t border-border/50">
+              <div>
+                <Label className="text-sm font-medium">2nd Ball Tiebreaker</Label>
+                <p className="text-xs text-muted-foreground">Use 2nd ball if 1st balls tie</p>
+              </div>
+              <Switch
+                checked={useSecondBall}
+                onCheckedChange={setUseSecondBall}
+              />
             </div>
-            <Switch
-              checked={useSecondBall}
-              onCheckedChange={setUseSecondBall}
-            />
           </div>
         </div>
-      </div>
+      ) : (
+        // Stretch 2 or 3: Show read-only settings summary
+        <div className="pt-2 border-t border-border">
+          <div className="bg-muted/50 rounded-xl p-3">
+            <div className="text-center mb-2">
+              <span className="text-xs font-bold text-muted-foreground uppercase">Game Settings</span>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <span className="bg-background px-3 py-1 rounded-full text-xs font-medium">
+                ${unitValue}/player
+              </span>
+              <span className="bg-background px-3 py-1 rounded-full text-xs font-medium">
+                {useHandicaps ? 'Handicaps: On' : 'Handicaps: Off'}
+              </span>
+              {useSecondBall && (
+                <span className="bg-background px-3 py-1 rounded-full text-xs font-medium">
+                  2nd Ball Tiebreaker
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex gap-2 pt-2">
