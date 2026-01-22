@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
-const getGameConfigDetails = (game: GameSettings): string[] => {
+const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>): string[] => {
   const details: string[] = [];
   const { config, type } = game;
   
@@ -50,9 +50,31 @@ const getGameConfigDetails = (game: GameSettings): string[] => {
     details.push(`Dots: $${config.stockton6.dotValue}/dot`);
   }
   
-  // 6's second ball tiebreaker
-  if (type === GameType.SIXES && config.sixes?.useSecondBallTiebreaker !== undefined) {
-    details.push(config.sixes.useSecondBallTiebreaker ? '2nd Ball Tiebreaker: On' : '2nd Ball Tiebreaker: Off');
+  // 6's - read from gameData metadata for accurate values
+  if (type === GameType.SIXES) {
+    // Read from Stretch 1 metadata (hole 1) where settings are stored
+    const sixesData = gameData?.[game.id]?.[1];
+    
+    if (sixesData) {
+      // Use Handicaps
+      const useHandicaps = sixesData._META_USE_HANDICAPS ?? config.useHandicaps ?? true;
+      details.push(useHandicaps ? 'Handicaps: On' : 'Handicaps: Off');
+      
+      if (useHandicaps) {
+        const handicapMode = sixesData._META_HANDICAP_MODE ?? config.handicapMode ?? 'relative';
+        details.push(`Mode: ${handicapMode === 'absolute' ? 'Absolute' : 'Relative'}`);
+      }
+      
+      // 2nd Ball Tiebreaker
+      const useSecondBall = sixesData._META_USE_SECOND_BALL ?? false;
+      details.push(useSecondBall ? '2nd Ball Tiebreaker: On' : '2nd Ball Tiebreaker: Off');
+      
+      // Allow Presses
+      const allowPresses = sixesData._META_ALLOW_PRESSES ?? false;
+      if (allowPresses) {
+        details.push('Presses: On');
+      }
+    }
   }
   
   // Wolf tees first/last
@@ -249,7 +271,7 @@ const RoundSummary: React.FC = () => {
           <h2 className="text-lg font-bold">Games Played</h2>
           <div className="space-y-3">
             {currentRound.games.map(game => {
-              const configDetails = getGameConfigDetails(game);
+              const configDetails = getGameConfigDetails(game, currentRound?.gameData);
               
               return (
                 <div key={game.id} className="bg-card rounded-xl border border-border p-4">
