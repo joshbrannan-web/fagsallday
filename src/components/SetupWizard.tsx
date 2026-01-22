@@ -152,7 +152,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 10,
     minPlayers: 4,
     maxPlayers: 4,
-    config: { useHandicaps: true, handicapMode: 'absolute', sixes: { useSecondBallTiebreaker: false } },
+    config: { useHandicaps: true, handicapMode: 'relative', sixes: { useSecondBallTiebreaker: false } },
   },
 ];
 
