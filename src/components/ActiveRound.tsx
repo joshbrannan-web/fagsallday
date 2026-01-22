@@ -388,7 +388,7 @@ const ActiveRound: React.FC = () => {
     if (!fboGame) return;
     
     const newPress: FBOPressState = {
-      playerId,
+      playerId: String(playerId), // Ensure playerId is stored as string
       segment,
       startHole: activeHole,
       unitValue: fboGame.unitStake,
@@ -438,8 +438,9 @@ const ActiveRound: React.FC = () => {
     const fboData = currentRound.gameData?.[gameId] || {};
     let total = 0;
     for (let h = 1; h <= currentRound.course.holes.length; h++) {
-      const holeDots: string[] = fboData[h]?.dots || [];
-      if (holeDots.includes(playerId)) total++;
+      const holeDots: (string | number)[] = fboData[h]?.dots || [];
+      // Normalize to strings for comparison
+      if (holeDots.map(id => String(id)).includes(String(playerId))) total++;
     }
     return total;
   };

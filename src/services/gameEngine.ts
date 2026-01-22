@@ -35,8 +35,9 @@ export const calculateFBOHoleWinners = (
   game: GameSettings,
   holeNumber: number
 ): string[] => {
-  const fboPlayerIds = game.config.fboPlayers || round.players.map(p => p.id);
-  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(p.id));
+  // Normalize IDs to strings to handle DB JSON coercion
+  const fboPlayerIds = (game.config.fboPlayers || round.players.map(p => p.id)).map(id => String(id));
+  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
   const hole = round.course.holes.find(h => h.number === holeNumber);
   const holeScores = round.scores[holeNumber];
   
@@ -71,8 +72,9 @@ export const getFBOHoleNetScores = (
   game: GameSettings,
   holeNumber: number
 ): { playerId: string; gross: number; strokes: number; net: number }[] => {
-  const fboPlayerIds = game.config.fboPlayers || round.players.map(p => p.id);
-  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(p.id));
+  // Normalize IDs to strings to handle DB JSON coercion
+  const fboPlayerIds = (game.config.fboPlayers || round.players.map(p => p.id)).map(id => String(id));
+  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
   const hole = round.course.holes.find(h => h.number === holeNumber);
   const holeScores = round.scores[holeNumber];
   
@@ -685,9 +687,9 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
   const { players, course, scores } = round;
   const unit = game.unitStake;
   
-  // Get players participating in this FBO game
-  const fboPlayerIds = game.config.fboPlayers || players.map(p => p.id);
-  const fboPlayers = players.filter(p => fboPlayerIds.includes(p.id));
+  // Get players participating in this FBO game (normalize IDs to strings)
+  const fboPlayerIds = (game.config.fboPlayers || players.map(p => p.id)).map(id => String(id));
+  const fboPlayers = players.filter(p => fboPlayerIds.includes(String(p.id)));
   
   if (fboPlayers.length < 2) {
     return {
@@ -748,13 +750,14 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     holeResults[h] = {};
     fboPlayers.forEach(p => holeResults[h][p.id] = 0);
     
-    holeDots.forEach((playerId: string) => {
-      if (dotCounts.overall[playerId] !== undefined) {
-        dotCounts.overall[playerId]++;
+    holeDots.forEach((playerId: string | number) => {
+      const normalizedId = String(playerId);
+      if (dotCounts.overall[normalizedId] !== undefined) {
+        dotCounts.overall[normalizedId]++;
         if (h <= 9) {
-          dotCounts.front[playerId]++;
+          dotCounts.front[normalizedId]++;
         } else {
-          dotCounts.back[playerId]++;
+          dotCounts.back[normalizedId]++;
         }
       }
     });
@@ -862,9 +865,10 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       
       for (let h = press.startHole; h <= segmentEnd; h++) {
         const holeDots = fboData[h]?.dots || [];
-        holeDots.forEach((playerId: string) => {
-          if (pressDots[playerId] !== undefined) {
-            pressDots[playerId]++;
+        holeDots.forEach((playerId: string | number) => {
+          const normalizedId = String(playerId);
+          if (pressDots[normalizedId] !== undefined) {
+            pressDots[normalizedId]++;
           }
         });
       }
@@ -874,7 +878,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       const pressWinners = Object.entries(pressDots).filter(([_, dots]) => dots === maxPressDots);
       const pressLosers = Object.entries(pressDots).filter(([_, dots]) => dots < maxPressDots);
       
-      const pressingPlayer = fboPlayers.find(p => p.id === press.playerId);
+      const pressingPlayer = fboPlayers.find(p => p.id === String(press.playerId));
       
       if (pressWinners.length === 1 && maxPressDots > 0) {
         const winnerId = pressWinners[0][0];
