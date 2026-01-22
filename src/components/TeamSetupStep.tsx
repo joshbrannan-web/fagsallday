@@ -32,11 +32,11 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
   const [sixesTeamA, setSixesTeamA] = useState<string[]>([]);
   const [sixesTeamB, setSixesTeamB] = useState<string[]>([]);
   const [sixesUnitValue, setSixesUnitValue] = useState(sixesGame?.unitStake ?? 10);
-  const [sixesUseHandicaps, setSixesUseHandicaps] = useState(
-    sixesGame?.config?.useHandicaps ?? true
-  );
   const [sixesUseSecondBall, setSixesUseSecondBall] = useState(
     sixesGame?.config?.sixes?.useSecondBallTiebreaker ?? false
+  );
+  const [sixesAllowPresses, setSixesAllowPresses] = useState(
+    sixesGame?.config?.sixes?.allowPresses ?? false
   );
 
   // Auto-assign teams if 4 players
@@ -122,8 +122,9 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
           _META_TEAM_A: sixesTeamA,
           _META_TEAM_B: sixesTeamB,
           _META_UNIT_VALUE: sixesUnitValue,
-          _META_USE_HANDICAPS: sixesUseHandicaps,
+          _META_USE_HANDICAPS: sixesGame.config?.useHandicaps ?? true,
           _META_USE_SECOND_BALL: sixesUseSecondBall,
+          _META_ALLOW_PRESSES: sixesAllowPresses,
           _META_HANDICAP_MODE: sixesGame.config?.handicapMode ?? 'relative',
           _META_LOCKED: true,
         }
@@ -347,15 +348,6 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
           </div>
 
           <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-xl">
-            <Label htmlFor="sixes-handicaps" className="text-sm font-medium">Use Handicaps</Label>
-            <Switch
-              id="sixes-handicaps"
-              checked={sixesUseHandicaps}
-              onCheckedChange={setSixesUseHandicaps}
-            />
-          </div>
-
-          <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-xl">
             <div>
               <Label htmlFor="sixes-second-ball" className="text-sm font-medium">2nd Ball Tiebreaker</Label>
               <p className="text-xs text-muted-foreground">If 1st balls tie, 2nd lowest net wins</p>
@@ -364,6 +356,18 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
               id="sixes-second-ball"
               checked={sixesUseSecondBall}
               onCheckedChange={setSixesUseSecondBall}
+            />
+          </div>
+
+          <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-xl">
+            <div>
+              <Label htmlFor="sixes-allow-presses" className="text-sm font-medium">Allow Presses</Label>
+              <p className="text-xs text-muted-foreground">Double-or-nothing when behind</p>
+            </div>
+            <Switch
+              id="sixes-allow-presses"
+              checked={sixesAllowPresses}
+              onCheckedChange={setSixesAllowPresses}
             />
           </div>
         </div>
