@@ -60,9 +60,14 @@ const getGameConfigDetails = (game: GameSettings): string[] => {
     details.push(config.wolf.teesFirst ? 'Wolf Tees First' : 'Wolf Tees Last');
   }
   
-  // FBO players count
-  if (type === GameType.FBO && config.fboPlayers?.length) {
-    details.push(`${config.fboPlayers.length} players`);
+  // FBO players count and presses
+  if (type === GameType.FBO) {
+    if (config.fboPlayers?.length) {
+      details.push(`${config.fboPlayers.length} players`);
+    }
+    if (config.fbo?.allowPresses) {
+      details.push('Presses: On');
+    }
   }
   
   // Nine Points - no special config to show

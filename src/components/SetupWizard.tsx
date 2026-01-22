@@ -92,7 +92,7 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     defaultUnitStake: 10,
     minPlayers: 2,
     maxPlayers: 8,
-    config: { fboPlayers: [], useHandicaps: false },
+    config: { fboPlayers: [], useHandicaps: false, fbo: { allowPresses: false } },
   },
   {
     type: GameType.SKINS,
@@ -1589,6 +1589,26 @@ const SetupWizard: React.FC = () => {
                             {(selectedGame.config.fboPlayers?.length || 0) < 2 && (
                               <p className="text-xs text-destructive">Select at least 2 players</p>
                             )}
+                            
+                            {/* FBO Allow Presses Toggle */}
+                            <div className="flex items-center justify-between pt-2 border-t border-border/50 mt-2">
+                              <div>
+                                <Label className="text-sm font-medium">Allow Presses</Label>
+                                <p className="text-xs text-muted-foreground">Double-or-nothing when dormie</p>
+                              </div>
+                              <Switch
+                                checked={selectedGame.config.fbo?.allowPresses ?? false}
+                                onCheckedChange={(checked) => {
+                                  setSelectedGames(
+                                    selectedGames.map((g) =>
+                                      g.id === selectedGame.id
+                                        ? { ...g, config: { ...g.config, fbo: { ...g.config.fbo, allowPresses: checked } } }
+                                        : g,
+                                    ),
+                                  );
+                                }}
+                              />
+                            </div>
                           </div>
                         )}
 

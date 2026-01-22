@@ -91,6 +91,19 @@ export interface Stockton6StretchState {
   }[];
 }
 
+// FBO Press State (stored in gameData under _META_PRESSES)
+export interface FBOPressState {
+  playerId: string;        // Who triggered the press
+  segment: 'front' | 'back' | 'overall';
+  startHole: number;       // Hole where press was triggered
+  unitValue: number;       // Amount (same as base unit)
+  settled: boolean;        // Whether press has been settled
+  result?: {               // Only populated when settled
+    winnerId: string | null;  // null = push
+    amount: number;
+  };
+}
+
 export interface GameSettings {
   id: string;
   type: GameType;
@@ -105,6 +118,10 @@ export interface GameSettings {
     birdieMultiplier?: number; // For Banker: 1 = none, 3 = triple
     eagleMultiplier?: number; // For Banker: 1 = none, 3 = triple, 5 = quintuple
     fboPlayers?: string[]; // For FBO: player IDs participating in this game
+    // FBO game config
+    fbo?: {
+      allowPresses: boolean; // Enable/disable press option (double-or-nothing when dormie)
+    };
     // Stockton 6's config
     stockton6?: {
       dotValue: number; // Default $2 per dot

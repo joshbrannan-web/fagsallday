@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
-import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus } from 'lucide-react';
+import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo } from '../services/stockton6Engine';
 import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole } from '../services/sixesEngine';
 import { Button } from '@/components/ui/button';
-import { GameType, GameSettings, Player, HoleScores, GameData, Hole, WolfHoleData } from '../types';
+import { GameType, GameSettings, Player, HoleScores, GameData, Hole, WolfHoleData, FBOPressState } from '../types';
 
 // FBO Segment Results Component
 interface FBOSegmentResultsProps {
@@ -159,6 +159,91 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
             </div>
           </div>
         ))}
+        
+        {/* FBO Presses Section */}
+        {(() => {
+          const fboGameData = gameData?.[fboGame.id] as { _META_PRESSES?: FBOPressState[]; [key: number]: any } | undefined;
+          const presses: FBOPressState[] = fboGameData?._META_PRESSES || [];
+          
+          if (presses.length === 0) return null;
+          
+          return (
+            <div className="border-t border-border pt-3 mt-3">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                <span className="font-semibold text-sm">Presses</span>
+              </div>
+              <div className="space-y-2">
+                {presses.map((press, idx) => {
+                  const player = fboPlayers.find(p => p.id === press.playerId);
+                  const segmentEnd = press.segment === 'front' ? 9 : 18;
+                  const isComplete = press.segment === 'front' ? frontNineComplete : backNineComplete;
+                  
+                  // Calculate press dots if complete
+                  let pressResult: { winner: string | null; amount: number } | null = null;
+                  if (isComplete) {
+                    const pressDots: { [id: string]: number } = {};
+                    fboPlayers.forEach(p => pressDots[p.id] = 0);
+                    
+                    for (let h = press.startHole; h <= segmentEnd; h++) {
+                      const holeDots = fboData[h]?.dots || [];
+                      holeDots.forEach((playerId: string) => {
+                        if (pressDots[playerId] !== undefined) {
+                          pressDots[playerId]++;
+                        }
+                      });
+                    }
+                    
+                    const maxDots = Math.max(...Object.values(pressDots));
+                    const winners = Object.entries(pressDots).filter(([_, dots]) => dots === maxDots);
+                    
+                    if (winners.length === 1 && maxDots > 0) {
+                      pressResult = { 
+                        winner: winners[0][0], 
+                        amount: press.unitValue * (fboPlayers.length - 1)
+                      };
+                    } else {
+                      pressResult = { winner: null, amount: 0 }; // Push
+                    }
+                  }
+                  
+                  const winnerPlayer = pressResult?.winner ? fboPlayers.find(p => p.id === pressResult!.winner) : null;
+                  const presserWon = pressResult?.winner === press.playerId;
+                  
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`flex items-center justify-between px-3 py-2 rounded-md text-sm ${
+                        !isComplete ? 'bg-amber-500/10 border border-amber-500/20' :
+                        pressResult?.winner === null ? 'bg-muted/50' :
+                        presserWon ? 'bg-success/10 border border-success/20' :
+                        'bg-destructive/10 border border-destructive/20'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{player?.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          pressed {press.segment === 'front' ? 'Front' : 'Back'} on #{press.startHole}
+                        </span>
+                      </div>
+                      <div>
+                        {!isComplete ? (
+                          <span className="text-xs text-amber-500 font-medium">In Progress</span>
+                        ) : pressResult?.winner === null ? (
+                          <span className="text-xs text-muted-foreground font-medium">Push</span>
+                        ) : (
+                          <span className={`font-mono font-bold ${presserWon ? 'text-success' : 'text-destructive'}`}>
+                            {presserWon ? `+$${pressResult.amount}` : `-$${press.unitValue}`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
