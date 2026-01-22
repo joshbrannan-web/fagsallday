@@ -25,7 +25,14 @@ const ActiveRound: React.FC = () => {
   });
   const [isListening, setIsListening] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(false);
+  // Start minimized if team games exist (6's or Stockton 6's)
+  const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(() => {
+    if (!currentRound) return false;
+    const hasTeamGame = currentRound.games.some(
+      g => g.type === GameType.SIXES || g.type === GameType.STOCKTON_6
+    );
+    return hasTeamGame;
+  });
   const [isFboMinimized, setIsFboMinimized] = useState(false);
   const isOnline = useOnlineStatus();
   const pendingSyncCount = offlineStorage.getPendingSyncCount();
@@ -94,6 +101,37 @@ const ActiveRound: React.FC = () => {
     const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
     return !teamAssignment;
   }, [currentRound, activeHole]);
+
+  // Auto-expand bottom bar once teams are confirmed for the current stretch
+  useEffect(() => {
+    if (!currentRound) return;
+    
+    const stockton6Game = currentRound.games.find(g => g.type === GameType.STOCKTON_6);
+    const sixesGame = currentRound.games.find(g => g.type === GameType.SIXES);
+    
+    // If no team games, leave bar as-is
+    if (!stockton6Game && !sixesGame) return;
+    
+    // Check if current stretch has teams locked
+    let teamsLockedForCurrentStretch = true;
+    
+    if (stockton6Game) {
+      const stretch = getStretchForHole(activeHole);
+      const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
+      if (!teamAssignment) teamsLockedForCurrentStretch = false;
+    }
+    
+    if (sixesGame) {
+      const stretch = getSixesStretchForHole(activeHole);
+      const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+      if (!teamAssignment) teamsLockedForCurrentStretch = false;
+    }
+    
+    // When teams get confirmed, expand the bar (only auto-expand, never auto-minimize)
+    if (teamsLockedForCurrentStretch && isBottomBarMinimized) {
+      setIsBottomBarMinimized(false);
+    }
+  }, [currentRound?.gameData, activeHole, isBottomBarMinimized]);
 
   useEffect(() => {
     if (!currentRound) {
