@@ -545,6 +545,7 @@ const ActiveRound: React.FC = () => {
                   _META_UNIT_VALUE: unitValue,
                   _META_USE_HANDICAPS: useHandicaps,
                   _META_USE_SECOND_BALL: useSecondBall,
+                  _META_HANDICAP_MODE: sixesGame.config?.handicapMode ?? 'absolute',
                   _META_LOCKED: true
                 });
               }}
