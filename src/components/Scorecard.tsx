@@ -611,55 +611,17 @@ const Scorecard: React.FC = () => {
             <table className="w-full text-center border-collapse text-sm">
               <thead>
                 <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
-                  <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Hole</th>
+                  <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Team</th>
                   {activeHoles.map(h => (
                     <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
                       {h.number}
                     </th>
                   ))}
-                  <th className="p-2 min-w-[70px] bg-muted">Result</th>
+                  <th className="p-2 min-w-[80px] bg-muted">Match</th>
                 </tr>
               </thead>
               <tbody>
-                {/* Winner Row - shows which team won each hole */}
-                <tr className="bg-card">
-                  <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
-                    Winner
-                  </td>
-                  {activeHoles.map(h => {
-                    const result = getSixesHoleResultForHole(h.number);
-                    return (
-                      <td key={h.number} className="p-2 border-r border-border/50">
-                        {result === 'A' ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold">
-                            A
-                          </span>
-                        ) : result === 'B' ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-destructive text-destructive-foreground rounded-full text-xs font-bold">
-                            B
-                          </span>
-                        ) : result === 'TIE' ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-muted text-muted-foreground rounded-full text-xs font-bold">
-                            T
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/30">-</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="p-2 font-bold">
-                    {/* Show stretch result for current view */}
-                    {(() => {
-                      const stretch = viewMode === 'FRONT' ? 1 : 2;
-                      const result = getSixesStretchData(stretch);
-                      if (!result) return '-';
-                      return `${result.teamAWins}-${result.teamBWins}`;
-                    })()}
-                  </td>
-                </tr>
-                
-                {/* Team A Row - shows team members */}
+                {/* Team A Row - shows team members with hole winner highlighting */}
                 <tr className="bg-primary/5">
                   <td className="p-3 text-left font-semibold sticky left-0 bg-primary/5 border-r border-border z-10 text-primary">
                     Team A
@@ -667,6 +629,10 @@ const Scorecard: React.FC = () => {
                   {activeHoles.map(h => {
                     const stretch = getSixesStretchForHole(h.number);
                     const assignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+                    const result = getSixesHoleResultForHole(h.number);
+                    const isWinner = result === 'A';
+                    const isTie = result === 'TIE';
+                    
                     if (!assignment) return <td key={h.number} className="p-2 border-r border-border/50">-</td>;
                     
                     const teamANames = assignment.teamA
@@ -674,21 +640,55 @@ const Scorecard: React.FC = () => {
                       .join('/');
                     
                     return (
-                      <td key={h.number} className="p-2 border-r border-border/50 text-xs text-primary">
-                        {teamANames}
+                      <td key={h.number} className="p-2 border-r border-border/50">
+                        {isWinner ? (
+                          <span className="inline-flex items-center justify-center px-1.5 py-0.5 bg-primary/20 border-2 border-primary rounded-md text-xs font-bold text-primary">
+                            {teamANames}
+                          </span>
+                        ) : isTie ? (
+                          <span className="text-xs text-muted-foreground">{teamANames}</span>
+                        ) : result === 'B' ? (
+                          <span className="text-xs text-primary/40">{teamANames}</span>
+                        ) : (
+                          <span className="text-xs text-primary">{teamANames}</span>
+                        )}
                       </td>
                     );
                   })}
-                  <td className="p-2 font-bold text-primary">
+                  <td className="p-2 border-l border-border" rowSpan={2}>
                     {(() => {
                       const stretch = viewMode === 'FRONT' ? 1 : 2;
                       const result = getSixesStretchData(stretch);
-                      return result?.teamAWins ?? '-';
+                      if (!result) return <span className="text-muted-foreground">-</span>;
+                      
+                      const { teamAWins, teamBWins } = result;
+                      const winnerTeam = teamAWins > teamBWins ? 'A' : teamBWins > teamAWins ? 'B' : 'PUSH';
+                      
+                      return (
+                        <div className="flex flex-col items-center gap-1">
+                          {winnerTeam === 'A' && (
+                            <>
+                              <Trophy className="w-5 h-5 text-primary" />
+                              <span className="text-xs font-bold text-primary">Team A</span>
+                            </>
+                          )}
+                          {winnerTeam === 'B' && (
+                            <>
+                              <Trophy className="w-5 h-5 text-destructive" />
+                              <span className="text-xs font-bold text-destructive">Team B</span>
+                            </>
+                          )}
+                          {winnerTeam === 'PUSH' && (
+                            <span className="text-xs font-medium text-muted-foreground">Push</span>
+                          )}
+                          <span className="text-lg font-bold">{teamAWins}-{teamBWins}</span>
+                        </div>
+                      );
                     })()}
                   </td>
                 </tr>
                 
-                {/* Team B Row - shows team members */}
+                {/* Team B Row - shows team members with hole winner highlighting */}
                 <tr className="bg-destructive/5">
                   <td className="p-3 text-left font-semibold sticky left-0 bg-destructive/5 border-r border-border z-10 text-destructive">
                     Team B
@@ -696,6 +696,10 @@ const Scorecard: React.FC = () => {
                   {activeHoles.map(h => {
                     const stretch = getSixesStretchForHole(h.number);
                     const assignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+                    const result = getSixesHoleResultForHole(h.number);
+                    const isWinner = result === 'B';
+                    const isTie = result === 'TIE';
+                    
                     if (!assignment) return <td key={h.number} className="p-2 border-r border-border/50">-</td>;
                     
                     const teamBNames = assignment.teamB
@@ -703,18 +707,21 @@ const Scorecard: React.FC = () => {
                       .join('/');
                     
                     return (
-                      <td key={h.number} className="p-2 border-r border-border/50 text-xs text-destructive">
-                        {teamBNames}
+                      <td key={h.number} className="p-2 border-r border-border/50">
+                        {isWinner ? (
+                          <span className="inline-flex items-center justify-center px-1.5 py-0.5 bg-destructive/20 border-2 border-destructive rounded-md text-xs font-bold text-destructive">
+                            {teamBNames}
+                          </span>
+                        ) : isTie ? (
+                          <span className="text-xs text-muted-foreground">{teamBNames}</span>
+                        ) : result === 'A' ? (
+                          <span className="text-xs text-destructive/40">{teamBNames}</span>
+                        ) : (
+                          <span className="text-xs text-destructive">{teamBNames}</span>
+                        )}
                       </td>
                     );
                   })}
-                  <td className="p-2 font-bold text-destructive">
-                    {(() => {
-                      const stretch = viewMode === 'FRONT' ? 1 : 2;
-                      const result = getSixesStretchData(stretch);
-                      return result?.teamBWins ?? '-';
-                    })()}
-                  </td>
                 </tr>
               </tbody>
             </table>
