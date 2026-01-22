@@ -70,7 +70,7 @@ export const useRounds = () => {
     fetchRounds();
   }, [fetchRounds]);
 
-  const createRound = async (course: Course, players: Player[], games: GameSettings[]): Promise<Round | null> => {
+  const createRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>): Promise<Round | null> => {
     if (!user) {
       toast.error('Please sign in to start a round');
       return null;
@@ -85,7 +85,7 @@ export const useRounds = () => {
           players_data: players as unknown as Record<string, unknown>[],
           games_data: games as unknown as Record<string, unknown>[],
           scores: {},
-          game_data: {},
+          game_data: initialGameData || {},
           status: 'ACTIVE',
           start_time: new Date().toISOString()
         } as any)

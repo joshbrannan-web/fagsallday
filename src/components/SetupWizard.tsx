@@ -7,6 +7,7 @@ import { searchCourse, fetchCourseDetails, courseDataToCourse } from "@/lib/api/
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSavedPlayers } from "@/hooks/useSavedPlayers";
+import TeamSetupStep from "./TeamSetupStep";
 import {
   ArrowLeft,
   ArrowRight,
@@ -192,7 +193,7 @@ const SetupWizard: React.FC = () => {
   const { savedPlayers, addPlayer: addSavedPlayer } = useSavedPlayers();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [courseMode, setCourseMode] = useState<CourseFinderMode>("select");
   const [isLoading, setIsLoading] = useState(false);
   const [showSavedPlayers, setShowSavedPlayers] = useState(false);
@@ -625,6 +626,11 @@ const SetupWizard: React.FC = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  // Check if any selected game requires team setup
+  const hasTeamGame = selectedGames.some(
+    g => g.type === GameType.SIXES || g.type === GameType.STOCKTON_6
+  );
+
   const handleNext = () => {
     if (step === 1) {
       if (!selectedCourse && !courseName.trim()) {
@@ -643,12 +649,16 @@ const SetupWizard: React.FC = () => {
       }
       setPlayers(validPlayers);
       setStep(3);
-    } else {
-      handleStartRound();
+    } else if (step === 3) {
+      if (hasTeamGame) {
+        setStep(4);
+      } else {
+        handleStartRound();
+      }
     }
   };
 
-  const handleStartRound = () => {
+  const handleStartRound = (initialGameData?: Record<string, any>) => {
     if (selectedGames.length === 0) {
       toast.error("Please select at least one game");
       return;
@@ -670,7 +680,7 @@ const SetupWizard: React.FC = () => {
         courseHandicap: calculateCourseHandicap(p.handicapIndex, 72),
       }));
 
-    startNewRound(course, validPlayers, selectedGames);
+    startNewRound(course, validPlayers, selectedGames, initialGameData);
     toast.success("Round started!");
     navigate("/active");
   };
@@ -679,8 +689,12 @@ const SetupWizard: React.FC = () => {
     if (step === 1) return selectedCourse || courseName.trim();
     if (step === 2) return players.filter((p) => p.name.trim()).length >= 2;
     if (step === 3) return selectedGames.length > 0;
+    // Step 4 is handled by TeamSetupStep component
     return false;
   };
+
+  // Calculate total steps (4 if team games, 3 otherwise)
+  const totalSteps = hasTeamGame ? 4 : 3;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -704,8 +718,10 @@ const SetupWizard: React.FC = () => {
               setCourseMode("select");
             } else if (step === 1) {
               navigate("/");
+            } else if (step === 4) {
+              setStep(3);
             } else {
-              setStep((step - 1) as 1 | 2);
+              setStep((step - 1) as 1 | 2 | 3);
             }
           }}
           className="p-2 hover:bg-muted rounded-full transition-colors"
@@ -714,13 +730,13 @@ const SetupWizard: React.FC = () => {
         </button>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-foreground">New Round</h1>
-          <p className="text-sm text-muted-foreground">Step {step} of 3</p>
+          <p className="text-sm text-muted-foreground">Step {step} of {totalSteps}</p>
         </div>
       </div>
 
       {/* Progress Bar */}
       <div className="h-1 bg-muted">
-        <div className="h-full bg-primary transition-all duration-300" style={{ width: `${(step / 3) * 100}%` }} />
+        <div className="h-full bg-primary transition-all duration-300" style={{ width: `${(step / totalSteps) * 100}%` }} />
       </div>
 
       {/* Content */}
@@ -1803,15 +1819,27 @@ const SetupWizard: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Step 4: Team Setup (for 6's and Stockton 6's) */}
+        {step === 4 && (
+          <TeamSetupStep
+            players={players.filter(p => p.name.trim())}
+            selectedGames={selectedGames}
+            onConfirm={(initialGameData) => handleStartRound(initialGameData)}
+            onBack={() => setStep(3)}
+          />
+        )}
       </div>
 
-      {/* Footer */}
-      <div className="p-4 bg-card border-t border-border">
-        <Button onClick={handleNext} disabled={!canProceed()} className="w-full h-12 text-lg font-bold">
-          {step === 3 ? "Start Round" : "Continue"}
-          <ArrowRight className="w-5 h-5 ml-2" />
-        </Button>
-      </div>
+      {/* Footer - hide on step 4 since TeamSetupStep has its own buttons */}
+      {step !== 4 && (
+        <div className="p-4 bg-card border-t border-border">
+          <Button onClick={handleNext} disabled={!canProceed()} className="w-full h-12 text-lg font-bold">
+            {step === 3 && !hasTeamGame ? "Start Round" : "Continue"}
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
