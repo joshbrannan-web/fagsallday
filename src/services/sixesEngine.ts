@@ -209,21 +209,19 @@ export const calculateSixesStretchPayouts = (
   const stretchName = stretch === 1 ? 'Holes 1-6' : stretch === 2 ? 'Holes 7-12' : 'Holes 13-18';
   
   if (teamAWins > teamBWins) {
-    // Team A wins: each Team A player gets +unitValue from each Team B player
-    const totalWin = unitValue * 2; // Win from 2 opponents
-    teamA.forEach(pid => playerPayouts[pid] = totalWin);
-    teamB.forEach(pid => playerPayouts[pid] = -totalWin);
+    // Team A wins: each winner wins unitValue, each loser loses unitValue
+    teamA.forEach(pid => playerPayouts[pid] = unitValue);
+    teamB.forEach(pid => playerPayouts[pid] = -unitValue);
     
     const teamANames = teamA.map(pid => round.players.find(p => p.id === pid)?.name || 'Unknown').join(' & ');
-    details.push(`${stretchName}: Team A (${teamANames}) wins ${teamAWins}-${teamBWins} (+$${totalWin} each)`);
+    details.push(`${stretchName}: Team A (${teamANames}) wins ${teamAWins}-${teamBWins} (+$${unitValue} each)`);
   } else if (teamBWins > teamAWins) {
-    // Team B wins
-    const totalWin = unitValue * 2;
-    teamB.forEach(pid => playerPayouts[pid] = totalWin);
-    teamA.forEach(pid => playerPayouts[pid] = -totalWin);
+    // Team B wins: each winner wins unitValue, each loser loses unitValue
+    teamB.forEach(pid => playerPayouts[pid] = unitValue);
+    teamA.forEach(pid => playerPayouts[pid] = -unitValue);
     
     const teamBNames = teamB.map(pid => round.players.find(p => p.id === pid)?.name || 'Unknown').join(' & ');
-    details.push(`${stretchName}: Team B (${teamBNames}) wins ${teamBWins}-${teamAWins} (+$${totalWin} each)`);
+    details.push(`${stretchName}: Team B (${teamBNames}) wins ${teamBWins}-${teamAWins} (+$${unitValue} each)`);
   } else {
     // Push - no money changes hands
     details.push(`${stretchName}: Push ${teamAWins}-${teamBWins} (tie)`);
