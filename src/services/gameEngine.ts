@@ -664,7 +664,7 @@ export const getFBODormieStatus = (
   return result;
 };
 
-// Check if a player already has a press for this segment
+// Check if a player already has a press for this segment (legacy - still used for backward compatibility)
 // A player can only have one press per segment (front/back)
 export const hasExistingFBOPress = (
   round: Round,
@@ -682,6 +682,89 @@ export const hasExistingFBOPress = (
     String(p.playerId) === String(playerId) && 
     p.segment === segment
   );
+};
+
+// Check if a player is dormie on their active press bet
+export const isFBOPlayerDormieOnPress = (
+  round: Round,
+  game: GameSettings,
+  playerId: string,
+  press: FBOPressState,
+  currentHole: number
+): boolean => {
+  const fboPlayerIds = (game.config.fboPlayers || round.players.map(p => p.id)).map(id => String(id));
+  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
+  const fboData = round.gameData?.[game.id] || {};
+  
+  const segmentEnd = press.segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEnd - currentHole + 1;
+  
+  // Count dots from press.startHole to currentHole-1 (completed holes)
+  const pressDots: { [id: string]: number } = {};
+  fboPlayers.forEach(p => pressDots[String(p.id)] = 0);
+  
+  for (let h = press.startHole; h < currentHole; h++) {
+    const holeDots: (string | number)[] = fboData[h]?.dots || [];
+    holeDots.forEach((pid: string | number) => {
+      const normalizedId = String(pid);
+      if (pressDots[normalizedId] !== undefined) {
+        pressDots[normalizedId]++;
+      }
+    });
+  }
+  
+  const playerDots = pressDots[String(playerId)] || 0;
+  const leaderDots = Math.max(...Object.values(pressDots), 0);
+  
+  // Dormie if can't catch up even winning all remaining holes
+  return playerDots + holesRemaining < leaderDots;
+};
+
+// Get press eligibility for a player (supports double/triple press)
+export const getFBOPressEligibility = (
+  round: Round,
+  game: GameSettings,
+  playerId: string,
+  segment: 'front' | 'back',
+  currentHole: number
+): { canPress: boolean; pressLevel: number; reason?: string } => {
+  const fboGameData = round.gameData?.[game.id] || {};
+  const presses: FBOPressState[] = fboGameData[1]?._META_PRESSES || [];
+  
+  // Find all presses by this player in this segment
+  const playerPresses = presses.filter(p => 
+    String(p.playerId) === String(playerId) && 
+    p.segment === segment
+  );
+  
+  if (playerPresses.length === 0) {
+    // No existing press - check base dormie status
+    const dormieStatus = getFBODormieStatus(round, game, currentHole);
+    const status = dormieStatus[playerId];
+    if (!status?.isDormie) {
+      return { canPress: false, pressLevel: 1, reason: 'Not dormie' };
+    }
+    return { canPress: true, pressLevel: 1 };
+  }
+  
+  // Has existing press(es) - check if dormie on the most recent press
+  const latestPress = playerPresses.reduce((a, b) => 
+    a.startHole > b.startHole ? a : b
+  );
+  
+  const nextPressLevel = (latestPress.pressLevel || 1) + 1;
+  
+  // Can't press again on same hole as latest press
+  if (latestPress.startHole >= currentHole) {
+    return { canPress: false, pressLevel: nextPressLevel, reason: 'Already pressed this hole' };
+  }
+  
+  const isDormieOnPress = isFBOPlayerDormieOnPress(round, game, playerId, latestPress, currentHole);
+  if (!isDormieOnPress) {
+    return { canPress: false, pressLevel: nextPressLevel, reason: 'Not dormie on current press' };
+  }
+  
+  return { canPress: true, pressLevel: nextPressLevel };
 };
 
 // --- FBO (Front/Back/Overall) ---

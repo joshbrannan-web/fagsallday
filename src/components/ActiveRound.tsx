@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, Fi
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
 import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
-import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores, getFBODormieStatus, hasExistingFBOPress, calculatePerGameTotals } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, calculatePerGameTotals } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
@@ -319,8 +319,8 @@ const ActiveRound: React.FC = () => {
 
   // handleFboDotToggle removed - FBO dots are now auto-calculated based on net scores
 
-  // FBO Press handler
-  const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back') => {
+  // FBO Press handler (supports double/triple press)
+  const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back', pressLevel: number = 1) => {
     const fboGame = currentRound.games.find(g => g.id === gameId);
     if (!fboGame) return;
     
@@ -329,7 +329,8 @@ const ActiveRound: React.FC = () => {
       segment,
       startHole: activeHole,
       unitValue: fboGame.unitStake,
-      settled: false
+      settled: false,
+      pressLevel
     };
     
     // Fix: Read from hole 1 where presses are stored
@@ -340,8 +341,12 @@ const ActiveRound: React.FC = () => {
     updateGameData(gameId, 1 as any, '_META_PRESSES' as any, [...existingPresses, newPress]);
     
     const player = currentRound.players.find(p => p.id === playerId);
+    const pressLabel = pressLevel === 1 ? 'pressed' : 
+                       pressLevel === 2 ? 'double pressed' : 
+                       `${pressLevel}x pressed`;
+    
     import('sonner').then(({ toast }) => {
-      toast.success(`${player?.name} pressed the ${segment === 'front' ? 'Front 9' : 'Back 9'}!`);
+      toast.success(`${player?.name} ${pressLabel} the ${segment === 'front' ? 'Front 9' : 'Back 9'}!`);
     });
   };
 
@@ -1019,24 +1024,24 @@ const ActiveRound: React.FC = () => {
           );
         })()}
 
-        {/* FBO Press UI - shown when presses enabled and player is dormie */}
+        {/* FBO Press UI - shown when presses enabled and player is dormie (or dormie on active press) */}
         {fboGames.filter(g => g.config.fbo?.allowPresses).map(fboGame => {
           const fboPlayerIds = fboGame.config.fboPlayers || currentRound.players.map(p => p.id);
           const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
-          const dormieStatus = getFBODormieStatus(currentRound, fboGame, activeHole);
           
           // Only show if we're not on hole 1 or 10 (need history to detect dormie)
           const segmentStartHole = activeHole <= 9 ? 1 : 10;
           if (activeHole === segmentStartHole) return null;
           
-          // Find players who are dormie and don't have a press yet
-          const dormiePlayers = fboPlayers.filter(p => {
-            const status = dormieStatus[p.id];
-            if (!status?.isDormie) return false;
-            return !hasExistingFBOPress(currentRound, fboGame.id, p.id, status.segment, activeHole);
-          });
+          const segment: 'front' | 'back' = activeHole <= 9 ? 'front' : 'back';
           
-          if (dormiePlayers.length === 0) return null;
+          // Find players who can press (first press or double/triple press)
+          const pressEligiblePlayers = fboPlayers.map(p => ({
+            player: p,
+            eligibility: getFBOPressEligibility(currentRound, fboGame, p.id, segment, activeHole)
+          })).filter(({ eligibility }) => eligibility.canPress);
+          
+          if (pressEligiblePlayers.length === 0) return null;
           
           return (
             <div key={fboGame.id} className="bg-card rounded-2xl shadow-sm border border-amber-500/50 p-4 mb-4">
@@ -1047,24 +1052,30 @@ const ActiveRound: React.FC = () => {
                 </h3>
               </div>
               <div className="space-y-2">
-                {dormiePlayers.map(player => {
+                {pressEligiblePlayers.map(({ player, eligibility }) => {
+                  const dormieStatus = getFBODormieStatus(currentRound, fboGame, activeHole);
                   const status = dormieStatus[player.id];
+                  const pressLabel = eligibility.pressLevel === 1 ? 'Press' : 
+                                     eligibility.pressLevel === 2 ? 'Double Press' : 
+                                     `${eligibility.pressLevel}x Press`;
                   return (
                     <div key={player.id} className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-amber-500" />
                         <div>
                           <span className="text-sm font-medium">{player.name}</span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            {status.dotsBehind} dot{status.dotsBehind !== 1 ? 's' : ''} behind • {status.holesRemaining} hole{status.holesRemaining !== 1 ? 's' : ''} left
-                          </span>
+                          {status && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {status.dotsBehind} dot{status.dotsBehind !== 1 ? 's' : ''} behind • {status.holesRemaining} hole{status.holesRemaining !== 1 ? 's' : ''} left
+                            </span>
+                          )}
                         </div>
                       </div>
                       <button
-                        onClick={() => handleFBOPress(fboGame.id, player.id, status.segment)}
+                        onClick={() => handleFBOPress(fboGame.id, player.id, segment, eligibility.pressLevel)}
                         className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors"
                       >
-                        Press (${fboGame.unitStake})
+                        {pressLabel} (${fboGame.unitStake})
                       </button>
                     </div>
                   );
