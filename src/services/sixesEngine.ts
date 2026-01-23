@@ -58,14 +58,14 @@ export const getSixesPresses = (
   return gameData?.[gameId]?.[stretchStartHole]?._META_PRESSES || [];
 };
 
-// Check if a team is dormie (cannot mathematically win the stretch)
+// Check if a team is past dormie (cannot mathematically catch opponent)
 export const isSixesTeamDormie = (
   teamWins: number,
   opponentWins: number,
   holesRemaining: number
 ): boolean => {
-  // Team is dormie if even winning all remaining holes wouldn't beat opponent
-  return teamWins + holesRemaining <= opponentWins;
+  // Team is past dormie if even winning all remaining holes wouldn't catch opponent
+  return teamWins + holesRemaining < opponentWins;
 };
 
 // Get dormie status for current stretch
