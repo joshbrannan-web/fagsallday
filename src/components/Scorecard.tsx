@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
-import { calculateAggregatedHolePnL } from '../services/gameEngine';
-import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo } from '../services/stockton6Engine';
+import { calculateAggregatedHolePnL, calculateBanker, calculateFBO } from '../services/gameEngine';
+import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
 import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, SIXES_STRETCH_HOLES } from '../services/sixesEngine';
 import { SixesMatchSummary } from './sixes';
 import { Button } from '@/components/ui/button';
+import GameRoundTotals from './GameRoundTotals';
 import { GameType, GameSettings, Player, HoleScores, GameData, Hole, WolfHoleData, FBOPressState, SixesPressState } from '../types';
 
 // FBO Segment Results Component
@@ -556,6 +557,23 @@ const Scorecard: React.FC = () => {
           </table>
         </div>
 
+        {/* Banker/Bloody Banker Round Totals - placed under main scorecard */}
+        {currentRound.games
+          .filter(g => g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER)
+          .map(game => {
+            const result = calculateBanker(currentRound, game);
+            return (
+              <GameRoundTotals
+                key={game.id}
+                gameName={game.name || (game.type === GameType.BLOODY_BANKER ? 'Bloody Banker' : 'Banker')}
+                playerResults={result.playerResults}
+                players={currentRound.players}
+                icon={<Crown className="w-5 h-5 text-brand-gold" />}
+                accentColor="brand-gold"
+              />
+            );
+          })}
+
         {/* FBO Dots Section */}
         {fboGame && fboPlayers.length > 0 && (
           <>
@@ -655,70 +673,90 @@ const Scorecard: React.FC = () => {
               gameData={currentRound.gameData}
               courseHoles={holes}
             />
+
+            {/* FBO Round Totals */}
+            <GameRoundTotals
+              gameName="FBO"
+              playerResults={calculateFBO(currentRound, fboGame).playerResults}
+              players={fboPlayers}
+              icon={<span className="text-lg">🎱</span>}
+              accentColor="primary"
+            />
           </>
         )}
 
         {/* Stockton 6's Dots Section */}
         {stockton6Game && (
-          <div className="mt-4 inline-block min-w-full bg-card rounded-xl shadow-sm border border-amber-500/30 overflow-hidden">
-            <div className="bg-amber-500/10 px-4 py-2 border-b border-amber-500/20">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🎯</span>
-                <h3 className="font-bold text-foreground">Stockton 6's Dots</h3>
-                <span className="text-xs text-muted-foreground ml-auto">
-                  ${stockton6Game.config?.stockton6?.dotValue || 2} per dot
-                </span>
+          <>
+            <div className="mt-4 inline-block min-w-full bg-card rounded-xl shadow-sm border border-amber-500/30 overflow-hidden">
+              <div className="bg-amber-500/10 px-4 py-2 border-b border-amber-500/20">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🎯</span>
+                  <h3 className="font-bold text-foreground">Stockton 6's Dots</h3>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    ${stockton6Game.config?.stockton6?.dotValue || 2} per dot
+                  </span>
+                </div>
               </div>
-            </div>
-            <table className="w-full text-center border-collapse text-sm">
-              <thead>
-                <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
-                  <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
-                  {activeHoles.map(h => (
-                    <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
-                      {h.number}
+              <table className="w-full text-center border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
+                    <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
+                    {activeHoles.map(h => (
+                      <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
+                        {h.number}
+                      </th>
+                    ))}
+                    <th className="p-2 min-w-[50px] bg-muted">
+                      {viewMode === 'FRONT' ? 'S1' : 'S2/S3'}
                     </th>
-                  ))}
-                  <th className="p-2 min-w-[50px] bg-muted">
-                    {viewMode === 'FRONT' ? 'S1' : 'S2/S3'}
-                  </th>
-                  <th className="p-2 min-w-[50px] bg-amber-500/10">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentRound.players.map((player, idx) => (
-                  <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
-                    <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
-                      {player.name}
-                    </td>
-                    {activeHoles.map(h => {
-                      const dotCount = getStockton6DotCount(player.id, h.number);
-                      return (
-                        <td key={h.number} className="p-2 border-r border-border/50">
-                          {dotCount > 0 ? (
-                            <span className="inline-flex items-center justify-center w-6 h-6 bg-amber-500 text-white rounded-full text-xs font-bold">
-                              {dotCount}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/30">-</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                    <td className="p-2 font-bold text-foreground">
-                      {viewMode === 'FRONT' 
-                        ? getStockton6StretchDots(player.id, 1)
-                        : getStockton6StretchDots(player.id, 2) + getStockton6StretchDots(player.id, 3)
-                      }
-                    </td>
-                    <td className="p-2 font-bold bg-amber-500/5">
-                      <span className="text-amber-600">{getStockton6TotalDots(player.id)}</span>
-                    </td>
+                    <th className="p-2 min-w-[50px] bg-amber-500/10">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {currentRound.players.map((player, idx) => (
+                    <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                      <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
+                        {player.name}
+                      </td>
+                      {activeHoles.map(h => {
+                        const dotCount = getStockton6DotCount(player.id, h.number);
+                        return (
+                          <td key={h.number} className="p-2 border-r border-border/50">
+                            {dotCount > 0 ? (
+                              <span className="inline-flex items-center justify-center w-6 h-6 bg-amber-500 text-white rounded-full text-xs font-bold">
+                                {dotCount}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/30">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="p-2 font-bold text-foreground">
+                        {viewMode === 'FRONT' 
+                          ? getStockton6StretchDots(player.id, 1)
+                          : getStockton6StretchDots(player.id, 2) + getStockton6StretchDots(player.id, 3)
+                        }
+                      </td>
+                      <td className="p-2 font-bold bg-amber-500/5">
+                        <span className="text-amber-600">{getStockton6TotalDots(player.id)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Stockton 6's Round Totals */}
+            <GameRoundTotals
+              gameName="Stockton 6's"
+              playerResults={calculateStockton6(currentRound, stockton6Game).playerResults}
+              players={currentRound.players}
+              icon={<span className="text-lg">🎯</span>}
+              accentColor="amber"
+            />
+          </>
         )}
 
         {/* 6's Match Play Section */}
