@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, Fi
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
 import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
-import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores, getFBODormieStatus, hasExistingFBOPress } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores, getFBODormieStatus, hasExistingFBOPress, calculatePerGameTotals } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
@@ -1461,29 +1461,109 @@ const ActiveRound: React.FC = () => {
           <div className="h-2" />
         )}
         
-        {/* Expanded State - Full Content */}
+        {/* Expanded State - Full Content with Per-Game Breakdown */}
         {!isBottomBarMinimized && (
           <>
-            <div className="flex justify-between items-center text-sm font-bold text-muted-foreground mb-2">
+            <div className="flex justify-between items-center text-sm font-bold text-muted-foreground mb-3">
               <span>Round Totals</span>
               <span>Live Bets</span>
             </div>
-            <div className="flex gap-4 overflow-x-auto no-scrollbar">
-              {currentRound.players.map(p => {
-                const totalGross = getPlayerTotalGross(p.id);
+            
+            {/* Header row with player initials */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar mb-2">
+              <div className="min-w-[60px]" /> {/* Spacer for label column */}
+              {currentRound.players.map(p => (
+                <div key={p.id} className="flex flex-col items-center min-w-[50px]">
+                  <div className="w-8 h-8 rounded-full bg-muted text-foreground flex items-center justify-center text-xs font-bold border border-border">
+                    {p.name.substring(0, 2).toUpperCase()}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Strokes row */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar mb-1">
+              <div className="min-w-[60px] text-[10px] text-muted-foreground font-bold uppercase flex items-center">Strokes</div>
+              {currentRound.players.map(p => (
+                <div key={p.id} className="flex flex-col items-center min-w-[50px]">
+                  <span className="text-xs font-mono text-muted-foreground">{getPlayerTotalGross(p.id)}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Per-game rows */}
+            {(() => {
+              const perGameResults = calculatePerGameTotals(currentRound);
+              const getGameDisplayName = (type: GameType): string => {
+                switch (type) {
+                  case GameType.BANKER:
+                  case GameType.BLOODY_BANKER:
+                    return 'Banker';
+                  case GameType.SIXES:
+                    return "6's";
+                  case GameType.STOCKTON_6:
+                    return "S6's";
+                  case GameType.FBO:
+                    return 'FBO';
+                  case GameType.SKINS:
+                    return 'Skins';
+                  case GameType.NASSAU:
+                    return 'Nassau';
+                  case GameType.WOLF:
+                    return 'Wolf';
+                  case GameType.NINE_POINTS:
+                    return '9 Pts';
+                  case GameType.OPEN_BETTING:
+                    return 'Bets';
+                  default:
+                    return type;
+                }
+              };
+              
+              return perGameResults.map(gameResult => {
+                // Skip games where all players have $0
+                const hasActivity = Object.values(gameResult.playerResults).some(v => v !== 0);
+                if (!hasActivity) return null;
+                
+                const displayName = getGameDisplayName(gameResult.gameType);
+                const fboGame = currentRound.games.find(g => g.id === gameResult.gameId);
+                
                 return (
-                  <div key={p.id} className="flex flex-col items-center min-w-[60px]">
-                    <div className="w-8 h-8 rounded-full bg-muted text-foreground flex items-center justify-center text-xs font-bold mb-1 border border-border">
-                      {p.name.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex flex-col items-center leading-none gap-0.5">
-                      <span className="text-[10px] text-muted-foreground font-bold uppercase">
-                        {totalGross}
-                      </span>
-                      <span className={`text-xs font-bold ${roundTotals[p.id] > 0 ? 'text-success' : (roundTotals[p.id] < 0 ? 'text-destructive' : 'text-muted-foreground')}`}>
-                        {roundTotals[p.id] > 0 ? '+' : (roundTotals[p.id] < 0 ? '-' : '')}${Math.abs(roundTotals[p.id] || 0)}
-                      </span>
-                    </div>
+                  <div key={gameResult.gameId} className="flex gap-2 overflow-x-auto no-scrollbar mb-1">
+                    <div className="min-w-[60px] text-[10px] text-muted-foreground font-bold uppercase truncate flex items-center">{displayName}</div>
+                    {currentRound.players.map(p => {
+                      const amount = gameResult.playerResults[p.id] || 0;
+                      // Check if player participates in this game (for FBO which may be subset)
+                      const participates = gameResult.gameType !== GameType.FBO || 
+                        fboGame?.config.fboPlayers?.includes(p.id);
+                      
+                      return (
+                        <div key={p.id} className="flex flex-col items-center min-w-[50px]">
+                          {participates ? (
+                            <span className={`text-xs font-mono font-bold ${amount > 0 ? 'text-success' : amount < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                              {amount > 0 ? '+' : ''}{amount !== 0 ? `$${Math.abs(amount)}`.replace('$', amount < 0 ? '-$' : '$') : '$0'}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              });
+            })()}
+
+            {/* Total row */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pt-2 border-t border-border mt-2">
+              <div className="min-w-[60px] text-[10px] text-foreground font-bold uppercase flex items-center">Total</div>
+              {currentRound.players.map(p => {
+                const total = roundTotals[p.id] || 0;
+                return (
+                  <div key={p.id} className="flex flex-col items-center min-w-[50px]">
+                    <span className={`text-sm font-mono font-bold ${total > 0 ? 'text-success' : total < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      {total > 0 ? '+' : ''}{total !== 0 ? `$${Math.abs(total)}`.replace('$', total < 0 ? '-$' : '$') : '$0'}
+                    </span>
                   </div>
                 );
               })}

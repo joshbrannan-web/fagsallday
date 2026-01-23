@@ -1134,9 +1134,18 @@ export const calculateNinePoints = (round: Round, game: GameSettings): GameResul
 
 // --- Aggregation Utilities ---
 
-export const calculateRoundTotals = (round: Round): { [playerId: string]: number } => {
-  const totals: { [playerId: string]: number } = {};
-  round.players.forEach((p) => (totals[p.id] = 0));
+export const calculatePerGameTotals = (round: Round): {
+  gameId: string;
+  gameName: string;
+  gameType: GameType;
+  playerResults: { [playerId: string]: number };
+}[] => {
+  const results: {
+    gameId: string;
+    gameName: string;
+    gameType: GameType;
+    playerResults: { [playerId: string]: number };
+  }[] = [];
 
   round.games.forEach((game) => {
     let result: GameResult;
@@ -1174,7 +1183,24 @@ export const calculateRoundTotals = (round: Round): { [playerId: string]: number
         return;
     }
 
-    Object.entries(result.playerResults).forEach(([playerId, amount]) => {
+    results.push({
+      gameId: game.id,
+      gameName: game.name,
+      gameType: game.type,
+      playerResults: result.playerResults,
+    });
+  });
+
+  return results;
+};
+
+export const calculateRoundTotals = (round: Round): { [playerId: string]: number } => {
+  const totals: { [playerId: string]: number } = {};
+  round.players.forEach((p) => (totals[p.id] = 0));
+
+  const perGameResults = calculatePerGameTotals(round);
+  perGameResults.forEach((gameResult) => {
+    Object.entries(gameResult.playerResults).forEach(([playerId, amount]) => {
       totals[playerId] = (totals[playerId] || 0) + amount;
     });
   });
