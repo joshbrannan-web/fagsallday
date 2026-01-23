@@ -28,8 +28,6 @@ const ActiveRound: React.FC = () => {
   // Always start minimized - user can expand at any time
   const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(true);
   
-  // Track which stretches have already auto-expanded (to avoid overriding user's manual minimize)
-  const [autoExpandedStretches, setAutoExpandedStretches] = useState<Set<string>>(new Set());
   const isOnline = useOnlineStatus();
   const pendingSyncCount = offlineStorage.getPendingSyncCount();
 
@@ -98,61 +96,6 @@ const ActiveRound: React.FC = () => {
     return !teamAssignment;
   }, [currentRound, activeHole]);
 
-  // Auto-expand bottom bar once teams are confirmed for the current stretch (only once per stretch)
-  useEffect(() => {
-    if (!currentRound) return;
-    
-    const stockton6Game = currentRound.games.find(g => g.type === GameType.STOCKTON_6);
-    const sixesGame = currentRound.games.find(g => g.type === GameType.SIXES);
-    
-    // If no team games, leave bar as-is
-    if (!stockton6Game && !sixesGame) return;
-    
-    // Build stretch keys and check if teams are locked
-    const stretchKeys: string[] = [];
-    let teamsLockedForCurrentStretch = true;
-    
-    if (stockton6Game) {
-      const stretch = getStretchForHole(activeHole);
-      const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
-      if (teamAssignment) {
-        stretchKeys.push(`stockton6_${stretch}`);
-      } else {
-        teamsLockedForCurrentStretch = false;
-      }
-    }
-    
-    if (sixesGame) {
-      const stretch = getSixesStretchForHole(activeHole);
-      const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
-      if (teamAssignment) {
-        stretchKeys.push(`sixes_${stretch}`);
-      } else {
-        teamsLockedForCurrentStretch = false;
-      }
-    }
-    
-    // Only auto-expand if teams are locked AND we haven't already expanded for this stretch
-    if (teamsLockedForCurrentStretch && stretchKeys.length > 0) {
-      const alreadyExpanded = stretchKeys.every(key => autoExpandedStretches.has(key));
-      
-      if (!alreadyExpanded && isBottomBarMinimized) {
-        setIsBottomBarMinimized(false);
-        setAutoExpandedStretches(prev => {
-          const newSet = new Set(prev);
-          stretchKeys.forEach(key => newSet.add(key));
-          return newSet;
-        });
-      } else if (!alreadyExpanded) {
-        // Mark as expanded even if bar was already open
-        setAutoExpandedStretches(prev => {
-          const newSet = new Set(prev);
-          stretchKeys.forEach(key => newSet.add(key));
-          return newSet;
-        });
-      }
-    }
-  }, [currentRound?.gameData, activeHole, isBottomBarMinimized, autoExpandedStretches]);
 
   // Get which team a player is on for the current hole (6's or Stockton 6's)
   const getPlayerTeamColor = (playerId: string): 'A' | 'B' | null => {
