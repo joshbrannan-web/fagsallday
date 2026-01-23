@@ -163,8 +163,9 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
         
         {/* FBO Presses Section */}
         {(() => {
-          const fboGameData = gameData?.[fboGame.id] as { _META_PRESSES?: FBOPressState[]; [key: number]: any } | undefined;
-          const presses: FBOPressState[] = fboGameData?._META_PRESSES || [];
+          // Fix: Read presses from hole 1 where they are stored by ActiveRound
+          const fboGameData = gameData?.[fboGame.id] || {};
+          const presses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
           
           if (presses.length === 0) return null;
           
@@ -605,6 +606,40 @@ const Scorecard: React.FC = () => {
                       </td>
                     </tr>
                   ))}
+                  {/* FBO Press Indicator Row */}
+                  {(() => {
+                    const fboGameDataForPresses = currentRound.gameData?.[fboGame.id] || {};
+                    const fboPresses: FBOPressState[] = (fboGameDataForPresses as any)[1]?._META_PRESSES || [];
+                    
+                    if (fboPresses.length === 0) return null;
+                    
+                    return (
+                      <tr className="bg-amber-500/5 border-t border-amber-500/20">
+                        <td className="p-3 text-left font-semibold sticky left-0 bg-amber-500/5 border-r border-border z-10 text-amber-600">
+                          <div className="flex items-center gap-1">
+                            <AlertTriangle className="w-4 h-4" />
+                            Press
+                          </div>
+                        </td>
+                        {activeHoles.map(h => {
+                          const pressOnHole = fboPresses.find(p => p.startHole === h.number);
+                          if (!pressOnHole) {
+                            return <td key={h.number} className="p-2 border-r border-border/50 text-muted-foreground/30">-</td>;
+                          }
+                          const player = fboPlayers.find(p => p.id === String(pressOnHole.playerId));
+                          return (
+                            <td key={h.number} className="p-2 border-r border-border/50">
+                              <span className="inline-flex items-center justify-center w-6 h-6 bg-amber-500 text-white rounded-full text-xs font-bold">
+                                {player?.name?.charAt(0) || 'P'}
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td className="p-2 font-bold text-foreground text-muted-foreground/30">-</td>
+                        <td className="p-2 font-bold bg-primary/5 text-muted-foreground/30">-</td>
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
