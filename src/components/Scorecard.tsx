@@ -226,7 +226,9 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
                       <div className="flex items-center gap-2">
                         <span>{player?.name}</span>
                         <span className="text-xs text-muted-foreground">
-                          pressed {press.segment === 'front' ? 'Front' : 'Back'} on #{press.startHole}
+                          {(press as any).pressLevel === 2 ? 'double pressed' : 
+                           (press as any).pressLevel > 2 ? `${(press as any).pressLevel}x pressed` : 
+                           'pressed'} {press.segment === 'front' ? 'Front' : 'Back'} on #{press.startHole}
                         </span>
                       </div>
                       <div>
