@@ -1,268 +1,105 @@
 
 
-## Plan: Add Per-Game Breakdown to Round Totals Bar
+## Plan: Fix Press Availability - Only Show When Past Dormie
 
 ### Overview
-Enhance the Round Totals bar in ActiveRound to show a detailed breakdown of money won/lost per game, not just the overall total. This will display each active game's contribution (Banker, 6's, FBO, Skins, etc.) in separate rows.
+Update the dormie detection logic for both 6's and FBO games so that the Press button only appears when a player/team is **past dormie** (strictly behind and cannot catch up), not when they are exactly dormie (could at best tie).
 
 ---
 
 ### Current Behavior
-The Round Totals bar currently shows:
-- Player initials (avatar circles)
-- Total strokes
-- Overall money total (aggregated from all games)
+
+| Game | Current Check | What It Means |
+|------|---------------|---------------|
+| 6's | `teamWins + holesRemaining <= opponentWins` | Press shows when can at best TIE (dormie) |
+| FBO | `playerDots + holesRemaining < leaderDots` | Press shows when strictly behind (already correct) |
+
+**Example for 6's:**
+- Team A has 2 wins, Team B has 4 wins, 2 holes remain
+- Current: 2 + 2 = 4, so 4 <= 4 is TRUE → Press available (Team A can at best tie)
+- Desired: 2 + 2 = 4, so 4 < 4 is FALSE → No Press yet (Team A could still tie)
+
+---
 
 ### Desired Behavior
-Show a vertical breakdown like:
-```
-Player Names    J  /  B  /  C  /  M
-Total Strokes  35 / 45 / 47 / 52
-Banker        +32 / -32 / +12 / -12
-6's           +10 / +10 / -10 / -10
-FBO           +10 / -10 /  -  /  -
-All Total     +52 / -32 / +2  / -22
-```
+
+| Game | New Check | What It Means |
+|------|-----------|---------------|
+| 6's | `teamWins + holesRemaining < opponentWins` | Press only when strictly cannot catch up |
+| FBO | `playerDots + holesRemaining < leaderDots` | Already correct - no change needed |
+
+**Key distinction:**
+- **Dormie** = Best possible outcome is a tie (can't WIN)
+- **Past Dormie** = Can't even tie (already lost)
+
+The user wants Press available only when "past dormie" (strictly behind).
 
 ---
 
-### Technical Approach
-
-#### Step 1: Create a Helper Function for Per-Game Results
-
-Add a new function `calculatePerGameTotals` to `src/services/gameEngine.ts` that returns results per game (not aggregated):
-
-```typescript
-export const calculatePerGameTotals = (round: Round): { 
-  gameId: string; 
-  gameName: string; 
-  gameType: GameType;
-  playerResults: { [playerId: string]: number } 
-}[] => {
-  // For each game in round.games, calculate and return individual results
-};
-```
-
-This will return an array of game results with their display names and per-player totals.
-
-#### Step 2: Modify ActiveRound.tsx Bottom Bar UI
-
-Update the expanded state (lines 1464-1491) to:
-1. Call the new per-game calculation function
-2. Render each game as a separate row with player-specific amounts
-3. Add a final "Total" row with the sum
-
----
-
-### Detailed Changes
+### Changes Required
 
 | File | Lines | Change |
 |------|-------|--------|
-| `src/services/gameEngine.ts` | After `calculateRoundTotals` (~1183) | Add `calculatePerGameTotals` function |
-| `src/components/ActiveRound.tsx` | ~1464-1491 | Update bottom bar expanded content to show per-game breakdown |
+| `src/services/sixesEngine.ts` | 68 | Change `<=` to `<` in `isSixesTeamDormie` |
+| `src/services/gameEngine.ts` | - | **No change needed** - FBO already uses `<` |
 
-#### New Function: `calculatePerGameTotals`
+---
 
+### Technical Details
+
+#### Change in `src/services/sixesEngine.ts` (line 68)
+
+**Current code:**
 ```typescript
-export const calculatePerGameTotals = (round: Round): {
-  gameId: string;
-  gameName: string;
-  gameType: GameType;
-  playerResults: { [playerId: string]: number };
-}[] => {
-  const results: {
-    gameId: string;
-    gameName: string;
-    gameType: GameType;
-    playerResults: { [playerId: string]: number };
-  }[] = [];
-
-  round.games.forEach((game) => {
-    let result: GameResult;
-
-    switch (game.type) {
-      case GameType.SKINS:
-        result = calculateSkins(round, game);
-        break;
-      case GameType.NASSAU:
-        result = calculateNassau(round, game);
-        break;
-      case GameType.OPEN_BETTING:
-        result = calculateOpenBetting(round, game);
-        break;
-      case GameType.BANKER:
-      case GameType.BLOODY_BANKER:
-        result = calculateBanker(round, game);
-        break;
-      case GameType.FBO:
-        result = calculateFBO(round, game);
-        break;
-      case GameType.STOCKTON_6:
-        result = calculateStockton6(round, game);
-        break;
-      case GameType.WOLF:
-        result = calculateWolf(round, game);
-        break;
-      case GameType.NINE_POINTS:
-        result = calculateNinePoints(round, game);
-        break;
-      case GameType.SIXES:
-        result = calculateSixes(round, game);
-        break;
-      default:
-        return;
-    }
-
-    results.push({
-      gameId: game.id,
-      gameName: game.name,
-      gameType: game.type,
-      playerResults: result.playerResults,
-    });
-  });
-
-  return results;
+export const isSixesTeamDormie = (
+  teamWins: number,
+  opponentWins: number,
+  holesRemaining: number
+): boolean => {
+  // Team is dormie if even winning all remaining holes wouldn't beat opponent
+  return teamWins + holesRemaining <= opponentWins;  // <= includes "can only tie"
 };
 ```
 
-#### Updated Bottom Bar UI
-
-Replace the current expanded content with:
-
-```tsx
-{!isBottomBarMinimized && (
-  <>
-    <div className="flex justify-between items-center text-sm font-bold text-muted-foreground mb-2">
-      <span>Round Totals</span>
-      <span>Live Bets</span>
-    </div>
-    
-    {/* Header row with player initials */}
-    <div className="flex gap-4 overflow-x-auto no-scrollbar mb-2">
-      {currentRound.players.map(p => (
-        <div key={p.id} className="flex flex-col items-center min-w-[60px]">
-          <div className="w-8 h-8 rounded-full bg-muted text-foreground flex items-center justify-center text-xs font-bold border border-border">
-            {p.name.substring(0, 2).toUpperCase()}
-          </div>
-        </div>
-      ))}
-    </div>
-
-    {/* Strokes row */}
-    <div className="flex gap-4 overflow-x-auto no-scrollbar mb-1">
-      <div className="min-w-[60px] text-[10px] text-muted-foreground font-bold uppercase">Strokes</div>
-      {currentRound.players.map(p => (
-        <div key={p.id} className="flex flex-col items-center min-w-[60px]">
-          <span className="text-xs font-mono text-muted-foreground">{getPlayerTotalGross(p.id)}</span>
-        </div>
-      ))}
-    </div>
-
-    {/* Per-game rows */}
-    {calculatePerGameTotals(currentRound).map(gameResult => {
-      // Skip games where all players have $0
-      const hasActivity = Object.values(gameResult.playerResults).some(v => v !== 0);
-      if (!hasActivity) return null;
-      
-      // Determine display name
-      const displayName = getGameDisplayName(gameResult.gameType);
-      
-      return (
-        <div key={gameResult.gameId} className="flex gap-4 overflow-x-auto no-scrollbar mb-1">
-          <div className="min-w-[60px] text-[10px] text-muted-foreground font-bold uppercase truncate">{displayName}</div>
-          {currentRound.players.map(p => {
-            const amount = gameResult.playerResults[p.id] || 0;
-            // Check if player participates in this game (for FBO which may be subset)
-            const participates = gameResult.gameType !== GameType.FBO || 
-              currentRound.games.find(g => g.id === gameResult.gameId)?.config.fboPlayers?.includes(p.id);
-            
-            return (
-              <div key={p.id} className="flex flex-col items-center min-w-[60px]">
-                {participates ? (
-                  <span className={`text-xs font-mono font-bold ${amount > 0 ? 'text-success' : amount < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                    {amount > 0 ? '+' : amount < 0 ? '-' : ''}${Math.abs(amount)}
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">-</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      );
-    })}
-
-    {/* Total row */}
-    <div className="flex gap-4 overflow-x-auto no-scrollbar pt-2 border-t border-border mt-2">
-      <div className="min-w-[60px] text-[10px] text-foreground font-bold uppercase">Total</div>
-      {currentRound.players.map(p => {
-        const total = roundTotals[p.id] || 0;
-        return (
-          <div key={p.id} className="flex flex-col items-center min-w-[60px]">
-            <span className={`text-sm font-mono font-bold ${total > 0 ? 'text-success' : total < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-              {total > 0 ? '+' : total < 0 ? '-' : ''}${Math.abs(total)}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  </>
-)}
-```
-
-#### Game Display Name Helper
-
+**New code:**
 ```typescript
-const getGameDisplayName = (type: GameType): string => {
-  switch (type) {
-    case GameType.BANKER:
-    case GameType.BLOODY_BANKER:
-      return 'Banker';
-    case GameType.SIXES:
-      return "6's";
-    case GameType.STOCKTON_6:
-      return "Stockton 6's";
-    case GameType.FBO:
-      return 'FBO';
-    case GameType.SKINS:
-      return 'Skins';
-    case GameType.NASSAU:
-      return 'Nassau';
-    case GameType.WOLF:
-      return 'Wolf';
-    case GameType.NINE_POINTS:
-      return '9 Points';
-    case GameType.OPEN_BETTING:
-      return 'Side Bets';
-    default:
-      return type;
-  }
+export const isSixesTeamDormie = (
+  teamWins: number,
+  opponentWins: number,
+  holesRemaining: number
+): boolean => {
+  // Team is past dormie if even winning all remaining holes wouldn't catch opponent
+  return teamWins + holesRemaining < opponentWins;  // < means strictly behind
 };
 ```
 
 ---
 
-### Visual Layout
+### FBO Verification
 
-```text
-+--------+------+------+------+------+
-|        |  JO  |  BR  |  CL  |  MO  |
-+--------+------+------+------+------+
-| Strokes|  35  |  45  |  47  |  52  |
-| Banker | +112 | -27  | -38  | -47  |
-| 6's    | +10  | +10  | -10  | -10  |
-| FBO    | +10  | -10  |  -   |  -   |
-+--------+------+------+------+------+
-| Total  | +132 | -27  | -48  | -57  |
-+--------+------+------+------+------+
+The FBO logic in `src/services/gameEngine.ts` already uses the correct check:
+```typescript
+return playerDots + holesRemaining < leaderDots;  // Already uses <
 ```
+
+This means FBO Press is already only available when strictly behind. **No changes needed for FBO.**
 
 ---
 
-### Summary of Files to Change
+### Example Scenarios After Fix
 
-| File | Change |
-|------|--------|
-| `src/services/gameEngine.ts` | Add `calculatePerGameTotals` function |
-| `src/components/ActiveRound.tsx` | Import `calculatePerGameTotals`, add `getGameDisplayName` helper, update expanded bottom bar content |
+#### 6's Game (6-hole stretch):
+
+| Team A Wins | Team B Wins | Holes Left | A's Best | Can A Press? |
+|-------------|-------------|------------|----------|--------------|
+| 2 | 4 | 2 | 4 (tie) | NO (can still tie) |
+| 1 | 4 | 2 | 3 | YES (can't catch up) |
+| 0 | 4 | 3 | 3 | YES (can't catch up) |
+| 2 | 3 | 2 | 4 (win) | NO (can still win) |
+
+---
+
+### Summary
+
+A single character change from `<=` to `<` in the 6's engine function will ensure Press is only available when truly "past dormie" - when a team is mathematically eliminated with no chance of even tying.
 
