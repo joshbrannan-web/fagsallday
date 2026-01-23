@@ -25,14 +25,8 @@ const ActiveRound: React.FC = () => {
   });
   const [isListening, setIsListening] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  // Start minimized if team games exist (6's or Stockton 6's)
-  const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(() => {
-    if (!currentRound) return false;
-    const hasTeamGame = currentRound.games.some(
-      g => g.type === GameType.SIXES || g.type === GameType.STOCKTON_6
-    );
-    return hasTeamGame;
-  });
+  // Always start minimized - user can expand at any time
+  const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(true);
   
   // Track which stretches have already auto-expanded (to avoid overriding user's manual minimize)
   const [autoExpandedStretches, setAutoExpandedStretches] = useState<Set<string>>(new Set());
