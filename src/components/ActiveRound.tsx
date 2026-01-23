@@ -332,8 +332,9 @@ const ActiveRound: React.FC = () => {
       settled: false
     };
     
-    const gameData = currentRound.gameData?.[gameId] as { _META_PRESSES?: FBOPressState[] } | undefined;
-    const existingPresses: FBOPressState[] = gameData?._META_PRESSES || [];
+    // Fix: Read from hole 1 where presses are stored
+    const fboGameData = currentRound.gameData?.[gameId] || {};
+    const existingPresses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
     
     // Store presses at hole 1 to keep them at the game level
     updateGameData(gameId, 1 as any, '_META_PRESSES' as any, [...existingPresses, newPress]);

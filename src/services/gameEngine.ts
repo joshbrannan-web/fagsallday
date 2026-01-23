@@ -664,20 +664,23 @@ export const getFBODormieStatus = (
   return result;
 };
 
-// Check if a player already has a press for this segment starting at or after a specific hole
+// Check if a player already has a press for this segment
+// A player can only have one press per segment (front/back)
 export const hasExistingFBOPress = (
   round: Round,
   gameId: string,
   playerId: string,
   segment: 'front' | 'back',
-  afterHole: number
+  afterHole: number // Kept for API compatibility but not used
 ): boolean => {
-  const gameData = round.gameData?.[gameId] as { _META_PRESSES?: FBOPressState[]; [key: number]: any } | undefined;
-  const presses: FBOPressState[] = gameData?._META_PRESSES || [];
+  // Fix: Read from hole 1 where presses are actually stored
+  const fboGameData = round.gameData?.[gameId] || {};
+  const presses: FBOPressState[] = fboGameData[1]?._META_PRESSES || [];
+  
+  // A player can only have one press per segment
   return presses.some(p => 
-    p.playerId === playerId && 
-    p.segment === segment && 
-    p.startHole >= afterHole
+    String(p.playerId) === String(playerId) && 
+    p.segment === segment
   );
 };
 
@@ -828,8 +831,9 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
   }
 
   // Process FBO presses if enabled
-  const gameData = round.gameData?.[game.id] as { _META_PRESSES?: FBOPressState[]; [key: number]: any } | undefined;
-  const presses: FBOPressState[] = gameData?._META_PRESSES || [];
+  // Fix: Read presses from hole 1 where they are stored by ActiveRound
+  const fboGameDataForPresses = round.gameData?.[game.id] || {};
+  const presses: FBOPressState[] = fboGameDataForPresses[1]?._META_PRESSES || [];
   
   if (presses.length > 0) {
     presses.forEach((press, idx) => {
