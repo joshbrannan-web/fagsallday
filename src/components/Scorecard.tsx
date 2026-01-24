@@ -457,7 +457,8 @@ const Scorecard: React.FC = () => {
                     onClick={() => navigate('/active', { state: { startHole: h.number } })}
                   >
                     {h.number}
-                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/idx {h.handicapIndex}</div>
+                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">par {h.par}</div>
+                    <div className="text-[10px] text-muted-foreground font-normal">IDX {h.handicapIndex}</div>
                   </th>
                 ))}
                 <th className="p-2 min-w-[50px] bg-muted">Total</th>
