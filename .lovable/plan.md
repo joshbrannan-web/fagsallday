@@ -1,67 +1,60 @@
 
 
-## Plan: Simplify Hole Header Display
+## Plan: Fix Crown Icon for Bloody Banker on Scorecard
 
-### Overview
-Update the hole header cells to show a minimal format with just the hole number and combined par/handicap values.
-
----
-
-### Requested Display
-
-```
-1
-4/12
-```
+### Problem
+The crown icon only appears when a regular Banker game is active. It does not appear for Bloody Banker because the code specifically looks for `GameType.BANKER` and ignores `GameType.BLOODY_BANKER`.
 
 ---
 
-### Technical Change
+### Solution
+Update the banker detection logic to check for both game types.
 
-**File:** `src/components/Scorecard.tsx` (lines 447-456)
+---
 
-**Current code:**
+### Technical Changes
+
+**File:** `src/components/Scorecard.tsx`
+
+**Current code (lines 289-295):**
 ```tsx
-{activeHoles.map(h => (
-  <th 
-    key={h.number} 
-    className="p-2 min-w-[40px] border-r border-border/50 cursor-pointer hover:bg-primary/10 transition-colors"
-    onClick={() => navigate('/active', { state: { startHole: h.number } })}
-  >
-    {h.number}
-    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}</div>
-  </th>
-))}
+// Find banker game and get banker for each hole
+const bankerGame = currentRound.games.find(g => g.type === GameType.BANKER);
+const getBankerForHole = (holeNum: number): string | null => {
+  if (!bankerGame) return null;
+  const holeData = currentRound.gameData?.[bankerGame.id]?.[holeNum];
+  return holeData?.bankerId || null;
+};
 ```
 
 **Updated code:**
 ```tsx
-{activeHoles.map(h => (
-  <th 
-    key={h.number} 
-    className="p-2 min-w-[40px] border-r border-border/50 cursor-pointer hover:bg-primary/10 transition-colors"
-    onClick={() => navigate('/active', { state: { startHole: h.number } })}
-  >
-    {h.number}
-    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/{h.handicapIndex}</div>
-  </th>
-))}
+// Find banker games (both regular Banker and Bloody Banker) and get banker for each hole
+const bankerGames = currentRound.games.filter(g => 
+  g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER
+);
+const getBankerForHole = (holeNum: number): string | null => {
+  for (const game of bankerGames) {
+    const holeData = currentRound.gameData?.[game.id]?.[holeNum];
+    if (holeData?.bankerId) return holeData.bankerId;
+  }
+  return null;
+};
 ```
 
 ---
 
-### Visual Result
+### How It Works
 
-| Before | After |
-|--------|-------|
-| **1** | **1** |
-| 4 | 4/12 |
+1. Instead of finding a single `bankerGame`, we now filter for all games that are either `BANKER` or `BLOODY_BANKER`
+2. The `getBankerForHole` function iterates through all banker-style games and returns the first `bankerId` found
+3. This ensures the crown appears regardless of which banker game type is active
 
 ---
 
-### Files to Change
+### Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/components/Scorecard.tsx` | Update par display to include handicap index: `{h.par}/{h.handicapIndex}` |
+| `src/components/Scorecard.tsx` | Update lines 289-295 to detect both Banker and Bloody Banker game types |
 
