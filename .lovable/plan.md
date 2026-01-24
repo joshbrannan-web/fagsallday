@@ -1,15 +1,19 @@
 
 
-## Plan: Adjust Crown Icon Position and Handicap Display Format
+## Plan: Update Handicap Display to Multi-Line Format
 
 ### Problem
-1. The crown icon is currently positioned at the bottom-right of the score cell (`-bottom-1 -right-1`), but should be at the top-right
-2. The handicap display currently shows `{par}/{handicapIndex}` but should show `{par}/idx {handicapIndex}`
+The current hole header displays the handicap info as `{par}/idx {handicapIndex}` on a single line. The user wants a multi-line format with clearer labels:
+```
+1
+par 4
+IDX 9
+```
 
 ---
 
 ### Solution
-Update the CSS positioning classes for the crown icon and modify the handicap display text format.
+Update the hole header cell to display three separate lines with proper formatting and labels.
 
 ---
 
@@ -17,34 +21,21 @@ Update the CSS positioning classes for the crown icon and modify the handicap di
 
 **File:** `src/components/Scorecard.tsx`
 
-**1. Crown Icon Position (line 501):**
-
-Current:
+**Current code (line 458-461):**
 ```tsx
-<Crown className="absolute -bottom-1 -right-1 w-3 h-3 text-brand-gold" />
+>
+  {h.number}
+  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/idx {h.handicapIndex}</div>
+</th>
 ```
 
-Updated:
+**Updated code:**
 ```tsx
-<Crown className="absolute -top-1 -right-1 w-3 h-3 text-brand-gold" />
-```
-
-**2. Handicap Display Format (line 460):**
-
-Current:
-```tsx
-<div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/{h.handicapIndex}</div>
-```
-
-Updated:
-```tsx
-<div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/idx {h.handicapIndex}</div>
-```
-
-This will display the hole header as:
-```
-1
-4/idx 9
+>
+  {h.number}
+  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">par {h.par}</div>
+  <div className="text-[10px] text-muted-foreground font-normal">IDX {h.handicapIndex}</div>
+</th>
 ```
 
 ---
@@ -52,23 +43,23 @@ This will display the hole header as:
 ### Visual Result
 
 **Before:**
-| Element | Position/Format |
-|---------|-----------------|
-| Crown icon | Bottom-right of score cell |
-| Handicap | `4/12` |
+```
+1
+4/idx 9
+```
 
 **After:**
-| Element | Position/Format |
-|---------|-----------------|
-| Crown icon | Top-right of score cell |
-| Handicap | `4/idx 12` |
+```
+1
+Par 4
+IDX 9
+```
 
 ---
 
 ### Files to Modify
 
-| File | Lines | Change |
-|------|-------|--------|
-| `src/components/Scorecard.tsx` | 501 | Change `-bottom-1` to `-top-1` for crown positioning |
-| `src/components/Scorecard.tsx` | 460 | Add "idx " prefix before handicap index |
+| File | Line | Change |
+|------|------|--------|
+| `src/components/Scorecard.tsx` | 460 | Split into two separate divs with "par X" and "IDX Y" format |
 
