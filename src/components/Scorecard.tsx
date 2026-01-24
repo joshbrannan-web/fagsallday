@@ -457,7 +457,7 @@ const Scorecard: React.FC = () => {
                     onClick={() => navigate('/active', { state: { startHole: h.number } })}
                   >
                     {h.number}
-                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/{h.handicapIndex}</div>
+                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/idx {h.handicapIndex}</div>
                   </th>
                 ))}
                 <th className="p-2 min-w-[50px] bg-muted">Total</th>
@@ -498,7 +498,7 @@ const Scorecard: React.FC = () => {
                               </span>
                             )}
                             {isBanker && (
-                              <Crown className="absolute -bottom-1 -right-1 w-3 h-3 text-brand-gold" />
+                              <Crown className="absolute -top-1 -right-1 w-3 h-3 text-brand-gold" />
                             )}
                           </div>
                         </td>
