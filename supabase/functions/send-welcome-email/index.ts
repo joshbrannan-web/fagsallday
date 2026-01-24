@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
@@ -45,7 +46,40 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Verify JWT authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     const { email, displayName }: WelcomeEmailRequest = await req.json();
+
+    // Security: Only allow sending welcome email to the authenticated user's email
+    if (email.toLowerCase() !== user.email?.toLowerCase()) {
+      console.log("Attempted to send welcome email to non-matching email:", email, "vs", user.email);
+      return new Response(
+        JSON.stringify({ error: "Can only send welcome email to your own email address" }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     // Rate limiting to prevent email bombing
     if (!checkWelcomeRateLimit(email)) {
@@ -57,7 +91,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log("Sending welcome email to:", email);
+    console.log("Sending welcome email to authenticated user:", email);
 
     const emailResponse = await resend.emails.send({
       from: "F&Gs All Day <noreply@fagsallday.com>",
