@@ -9,6 +9,30 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Simple in-memory rate limiting for password reset abuse prevention
+const resetRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function checkResetRateLimit(email: string): boolean {
+  const identifier = email.toLowerCase().trim();
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000; // 15 minutes
+  const maxRequests = 3; // 3 requests per 15 minutes per email
+  
+  const limit = resetRateLimits.get(identifier);
+  
+  if (!limit || now > limit.resetAt) {
+    resetRateLimits.set(identifier, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  
+  if (limit.count >= maxRequests) {
+    return false;
+  }
+  
+  limit.count++;
+  return true;
+}
+
 interface GenerateResetLinkRequest {
   email: string;
   origin: string;
@@ -27,6 +51,16 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(
         JSON.stringify({ error: "Email and origin are required" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Rate limiting to prevent email bombing
+    if (!checkResetRateLimit(email)) {
+      console.log("Rate limit exceeded for password reset:", email);
+      // Return success to prevent user enumeration (don't reveal if email exists)
+      return new Response(
+        JSON.stringify({ success: true, message: "If an account exists with this email, a reset link has been sent" }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
