@@ -286,12 +286,16 @@ const Scorecard: React.FC = () => {
     return holePnL[holeNum]?.[pid] || 0;
   };
 
-  // Find banker game and get banker for each hole
-  const bankerGame = currentRound.games.find(g => g.type === GameType.BANKER);
+  // Find banker games (both regular Banker and Bloody Banker) and get banker for each hole
+  const bankerGames = currentRound.games.filter(g => 
+    g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER
+  );
   const getBankerForHole = (holeNum: number): string | null => {
-    if (!bankerGame) return null;
-    const holeData = currentRound.gameData?.[bankerGame.id]?.[holeNum];
-    return holeData?.bankerId || null;
+    for (const game of bankerGames) {
+      const holeData = currentRound.gameData?.[game.id]?.[holeNum];
+      if (holeData?.bankerId) return holeData.bankerId;
+    }
+    return null;
   };
 
   // Find FBO game and get dots data (normalize IDs to strings)
