@@ -1,14 +1,15 @@
 
 
-## Plan: Fix Crown Icon for Bloody Banker on Scorecard
+## Plan: Adjust Crown Icon Position and Handicap Display Format
 
 ### Problem
-The crown icon only appears when a regular Banker game is active. It does not appear for Bloody Banker because the code specifically looks for `GameType.BANKER` and ignores `GameType.BLOODY_BANKER`.
+1. The crown icon is currently positioned at the bottom-right of the score cell (`-bottom-1 -right-1`), but should be at the top-right
+2. The handicap display currently shows `{par}/{handicapIndex}` but should show `{par}/idx {handicapIndex}`
 
 ---
 
 ### Solution
-Update the banker detection logic to check for both game types.
+Update the CSS positioning classes for the crown icon and modify the handicap display text format.
 
 ---
 
@@ -16,45 +17,58 @@ Update the banker detection logic to check for both game types.
 
 **File:** `src/components/Scorecard.tsx`
 
-**Current code (lines 289-295):**
+**1. Crown Icon Position (line 501):**
+
+Current:
 ```tsx
-// Find banker game and get banker for each hole
-const bankerGame = currentRound.games.find(g => g.type === GameType.BANKER);
-const getBankerForHole = (holeNum: number): string | null => {
-  if (!bankerGame) return null;
-  const holeData = currentRound.gameData?.[bankerGame.id]?.[holeNum];
-  return holeData?.bankerId || null;
-};
+<Crown className="absolute -bottom-1 -right-1 w-3 h-3 text-brand-gold" />
 ```
 
-**Updated code:**
+Updated:
 ```tsx
-// Find banker games (both regular Banker and Bloody Banker) and get banker for each hole
-const bankerGames = currentRound.games.filter(g => 
-  g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER
-);
-const getBankerForHole = (holeNum: number): string | null => {
-  for (const game of bankerGames) {
-    const holeData = currentRound.gameData?.[game.id]?.[holeNum];
-    if (holeData?.bankerId) return holeData.bankerId;
-  }
-  return null;
-};
+<Crown className="absolute -top-1 -right-1 w-3 h-3 text-brand-gold" />
+```
+
+**2. Handicap Display Format (line 460):**
+
+Current:
+```tsx
+<div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/{h.handicapIndex}</div>
+```
+
+Updated:
+```tsx
+<div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/idx {h.handicapIndex}</div>
+```
+
+This will display the hole header as:
+```
+1
+4/idx 9
 ```
 
 ---
 
-### How It Works
+### Visual Result
 
-1. Instead of finding a single `bankerGame`, we now filter for all games that are either `BANKER` or `BLOODY_BANKER`
-2. The `getBankerForHole` function iterates through all banker-style games and returns the first `bankerId` found
-3. This ensures the crown appears regardless of which banker game type is active
+**Before:**
+| Element | Position/Format |
+|---------|-----------------|
+| Crown icon | Bottom-right of score cell |
+| Handicap | `4/12` |
+
+**After:**
+| Element | Position/Format |
+|---------|-----------------|
+| Crown icon | Top-right of score cell |
+| Handicap | `4/idx 12` |
 
 ---
 
 ### Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/components/Scorecard.tsx` | Update lines 289-295 to detect both Banker and Bloody Banker game types |
+| File | Lines | Change |
+|------|-------|--------|
+| `src/components/Scorecard.tsx` | 501 | Change `-bottom-1` to `-top-1` for crown positioning |
+| `src/components/Scorecard.tsx` | 460 | Add "idx " prefix before handicap index |
 
