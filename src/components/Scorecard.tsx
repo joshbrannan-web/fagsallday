@@ -293,7 +293,9 @@ const Scorecard: React.FC = () => {
   const getBankerForHole = (holeNum: number): string | null => {
     for (const game of bankerGames) {
       const holeData = currentRound.gameData?.[game.id]?.[holeNum];
-      if (holeData?.bankerId) return holeData.bankerId;
+      // Check both _META_BANKER_ID (stored format) and bankerId (legacy format)
+      const bankerId = holeData?._META_BANKER_ID || holeData?.bankerId;
+      if (bankerId) return bankerId;
     }
     return null;
   };
