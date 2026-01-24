@@ -9,6 +9,30 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// Simple in-memory rate limiting for welcome email abuse prevention
+const welcomeRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function checkWelcomeRateLimit(email: string): boolean {
+  const identifier = email.toLowerCase().trim();
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000; // 1 hour
+  const maxRequests = 2; // 2 requests per hour per email (initial + potential retry)
+  
+  const limit = welcomeRateLimits.get(identifier);
+  
+  if (!limit || now > limit.resetAt) {
+    welcomeRateLimits.set(identifier, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  
+  if (limit.count >= maxRequests) {
+    return false;
+  }
+  
+  limit.count++;
+  return true;
+}
+
 interface WelcomeEmailRequest {
   email: string;
   displayName: string;
@@ -22,6 +46,16 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const { email, displayName }: WelcomeEmailRequest = await req.json();
+
+    // Rate limiting to prevent email bombing
+    if (!checkWelcomeRateLimit(email)) {
+      console.log("Rate limit exceeded for welcome email:", email);
+      // Return success to not break signup flow
+      return new Response(
+        JSON.stringify({ id: "rate-limited", message: "Email rate limited" }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     console.log("Sending welcome email to:", email);
 
