@@ -1,6 +1,16 @@
 import React from 'react';
 import { Round, GameSettings, SixesPressState } from '@/types';
-import { getSixesStretchForHole, getSixesTeamAssignment, calculateSixesStretchResult, getSixesDormieStatus, getSixesPresses, hasExistingSixesPress } from '@/services/sixesEngine';
+import { 
+  getSixesStretchForHole, 
+  getSixesTeamAssignment, 
+  calculateSixesStretchResult, 
+  getSixesDormieStatus, 
+  getSixesPresses, 
+  hasExistingSixesPress,
+  getSixesMode,
+  getStretchName,
+  SixesMode 
+} from '@/services/sixesEngine';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 
@@ -12,15 +22,16 @@ interface SixesStatusBarProps {
 }
 
 const SixesStatusBar: React.FC<SixesStatusBarProps> = ({ round, game, activeHole, onTriggerPress }) => {
-  const stretch = getSixesStretchForHole(activeHole);
-  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch);
+  const mode = getSixesMode(round.gameData, game.id);
+  const stretch = getSixesStretchForHole(activeHole, mode);
+  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode);
   
   if (!teamAssignment) return null;
   
   const { teamA, teamB, unitValue, useSecondBallTiebreaker, allowPresses } = teamAssignment;
-  const stretchResult = calculateSixesStretchResult(round, game, stretch);
-  const dormieStatus = getSixesDormieStatus(round, game, activeHole);
-  const presses = getSixesPresses(round.gameData, game.id, stretch);
+  const stretchResult = calculateSixesStretchResult(round, game, stretch, mode);
+  const dormieStatus = getSixesDormieStatus(round, game, activeHole, mode);
+  const presses = getSixesPresses(round.gameData, game.id, stretch, mode);
   
   const getPlayerName = (playerId: string): string => {
     return round.players.find(p => p.id === playerId)?.name || 'Unknown';
@@ -29,24 +40,21 @@ const SixesStatusBar: React.FC<SixesStatusBarProps> = ({ round, game, activeHole
   const teamANames = teamA.map(getPlayerName);
   const teamBNames = teamB.map(getPlayerName);
   
-  const stretchHoles = {
-    1: '1-6',
-    2: '7-12',
-    3: '13-18'
-  };
+  const stretchHoles = getStretchName(stretch, mode);
+  const gameModeLabel = mode === 'threes' ? "3's" : "6's";
 
   // Determine which team can press (is dormie and doesn't have an active press already)
   const canTeamAPress = allowPresses && dormieStatus?.teamADormie && 
-    !hasExistingSixesPress(round.gameData, game.id, stretch, 'A', activeHole);
+    !hasExistingSixesPress(round.gameData, game.id, stretch, 'A', activeHole, mode);
   const canTeamBPress = allowPresses && dormieStatus?.teamBDormie && 
-    !hasExistingSixesPress(round.gameData, game.id, stretch, 'B', activeHole);
+    !hasExistingSixesPress(round.gameData, game.id, stretch, 'B', activeHole, mode);
 
   return (
     <div className="bg-card rounded-xl border border-border p-3 mb-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-lg">🎲</span>
-          <span className="text-sm font-bold text-foreground">6's: Holes {stretchHoles[stretch]}</span>
+          <span className="text-sm font-bold text-foreground">{gameModeLabel}: {stretchHoles}</span>
         </div>
         <span className="text-xs text-muted-foreground">${unitValue}/player</span>
       </div>

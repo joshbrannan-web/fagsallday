@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Users, ArrowRight, ArrowLeft, Check } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface TeamSetupStepProps {
   players: Player[];
@@ -37,6 +38,9 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
   );
   const [sixesAllowPresses, setSixesAllowPresses] = useState(
     sixesGame?.config?.sixes?.allowPresses ?? false
+  );
+  const [sixesMode, setSixesMode] = useState<'sixes' | 'threes'>(
+    sixesGame?.config?.sixes?.mode ?? 'sixes'
   );
 
   // Auto-assign teams if 4 players
@@ -126,12 +130,17 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
           _META_USE_SECOND_BALL: sixesUseSecondBall,
           _META_ALLOW_PRESSES: sixesAllowPresses,
           _META_HANDICAP_MODE: sixesGame.config?.handicapMode ?? 'absolute',
+          _META_MODE: sixesMode,
           _META_LOCKED: true,
         }
       };
     }
 
     onConfirm(initialGameData);
+  };
+
+  const getStretchHolesDisplay = (mode: 'sixes' | 'threes') => {
+    return mode === 'threes' ? 'Holes 1-3' : 'Holes 1-6';
   };
 
   const renderTeamSection = (
@@ -150,7 +159,7 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
           <h3 className="text-xl font-bold text-foreground">{gameName}</h3>
         </div>
         <p className="text-sm text-muted-foreground">
-          Stretch 1: Holes 1-6
+          Stretch 1: {gameName === "6's or 3's" ? getStretchHolesDisplay(sixesMode) : 'Holes 1-6'}
         </p>
       </div>
 
@@ -260,7 +269,7 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
         </div>
         <div>
           <h2 className="text-lg font-bold">Team Setup</h2>
-          <p className="text-sm text-muted-foreground">Configure teams for Stretch 1 (Holes 1-6)</p>
+          <p className="text-sm text-muted-foreground">Configure teams for Stretch 1</p>
         </div>
       </div>
 
@@ -317,15 +326,34 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
         </div>
       )}
 
-      {/* 6's Team Setup */}
+      {/* 6's or 3's Team Setup */}
       {sixesGame && renderTeamSection(
         '🎲',
-        "6's",
+        "6's or 3's",
         sixesTeamA,
         setSixesTeamA,
         sixesTeamB,
         setSixesTeamB,
         <div className="space-y-3 pt-2 border-t border-border">
+          {/* Game Mode Toggle */}
+          <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-xl">
+            <div>
+              <Label className="text-sm font-medium">Game Mode</Label>
+              <p className="text-xs text-muted-foreground">
+                {sixesMode === 'sixes' ? '3 stretches of 6 holes' : '6 stretches of 3 holes'}
+              </p>
+            </div>
+            <ToggleGroup 
+              type="single" 
+              value={sixesMode} 
+              onValueChange={(v) => v && setSixesMode(v as 'sixes' | 'threes')}
+              className="bg-background rounded-lg p-1"
+            >
+              <ToggleGroupItem value="sixes" className="px-3 py-1.5 text-sm font-bold">6's</ToggleGroupItem>
+              <ToggleGroupItem value="threes" className="px-3 py-1.5 text-sm font-bold">3's</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
           <div className="bg-muted rounded-xl p-3">
             <div className="text-center mb-2">
               <span className="text-xs font-bold text-muted-foreground uppercase">Bet Amount</span>

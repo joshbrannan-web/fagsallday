@@ -7,7 +7,12 @@ import {
   getSixesPresses,
   calculateSixesPressPayouts,
   calculateSixesHoleResult,
-  SIXES_STRETCH_HOLES 
+  getSixesMode,
+  getAllStretches,
+  getStretchName,
+  getStretchEndHole,
+  SixesStretch,
+  SixesMode 
 } from '../../services/sixesEngine';
 import { Trophy, TrendingDown, Minus, Flame } from 'lucide-react';
 
@@ -17,7 +22,7 @@ interface SixesMatchSummaryProps {
 }
 
 interface StretchData {
-  stretch: 1 | 2 | 3;
+  stretch: SixesStretch;
   assignment: ReturnType<typeof getSixesTeamAssignment>;
   result: ReturnType<typeof calculateSixesStretchResult>;
   payouts: ReturnType<typeof calculateSixesStretchPayouts>;
@@ -25,15 +30,11 @@ interface StretchData {
   pressPayouts: ReturnType<typeof calculateSixesPressPayouts>;
 }
 
-const getStretchHoleRange = (stretch: 1 | 2 | 3): string => {
-  const holes = SIXES_STRETCH_HOLES[stretch];
-  return `Holes ${holes[0]}-${holes[holes.length - 1]}`;
-};
-
-const StretchCard: React.FC<{ data: StretchData; round: Round; unitValue: number }> = ({ 
+const StretchCard: React.FC<{ data: StretchData; round: Round; unitValue: number; mode: SixesMode }> = ({ 
   data, 
   round, 
-  unitValue 
+  unitValue,
+  mode 
 }) => {
   const { stretch, assignment, result, payouts, presses, pressPayouts } = data;
   
@@ -46,12 +47,15 @@ const StretchCard: React.FC<{ data: StretchData; round: Round; unitValue: number
   const teamANames = assignment.teamA.map(getPlayerName).join(' & ');
   const teamBNames = assignment.teamB.map(getPlayerName).join(' & ');
   
+  const stretchHoles = getStretchName(stretch, mode);
+  const holesPerStretch = mode === 'threes' ? 3 : 6;
+  
   const isComplete = result?.complete || false;
   const teamAWins = result?.teamAWins || 0;
   const teamBWins = result?.teamBWins || 0;
   const ties = result?.ties || 0;
   const holesPlayed = teamAWins + teamBWins + ties;
-  const holesRemaining = 6 - holesPlayed;
+  const holesRemaining = holesPerStretch - holesPlayed;
   
   const winner: 'A' | 'B' | 'PUSH' | null = isComplete 
     ? (teamAWins > teamBWins ? 'A' : teamBWins > teamAWins ? 'B' : 'PUSH')
@@ -67,7 +71,7 @@ const StretchCard: React.FC<{ data: StretchData; round: Round; unitValue: number
       <div className="flex items-center justify-between px-4 py-2 bg-muted/50">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm">Stretch {stretch}</span>
-          <span className="text-xs text-muted-foreground">({getStretchHoleRange(stretch)})</span>
+          <span className="text-xs text-muted-foreground">({stretchHoles})</span>
         </div>
         {isComplete ? (
           <span className="text-xs px-2 py-0.5 bg-success/10 text-success rounded-full font-medium">Complete</span>
@@ -157,7 +161,7 @@ const StretchCard: React.FC<{ data: StretchData; round: Round; unitValue: number
       {presses.length > 0 && (
         <div className="border-t border-border px-3 py-2 bg-amber-500/5">
           {presses.map((press, idx) => {
-            const stretchEndHole = stretch * 6;
+            const stretchEndHole = getStretchEndHole(stretch, mode);
             
             // Calculate press result
             let teamAWinsInPress = 0;
@@ -333,15 +337,17 @@ const RoundTotalsFooter: React.FC<{
 };
 
 const SixesMatchSummary: React.FC<SixesMatchSummaryProps> = ({ round, game }) => {
-  const stretches = [1, 2, 3] as const;
+  const mode = getSixesMode(round.gameData, game.id);
+  const stretches = getAllStretches(mode);
+  const gameModeLabel = mode === 'threes' ? "3's" : "6's";
   
   const stretchData: StretchData[] = stretches.map(stretch => ({
     stretch,
-    assignment: getSixesTeamAssignment(round.gameData, game.id, stretch),
-    result: calculateSixesStretchResult(round, game, stretch),
-    payouts: calculateSixesStretchPayouts(round, game, stretch),
-    presses: getSixesPresses(round.gameData, game.id, stretch),
-    pressPayouts: calculateSixesPressPayouts(round, game, stretch),
+    assignment: getSixesTeamAssignment(round.gameData, game.id, stretch, mode),
+    result: calculateSixesStretchResult(round, game, stretch, mode),
+    payouts: calculateSixesStretchPayouts(round, game, stretch, mode),
+    presses: getSixesPresses(round.gameData, game.id, stretch, mode),
+    pressPayouts: calculateSixesPressPayouts(round, game, stretch, mode),
   }));
   
   // Filter out stretches that haven't started (no team assignment)
@@ -353,7 +359,7 @@ const SixesMatchSummary: React.FC<SixesMatchSummaryProps> = ({ round, game }) =>
         <div className="bg-primary/10 px-4 py-3 border-b border-primary/20">
           <div className="flex items-center gap-2">
             <span className="text-lg">⚔️</span>
-            <h3 className="font-bold text-foreground">6's Match Play Results</h3>
+            <h3 className="font-bold text-foreground">{gameModeLabel} Match Play Results</h3>
             <span className="text-xs text-muted-foreground ml-auto">${game.unitStake} per stretch</span>
           </div>
         </div>
@@ -372,7 +378,7 @@ const SixesMatchSummary: React.FC<SixesMatchSummaryProps> = ({ round, game }) =>
       <div className="bg-primary/10 px-4 py-3 border-b border-primary/20">
         <div className="flex items-center gap-2">
           <span className="text-lg">⚔️</span>
-          <h3 className="font-bold text-foreground">6's Match Play Results</h3>
+          <h3 className="font-bold text-foreground">{gameModeLabel} Match Play Results</h3>
           <span className="text-xs text-muted-foreground ml-auto">${unitValue} per stretch</span>
         </div>
       </div>
@@ -384,7 +390,8 @@ const SixesMatchSummary: React.FC<SixesMatchSummaryProps> = ({ round, game }) =>
             key={data.stretch} 
             data={data} 
             round={round} 
-            unitValue={unitValue} 
+            unitValue={unitValue}
+            mode={mode}
           />
         ))}
       </div>

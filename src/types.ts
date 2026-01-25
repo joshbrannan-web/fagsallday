@@ -135,6 +135,7 @@ export interface GameSettings {
     sixes?: {
       useSecondBallTiebreaker: boolean; // Use 2nd ball to break 1st ball ties
       allowPresses?: boolean; // Enable/disable press option (double-or-nothing when dormie)
+      mode?: 'sixes' | 'threes'; // 'sixes' = 3 stretches of 6 holes, 'threes' = 6 stretches of 3 holes
     };
     // Universal handicap configuration (not for Stockton 6's - it has its own logic)
     useHandicaps?: boolean; // true = use handicaps, false = gross scores only
@@ -151,6 +152,7 @@ export interface SixesTeamAssignment {
   useSecondBallTiebreaker: boolean;
   handicapMode: 'absolute' | 'relative'; // Which stroke calculation mode to use
   allowPresses: boolean; // Enable/disable press option
+  mode: 'sixes' | 'threes'; // Game mode
   locked: boolean;
 }
 
@@ -158,7 +160,7 @@ export interface SixesTeamAssignment {
 export interface SixesPressState {
   triggeredBy: string;       // Player ID who triggered the press (for their team)
   teamDormie: 'A' | 'B';     // Which team is dormie/pressing
-  stretch: 1 | 2 | 3;        // Which stretch
+  stretch: 1 | 2 | 3 | 4 | 5 | 6; // Which stretch (6 for 3's mode)
   startHole: number;         // Hole where press was triggered (1-18)
   unitValue: number;         // Amount (same as base unit)
   settled: boolean;          // Whether press has been settled

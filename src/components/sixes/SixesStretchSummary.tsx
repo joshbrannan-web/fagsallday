@@ -1,18 +1,27 @@
 import React from 'react';
 import { Round, GameSettings } from '@/types';
-import { getSixesStretchForHole, getSixesTeamAssignment, calculateSixesStretchResult, calculateSixesStretchPayouts } from '@/services/sixesEngine';
+import { 
+  getSixesTeamAssignment, 
+  calculateSixesStretchResult, 
+  calculateSixesStretchPayouts,
+  getSixesMode,
+  getStretchName,
+  SixesStretch,
+  SixesMode 
+} from '@/services/sixesEngine';
 import { Trophy, TrendingDown, Minus } from 'lucide-react';
 
 interface SixesStretchSummaryProps {
   round: Round;
   game: GameSettings;
-  stretch: 1 | 2 | 3;
+  stretch: SixesStretch;
 }
 
 const SixesStretchSummary: React.FC<SixesStretchSummaryProps> = ({ round, game, stretch }) => {
-  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch);
-  const stretchResult = calculateSixesStretchResult(round, game, stretch);
-  const stretchPayouts = calculateSixesStretchPayouts(round, game, stretch);
+  const mode = getSixesMode(round.gameData, game.id);
+  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode);
+  const stretchResult = calculateSixesStretchResult(round, game, stretch, mode);
+  const stretchPayouts = calculateSixesStretchPayouts(round, game, stretch, mode);
   
   if (!teamAssignment || !stretchResult) return null;
   
@@ -23,11 +32,8 @@ const SixesStretchSummary: React.FC<SixesStretchSummaryProps> = ({ round, game, 
     return round.players.find(p => p.id === playerId)?.name || 'Unknown';
   };
   
-  const stretchNames = {
-    1: 'Holes 1-6',
-    2: 'Holes 7-12',
-    3: 'Holes 13-18'
-  };
+  const stretchName = getStretchName(stretch, mode);
+  const gameModeLabel = mode === 'threes' ? "3's" : "6's";
   
   // Determine winner
   let winnerTeam: 'A' | 'B' | 'PUSH' = 'PUSH';
@@ -39,7 +45,7 @@ const SixesStretchSummary: React.FC<SixesStretchSummaryProps> = ({ round, game, 
   return (
     <div className="bg-card rounded-xl border border-border p-4 space-y-4">
       <div className="text-center">
-        <h3 className="text-lg font-bold text-foreground">6's Summary: {stretchNames[stretch]}</h3>
+        <h3 className="text-lg font-bold text-foreground">{gameModeLabel} Summary: {stretchName}</h3>
         {!complete && (
           <p className="text-sm text-muted-foreground">Stretch in progress...</p>
         )}
