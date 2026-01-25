@@ -1,59 +1,60 @@
 
 
-## Plan: Update Handicap Display to Multi-Line Format
+## Plan: Replace P&L Label with Course Handicap
 
-### Problem
-The current hole header displays the handicap info as `{par}/idx {handicapIndex}` on a single line. The user wants a multi-line format with clearer labels:
-```
-1
-par 4
-IDX 9
-```
+### Overview
+Update the scorecard to show each player's course handicap in the row label instead of "P&L". This consolidates information and makes the handicap easily visible.
 
 ---
 
-### Solution
-Update the hole header cell to display three separate lines with proper formatting and labels.
+### Current State
 
----
-
-### Technical Changes
-
-**File:** `src/components/Scorecard.tsx`
-
-**Current code (line 458-461):**
+**Line 511:**
 ```tsx
->
-  {h.number}
-  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}/idx {h.handicapIndex}</div>
-</th>
+<td className="px-3 pb-2 text-left text-muted-foreground sticky left-0 bg-inherit border-r border-border z-10">P&L</td>
 ```
 
-**Updated code:**
-```tsx
->
-  {h.number}
-  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">par {h.par}</div>
-  <div className="text-[10px] text-muted-foreground font-normal">IDX {h.handicapIndex}</div>
-</th>
-```
+Displays a static "P&L" label for the profit/loss row.
 
 ---
 
-### Visual Result
+### Proposed Change
+
+Replace the static "P&L" text with the player's course handicap:
 
 **Before:**
 ```
-1
-4/idx 9
++------------------+------+------+------+------+
+| John Smith       | 4    | 5    | 3    | 82   |
+| P&L              | +5   | -    | +10  | $15  |
++------------------+------+------+------+------+
 ```
 
 **After:**
 ```
-1
-Par 4
-IDX 9
++------------------+------+------+------+------+
+| John Smith       | 4    | 5    | 3    | 82   |
+| HCP 14           | +5   | -    | +10  | $15  |
++------------------+------+------+------+------+
 ```
+
+---
+
+### Technical Implementation
+
+**File:** `src/components/Scorecard.tsx`
+
+**Line 511:** Change from static "P&L" to dynamic course handicap
+
+```tsx
+// Before
+<td className="px-3 pb-2 text-left text-muted-foreground sticky left-0 bg-inherit border-r border-border z-10">P&L</td>
+
+// After
+<td className="px-3 pb-2 text-left text-muted-foreground sticky left-0 bg-inherit border-r border-border z-10">HCP {player.courseHandicap}</td>
+```
+
+Since this row is already inside the `currentRound.players.map((player, idx) => ...)` loop, the `player` object is accessible and contains `courseHandicap`.
 
 ---
 
@@ -61,5 +62,5 @@ IDX 9
 
 | File | Line | Change |
 |------|------|--------|
-| `src/components/Scorecard.tsx` | 460 | Split into two separate divs with "par X" and "IDX Y" format |
+| `src/components/Scorecard.tsx` | 511 | Replace `P&L` with `HCP {player.courseHandicap}` |
 
