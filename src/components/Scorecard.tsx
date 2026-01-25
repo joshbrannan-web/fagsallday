@@ -508,7 +508,7 @@ const Scorecard: React.FC = () => {
                     <td className="p-2 font-bold">{calculateSubtotalScore(player.id, activeHoles) || '-'}</td>
                   </tr>
                   <tr className={`text-xs ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}`}>
-                    <td className="px-3 pb-2 text-left text-muted-foreground sticky left-0 bg-inherit border-r border-border z-10">P&L</td>
+                    <td className="px-3 pb-2 text-left text-muted-foreground sticky left-0 bg-inherit border-r border-border z-10">HCP {player.courseHandicap}</td>
                     {activeHoles.map(h => {
                       const money = getPlayerHoleMoney(player.id, h.number);
                       return (
