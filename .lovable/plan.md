@@ -1,74 +1,130 @@
 
 
-## Plan: Auto-scroll to Top When Changing Holes
+## Plan: Fix 6's Press Score Display in Scorecard
 
-### Overview
-Add auto-scroll behavior so that when users navigate between holes (using the left/right chevron buttons), the main content area automatically scrolls to the top. This provides a consistent starting position for each hole's scoring view.
+### Problem
+The `SixesMatchSummary.tsx` component is recalculating press hole results inline using **simplified logic** that doesn't match the actual game engine. This causes incorrect press scores to be displayed.
+
+The display shows Team B winning 1-0 when they actually won 2-0 because:
+1. The inline calculation doesn't use the proper `calculateSixesStrokes` function with its "cancel all strokes if everyone gets one" logic
+2. It doesn't properly handle the 2nd ball tiebreaker setting
+3. It doesn't use the `handicapMode` setting from metadata
 
 ---
 
-### Technical Approach
+### Current Code (Broken)
 
-Use a React `useRef` to reference the main scrollable container, then add a `useEffect` that scrolls to the top whenever `activeHole` changes.
-
----
-
-### Implementation Details
-
-**File:** `src/components/ActiveRound.tsx`
-
-#### Step 1: Add a ref for the scrollable container
-
-Near line 31 (with other state declarations), add:
+**File:** `src/components/sixes/SixesMatchSummary.tsx` (lines 177-199)
 
 ```tsx
-const scrollContainerRef = useRef<HTMLDivElement>(null);
-```
+// Determine hole winner (simplified - uses same logic as stretch)
+const holeData = round.course.holes.find(h2 => h2.number === h);
+if (!holeData) continue;
 
-Also add `useRef` to the React import on line 1.
+// Get net scores for this hole - SIMPLIFIED AND WRONG
+const getPlayerNet = (playerId: string): number => {
+  const gross = holeScores[playerId] as number;
+  const player = round.players.find(p => p.id === playerId);
+  if (!assignment.useHandicaps || !player) return gross;
+  // Simplified stroke calculation - MISSING absolute mode logic!
+  const stroke = holeData.handicapIndex <= player.courseHandicap ? 1 : 0;
+  return gross - stroke;
+};
 
-#### Step 2: Add useEffect to scroll on hole change
+const teamANets = assignment.teamA.map(getPlayerNet);
+const teamBNets = assignment.teamB.map(getPlayerNet);
 
-After the existing `useEffect` hooks (around line 193), add:
+const teamA1stBall = Math.min(...teamANets);
+const teamB1stBall = Math.min(...teamBNets);
 
-```tsx
-// Auto-scroll to top when changing holes
-useEffect(() => {
-  if (scrollContainerRef.current) {
-    scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-}, [activeHole]);
-```
-
-#### Step 3: Attach the ref to the scrollable container
-
-On line 563, update the main content div to include the ref:
-
-```tsx
-<div 
-  ref={scrollContainerRef}
-  className={`flex-1 overflow-y-auto p-4 space-y-4 ${
-    isBottomBarMinimized ? 'pb-16' : 'pb-48'
-  }`}
->
+// MISSING: 2nd ball tiebreaker logic!
+if (teamA1stBall < teamB1stBall) teamAWinsInPress++;
+else if (teamB1stBall < teamA1stBall) teamBWinsInPress++;
 ```
 
 ---
 
-### Summary of Changes
+### Solution
 
-| Location | Change |
-|----------|--------|
-| Line 1 | Add `useRef` to React import |
-| Line ~31 | Add `scrollContainerRef` declaration |
-| Line ~193 | Add `useEffect` for auto-scroll on `activeHole` change |
-| Line 563 | Attach `ref={scrollContainerRef}` to scrollable container |
+Replace the inline calculation with a call to the existing `calculateSixesHoleResult` function from the engine, which already handles:
+- Absolute vs relative handicap mode
+- "Cancel all strokes" logic when everyone gets a stroke  
+- 2nd ball tiebreaker
+- All edge cases
 
 ---
 
-### Behavior
+### Proposed Code
 
-- **Smooth scroll**: Uses `behavior: 'smooth'` for a polished animation
-- **Triggers on**: Any change to `activeHole` (prev/next buttons, or navigating from scorecard)
-- **Target**: The main content area that contains all scoring cards and game sections
+**File:** `src/components/sixes/SixesMatchSummary.tsx`
+
+#### Step 1: Import the calculateSixesHoleResult function
+
+Update line 3 to add `calculateSixesHoleResult`:
+
+```tsx
+import { 
+  getSixesTeamAssignment, 
+  calculateSixesStretchResult, 
+  calculateSixesStretchPayouts,
+  getSixesPresses,
+  calculateSixesPressPayouts,
+  calculateSixesHoleResult,  // ADD THIS
+  SIXES_STRETCH_HOLES 
+} from '../../services/sixesEngine';
+```
+
+#### Step 2: Replace the inline calculation (lines 166-199)
+
+Replace the broken inline calculation with a call to the engine:
+
+```tsx
+for (let h = press.startHole; h <= stretchEndHole; h++) {
+  const holeScores = round.scores[h];
+  if (!holeScores) continue;
+  
+  // Check if hole is complete
+  const allPlayers = [...assignment.teamA, ...assignment.teamB];
+  const allHaveScores = allPlayers.every(pid => typeof holeScores[pid] === 'number');
+  if (!allHaveScores) continue;
+  
+  holesInPressPlayed++;
+  
+  // Use the proper engine function for correct calculation
+  const holeResult = calculateSixesHoleResult(
+    round,
+    h,
+    assignment.teamA,
+    assignment.teamB,
+    assignment.useHandicaps,
+    assignment.useSecondBallTiebreaker || false,
+    assignment.handicapMode || 'absolute'
+  );
+  
+  if (holeResult === 'A') teamAWinsInPress++;
+  else if (holeResult === 'B') teamBWinsInPress++;
+  // TIE is not counted for either team
+}
+```
+
+---
+
+### Files to Modify
+
+| File | Lines | Change |
+|------|-------|--------|
+| `src/components/sixes/SixesMatchSummary.tsx` | 3-10 | Add `calculateSixesHoleResult` to import |
+| `src/components/sixes/SixesMatchSummary.tsx` | 166-199 | Replace inline calculation with engine function call |
+
+---
+
+### Why This Fixes It
+
+The `calculateSixesHoleResult` function in the engine:
+1. Uses `calculateSixesStrokes()` which properly cancels all strokes when everyone gets one
+2. Respects the `handicapMode` setting (absolute vs relative)
+3. Properly handles the 2nd ball tiebreaker when enabled
+4. Is the same function used for the main stretch calculation, ensuring consistency
+
+This will make the press display match the actual game results.
 
