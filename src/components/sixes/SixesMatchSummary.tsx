@@ -6,6 +6,7 @@ import {
   calculateSixesStretchPayouts,
   getSixesPresses,
   calculateSixesPressPayouts,
+  calculateSixesHoleResult,
   SIXES_STRETCH_HOLES 
 } from '../../services/sixesEngine';
 import { Trophy, TrendingDown, Minus, Flame } from 'lucide-react';
@@ -174,28 +175,19 @@ const StretchCard: React.FC<{ data: StretchData; round: Round; unitValue: number
               
               holesInPressPlayed++;
               
-              // Determine hole winner (simplified - uses same logic as stretch)
-              const holeData = round.course.holes.find(h2 => h2.number === h);
-              if (!holeData) continue;
+              // Use the proper engine function for correct calculation
+              const holeResult = calculateSixesHoleResult(
+                round,
+                h,
+                assignment.teamA,
+                assignment.teamB,
+                assignment.useHandicaps,
+                assignment.useSecondBallTiebreaker || false,
+                assignment.handicapMode || 'absolute'
+              );
               
-              // Get net scores for this hole
-              const getPlayerNet = (playerId: string): number => {
-                const gross = holeScores[playerId] as number;
-                const player = round.players.find(p => p.id === playerId);
-                if (!assignment.useHandicaps || !player) return gross;
-                // Simplified stroke calculation
-                const stroke = holeData.handicapIndex <= player.courseHandicap ? 1 : 0;
-                return gross - stroke;
-              };
-              
-              const teamANets = assignment.teamA.map(getPlayerNet);
-              const teamBNets = assignment.teamB.map(getPlayerNet);
-              
-              const teamA1stBall = Math.min(...teamANets);
-              const teamB1stBall = Math.min(...teamBNets);
-              
-              if (teamA1stBall < teamB1stBall) teamAWinsInPress++;
-              else if (teamB1stBall < teamA1stBall) teamBWinsInPress++;
+              if (holeResult === 'A') teamAWinsInPress++;
+              else if (holeResult === 'B') teamBWinsInPress++;
             }
             
             const totalPressHoles = stretchEndHole - press.startHole + 1;
