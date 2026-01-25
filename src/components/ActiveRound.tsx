@@ -366,8 +366,10 @@ const ActiveRound: React.FC = () => {
     const sixesGame = currentRound.games.find(g => g.id === gameId);
     if (!sixesGame) return;
     
-    const stretch = getSixesStretchForHole(activeHole);
-    const stretchStartHole = (stretch - 1) * 6 + 1;
+    // Get mode from Stretch 1 metadata (where it's always stored)
+    const mode = getSixesMode(currentRound.gameData, gameId);
+    const stretch = getSixesStretchForHole(activeHole, mode);
+    const stretchStartHole = getStretchStartHole(stretch, mode);
     const sixesData = currentRound.gameData?.[gameId]?.[stretchStartHole] || {};
     const existingPresses: SixesPressState[] = sixesData._META_PRESSES || [];
     const unitValue = sixesData._META_UNIT_VALUE || sixesGame.unitStake;
