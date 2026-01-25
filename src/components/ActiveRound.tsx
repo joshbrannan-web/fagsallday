@@ -11,7 +11,7 @@ import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistan
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
 import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRelativeStrokes } from '../services/stockton6Engine';
 import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
-import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses } from '../services/sixesEngine';
+import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses, getSixesMode, getStretchStartHole, SixesMode } from '../services/sixesEngine';
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
@@ -91,9 +91,11 @@ const ActiveRound: React.FC = () => {
     if (!currentRound) return false;
     const sixesGames = currentRound.games.filter(g => g.type === GameType.SIXES);
     const sixesGame = sixesGames[0];
-    if (!sixesGame || !isSixesStretchStartHole(activeHole)) return false;
-    const stretch = getSixesStretchForHole(activeHole);
-    const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+    if (!sixesGame) return false;
+    const mode = getSixesMode(currentRound.gameData, sixesGame.id);
+    if (!isSixesStretchStartHole(activeHole, mode)) return false;
+    const stretch = getSixesStretchForHole(activeHole, mode);
+    const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch, mode);
     return !teamAssignment;
   }, [currentRound, activeHole]);
 
@@ -116,8 +118,9 @@ const ActiveRound: React.FC = () => {
     // Then check 6's
     const sixesGame = currentRound.games.find(g => g.type === GameType.SIXES);
     if (sixesGame) {
-      const stretch = getSixesStretchForHole(activeHole);
-      const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+      const mode = getSixesMode(currentRound.gameData, sixesGame.id);
+      const stretch = getSixesStretchForHole(activeHole, mode);
+      const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch, mode);
       if (teamAssignment) {
         if (teamAssignment.teamA.includes(playerId)) return 'A';
         if (teamAssignment.teamB.includes(playerId)) return 'B';
@@ -515,25 +518,21 @@ const ActiveRound: React.FC = () => {
 
       {/* 6's Team Setup - Show at stretch starts if teams not set */}
       {sixesGame && sixesNeedsSetup && (() => {
-        const stretch = getSixesStretchForHole(activeHole) as 1 | 2 | 3;
+        const mode = getSixesMode(currentRound.gameData, sixesGame.id);
+        const stretch = getSixesStretchForHole(activeHole, mode);
         
         // Get Stretch 1 settings to carry forward to subsequent stretches
         const stretch1Settings = stretch > 1 
-          ? getSixesTeamAssignment(currentRound.gameData, sixesGame.id, 1)
+          ? getSixesTeamAssignment(currentRound.gameData, sixesGame.id, 1, mode)
           : null;
         
         // Gather previous stretch teams for auto-rotation
         const previousStretchTeams: { teamA: string[]; teamB: string[] }[] = [];
-        if (stretch >= 2) {
-          const stretch1Teams = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, 1);
-          if (stretch1Teams) {
-            previousStretchTeams.push({ teamA: stretch1Teams.teamA, teamB: stretch1Teams.teamB });
-          }
-        }
-        if (stretch >= 3) {
-          const stretch2Teams = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, 2);
-          if (stretch2Teams) {
-            previousStretchTeams.push({ teamA: stretch2Teams.teamA, teamB: stretch2Teams.teamB });
+        const totalStretches = mode === 'threes' ? 6 : 3;
+        for (let s = 1; s < stretch; s++) {
+          const prevTeams = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, s as 1|2|3|4|5|6, mode);
+          if (prevTeams) {
+            previousStretchTeams.push({ teamA: prevTeams.teamA, teamB: prevTeams.teamB });
           }
         }
         
@@ -542,13 +541,14 @@ const ActiveRound: React.FC = () => {
             <SixesTeamSetup
               players={currentRound.players}
               stretch={stretch}
+              mode={mode}
               existingUnitValue={stretch1Settings?.unitValue ?? sixesGame.unitStake}
               existingUseHandicaps={stretch1Settings?.useHandicaps ?? sixesGame.config?.useHandicaps ?? true}
               existingUseSecondBall={stretch1Settings?.useSecondBallTiebreaker ?? sixesGame.config?.sixes?.useSecondBallTiebreaker ?? false}
               existingAllowPresses={stretch1Settings?.allowPresses ?? sixesGame.config?.sixes?.allowPresses ?? false}
               previousStretchTeams={previousStretchTeams}
               onConfirm={(teamA, teamB, unitValue, useHandicaps, useSecondBall, allowPresses) => {
-                const stretchStartHole = stretch === 1 ? 1 : stretch === 2 ? 7 : 13;
+                const stretchStartHole = getStretchStartHole(stretch, mode);
                 updateGameDataBatch(sixesGame.id, stretchStartHole, {
                   _META_TEAM_A: teamA,
                   _META_TEAM_B: teamB,
@@ -557,6 +557,7 @@ const ActiveRound: React.FC = () => {
                   _META_USE_SECOND_BALL: useSecondBall,
                   _META_ALLOW_PRESSES: allowPresses,
                   _META_HANDICAP_MODE: stretch1Settings?.handicapMode ?? sixesGame.config?.handicapMode ?? 'absolute',
+                  _META_MODE: stretch1Settings?.mode ?? mode,
                   _META_LOCKED: true
                 });
               }}

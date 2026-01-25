@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
+import { SixesStretch, SixesMode, getStretchName } from '@/services/sixesEngine';
 
 interface SixesTeamSetupProps {
   players: Player[];
-  stretch: 1 | 2 | 3;
+  stretch: SixesStretch;
+  mode: SixesMode;
   existingTeamA?: string[];
   existingTeamB?: string[];
   existingUnitValue?: number;
@@ -22,6 +24,7 @@ interface SixesTeamSetupProps {
 const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
   players,
   stretch,
+  mode,
   existingTeamA,
   existingTeamB,
   existingUnitValue = 10,
@@ -90,7 +93,7 @@ const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
         setTeamA([players[0].id, players[1].id]);
         setTeamB([players[2].id, players[3].id]);
       } else {
-        // Stretch 2 or 3: Use rotation to avoid repeat pairings
+        // Later stretches: Use rotation to avoid repeat pairings
         const rotated = getRotatedTeams(playerIds, previousStretchTeams);
         setTeamA(rotated.teamA);
         setTeamB(rotated.teamB);
@@ -126,21 +129,18 @@ const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
 
   const canConfirm = teamA.length === 2 && teamB.length === 2;
 
-  const stretchHoles = {
-    1: '1-6',
-    2: '7-12',
-    3: '13-18'
-  };
+  const stretchHoles = getStretchName(stretch, mode);
+  const gameModeLabel = mode === 'threes' ? "3's" : "6's";
 
   return (
     <div className="bg-card rounded-2xl shadow-lg border border-primary/30 p-4 space-y-4">
       <div className="text-center">
         <div className="flex items-center justify-center gap-2 mb-1">
           <span className="text-2xl">🎲</span>
-          <h2 className="text-xl font-bold text-foreground">6's Match Play</h2>
+          <h2 className="text-xl font-bold text-foreground">{gameModeLabel} Match Play</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Stretch {stretch}: Holes {stretchHoles[stretch]}
+          Stretch {stretch}: {stretchHoles}
         </p>
       </div>
 
@@ -303,7 +303,7 @@ const SixesTeamSetup: React.FC<SixesTeamSetupProps> = ({
           </div>
         </div>
       ) : (
-        // Stretch 2 or 3: Show read-only settings summary
+        // Later stretches: Show read-only settings summary
         <div className="pt-2 border-t border-border">
           <div className="bg-muted/50 rounded-xl p-3">
             <div className="text-center mb-2">

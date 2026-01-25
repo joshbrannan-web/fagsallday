@@ -4,7 +4,7 @@ import { useApp } from '../App';
 import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
 import { calculateAggregatedHolePnL, calculateBanker, calculateFBO } from '../services/gameEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
-import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, SIXES_STRETCH_HOLES } from '../services/sixesEngine';
+import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, getSixesMode, SixesMode } from '../services/sixesEngine';
 import { SixesMatchSummary } from './sixes';
 import { Button } from '@/components/ui/button';
 import GameRoundTotals from './GameRoundTotals';
@@ -386,8 +386,9 @@ const Scorecard: React.FC = () => {
   // 6's hole result helper
   const getSixesHoleResultForHole = (holeNum: number): 'A' | 'B' | 'TIE' | null => {
     if (!sixesGame) return null;
-    const stretch = getSixesStretchForHole(holeNum);
-    const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch);
+    const mode = getSixesMode(currentRound.gameData, sixesGame.id);
+    const stretch = getSixesStretchForHole(holeNum, mode);
+    const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch, mode);
     if (!teamAssignment) return null;
     
     return calculateSixesHoleResult(
@@ -402,9 +403,10 @@ const Scorecard: React.FC = () => {
   };
 
   // Get stretch result for 6's
-  const getSixesStretchData = (stretch: 1 | 2 | 3) => {
+  const getSixesStretchData = (stretch: 1 | 2 | 3 | 4 | 5 | 6) => {
     if (!sixesGame) return null;
-    return calculateSixesStretchResult(currentRound, sixesGame, stretch);
+    const mode = getSixesMode(currentRound.gameData, sixesGame.id);
+    return calculateSixesStretchResult(currentRound, sixesGame, stretch, mode);
   };
 
 
