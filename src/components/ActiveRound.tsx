@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle } from 'lucide-react';
@@ -30,6 +30,7 @@ const ActiveRound: React.FC = () => {
   
   const isOnline = useOnlineStatus();
   const pendingSyncCount = offlineStorage.getPendingSyncCount();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // All hooks must be called before any early returns!
   // Bloody Banker "Down the Most" logic for holes 16, 17, 18
@@ -190,6 +191,13 @@ const ActiveRound: React.FC = () => {
       }
     });
   }, [currentRound?.scores, activeHole, currentRound?.games, updateGameData]);
+
+  // Auto-scroll to top when changing holes
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [activeHole]);
 
   if (!currentRound) {
     if (isLoading) {
@@ -560,9 +568,12 @@ const ActiveRound: React.FC = () => {
 
       {/* Main Scoring Area - Hidden when team setup is needed */}
       {!stockton6NeedsSetup && !sixesNeedsSetup && (
-      <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
-        isBottomBarMinimized ? 'pb-16' : 'pb-48'
-      }`}>
+      <div 
+        ref={scrollContainerRef}
+        className={`flex-1 overflow-y-auto p-4 space-y-4 ${
+          isBottomBarMinimized ? 'pb-16' : 'pb-48'
+        }`}
+      >
         {/* Stockton 6's Status Bar */}
         {stockton6Game && (
           <Stockton6StatusBar
