@@ -1,66 +1,74 @@
 
 
-## Plan: Replace P&L Label with Course Handicap
+## Plan: Auto-scroll to Top When Changing Holes
 
 ### Overview
-Update the scorecard to show each player's course handicap in the row label instead of "P&L". This consolidates information and makes the handicap easily visible.
+Add auto-scroll behavior so that when users navigate between holes (using the left/right chevron buttons), the main content area automatically scrolls to the top. This provides a consistent starting position for each hole's scoring view.
 
 ---
 
-### Current State
+### Technical Approach
 
-**Line 511:**
-```tsx
-<td className="px-3 pb-2 text-left text-muted-foreground sticky left-0 bg-inherit border-r border-border z-10">P&L</td>
-```
-
-Displays a static "P&L" label for the profit/loss row.
+Use a React `useRef` to reference the main scrollable container, then add a `useEffect` that scrolls to the top whenever `activeHole` changes.
 
 ---
 
-### Proposed Change
+### Implementation Details
 
-Replace the static "P&L" text with the player's course handicap:
+**File:** `src/components/ActiveRound.tsx`
 
-**Before:**
-```
-+------------------+------+------+------+------+
-| John Smith       | 4    | 5    | 3    | 82   |
-| P&L              | +5   | -    | +10  | $15  |
-+------------------+------+------+------+------+
-```
+#### Step 1: Add a ref for the scrollable container
 
-**After:**
-```
-+------------------+------+------+------+------+
-| John Smith       | 4    | 5    | 3    | 82   |
-| HCP 14           | +5   | -    | +10  | $15  |
-+------------------+------+------+------+------+
-```
-
----
-
-### Technical Implementation
-
-**File:** `src/components/Scorecard.tsx`
-
-**Line 511:** Change from static "P&L" to dynamic course handicap
+Near line 31 (with other state declarations), add:
 
 ```tsx
-// Before
-<td className="px-3 pb-2 text-left text-muted-foreground sticky left-0 bg-inherit border-r border-border z-10">P&L</td>
-
-// After
-<td className="px-3 pb-2 text-left text-muted-foreground sticky left-0 bg-inherit border-r border-border z-10">HCP {player.courseHandicap}</td>
+const scrollContainerRef = useRef<HTMLDivElement>(null);
 ```
 
-Since this row is already inside the `currentRound.players.map((player, idx) => ...)` loop, the `player` object is accessible and contains `courseHandicap`.
+Also add `useRef` to the React import on line 1.
+
+#### Step 2: Add useEffect to scroll on hole change
+
+After the existing `useEffect` hooks (around line 193), add:
+
+```tsx
+// Auto-scroll to top when changing holes
+useEffect(() => {
+  if (scrollContainerRef.current) {
+    scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}, [activeHole]);
+```
+
+#### Step 3: Attach the ref to the scrollable container
+
+On line 563, update the main content div to include the ref:
+
+```tsx
+<div 
+  ref={scrollContainerRef}
+  className={`flex-1 overflow-y-auto p-4 space-y-4 ${
+    isBottomBarMinimized ? 'pb-16' : 'pb-48'
+  }`}
+>
+```
 
 ---
 
-### Files to Modify
+### Summary of Changes
 
-| File | Line | Change |
-|------|------|--------|
-| `src/components/Scorecard.tsx` | 511 | Replace `P&L` with `HCP {player.courseHandicap}` |
+| Location | Change |
+|----------|--------|
+| Line 1 | Add `useRef` to React import |
+| Line ~31 | Add `scrollContainerRef` declaration |
+| Line ~193 | Add `useEffect` for auto-scroll on `activeHole` change |
+| Line 563 | Attach `ref={scrollContainerRef}` to scrollable container |
+
+---
+
+### Behavior
+
+- **Smooth scroll**: Uses `behavior: 'smooth'` for a polished animation
+- **Triggers on**: Any change to `activeHole` (prev/next buttons, or navigating from scorecard)
+- **Target**: The main content area that contains all scoring cards and game sections
 
