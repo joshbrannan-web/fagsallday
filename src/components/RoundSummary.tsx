@@ -197,11 +197,11 @@ const RoundSummary: React.FC = () => {
         const hasActivity = Object.values(gameResult.playerResults).some(v => v !== 0);
         if (!hasActivity) return;
         
-        const playerLine = sortedPlayers
-          .map(p => `${p.name}: ${formatMoney(gameResult.playerResults[p.id] || 0)}`)
-          .join(' | ');
+        const playerLines = sortedPlayers
+          .map(p => `  ${p.name}: ${formatMoney(gameResult.playerResults[p.id] || 0)}`)
+          .join('\n');
         
-        gameBreakdown += `\n${game.name} ($${game.unitStake}/unit):\n  ${playerLine}`;
+        gameBreakdown += `\n${game.name} ($${game.unitStake}/unit):\n${playerLines}`;
       });
     }
 
