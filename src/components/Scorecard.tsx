@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
-import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2 } from 'lucide-react';
 import { calculateAggregatedHolePnL, calculateBanker, calculateFBO } from '../services/gameEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
 import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, getSixesMode, SixesMode } from '../services/sixesEngine';
@@ -9,6 +9,8 @@ import { SixesMatchSummary } from './sixes';
 import { Button } from '@/components/ui/button';
 import GameRoundTotals from './GameRoundTotals';
 import { GameType, GameSettings, Player, HoleScores, GameData, Hole, WolfHoleData, FBOPressState, SixesPressState } from '../types';
+import { toPng } from 'html-to-image';
+import { toast } from 'sonner';
 
 // FBO Segment Results Component
 interface FBOSegmentResultsProps {
@@ -259,6 +261,43 @@ const Scorecard: React.FC = () => {
   const navigate = useNavigate();
   const { currentRound, roundTotals } = useApp();
   const [viewMode, setViewMode] = useState<'FRONT' | 'BACK'>('FRONT');
+  const scorecardRef = useRef<HTMLDivElement>(null);
+
+  const handleShareImage = async () => {
+    if (!scorecardRef.current || !currentRound) return;
+    
+    try {
+      toast.info('Generating scorecard image...');
+      
+      const dataUrl = await toPng(scorecardRef.current, {
+        quality: 0.95,
+        backgroundColor: '#ffffff',
+        pixelRatio: 2, // Higher quality for landscape viewing
+      });
+      
+      // Convert data URL to blob for sharing
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const file = new File([blob], 'scorecard.png', { type: 'image/png' });
+      
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `${currentRound.course.name} Scorecard`,
+          files: [file],
+        });
+      } else {
+        // Fallback: download the image
+        const link = document.createElement('a');
+        link.download = `scorecard-${currentRound.course.name.replace(/\s+/g, '-')}.png`;
+        link.href = dataUrl;
+        link.click();
+        toast.success('Scorecard image downloaded!');
+      }
+    } catch (err) {
+      console.error('Share image failed:', err);
+      toast.error('Failed to generate image');
+    }
+  };
 
   if (!currentRound) {
     return (
@@ -447,7 +486,17 @@ const Scorecard: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-x-auto p-4">
-        <div className="inline-block min-w-full bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+        {/* Main Player Scorecard - wrapped with ref for image capture */}
+        <div ref={scorecardRef} className="inline-block min-w-full bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+          {/* Header for image capture */}
+          <div className="bg-muted/50 px-4 py-3 border-b border-border">
+            <div className="text-center">
+              <h3 className="font-bold text-foreground text-lg">{currentRound.course.name}</h3>
+              <p className="text-xs text-muted-foreground">
+                {new Date(currentRound.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
           <table className="w-full text-center border-collapse text-sm">
             <thead>
               <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
@@ -774,7 +823,10 @@ const Scorecard: React.FC = () => {
         )}
       </div>
 
-      <div className="p-4 bg-card border-t border-border">
+      <div className="p-4 bg-card border-t border-border flex gap-3">
+        <Button variant="outline" onClick={handleShareImage} className="flex-1">
+          <Share2 className="w-4 h-4 mr-2" /> Share Image
+        </Button>
         <Button onClick={() => {
           // Find the last hole with any score posted
           const holesWithScores = Object.keys(currentRound.scores)
@@ -782,7 +834,7 @@ const Scorecard: React.FC = () => {
             .filter(h => Object.values(currentRound.scores[h] || {}).some(s => typeof s === 'number'));
           const lastHole = holesWithScores.length > 0 ? Math.max(...holesWithScores) : 1;
           navigate('/active', { state: { startHole: lastHole } });
-        }} className="w-full">
+        }} className="flex-1">
           <Play className="w-4 h-4 mr-2" /> Return to Hole
         </Button>
       </div>
