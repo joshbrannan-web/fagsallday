@@ -1,6 +1,7 @@
 import React from 'react';
 import { Round, GameSettings } from '@/types';
 import { calculateStockton6, validateStockton6Totals, getTeamAssignment } from '@/services/stockton6Engine';
+import { formatMoney } from '@/services/gameEngine';
 import { Trophy, TrendingDown, CheckCircle, AlertTriangle, Share } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -28,27 +29,34 @@ const Stockton6RoundSummary: React.FC<Stockton6RoundSummaryProps> = ({
     .filter(p => result.playerResults[p.id] !== undefined)
     .sort((a, b) => (result.playerResults[b.id] || 0) - (result.playerResults[a.id] || 0));
 
+  // Calculate total strokes for a player
+  const getPlayerTotalScore = (playerId: string): number => {
+    let total = 0;
+    Object.values(round.scores).forEach(holeScores => {
+      const score = holeScores[playerId];
+      if (score !== null && score !== undefined) {
+        total += score;
+      }
+    });
+    return total;
+  };
+
   const handleShare = async () => {
-    const lines = [
-      `🏌️ Stockton 6's Results`,
-      `Course: ${round.course.name}`,
-      ``,
-      `Player Results:`,
-      ...sortedPlayers.map((p, i) => {
-        const total = result.playerResults[p.id] || 0;
-        const prefix = total > 0 ? '+' : total < 0 ? '-' : '';
-        const rank = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-        return `${rank} ${p.name}: ${prefix}$${Math.abs(total)}`;
-      }),
-      ``,
-      isBalanced ? '✓ Totals balanced' : '⚠️ Check results - totals do not balance'
-    ];
-    
-    const text = lines.join('\n');
+    const roundDate = new Date(round.startTime).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    const results = sortedPlayers.map((p) => 
+      `${p.name}: ${formatMoney(result.playerResults[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
+    ).join('\n');
+
+    const text = `🏌️ ${round.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day`;
     
     try {
       if (navigator.share) {
-        await navigator.share({ text });
+        await navigator.share({ title: 'Stockton 6\'s Results', text });
       } else {
         await navigator.clipboard.writeText(text);
         toast.success('Results copied to clipboard');

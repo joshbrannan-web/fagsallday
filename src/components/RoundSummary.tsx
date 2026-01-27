@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
-import { formatMoney } from '../services/gameEngine';
+import { formatMoney, calculatePerGameTotals } from '../services/gameEngine';
 import { Home, Trophy, Share2, Edit2, Check, X } from 'lucide-react';
 import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -183,7 +183,29 @@ const RoundSummary: React.FC = () => {
       `${p.name}: ${formatMoney(displayAmounts[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
     ).join('\n');
 
-    const text = `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day`;
+    // Build per-game breakdown if multiple games
+    let gameBreakdown = '';
+    if (currentRound.games.length > 1) {
+      const perGameResults = calculatePerGameTotals(currentRound);
+      
+      gameBreakdown = '\n\n--- Games Breakdown ---';
+      perGameResults.forEach(gameResult => {
+        const game = currentRound.games.find(g => g.id === gameResult.gameId);
+        if (!game) return;
+        
+        // Skip games with no activity
+        const hasActivity = Object.values(gameResult.playerResults).some(v => v !== 0);
+        if (!hasActivity) return;
+        
+        const playerLine = sortedPlayers
+          .map(p => `${p.name}: ${formatMoney(gameResult.playerResults[p.id] || 0)}`)
+          .join(' | ');
+        
+        gameBreakdown += `\n${game.name} ($${game.unitStake}/unit):\n  ${playerLine}`;
+      });
+    }
+
+    const text = `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}`;
 
     if (navigator.share) {
       await navigator.share({ title: 'Golf Round Results', text });
