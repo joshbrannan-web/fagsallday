@@ -458,6 +458,16 @@ const Scorecard: React.FC = () => {
     return total;
   };
 
+  // Calculate full 18-hole total score for image capture
+  const calculateTotalScore = (pid: string) => {
+    let total = 0;
+    holes.forEach(h => {
+      const s = currentRound.scores[h.number]?.[pid];
+      if (typeof s === 'number') total += s;
+    });
+    return total;
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="bg-brand-dark text-primary-foreground p-4 shadow-sm sticky top-0 z-10 flex items-center justify-between">
@@ -486,8 +496,8 @@ const Scorecard: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-x-auto p-4">
-        {/* Main Player Scorecard - wrapped with ref for image capture */}
-        <div ref={scorecardRef} className="inline-block min-w-full bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+        {/* Main Player Scorecard */}
+        <div className="inline-block min-w-full bg-card rounded-xl shadow-sm border border-border overflow-hidden">
           {/* Header for image capture */}
           <div className="bg-muted/50 px-4 py-3 border-b border-border">
             <div className="text-center">
@@ -821,6 +831,105 @@ const Scorecard: React.FC = () => {
         {sixesGame && (
           <SixesMatchSummary round={currentRound} game={sixesGame} />
         )}
+      </div>
+
+      {/* Hidden full 18-hole scorecard for image capture */}
+      <div 
+        ref={scorecardRef}
+        className="absolute left-[-9999px] top-0"
+        aria-hidden="true"
+      >
+        <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+          {/* Header */}
+          <div className="bg-muted/50 px-4 py-3 border-b border-border">
+            <div className="text-center">
+              <h3 className="font-bold text-foreground text-lg">{currentRound.course.name}</h3>
+              <p className="text-xs text-muted-foreground">
+                {new Date(currentRound.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+          
+          {/* Full 18-hole table */}
+          <table className="w-full text-center border-collapse text-sm">
+            <thead>
+              <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
+                <th className="p-3 text-left min-w-[100px] bg-muted border-r border-border">Player</th>
+                {holes.map(h => (
+                  <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
+                    {h.number}
+                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">par {h.par}</div>
+                    <div className="text-[10px] text-muted-foreground font-normal">IDX {h.handicapIndex}</div>
+                  </th>
+                ))}
+                <th className="p-2 min-w-[50px] bg-muted">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentRound.players.map((player, idx) => (
+                <React.Fragment key={player.id}>
+                  <tr className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                    <td className="p-3 text-left font-semibold bg-inherit border-r border-border">
+                      {player.name}
+                    </td>
+                    {holes.map(h => {
+                      const score = getPlayerScore(player.id, h.number);
+                      const diff = typeof score === 'number' ? score - h.par : 0;
+                      let hasStroke = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id] === 1;
+                      if (!hasStroke && stockton6Game) {
+                        const autoStrokes = calculateRelativeStrokes(currentRound.players, h.handicapIndex);
+                        hasStroke = autoStrokes[player.id] === 1;
+                      }
+                      const isBanker = getBankerForHole(h.number) === player.id;
+                      return (
+                        <td key={h.number} className="p-2 border-r border-border/50">
+                          <div className="relative inline-block">
+                            <span className={`inline-block w-8 h-8 leading-8 rounded-full text-sm font-bold ${
+                              diff <= -2 ? 'bg-brand-gold/20 text-brand-gold' :
+                              diff === -1 ? 'bg-success/20 text-success' :
+                              diff === 0 ? '' :
+                              diff === 1 ? 'bg-destructive/10 text-destructive' :
+                              'bg-destructive/20 text-destructive'
+                            }`}>
+                              {score}
+                            </span>
+                            {hasStroke && (
+                              <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border border-background flex items-center justify-center">
+                                <span className="text-[8px] text-primary-foreground font-bold">•</span>
+                              </span>
+                            )}
+                            {isBanker && (
+                              <Crown className="absolute -top-1 -right-1 w-3 h-3 text-brand-gold" />
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className="p-2 font-bold">{calculateTotalScore(player.id) || '-'}</td>
+                  </tr>
+                  <tr className={`text-xs ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}`}>
+                    <td className="px-3 pb-2 text-left text-muted-foreground bg-inherit border-r border-border">HCP {player.courseHandicap}</td>
+                    {holes.map(h => {
+                      const money = getPlayerHoleMoney(player.id, h.number);
+                      return (
+                        <td key={h.number} className="px-2 pb-2 border-r border-border/50">
+                          <span className={`font-mono ${money > 0 ? 'text-success' : money < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                            {money !== 0 ? (money > 0 ? `+${money}` : money) : '-'}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 pb-2">
+                      <span className={`font-mono font-bold ${(roundTotals[player.id] || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        ${roundTotals[player.id] || 0}
+                      </span>
+                    </td>
+                  </tr>
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="p-4 bg-card border-t border-border flex gap-3">
