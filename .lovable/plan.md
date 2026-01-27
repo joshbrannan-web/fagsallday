@@ -1,69 +1,202 @@
 
 
-## Plan: Fix 6's/3's Press Storage for Mode-Aware Stretch Attribution
+## Updated Plan: Enhanced Share Formats with Game Breakdown and Scorecard Image
 
-### Problem
-The `handleSixesPress` function in `ActiveRound.tsx` (lines 369-370) is:
-1. Calling `getSixesStretchForHole(activeHole)` **without the mode parameter** (defaults to 'sixes')
-2. Using a **hardcoded formula** `(stretch - 1) * 6 + 1` for `stretchStartHole`
-
-This causes presses in 3's mode to be stored under the wrong stretch metadata.
-
-### Example Bug
-- Playing 3's mode, pressing on Hole 6
-- Hole 6 in 3's = Stretch 2 (Holes 4-6)
-- Current code returns Stretch 1 (6's logic) and stores at hole 1
-- Press appears under "Stretch 1" instead of "Stretch 2"
+### Overview
+This plan addresses three components:
+1. Update the Stockton 6's share format to match the Main Round Summary
+2. Add per-game breakdown to the Main Round Summary share (when multiple games are played)
+3. Add the ability to share the Main Player Scorecard as a landscape-optimized image
 
 ---
 
-### Solution
+### Part 1: Align Stockton 6's Share Format
 
-Update lines 369-370 to:
-1. First retrieve the mode from Stretch 1 metadata using `getSixesMode()`
-2. Pass the mode to `getSixesStretchForHole()`
-3. Use `getStretchStartHole()` instead of the hardcoded formula
+**File:** `src/components/stockton6/Stockton6RoundSummary.tsx`
 
-Both functions are already imported on line 14.
+**Current Format:**
+```
+🏌️ Stockton 6's Results
+Course: Mountain View Golf Club
 
----
-
-### Code Changes
-
-**File:** `src/components/ActiveRound.tsx`
-
-**Lines 369-370** - Replace:
-```tsx
-const stretch = getSixesStretchForHole(activeHole);
-const stretchStartHole = (stretch - 1) * 6 + 1;
+Player Results:
+🥇 John: +$50
+🥈 Mike: +$10
+...
+✓ Totals balanced
 ```
 
-**With:**
+**New Format:**
+```
+🏌️ Mountain View Golf Club - Jan 27, 2026
+
+John: +$50 (78 strokes)
+Mike: +$10 (82 strokes)
+...
+
+Money Shot by F&Gs All Day
+```
+
+**Changes:**
+- Import `formatMoney` from `@/services/gameEngine`
+- Add `getPlayerTotalScore` helper to calculate total strokes
+- Format date using `toLocaleDateString`
+- Remove ranked medals, use simple sorted list
+- Add branding footer
+
+---
+
+### Part 2: Add Per-Game Breakdown to Round Summary Share
+
+**File:** `src/components/RoundSummary.tsx`
+
+**Current Share Format:**
+```
+🏌️ Mountain View Golf Club - Jan 27, 2026
+
+John: +$50 (78 strokes)
+Mike: +$10 (82 strokes)
+...
+
+Money Shot by F&Gs All Day
+```
+
+**New Share Format (when multiple games):**
+```
+🏌️ Mountain View Golf Club - Jan 27, 2026
+
+John: +$50 (78 strokes)
+Mike: +$10 (82 strokes)
+Sarah: -$20 (85 strokes)
+Dave: -$40 (88 strokes)
+
+Money Shot by F&Gs All Day
+
+--- Games Breakdown ---
+Banker ($5/unit):
+  John: +$30 | Mike: +$10 | Sarah: -$15 | Dave: -$25
+
+Skins ($10/unit):
+  John: +$20 | Mike: $0 | Sarah: -$5 | Dave: -$15
+```
+
+**Implementation:**
+1. Import `calculatePerGameTotals` from `@/services/gameEngine`
+2. In `handleShare`, after building the main results:
+   - Check if `currentRound.games.length > 1`
+   - If multiple games, call `calculatePerGameTotals(currentRound)`
+   - Build a "Games Breakdown" section showing each game name with unit stake and player results on one line
+
+**Code Logic:**
 ```tsx
-// Get mode from Stretch 1 metadata (where it's always stored)
-const mode = getSixesMode(currentRound.gameData, gameId);
-const stretch = getSixesStretchForHole(activeHole, mode);
-const stretchStartHole = getStretchStartHole(stretch, mode);
+// After the main results block
+let gameBreakdown = '';
+if (currentRound.games.length > 1) {
+  const perGameResults = calculatePerGameTotals(currentRound);
+  
+  gameBreakdown = '\n--- Games Breakdown ---';
+  perGameResults.forEach(gameResult => {
+    const game = currentRound.games.find(g => g.id === gameResult.gameId);
+    if (!game) return;
+    
+    // Skip games with no activity
+    const hasActivity = Object.values(gameResult.playerResults).some(v => v !== 0);
+    if (!hasActivity) return;
+    
+    const playerLine = sortedPlayers
+      .map(p => `${p.name}: ${formatMoney(gameResult.playerResults[p.id] || 0)}`)
+      .join(' | ');
+    
+    gameBreakdown += `\n${game.name} ($${game.unitStake}/unit):\n  ${playerLine}`;
+  });
+}
+
+const text = `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}`;
 ```
 
 ---
 
-### Backward Compatibility
+### Part 3: Add Landscape Scorecard Image Sharing
 
-This fix is **fully backward compatible** with 6's mode:
+**Step 1: Install html-to-image**
 
-| Mode | Hole 7 Example |
-|------|----------------|
-| 6's | `getSixesStretchForHole(7, 'sixes')` returns 2, `getStretchStartHole(2, 'sixes')` returns 7 |
-| 3's | `getSixesStretchForHole(7, 'threes')` returns 3, `getStretchStartHole(3, 'threes')` returns 7 |
+Add `html-to-image` package to `package.json`.
 
-The engine functions correctly handle both modes.
+**Step 2: Update Scorecard Component**
+
+**File:** `src/components/Scorecard.tsx`
+
+**Scope:** Wrap **only** the Main Player Scorecard table with a `ref`. The following sections are excluded from the image:
+- Banker Round Totals
+- FBO Dots section
+- FBO Segment Results
+- Stockton 6's Dots section
+- 6's Match Play section
+
+**Implementation:**
+1. Add `useRef` to capture the scorecard container
+2. Import `toPng` from `html-to-image`
+3. Create `handleShareImage` function:
+   - Show loading toast
+   - Capture scorecard as PNG with white background and 2x pixel ratio
+   - Use `navigator.share` with file on mobile
+   - Download fallback on desktop
+4. Add "Share Image" button in footer
+
+**Landscape Optimization:**
+- The existing `inline-block min-w-full` styling on the scorecard table ensures the full 18-hole width is captured
+- The high `pixelRatio: 2` ensures crisp rendering when viewed in landscape
 
 ---
 
 ### Files to Modify
 
-| File | Lines | Change |
-|------|-------|--------|
-| `src/components/ActiveRound.tsx` | 369-370 | Use mode-aware `getSixesStretchForHole()` and `getStretchStartHole()` |
+| File | Changes |
+|------|---------|
+| `src/components/stockton6/Stockton6RoundSummary.tsx` | Update `handleShare` to match RoundSummary format |
+| `src/components/RoundSummary.tsx` | Import `calculatePerGameTotals`, add game breakdown section when multiple games |
+| `src/components/Scorecard.tsx` | Add `useRef`, import `html-to-image`, wrap main scorecard with ref, add Share Image button |
+| `package.json` | Add `html-to-image` dependency |
+
+---
+
+### Example Output: Multiple Games Share
+
+```
+🏌️ Pebble Beach Golf Links - Jan 27, 2026
+
+John: +$85 (76 strokes)
+Mike: +$15 (80 strokes)
+Sarah: -$40 (84 strokes)
+Dave: -$60 (88 strokes)
+
+Money Shot by F&Gs All Day
+
+--- Games Breakdown ---
+Banker ($5/unit):
+  John: +$45 | Mike: +$20 | Sarah: -$25 | Dave: -$40
+
+6's or 3's ($10/unit):
+  John: +$20 | Mike: -$10 | Sarah: +$10 | Dave: -$20
+
+Skins ($5/unit):
+  John: +$20 | Mike: +$5 | Sarah: -$25 | Dave: $0
+```
+
+---
+
+### Technical Notes
+
+**Game Name Display:**
+- Uses `game.name` from the game settings (user-defined or library default)
+- Unit stake shown in parentheses for context
+
+**Conditional Breakdown:**
+- Only appears when `games.length > 1`
+- Games with no financial activity (all $0) are skipped
+- Single-game rounds show only the main summary (no breakdown needed)
+
+**Scorecard Image Capture:**
+- Only captures the player scores table with course header
+- Excludes supplemental game-specific sections to keep image clean and focused
 
