@@ -1,205 +1,139 @@
 
-## Plan: Persist Adjusted Money Totals + Verify Scorecard Image Sharing
 
-This plan addresses two requirements:
-1. **Save adjusted money amounts** - When users manually adjust player earnings on the Round Summary screen, those adjustments should persist when finishing the round
-2. **Verify scorecard image sharing** - Confirm the share image function correctly captures and shares all 18 holes via text/SMS
+## Plan: Fix Scorecard Image Rendering
 
----
-
-## Part 1: Persist Adjusted Money Amounts
-
-### Current Behavior
-- Users can manually edit player money amounts on the Round Summary screen via tap-to-edit
-- Adjustments are stored only in local React state (`adjustedAmounts`)
-- When "Finish & Save" is clicked, these adjustments are lost because `finishRound()` doesn't save them
+### Problem
+The "Share Image" feature is not rendering the scorecard correctly. The hidden capture container uses:
+1. CSS variables that may not resolve properly for off-screen elements
+2. `left-[-9999px]` positioning which can cause `html-to-image` rendering issues
+3. No fixed width, causing potential layout collapse
 
 ### Solution
-Store the final adjusted amounts in the round's `gameData` under a special metadata key (`_FINAL_ADJUSTMENTS`) before calling `finishRound()`. When viewing past rounds, prioritize these saved adjustments over calculated totals.
+Update the hidden capture container to use:
+1. **Inline styles with hard-coded colors** instead of CSS variable-based Tailwind classes
+2. **Fixed positioning with `opacity-0 pointer-events-none`** instead of off-screen positioning (better for `html-to-image`)
+3. **Fixed minimum width** to ensure the 18-hole landscape layout renders properly
 
 ---
 
-### Changes Required
+### Implementation Details
 
-**File 1: `src/components/RoundSummary.tsx`**
+**File: `src/components/Scorecard.tsx`**
 
-1. Import `updateGameDataBatch` from `useApp()`
-2. Update `handleFinish` to save adjustments before finishing
-3. Update the initialization `useEffect` to load saved adjustments
+#### Change 1: Update Hidden Container Positioning (Lines 837-841)
 
-```text
-Line 102: Add updateGameDataBatch to destructured useApp() import
-Line 107-116: Update useEffect to check for saved _FINAL_ADJUSTMENTS first
-Line 157-161: Make handleFinish async and save adjustments before calling finishRound
+**Before:**
+```tsx
+<div 
+  ref={scorecardRef}
+  className="absolute left-[-9999px] top-0"
+  aria-hidden="true"
+>
 ```
 
-**File 2: `src/services/gameEngine.ts`**
-
-1. Update `calculateRoundTotals` to return saved adjustments if they exist
-
-```text
-Line 1280-1292: Add check for _FINAL_ADJUSTMENTS at the start of the function
+**After:**
+```tsx
+<div 
+  ref={scorecardRef}
+  className="fixed top-0 left-0 opacity-0 pointer-events-none z-[-1]"
+  style={{ width: '1200px' }}
+  aria-hidden="true"
+>
 ```
+
+#### Change 2: Replace CSS Variable Classes with Inline Styles (Lines 842-932)
+
+Replace Tailwind color classes with inline styles using hard-coded hex colors:
+
+| CSS Variable | Hex Value |
+|-------------|-----------|
+| `bg-card` | `#ffffff` |
+| `bg-muted` | `#f5f3ef` |
+| `bg-muted/50` | `rgba(245,243,239,0.5)` |
+| `bg-muted/30` | `rgba(245,243,239,0.3)` |
+| `text-foreground` | `#1e2530` |
+| `text-muted-foreground` | `#737a85` |
+| `border-border` | `#dfe2e7` |
+| `text-success` | `#22c55e` |
+| `text-destructive` | `#ef4444` |
+| `bg-brand-gold/20` | `rgba(245,178,10,0.2)` |
+| `text-brand-gold` | `#f5b20a` |
+| `bg-success/20` | `rgba(34,197,94,0.2)` |
+| `bg-destructive/10` | `rgba(239,68,68,0.1)` |
+| `bg-destructive/20` | `rgba(239,68,68,0.2)` |
+| `bg-primary` | `#2a9d8f` |
+| `text-primary-foreground` | `#ffffff` |
+
+**Key sections to update:**
+
+1. **Outer wrapper** - Add white background
+2. **Header div** - Replace `bg-muted/50`, `text-foreground`, `text-muted-foreground`, `border-border`
+3. **Table header row** - Replace `bg-muted`, `text-muted-foreground`
+4. **Player rows** - Replace alternating `bg-card`/`bg-muted/30`
+5. **Score cells** - Replace conditional color classes with inline style logic
+6. **Stroke dot** - Replace `bg-primary`, `text-primary-foreground`
+7. **Banker crown** - Replace `text-brand-gold`
+8. **P&L row** - Replace `text-success`, `text-destructive`, `text-muted-foreground`
+9. **Total column** - Replace color-coded money display
 
 ---
 
-### Detailed Code Changes
+### Code Changes Summary
 
-**RoundSummary.tsx - handleFinish (Lines 157-161)**
+The hidden capture container (~100 lines) will be updated to use inline styles throughout, ensuring consistent rendering regardless of CSS variable resolution.
 
-Before:
+**Example of score cell transformation:**
+
+**Before:**
 ```tsx
-const handleFinish = () => {
-  finishRound();
-  toast.success('Round saved to history!');
-  navigate('/');
-};
+<span className={`inline-block w-8 h-8 leading-8 rounded-full text-sm font-bold ${
+  diff <= -2 ? 'bg-brand-gold/20 text-brand-gold' :
+  diff === -1 ? 'bg-success/20 text-success' :
+  diff === 0 ? '' :
+  diff === 1 ? 'bg-destructive/10 text-destructive' :
+  'bg-destructive/20 text-destructive'
+}`}>
+  {score}
+</span>
 ```
 
-After:
+**After:**
 ```tsx
-const handleFinish = async () => {
-  // Save final adjusted amounts if any differ from calculated
-  const hasAdjustments = currentRound.players.some(
-    p => adjustedAmounts[p.id] !== roundTotals[p.id]
-  );
-  
-  if (hasAdjustments) {
-    await updateGameDataBatch('_META', 0, { _FINAL_ADJUSTMENTS: adjustedAmounts });
-  }
-  
-  await finishRound();
-  toast.success('Round saved to history!');
-  navigate('/');
-};
-```
-
-**RoundSummary.tsx - useEffect (Lines 107-116)**
-
-Before:
-```tsx
-useEffect(() => {
-  if (currentRound && Object.keys(adjustedAmounts).length === 0) {
-    const initial: Record<string, number> = {};
-    currentRound.players.forEach(p => {
-      initial[p.id] = roundTotals[p.id] || 0;
-    });
-    setAdjustedAmounts(initial);
-  }
-}, [currentRound, roundTotals]);
-```
-
-After:
-```tsx
-useEffect(() => {
-  if (currentRound && Object.keys(adjustedAmounts).length === 0) {
-    // Check for saved final adjustments first
-    const savedAdjustments = currentRound.gameData?._META?.[0]?._FINAL_ADJUSTMENTS;
-    
-    if (savedAdjustments && Object.keys(savedAdjustments).length > 0) {
-      setAdjustedAmounts(savedAdjustments);
-    } else {
-      const initial: Record<string, number> = {};
-      currentRound.players.forEach(p => {
-        initial[p.id] = roundTotals[p.id] || 0;
-      });
-      setAdjustedAmounts(initial);
-    }
-  }
-}, [currentRound, roundTotals]);
-```
-
-**gameEngine.ts - calculateRoundTotals (Lines 1280-1292)**
-
-Before:
-```tsx
-export const calculateRoundTotals = (round: Round): { [playerId: string]: number } => {
-  const totals: { [playerId: string]: number } = {};
-  round.players.forEach((p) => (totals[p.id] = 0));
-
-  const perGameResults = calculatePerGameTotals(round);
-  // ...
-};
-```
-
-After:
-```tsx
-export const calculateRoundTotals = (round: Round): { [playerId: string]: number } => {
-  // Check for saved final adjustments first (user overrides)
-  const savedAdjustments = round.gameData?._META?.[0]?._FINAL_ADJUSTMENTS;
-  if (savedAdjustments && Object.keys(savedAdjustments).length > 0) {
-    return savedAdjustments;
-  }
-
-  const totals: { [playerId: string]: number } = {};
-  round.players.forEach((p) => (totals[p.id] = 0));
-
-  const perGameResults = calculatePerGameTotals(round);
-  // ...
-};
+<span 
+  style={{
+    display: 'inline-block',
+    width: '32px',
+    height: '32px',
+    lineHeight: '32px',
+    borderRadius: '50%',
+    fontSize: '14px',
+    fontWeight: 700,
+    ...(diff <= -2 ? { backgroundColor: 'rgba(245,178,10,0.2)', color: '#f5b20a' } :
+        diff === -1 ? { backgroundColor: 'rgba(34,197,94,0.2)', color: '#22c55e' } :
+        diff === 0 ? {} :
+        diff === 1 ? { backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' } :
+        { backgroundColor: 'rgba(239,68,68,0.2)', color: '#ef4444' })
+  }}
+>
+  {score}
+</span>
 ```
 
 ---
 
-## Part 2: Verify Scorecard Image Sharing
-
-### Current Implementation Analysis
-
-The scorecard image sharing in `src/components/Scorecard.tsx` is already correctly implemented:
-
-1. **Hidden capture container** (Lines 836-933): A hidden `div` with `ref={scorecardRef}` positioned off-screen contains the full 18-hole table using `holes.map()` (all holes, not filtered by viewMode)
-
-2. **Image generation** (Lines 266-300): Uses `html-to-image` library with `pixelRatio: 2` for high quality
-
-3. **Native sharing** (Lines 283-295): Correctly uses `navigator.share` with file sharing capability for mobile devices
-
-4. **Content includes**:
-   - Course name and date header
-   - All 18 holes with par and handicap index
-   - Player scores with color coding
-   - Stroke dots and banker crown indicators
-   - Per-hole P&L and total financial outcomes
-
-### Verification Status
-
-The implementation looks correct. The hidden div correctly maps through all `holes` (18 holes) rather than `activeHoles` (filtered by viewMode). The share function properly:
-- Generates a PNG blob from the hidden full-scorecard container
-- Uses `navigator.share({ files: [file] })` for native mobile sharing
-- Falls back to direct download on desktop
-
-### Recommendation
-Test the feature end-to-end on a mobile device to confirm the generated image includes all 18 holes and can be shared via text message successfully.
-
----
-
-## Summary of Changes
+### Files Changed
 
 | File | Change |
 |------|--------|
-| `src/components/RoundSummary.tsx` | Add `updateGameDataBatch` import; save adjustments in `handleFinish`; load saved adjustments in `useEffect` |
-| `src/services/gameEngine.ts` | Check for `_FINAL_ADJUSTMENTS` at start of `calculateRoundTotals` |
+| `src/components/Scorecard.tsx` | Update hidden capture container (lines 837-932) to use inline styles and fixed positioning |
 
 ---
 
-## Data Storage Structure
+### Expected Outcome
 
-Adjustments stored at a reserved location to avoid conflicts:
+After this change:
+1. The scorecard image will render with proper colors and layout
+2. All 18 holes will display in a landscape format
+3. The image will be shareable via text/SMS on mobile devices
+4. The generated PNG will have consistent styling regardless of device theme
 
-```json
-{
-  "_META": {
-    "0": {
-      "_FINAL_ADJUSTMENTS": {
-        "player-id-1": 85,
-        "player-id-2": 15,
-        "player-id-3": -40,
-        "player-id-4": -60
-      }
-    }
-  },
-  "banker-game-id": { ... },
-  "fbo-game-id": { ... }
-}
-```
-
-This uses hole `0` (which doesn't exist in golf) under a `_META` game ID to ensure no conflicts with real game data.
