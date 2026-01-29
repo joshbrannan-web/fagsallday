@@ -1550,48 +1550,50 @@ const SetupWizard: React.FC = () => {
 
                         {/* FBO Player Selection */}
                         {game.type === GameType.FBO && (
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium">Players in FBO</Label>
-                            <div className="flex flex-wrap gap-2">
-                              {players
-                                .filter((p) => p.name.trim())
-                                .map((player) => {
-                                  const fboPlayers = selectedGame.config.fboPlayers || [];
-                                  const isInGame = fboPlayers.includes(player.id);
-                                  return (
-                                    <button
-                                      key={player.id}
-                                      type="button"
-                                      onClick={() => {
-                                        const currentPlayers = selectedGame.config.fboPlayers || [];
-                                        const newPlayers = isInGame
-                                          ? currentPlayers.filter((id: string) => id !== player.id)
-                                          : [...currentPlayers, player.id];
-                                        setSelectedGames(
-                                          selectedGames.map((g) =>
-                                            g.id === selectedGame.id
-                                              ? { ...g, config: { ...g.config, fboPlayers: newPlayers } }
-                                              : g,
-                                          ),
-                                        );
-                                      }}
-                                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                                        isInGame
-                                          ? "bg-primary text-primary-foreground"
-                                          : "bg-background border border-border text-muted-foreground hover:border-primary"
-                                      }`}
-                                    >
-                                      {player.name}
-                                    </button>
-                                  );
-                                })}
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label className="text-sm font-medium">Players in FBO</Label>
+                              <div className="flex flex-wrap gap-2">
+                                {players
+                                  .filter((p) => p.name.trim())
+                                  .map((player) => {
+                                    const fboPlayers = selectedGame.config.fboPlayers || [];
+                                    const isInGame = fboPlayers.includes(player.id);
+                                    return (
+                                      <button
+                                        key={player.id}
+                                        type="button"
+                                        onClick={() => {
+                                          const currentPlayers = selectedGame.config.fboPlayers || [];
+                                          const newPlayers = isInGame
+                                            ? currentPlayers.filter((id: string) => id !== player.id)
+                                            : [...currentPlayers, player.id];
+                                          setSelectedGames(
+                                            selectedGames.map((g) =>
+                                              g.id === selectedGame.id
+                                                ? { ...g, config: { ...g.config, fboPlayers: newPlayers } }
+                                                : g,
+                                            ),
+                                          );
+                                        }}
+                                        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                          isInGame
+                                            ? "bg-primary text-primary-foreground"
+                                            : "bg-background border border-border text-muted-foreground hover:border-primary"
+                                        }`}
+                                      >
+                                        {player.name}
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+                              {(selectedGame.config.fboPlayers?.length || 0) < 2 && (
+                                <p className="text-xs text-destructive">Select at least 2 players</p>
+                              )}
                             </div>
-                            {(selectedGame.config.fboPlayers?.length || 0) < 2 && (
-                              <p className="text-xs text-destructive">Select at least 2 players</p>
-                            )}
                             
                             {/* FBO Allow Presses Toggle */}
-                            <div className="flex items-center justify-between pt-2 border-t border-border/50 mt-2">
+                            <div className="flex items-center justify-between pt-2 border-t border-border/50">
                               <div>
                                 <Label className="text-sm font-medium">Allow Presses</Label>
                                 <p className="text-xs text-muted-foreground">Double-or-nothing when dormie</p>
@@ -1609,6 +1611,200 @@ const SetupWizard: React.FC = () => {
                                 }}
                               />
                             </div>
+
+                            {/* FBO Game Mode Selection */}
+                            <div className="space-y-2 pt-2 border-t border-border/50">
+                              <Label className="text-sm font-medium">Game Mode</Label>
+                              <RadioGroup
+                                value={selectedGame.config.fbo?.gameMode || 'together'}
+                                onValueChange={(value: 'together' | 'headToHead') => {
+                                  setSelectedGames(
+                                    selectedGames.map((g) =>
+                                      g.id === selectedGame.id
+                                        ? { 
+                                            ...g, 
+                                            config: { 
+                                              ...g.config, 
+                                              fbo: { 
+                                                ...g.config.fbo, 
+                                                gameMode: value,
+                                                // Clear matchups when switching away from headToHead
+                                                headToHeadMatchups: value === 'headToHead' 
+                                                  ? (g.config.fbo?.headToHeadMatchups || [])
+                                                  : undefined
+                                              } 
+                                            } 
+                                          }
+                                        : g,
+                                    ),
+                                  );
+                                }}
+                                className="space-y-2"
+                              >
+                                <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                                  <RadioGroupItem value="together" id={`fbo-mode-together-${selectedGame.id}`} className="mt-1" />
+                                  <div className="flex-1">
+                                    <Label
+                                      htmlFor={`fbo-mode-together-${selectedGame.id}`}
+                                      className="font-medium cursor-pointer"
+                                    >
+                                      All Together
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                      Everyone competes in one pool. Most dots wins each segment.
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                                  <RadioGroupItem value="headToHead" id={`fbo-mode-h2h-${selectedGame.id}`} className="mt-1" />
+                                  <div className="flex-1">
+                                    <Label
+                                      htmlFor={`fbo-mode-h2h-${selectedGame.id}`}
+                                      className="font-medium cursor-pointer"
+                                    >
+                                      Head to Head
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                      Create 1v1 matchups with separate stakes.
+                                    </p>
+                                  </div>
+                                </div>
+                              </RadioGroup>
+                            </div>
+
+                            {/* Head-to-Head Matchup Builder */}
+                            {selectedGame.config.fbo?.gameMode === 'headToHead' && (
+                              <div className="space-y-2 animate-fade-in">
+                                <Label className="text-sm font-medium">Matchups</Label>
+                                <div className="space-y-2">
+                                  {(() => {
+                                    const fboPlayers = (selectedGame.config.fboPlayers || [])
+                                      .map((id: string) => players.find(p => p.id === id))
+                                      .filter(Boolean);
+                                    const matchups: Array<{ p1: Player; p2: Player }> = [];
+                                    for (let i = 0; i < fboPlayers.length; i++) {
+                                      for (let j = i + 1; j < fboPlayers.length; j++) {
+                                        matchups.push({ p1: fboPlayers[i]!, p2: fboPlayers[j]! });
+                                      }
+                                    }
+                                    
+                                    if (matchups.length === 0) {
+                                      return (
+                                        <p className="text-xs text-muted-foreground">
+                                          Select at least 2 players above to create matchups
+                                        </p>
+                                      );
+                                    }
+
+                                    const currentMatchups = selectedGame.config.fbo?.headToHeadMatchups || [];
+                                    
+                                    return matchups.map(({ p1, p2 }) => {
+                                      const existingMatchup = currentMatchups.find(
+                                        (m: { player1Id: string; player2Id: string }) =>
+                                          (m.player1Id === p1.id && m.player2Id === p2.id) ||
+                                          (m.player1Id === p2.id && m.player2Id === p1.id)
+                                      );
+                                      const isEnabled = !!existingMatchup;
+                                      const unitValue = existingMatchup?.unitValue || selectedGame.unitStake;
+
+                                      return (
+                                        <div
+                                          key={`${p1.id}-${p2.id}`}
+                                          className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
+                                            isEnabled ? 'bg-primary/10 border border-primary/30' : 'bg-background/50 border border-border'
+                                          }`}
+                                        >
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const newMatchups = isEnabled
+                                                ? currentMatchups.filter(
+                                                    (m: { player1Id: string; player2Id: string }) =>
+                                                      !(m.player1Id === p1.id && m.player2Id === p2.id) &&
+                                                      !(m.player1Id === p2.id && m.player2Id === p1.id)
+                                                  )
+                                                : [...currentMatchups, { player1Id: p1.id, player2Id: p2.id, unitValue: selectedGame.unitStake }];
+                                              setSelectedGames(
+                                                selectedGames.map((g) =>
+                                                  g.id === selectedGame.id
+                                                    ? { ...g, config: { ...g.config, fbo: { ...g.config.fbo, headToHeadMatchups: newMatchups } } }
+                                                    : g,
+                                                ),
+                                              );
+                                            }}
+                                            className={`w-5 h-5 rounded border flex items-center justify-center ${
+                                              isEnabled ? 'bg-primary border-primary' : 'border-muted-foreground'
+                                            }`}
+                                          >
+                                            {isEnabled && <Check className="w-3 h-3 text-primary-foreground" />}
+                                          </button>
+                                          <span className="flex-1 text-sm font-medium">
+                                            {p1.name} vs {p2.name}
+                                          </span>
+                                          {isEnabled && (
+                                            <div className="flex items-center gap-1">
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                  const newMatchups = currentMatchups.map(
+                                                    (m: { player1Id: string; player2Id: string; unitValue: number }) =>
+                                                      (m.player1Id === p1.id && m.player2Id === p2.id) ||
+                                                      (m.player1Id === p2.id && m.player2Id === p1.id)
+                                                        ? { ...m, unitValue: Math.max(1, m.unitValue - 1) }
+                                                        : m
+                                                  );
+                                                  setSelectedGames(
+                                                    selectedGames.map((g) =>
+                                                      g.id === selectedGame.id
+                                                        ? { ...g, config: { ...g.config, fbo: { ...g.config.fbo, headToHeadMatchups: newMatchups } } }
+                                                        : g,
+                                                    ),
+                                                  );
+                                                }}
+                                                className="h-6 w-6 p-0 text-xs"
+                                              >
+                                                -
+                                              </Button>
+                                              <span className="w-10 text-center text-sm font-bold">${unitValue}</span>
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                  const newMatchups = currentMatchups.map(
+                                                    (m: { player1Id: string; player2Id: string; unitValue: number }) =>
+                                                      (m.player1Id === p1.id && m.player2Id === p2.id) ||
+                                                      (m.player1Id === p2.id && m.player2Id === p1.id)
+                                                        ? { ...m, unitValue: m.unitValue + 1 }
+                                                        : m
+                                                  );
+                                                  setSelectedGames(
+                                                    selectedGames.map((g) =>
+                                                      g.id === selectedGame.id
+                                                        ? { ...g, config: { ...g.config, fbo: { ...g.config.fbo, headToHeadMatchups: newMatchups } } }
+                                                        : g,
+                                                    ),
+                                                  );
+                                                }}
+                                                className="h-6 w-6 p-0 text-xs"
+                                              >
+                                                +
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    });
+                                  })()}
+                                </div>
+                                {selectedGame.config.fbo?.gameMode === 'headToHead' && 
+                                 (selectedGame.config.fbo?.headToHeadMatchups?.length || 0) === 0 && (
+                                  <p className="text-xs text-destructive">Select at least one matchup</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -1648,12 +1844,51 @@ const SetupWizard: React.FC = () => {
 
                             {selectedGame.config.useHandicaps && (
                               game.type === GameType.FBO ? (
-                                // FBO is locked to Absolute mode - show static indicator
-                                <div className="p-2 rounded-lg bg-background/50 animate-fade-in">
-                                  <span className="text-sm font-medium">Mode: Absolute</span>
-                                  <p className="text-xs text-muted-foreground">
-                                    Each player's strokes calculated independently. If all players get a stroke, none do.
-                                  </p>
+                                // FBO handicap mode selection
+                                <div className="space-y-2 animate-fade-in">
+                                  <Label className="text-sm font-medium">Handicap Mode</Label>
+                                  <RadioGroup
+                                    value={selectedGame.config.fbo?.handicapMode || 'absolute'}
+                                    onValueChange={(value: 'absolute' | 'relative') => {
+                                      setSelectedGames(
+                                        selectedGames.map((g) =>
+                                          g.id === selectedGame.id
+                                            ? { ...g, config: { ...g.config, fbo: { ...g.config.fbo, handicapMode: value } } }
+                                            : g,
+                                        ),
+                                      );
+                                    }}
+                                    className="space-y-2"
+                                  >
+                                    <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                                      <RadioGroupItem value="absolute" id={`fbo-handicap-absolute-${selectedGame.id}`} className="mt-1" />
+                                      <div className="flex-1">
+                                        <Label
+                                          htmlFor={`fbo-handicap-absolute-${selectedGame.id}`}
+                                          className="font-medium cursor-pointer"
+                                        >
+                                          All Players Get Strokes
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                          Each player's strokes calculated independently. If all get a stroke, none do.
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                                      <RadioGroupItem value="relative" id={`fbo-handicap-relative-${selectedGame.id}`} className="mt-1" />
+                                      <div className="flex-1">
+                                        <Label
+                                          htmlFor={`fbo-handicap-relative-${selectedGame.id}`}
+                                          className="font-medium cursor-pointer"
+                                        >
+                                          Lowest Handicap = 0
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                          Strokes based on differential from the lowest handicap player.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </RadioGroup>
                                 </div>
                               ) : (
                                 <div className="space-y-2 animate-fade-in">
