@@ -271,6 +271,15 @@ const AdminScorecard: React.FC = () => {
     return total;
   };
 
+  const calculateTotalScore = (pid: string) => {
+    let total = 0;
+    holes.forEach(h => {
+      const s = currentRound.scores[h.number]?.[pid];
+      if (typeof s === 'number') total += s;
+    });
+    return total;
+  };
+
   return (
     <div className="flex flex-col">
       <div className="p-4 flex justify-center">
@@ -302,7 +311,8 @@ const AdminScorecard: React.FC = () => {
                     <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}</div>
                   </th>
                 ))}
-                <th className="p-2 min-w-[50px] bg-muted">Total</th>
+                <th className="p-2 min-w-[50px] bg-muted">{viewMode === 'FRONT' ? 'F9' : 'B9'}</th>
+                <th className="p-2 min-w-[50px] bg-muted border-l border-border">18</th>
               </tr>
             </thead>
             <tbody>
@@ -346,6 +356,7 @@ const AdminScorecard: React.FC = () => {
                       );
                     })}
                     <td className="p-2 font-bold">{calculateSubtotalScore(player.id, activeHoles) || '-'}</td>
+                    <td className="p-2 font-bold border-l border-border">{calculateTotalScore(player.id) || '-'}</td>
                   </tr>
                   <tr className={`text-xs ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}`}>
                     <td className="px-3 pb-2 text-left text-muted-foreground sticky left-0 bg-inherit border-r border-border z-10">P&L</td>
@@ -364,6 +375,7 @@ const AdminScorecard: React.FC = () => {
                         ${roundTotals[player.id] || 0}
                       </span>
                     </td>
+                    <td className="px-2 pb-2 border-l border-border"></td>
                   </tr>
                 </React.Fragment>
               ))}
@@ -390,6 +402,7 @@ const AdminScorecard: React.FC = () => {
                     );
                   })}
                   <td className="p-2">-</td>
+                  <td className="p-2 border-l border-border">-</td>
                 </tr>
               )}
             </tbody>
