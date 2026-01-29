@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, Fi
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
 import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
-import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, calculatePerGameTotals } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, calculatePerGameTotals } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
@@ -330,8 +330,8 @@ const ActiveRound: React.FC = () => {
 
   // handleFboDotToggle removed - FBO dots are now auto-calculated based on net scores
 
-  // FBO Press handler (supports double/triple press)
-  const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back', pressLevel: number = 1) => {
+  // FBO Press handler (supports double/triple press and overall segment)
+  const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back' | 'overall', pressLevel: number = 1) => {
     const fboGame = currentRound.games.find(g => g.id === gameId);
     if (!fboGame) return;
     
@@ -356,8 +356,12 @@ const ActiveRound: React.FC = () => {
                        pressLevel === 2 ? 'double pressed' : 
                        `${pressLevel}x pressed`;
     
+    const segmentLabel = segment === 'front' ? 'Front 9' : 
+                         segment === 'back' ? 'Back 9' : 
+                         'Overall';
+    
     import('sonner').then(({ toast }) => {
-      toast.success(`${player?.name} ${pressLabel} the ${segment === 'front' ? 'Front 9' : 'Back 9'}!`);
+      toast.success(`${player?.name} ${pressLabel} the ${segmentLabel}!`);
     });
   };
 
@@ -1048,14 +1052,29 @@ const ActiveRound: React.FC = () => {
           if (activeHole === segmentStartHole) return null;
           
           const segment: 'front' | 'back' = activeHole <= 9 ? 'front' : 'back';
+          const onBackNine = activeHole > 9;
           
-          // Find players who can press (first press or double/triple press)
-          const pressEligiblePlayers = fboPlayers.map(p => ({
+          // Find players who can press Front/Back segment
+          const backPressEligiblePlayers = fboPlayers.map(p => ({
             player: p,
             eligibility: getFBOPressEligibility(currentRound, fboGame, p.id, segment, activeHole)
           })).filter(({ eligibility }) => eligibility.canPress);
           
-          if (pressEligiblePlayers.length === 0) return null;
+          // Find players who can press Overall (only on back 9)
+          const overallPressEligiblePlayers = onBackNine 
+            ? fboPlayers.map(p => ({
+                player: p,
+                eligibility: getFBOPressEligibilityOverall(currentRound, fboGame, p.id, activeHole)
+              })).filter(({ eligibility }) => eligibility.canPress)
+            : [];
+          
+          // Combine unique players
+          const allEligiblePlayerIds = new Set([
+            ...backPressEligiblePlayers.map(p => p.player.id),
+            ...overallPressEligiblePlayers.map(p => p.player.id)
+          ]);
+          
+          if (allEligiblePlayerIds.size === 0) return null;
           
           return (
             <div key={fboGame.id} className="bg-card rounded-2xl shadow-sm border border-amber-500/50 p-4 mb-4">
@@ -1065,38 +1084,93 @@ const ActiveRound: React.FC = () => {
                   FBO Press Available
                 </h3>
               </div>
-              <div className="space-y-2">
-                {pressEligiblePlayers.map(({ player, eligibility }) => {
+              <div className="space-y-3">
+                {fboPlayers.filter(p => allEligiblePlayerIds.has(p.id)).map(player => {
+                  const backElig = backPressEligiblePlayers.find(e => e.player.id === player.id);
+                  const overallElig = overallPressEligiblePlayers.find(e => e.player.id === player.id);
                   const dormieStatus = getFBODormieStatus(currentRound, fboGame, activeHole);
-                  const status = dormieStatus[player.id];
-                  const pressLabel = eligibility.pressLevel === 1 ? 'Press' : 
-                                     eligibility.pressLevel === 2 ? 'Double Press' : 
-                                     `${eligibility.pressLevel}x Press`;
+                  const overallDormieStatus = onBackNine ? getFBOOverallDormieStatus(currentRound, fboGame, activeHole) : null;
+                  
+                  const backStatus = dormieStatus[player.id];
+                  const overallStatus = overallDormieStatus?.[player.id];
+                  
+                  const canPressBack = !!backElig?.eligibility.canPress;
+                  const canPressOverall = !!overallElig?.eligibility.canPress;
+                  
+                  const backPressLabel = backElig?.eligibility.pressLevel === 1 ? 'Press' : 
+                                         backElig?.eligibility.pressLevel === 2 ? 'Double' : 
+                                         `${backElig?.eligibility.pressLevel}x`;
+                  const overallPressLabel = overallElig?.eligibility.pressLevel === 1 ? 'Press' : 
+                                            overallElig?.eligibility.pressLevel === 2 ? 'Double' : 
+                                            `${overallElig?.eligibility.pressLevel}x`;
+                  
                   return (
-                    <div key={player.id} className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg">
-                      <div className="flex items-center gap-2">
+                    <div key={player.id} className="p-3 bg-amber-500/10 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="w-4 h-4 text-amber-500" />
-                        <div>
-                          <span className="text-sm font-medium">{player.name}</span>
-                          {status && (
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {status.dotsBehind} dot{status.dotsBehind !== 1 ? 's' : ''} behind • {status.holesRemaining} hole{status.holesRemaining !== 1 ? 's' : ''} left
-                            </span>
-                          )}
-                        </div>
+                        <span className="text-sm font-medium">{player.name}</span>
                       </div>
-                      <button
-                        onClick={() => handleFBOPress(fboGame.id, player.id, segment, eligibility.pressLevel)}
-                        className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors"
-                      >
-                        {pressLabel} (${fboGame.unitStake})
-                      </button>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {/* Back 9 Press Button */}
+                        {canPressBack && (
+                          <button
+                            onClick={() => handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel)}
+                            className="flex-1 min-w-[100px] px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors"
+                          >
+                            {backPressLabel} {activeHole <= 9 ? 'F9' : 'B9'}
+                            <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                          </button>
+                        )}
+                        
+                        {/* Overall Press Button (only on back 9) */}
+                        {canPressOverall && (
+                          <button
+                            onClick={() => handleFBOPress(fboGame.id, player.id, 'overall', overallElig!.eligibility.pressLevel)}
+                            className="flex-1 min-w-[100px] px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors"
+                          >
+                            {overallPressLabel} Overall
+                            <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                          </button>
+                        )}
+                        
+                        {/* Press Both Button (convenience) */}
+                        {canPressBack && canPressOverall && (
+                          <button
+                            onClick={() => {
+                              handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel);
+                              // Small delay to ensure both presses are recorded separately
+                              setTimeout(() => {
+                                handleFBOPress(fboGame.id, player.id, 'overall', overallElig!.eligibility.pressLevel);
+                              }, 50);
+                            }}
+                            className="flex-1 min-w-[100px] px-3 py-2 bg-gradient-to-r from-amber-500 to-primary text-white rounded-lg text-sm font-bold hover:opacity-90 transition-opacity"
+                          >
+                            Press Both
+                            <span className="block text-xs font-normal opacity-80">${fboGame.unitStake * 2}</span>
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Status info */}
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {canPressBack && backStatus && (
+                          <span className="mr-3">
+                            {segment === 'front' ? 'F9' : 'B9'}: {backStatus.dotsBehind} behind • {backStatus.holesRemaining} left
+                          </span>
+                        )}
+                        {canPressOverall && overallStatus && (
+                          <span>
+                            Overall: {overallStatus.dotsBehind} behind • {overallStatus.holesRemaining} left
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
               <p className="text-xs text-muted-foreground text-center mt-2">
-                Double-or-nothing for remaining holes in {activeHole <= 9 ? 'Front 9' : 'Back 9'}
+                Double-or-nothing for remaining holes
               </p>
             </div>
           );

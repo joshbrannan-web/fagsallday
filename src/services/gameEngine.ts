@@ -2,26 +2,40 @@ import { Course, GameSettings, GameType, Player, Round, GameResult, WolfHoleData
 import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
 
-// --- FBO Stroke Calculation (Stockton 6 style: if ALL get strokes, none do) ---
+// --- FBO Stroke Calculation (supports both Absolute and Relative modes) ---
 
 export const calculateFBOStrokes = (
   players: Player[],
-  holeHandicapIndex: number
+  holeHandicapIndex: number,
+  handicapMode: 'absolute' | 'relative' = 'absolute'
 ): { [playerId: string]: number } => {
   const strokes: { [playerId: string]: number } = {};
-  let playersReceivingStrokes = 0;
   
-  players.forEach(player => {
-    const getsStroke = holeHandicapIndex <= player.courseHandicap;
-    strokes[player.id] = getsStroke ? 1 : 0;
-    if (getsStroke) playersReceivingStrokes++;
-  });
-  
-  // If ALL players get a stroke, cancel them all
-  if (playersReceivingStrokes === players.length) {
+  if (handicapMode === 'relative') {
+    // Relative mode: strokes based on differential from lowest handicap player
+    const lowestCourseHandicap = Math.min(...players.map(p => p.courseHandicap));
+    
     players.forEach(player => {
-      strokes[player.id] = 0;
+      const differential = player.courseHandicap - lowestCourseHandicap;
+      // Player gets a stroke if their differential >= hole handicap index
+      strokes[player.id] = differential >= holeHandicapIndex ? 1 : 0;
     });
+  } else {
+    // Absolute mode (original logic)
+    let playersReceivingStrokes = 0;
+    
+    players.forEach(player => {
+      const getsStroke = holeHandicapIndex <= player.courseHandicap;
+      strokes[player.id] = getsStroke ? 1 : 0;
+      if (getsStroke) playersReceivingStrokes++;
+    });
+    
+    // If ALL players get a stroke, cancel them all
+    if (playersReceivingStrokes === players.length) {
+      players.forEach(player => {
+        strokes[player.id] = 0;
+      });
+    }
   }
   
   return strokes;
@@ -50,8 +64,11 @@ export const calculateFBOHoleWinners = (
   });
   if (!allScored) return [];
   
-  // Calculate strokes using Stockton 6 logic
-  const strokes = calculateFBOStrokes(fboPlayers, hole.handicapIndex);
+  // Get handicap mode from FBO config
+  const handicapMode = game.config.fbo?.handicapMode || 'absolute';
+  
+  // Calculate strokes using the configured mode
+  const strokes = calculateFBOStrokes(fboPlayers, hole.handicapIndex, handicapMode);
   
   // Calculate net scores
   const netScores: { playerId: string; gross: number; strokes: number; net: number }[] = fboPlayers.map(p => ({
@@ -80,8 +97,11 @@ export const getFBOHoleNetScores = (
   
   if (!hole) return [];
   
-  // Calculate strokes using Stockton 6 logic
-  const strokes = calculateFBOStrokes(fboPlayers, hole.handicapIndex);
+  // Get handicap mode from FBO config
+  const handicapMode = game.config.fbo?.handicapMode || 'absolute';
+  
+  // Calculate strokes using the configured mode
+  const strokes = calculateFBOStrokes(fboPlayers, hole.handicapIndex, handicapMode);
   
   return fboPlayers.map(p => {
     const gross = holeScores?.[p.id] ?? 0;
@@ -767,6 +787,137 @@ export const getFBOPressEligibility = (
   return { canPress: true, pressLevel: nextPressLevel };
 };
 
+// Get dormie status for Overall segment (all 18 holes)
+export const getFBOOverallDormieStatus = (
+  round: Round,
+  game: GameSettings,
+  currentHole: number
+): { [playerId: string]: { isDormie: boolean; dotsBehind: number; holesRemaining: number } } => {
+  const fboPlayerIds = (game.config.fboPlayers || round.players.map(p => p.id)).map(id => String(id));
+  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
+  const fboData = round.gameData?.[game.id] || {};
+  
+  const holesRemaining = 18 - currentHole + 1;
+  
+  // Count dots earned so far (holes 1 to currentHole-1)
+  const dotCounts: { [id: string]: number } = {};
+  fboPlayers.forEach(p => dotCounts[p.id] = 0);
+  
+  for (let h = 1; h < currentHole; h++) {
+    const holeDots: (string | number)[] = fboData[h]?.dots || [];
+    holeDots.forEach((playerId: string | number) => {
+      const normalizedId = String(playerId);
+      if (dotCounts[normalizedId] !== undefined) {
+        dotCounts[normalizedId]++;
+      }
+    });
+  }
+  
+  // Find the leader
+  const maxDots = Math.max(...Object.values(dotCounts), 0);
+  
+  // Calculate dormie status for each player
+  const result: { [playerId: string]: { isDormie: boolean; dotsBehind: number; holesRemaining: number } } = {};
+  
+  fboPlayers.forEach(p => {
+    const playerDots = dotCounts[p.id] || 0;
+    const isDormie = playerDots + holesRemaining < maxDots;
+    result[p.id] = {
+      isDormie,
+      dotsBehind: maxDots - playerDots,
+      holesRemaining
+    };
+  });
+  
+  return result;
+};
+
+// Check if a player is dormie on their active Overall press bet
+export const isFBOPlayerDormieOnOverallPress = (
+  round: Round,
+  game: GameSettings,
+  playerId: string,
+  press: FBOPressState,
+  currentHole: number
+): boolean => {
+  const fboPlayerIds = (game.config.fboPlayers || round.players.map(p => p.id)).map(id => String(id));
+  const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
+  const fboData = round.gameData?.[game.id] || {};
+  
+  const holesRemaining = 18 - currentHole + 1;
+  
+  // Count dots from press.startHole to currentHole-1 (completed holes)
+  const pressDots: { [id: string]: number } = {};
+  fboPlayers.forEach(p => pressDots[String(p.id)] = 0);
+  
+  for (let h = press.startHole; h < currentHole; h++) {
+    const holeDots: (string | number)[] = fboData[h]?.dots || [];
+    holeDots.forEach((pid: string | number) => {
+      const normalizedId = String(pid);
+      if (pressDots[normalizedId] !== undefined) {
+        pressDots[normalizedId]++;
+      }
+    });
+  }
+  
+  const playerDots = pressDots[String(playerId)] || 0;
+  const leaderDots = Math.max(...Object.values(pressDots), 0);
+  
+  // Dormie if can't catch up even winning all remaining holes
+  return playerDots + holesRemaining < leaderDots;
+};
+
+// Get press eligibility for Overall segment
+export const getFBOPressEligibilityOverall = (
+  round: Round,
+  game: GameSettings,
+  playerId: string,
+  currentHole: number
+): { canPress: boolean; pressLevel: number; reason?: string } => {
+  // Only available on back 9 (holes 10-18)
+  if (currentHole <= 9) {
+    return { canPress: false, pressLevel: 1, reason: 'Overall presses only available on back 9' };
+  }
+  
+  const fboGameData = round.gameData?.[game.id] || {};
+  const presses: FBOPressState[] = fboGameData[1]?._META_PRESSES || [];
+  
+  // Find all Overall presses by this player
+  const playerOverallPresses = presses.filter(p => 
+    String(p.playerId) === String(playerId) && 
+    p.segment === 'overall'
+  );
+  
+  if (playerOverallPresses.length === 0) {
+    // No existing Overall press - check base dormie status for Overall
+    const overallDormieStatus = getFBOOverallDormieStatus(round, game, currentHole);
+    const status = overallDormieStatus[playerId];
+    if (!status?.isDormie) {
+      return { canPress: false, pressLevel: 1, reason: 'Not dormie on Overall' };
+    }
+    return { canPress: true, pressLevel: 1 };
+  }
+  
+  // Has existing Overall press(es) - check if dormie on the most recent one
+  const latestPress = playerOverallPresses.reduce((a, b) => 
+    a.startHole > b.startHole ? a : b
+  );
+  
+  const nextPressLevel = (latestPress.pressLevel || 1) + 1;
+  
+  // Can't press again on same hole as latest press
+  if (latestPress.startHole >= currentHole) {
+    return { canPress: false, pressLevel: nextPressLevel, reason: 'Already pressed this hole' };
+  }
+  
+  const isDormieOnPress = isFBOPlayerDormieOnOverallPress(round, game, playerId, latestPress, currentHole);
+  if (!isDormieOnPress) {
+    return { canPress: false, pressLevel: nextPressLevel, reason: 'Not dormie on current Overall press' };
+  }
+  
+  return { canPress: true, pressLevel: nextPressLevel };
+};
+
 // --- FBO (Front/Back/Overall) ---
 
 export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
@@ -849,68 +1000,107 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     });
   }
 
-  // Calculate winners for each segment (only if segment is complete)
-  const calculateSegmentWinner = (segment: { [id: string]: number }, label: string) => {
-    const maxDots = Math.max(...Object.values(segment));
-    if (maxDots === 0) {
-      details.push(`${label}: No dots awarded - Push`);
-      return;
-    }
-    
-    const winners = Object.entries(segment).filter(([_, dots]) => dots === maxDots);
-    const losers = Object.entries(segment).filter(([_, dots]) => dots < maxDots);
-    
-    if (winners.length === 1) {
-      // Single winner takes from all losers
-      const winnerId = winners[0][0];
-      const winnerName = fboPlayers.find(p => p.id === winnerId)?.name;
-      const winAmount = unit * losers.length;
+  // Check game mode
+  const gameMode = game.config.fbo?.gameMode || 'together';
+  const headToHeadMatchups = game.config.fbo?.headToHeadMatchups || [];
+
+  if (gameMode === 'headToHead' && headToHeadMatchups.length > 0) {
+    // Head-to-Head Mode: Calculate each matchup independently
+    headToHeadMatchups.forEach((matchup: { player1Id: string; player2Id: string; unitValue: number }) => {
+      const p1 = fboPlayers.find(p => p.id === matchup.player1Id);
+      const p2 = fboPlayers.find(p => p.id === matchup.player2Id);
+      if (!p1 || !p2) return;
+
+      const calculateH2HSegment = (segment: 'front' | 'back' | 'overall', isComplete: boolean, label: string) => {
+        if (!isComplete) {
+          details.push(`${p1.name} vs ${p2.name} - ${label}: In progress`);
+          return;
+        }
+
+        const p1Dots = dotCounts[segment][p1.id] || 0;
+        const p2Dots = dotCounts[segment][p2.id] || 0;
+
+        if (p1Dots > p2Dots) {
+          results[p1.id] += matchup.unitValue;
+          results[p2.id] -= matchup.unitValue;
+          details.push(`${p1.name} vs ${p2.name} - ${label}: ${p1.name} wins $${matchup.unitValue} (${p1Dots} vs ${p2Dots} dots)`);
+        } else if (p2Dots > p1Dots) {
+          results[p2.id] += matchup.unitValue;
+          results[p1.id] -= matchup.unitValue;
+          details.push(`${p1.name} vs ${p2.name} - ${label}: ${p2.name} wins $${matchup.unitValue} (${p2Dots} vs ${p1Dots} dots)`);
+        } else {
+          details.push(`${p1.name} vs ${p2.name} - ${label}: Push (${p1Dots} dots each)`);
+        }
+      };
+
+      calculateH2HSegment('front', frontNineComplete, 'Front 9');
+      calculateH2HSegment('back', backNineComplete, 'Back 9');
+      calculateH2HSegment('overall', overallComplete, 'Overall');
+    });
+  } else {
+    // All Together Mode (original behavior)
+    const calculateSegmentWinner = (segment: { [id: string]: number }, label: string) => {
+      const maxDots = Math.max(...Object.values(segment));
+      if (maxDots === 0) {
+        details.push(`${label}: No dots awarded - Push`);
+        return;
+      }
       
-      results[winnerId] += winAmount;
-      losers.forEach(([loserId]) => {
-        results[loserId] -= unit;
-      });
+      const winners = Object.entries(segment).filter(([_, dots]) => dots === maxDots);
+      const losers = Object.entries(segment).filter(([_, dots]) => dots < maxDots);
       
-      details.push(`${label}: ${winnerName} wins $${winAmount} (${maxDots} dots)`);
-    } else {
-      // Multiple winners tie - they split from the losers
-      if (losers.length > 0) {
-        const totalFromLosers = unit * losers.length;
-        const perWinner = totalFromLosers / winners.length;
+      if (winners.length === 1) {
+        // Single winner takes from all losers
+        const winnerId = winners[0][0];
+        const winnerName = fboPlayers.find(p => p.id === winnerId)?.name;
+        const winAmount = unit * losers.length;
         
-        winners.forEach(([winnerId]) => {
-          results[winnerId] += perWinner;
-        });
+        results[winnerId] += winAmount;
         losers.forEach(([loserId]) => {
           results[loserId] -= unit;
         });
         
-        const winnerNames = winners.map(([id]) => fboPlayers.find(p => p.id === id)?.name).join(', ');
-        details.push(`${label}: ${winnerNames} tie with ${maxDots} dots each - split $${totalFromLosers}`);
+        details.push(`${label}: ${winnerName} wins $${winAmount} (${maxDots} dots)`);
       } else {
-        // All players tied
-        details.push(`${label}: All players tied with ${maxDots} dots - Push`);
+        // Multiple winners tie - they split from the losers
+        if (losers.length > 0) {
+          const totalFromLosers = unit * losers.length;
+          const perWinner = totalFromLosers / winners.length;
+          
+          winners.forEach(([winnerId]) => {
+            results[winnerId] += perWinner;
+          });
+          losers.forEach(([loserId]) => {
+            results[loserId] -= unit;
+          });
+          
+          const winnerNames = winners.map(([id]) => fboPlayers.find(p => p.id === id)?.name).join(', ');
+          details.push(`${label}: ${winnerNames} tie with ${maxDots} dots each - split $${totalFromLosers}`);
+        } else {
+          // All players tied
+          details.push(`${label}: All players tied with ${maxDots} dots - Push`);
+        }
       }
-    }
-  };
+    };
 
-  // Only calculate payouts for completed segments
-  if (frontNineComplete) {
-    calculateSegmentWinner(dotCounts.front, 'Front 9');
-  } else {
-    details.push('Front 9: In progress');
-  }
-  
-  if (backNineComplete) {
-    calculateSegmentWinner(dotCounts.back, 'Back 9');
-  } else {
-    details.push('Back 9: In progress');
-  }
-  
-  if (overallComplete) {
-    calculateSegmentWinner(dotCounts.overall, 'Overall');
-  } else {
-    details.push('Overall: In progress');
+    // Only calculate payouts for completed segments
+    if (frontNineComplete) {
+      calculateSegmentWinner(dotCounts.front, 'Front 9');
+    } else {
+      details.push('Front 9: In progress');
+    }
+    
+    if (backNineComplete) {
+      calculateSegmentWinner(dotCounts.back, 'Back 9');
+    } else {
+      details.push('Back 9: In progress');
+    }
+    
+    if (overallComplete) {
+      calculateSegmentWinner(dotCounts.overall, 'Overall');
+    } else {
+      details.push('Overall: In progress');
+    }
   }
 
   // Process FBO presses if enabled
@@ -937,12 +1127,18 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         return;
       }
 
-      // Calculate press result
-      const segmentEnd = press.segment === 'front' ? 9 : 18;
-      const isSegmentComplete = press.segment === 'front' ? frontNineComplete : backNineComplete;
+      // Calculate press result - handle 'overall' segment
+      const segmentEnd = 18; // All presses end at hole 18
+      const isSegmentComplete = press.segment === 'front' ? frontNineComplete :
+                                press.segment === 'back' ? backNineComplete :
+                                overallComplete; // 'overall' requires full round complete
+      
+      const segmentLabel = press.segment === 'front' ? 'Front' : 
+                           press.segment === 'back' ? 'Back' : 
+                           'Overall';
       
       if (!isSegmentComplete) {
-        details.push(`Press #${idx + 1} (${press.segment === 'front' ? 'Front' : 'Back'} from hole ${press.startHole}): In progress`);
+        details.push(`Press #${idx + 1} (${segmentLabel} from hole ${press.startHole}): In progress`);
         return;
       }
 
@@ -950,7 +1146,8 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       const pressDots: { [id: string]: number } = {};
       fboPlayers.forEach(p => pressDots[p.id] = 0);
       
-      for (let h = press.startHole; h <= segmentEnd; h++) {
+      const pressEnd = press.segment === 'front' ? 9 : 18;
+      for (let h = press.startHole; h <= pressEnd; h++) {
         const holeDots = fboData[h]?.dots || [];
         holeDots.forEach((playerId: string | number) => {
           const normalizedId = String(playerId);
@@ -966,6 +1163,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       const pressLosers = Object.entries(pressDots).filter(([_, dots]) => dots < maxPressDots);
       
       const pressingPlayer = fboPlayers.find(p => p.id === String(press.playerId));
+      const pressLevelLabel = (press.pressLevel || 1) > 1 ? ` (${press.pressLevel}x)` : '';
       
       if (pressWinners.length === 1 && maxPressDots > 0) {
         const winnerId = pressWinners[0][0];
@@ -977,10 +1175,10 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
           results[loserId] -= press.unitValue;
         });
         
-        details.push(`Press by ${pressingPlayer?.name} (${press.segment === 'front' ? 'Front' : 'Back'} from hole ${press.startHole}): ${winnerName} wins $${winAmount}`);
+        details.push(`Press${pressLevelLabel} by ${pressingPlayer?.name} (${segmentLabel} from hole ${press.startHole}): ${winnerName} wins $${winAmount}`);
       } else if (pressWinners.length > 1 || maxPressDots === 0) {
         // Push or tie
-        details.push(`Press by ${pressingPlayer?.name} (${press.segment === 'front' ? 'Front' : 'Back'} from hole ${press.startHole}): Push`);
+        details.push(`Press${pressLevelLabel} by ${pressingPlayer?.name} (${segmentLabel} from hole ${press.startHole}): Push`);
       }
     });
   }

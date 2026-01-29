@@ -122,6 +122,13 @@ export interface GameSettings {
     // FBO game config
     fbo?: {
       allowPresses: boolean; // Enable/disable press option (double-or-nothing when dormie)
+      handicapMode?: 'absolute' | 'relative'; // Stroke calculation mode
+      gameMode?: 'together' | 'headToHead'; // All together or head-to-head matchups
+      headToHeadMatchups?: Array<{
+        player1Id: string;
+        player2Id: string;
+        unitValue: number;
+      }>;
     };
     // Stockton 6's config
     stockton6?: {

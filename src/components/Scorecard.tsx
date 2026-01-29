@@ -183,7 +183,13 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
               {presses.map((press, idx) => {
                   const player = fboPlayers.find(p => p.id === String(press.playerId));
                   const segmentEnd = press.segment === 'front' ? 9 : 18;
-                  const isComplete = press.segment === 'front' ? frontNineComplete : backNineComplete;
+                  const isComplete = press.segment === 'front' ? frontNineComplete : 
+                                     press.segment === 'back' ? backNineComplete :
+                                     overallComplete; // Overall requires full round
+                  
+                  const segmentLabel = press.segment === 'front' ? 'Front' : 
+                                       press.segment === 'back' ? 'Back' : 
+                                       'Overall';
                   
                   // Calculate press dots if complete
                   let pressResult: { winner: string | null; amount: number } | null = null;
@@ -232,7 +238,7 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
                         <span className="text-xs text-muted-foreground">
                           {(press as any).pressLevel === 2 ? 'double pressed' : 
                            (press as any).pressLevel > 2 ? `${(press as any).pressLevel}x pressed` : 
-                           'pressed'} {press.segment === 'front' ? 'Front' : 'Back'} on #{press.startHole}
+                           'pressed'} {segmentLabel} on #{press.startHole}
                         </span>
                       </div>
                       <div>
@@ -715,16 +721,31 @@ const Scorecard: React.FC = () => {
                           </div>
                         </td>
                         {activeHoles.map(h => {
-                          const pressOnHole = fboPresses.find(p => p.startHole === h.number);
-                          if (!pressOnHole) {
+                          const pressesOnHole = fboPresses.filter(p => p.startHole === h.number);
+                          if (pressesOnHole.length === 0) {
                             return <td key={h.number} className="p-2 border-r border-border/50 text-muted-foreground/30">-</td>;
                           }
-                          const player = fboPlayers.find(p => p.id === String(pressOnHole.playerId));
+                          
                           return (
                             <td key={h.number} className="p-2 border-r border-border/50">
-                              <span className="inline-flex items-center justify-center w-6 h-6 bg-amber-500 text-white rounded-full text-xs font-bold">
-                                {player?.name?.charAt(0) || 'P'}
-                              </span>
+                              <div className="flex flex-wrap gap-0.5 justify-center">
+                                {pressesOnHole.map((press, idx) => {
+                                  const player = fboPlayers.find(p => p.id === String(press.playerId));
+                                  const segmentIndicator = press.segment === 'front' ? 'F' : 
+                                                           press.segment === 'back' ? 'B' : 
+                                                           'O';
+                                  return (
+                                    <span 
+                                      key={idx}
+                                      className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 px-0.5 rounded text-[10px] font-bold ${
+                                        press.segment === 'overall' ? 'bg-primary text-primary-foreground' : 'bg-amber-500 text-white'
+                                      }`}
+                                    >
+                                      {player?.name?.charAt(0) || 'P'}{segmentIndicator}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             </td>
                           );
                         })}
