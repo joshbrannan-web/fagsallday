@@ -1278,6 +1278,12 @@ export const calculatePerGameTotals = (round: Round): {
 };
 
 export const calculateRoundTotals = (round: Round): { [playerId: string]: number } => {
+  // Check for saved final adjustments first (user overrides)
+  const savedAdjustments = round.gameData?._META?.[0]?._FINAL_ADJUSTMENTS;
+  if (savedAdjustments && Object.keys(savedAdjustments).length > 0) {
+    return savedAdjustments;
+  }
+
   const totals: { [playerId: string]: number } = {};
   round.players.forEach((p) => (totals[p.id] = 0));
 

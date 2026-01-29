@@ -99,7 +99,7 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
 
 const RoundSummary: React.FC = () => {
   const navigate = useNavigate();
-  const { currentRound, roundTotals, finishRound } = useApp();
+  const { currentRound, roundTotals, finishRound, updateGameDataBatch } = useApp();
   const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, number>>({});
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -107,11 +107,18 @@ const RoundSummary: React.FC = () => {
   // Initialize adjusted amounts from calculated totals
   useEffect(() => {
     if (currentRound && Object.keys(adjustedAmounts).length === 0) {
-      const initial: Record<string, number> = {};
-      currentRound.players.forEach(p => {
-        initial[p.id] = roundTotals[p.id] || 0;
-      });
-      setAdjustedAmounts(initial);
+      // Check for saved final adjustments first
+      const savedAdjustments = currentRound.gameData?._META?.[0]?._FINAL_ADJUSTMENTS;
+      
+      if (savedAdjustments && Object.keys(savedAdjustments).length > 0) {
+        setAdjustedAmounts(savedAdjustments);
+      } else {
+        const initial: Record<string, number> = {};
+        currentRound.players.forEach(p => {
+          initial[p.id] = roundTotals[p.id] || 0;
+        });
+        setAdjustedAmounts(initial);
+      }
     }
   }, [currentRound, roundTotals]);
 
@@ -154,8 +161,17 @@ const RoundSummary: React.FC = () => {
     setEditValue('');
   };
 
-  const handleFinish = () => {
-    finishRound();
+  const handleFinish = async () => {
+    // Save final adjusted amounts if any differ from calculated
+    const hasAdjustments = currentRound.players.some(
+      p => adjustedAmounts[p.id] !== roundTotals[p.id]
+    );
+    
+    if (hasAdjustments) {
+      await updateGameDataBatch('_META', 0, { _FINAL_ADJUSTMENTS: adjustedAmounts });
+    }
+    
+    await finishRound();
     toast.success('Round saved to history!');
     navigate('/');
   };
