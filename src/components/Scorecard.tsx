@@ -833,43 +833,89 @@ const Scorecard: React.FC = () => {
         )}
       </div>
 
-      {/* Hidden full 18-hole scorecard for image capture */}
+      {/* Hidden full 18-hole scorecard for image capture - using inline styles for html-to-image compatibility */}
       <div 
         ref={scorecardRef}
-        className="absolute left-[-9999px] top-0"
+        className="fixed top-0 left-0 opacity-0 pointer-events-none z-[-1]"
+        style={{ width: '1200px' }}
         aria-hidden="true"
       >
-        <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+        <div style={{ 
+          backgroundColor: '#ffffff', 
+          borderRadius: '12px', 
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          border: '1px solid #dfe2e7',
+          overflow: 'hidden'
+        }}>
           {/* Header */}
-          <div className="bg-muted/50 px-4 py-3 border-b border-border">
-            <div className="text-center">
-              <h3 className="font-bold text-foreground text-lg">{currentRound.course.name}</h3>
-              <p className="text-xs text-muted-foreground">
+          <div style={{ 
+            backgroundColor: 'rgba(245,243,239,0.5)', 
+            padding: '12px 16px', 
+            borderBottom: '1px solid #dfe2e7' 
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <h3 style={{ fontWeight: 700, color: '#1e2530', fontSize: '18px', margin: 0 }}>
+                {currentRound.course.name}
+              </h3>
+              <p style={{ fontSize: '12px', color: '#737a85', marginTop: '4px' }}>
                 {new Date(currentRound.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </p>
             </div>
           </div>
           
           {/* Full 18-hole table */}
-          <table className="w-full text-center border-collapse text-sm">
+          <table style={{ width: '100%', textAlign: 'center', borderCollapse: 'collapse', fontSize: '14px' }}>
             <thead>
-              <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
-                <th className="p-3 text-left min-w-[100px] bg-muted border-r border-border">Player</th>
+              <tr style={{ backgroundColor: '#f5f3ef' }}>
+                <th style={{ 
+                  padding: '12px', 
+                  textAlign: 'left', 
+                  minWidth: '100px', 
+                  backgroundColor: '#f5f3ef',
+                  borderRight: '1px solid #dfe2e7',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#737a85',
+                  textTransform: 'uppercase'
+                }}>Player</th>
                 {holes.map(h => (
-                  <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
+                  <th key={h.number} style={{ 
+                    padding: '8px', 
+                    minWidth: '40px', 
+                    borderRight: '1px solid rgba(223,226,231,0.5)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#737a85',
+                    textTransform: 'uppercase'
+                  }}>
                     {h.number}
-                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">par {h.par}</div>
-                    <div className="text-[10px] text-muted-foreground font-normal">IDX {h.handicapIndex}</div>
+                    <div style={{ fontSize: '10px', color: '#737a85', fontWeight: 400, marginTop: '2px' }}>par {h.par}</div>
+                    <div style={{ fontSize: '10px', color: '#737a85', fontWeight: 400 }}>IDX {h.handicapIndex}</div>
                   </th>
                 ))}
-                <th className="p-2 min-w-[50px] bg-muted">Total</th>
+                <th style={{ 
+                  padding: '8px', 
+                  minWidth: '50px', 
+                  backgroundColor: '#f5f3ef',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#737a85',
+                  textTransform: 'uppercase'
+                }}>Total</th>
               </tr>
             </thead>
             <tbody>
               {currentRound.players.map((player, idx) => (
                 <React.Fragment key={player.id}>
-                  <tr className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
-                    <td className="p-3 text-left font-semibold bg-inherit border-r border-border">
+                  <tr style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : 'rgba(245,243,239,0.3)' }}>
+                    <td style={{ 
+                      padding: '12px', 
+                      textAlign: 'left', 
+                      fontWeight: 600, 
+                      backgroundColor: 'inherit',
+                      borderRight: '1px solid #dfe2e7',
+                      color: '#1e2530'
+                    }}>
                       {player.name}
                     </td>
                     {holes.map(h => {
@@ -881,46 +927,94 @@ const Scorecard: React.FC = () => {
                         hasStroke = autoStrokes[player.id] === 1;
                       }
                       const isBanker = getBankerForHole(h.number) === player.id;
+                      
+                      const getScoreStyle = (): React.CSSProperties => {
+                        const base: React.CSSProperties = {
+                          display: 'inline-block',
+                          width: '32px',
+                          height: '32px',
+                          lineHeight: '32px',
+                          borderRadius: '50%',
+                          fontSize: '14px',
+                          fontWeight: 700,
+                        };
+                        if (diff <= -2) return { ...base, backgroundColor: 'rgba(245,178,10,0.2)', color: '#f5b20a' };
+                        if (diff === -1) return { ...base, backgroundColor: 'rgba(34,197,94,0.2)', color: '#22c55e' };
+                        if (diff === 0) return { ...base, color: '#1e2530' };
+                        if (diff === 1) return { ...base, backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' };
+                        return { ...base, backgroundColor: 'rgba(239,68,68,0.2)', color: '#ef4444' };
+                      };
+                      
                       return (
-                        <td key={h.number} className="p-2 border-r border-border/50">
-                          <div className="relative inline-block">
-                            <span className={`inline-block w-8 h-8 leading-8 rounded-full text-sm font-bold ${
-                              diff <= -2 ? 'bg-brand-gold/20 text-brand-gold' :
-                              diff === -1 ? 'bg-success/20 text-success' :
-                              diff === 0 ? '' :
-                              diff === 1 ? 'bg-destructive/10 text-destructive' :
-                              'bg-destructive/20 text-destructive'
-                            }`}>
+                        <td key={h.number} style={{ padding: '8px', borderRight: '1px solid rgba(223,226,231,0.5)' }}>
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <span style={getScoreStyle()}>
                               {score}
                             </span>
                             {hasStroke && (
-                              <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border border-background flex items-center justify-center">
-                                <span className="text-[8px] text-primary-foreground font-bold">•</span>
+                              <span style={{
+                                position: 'absolute',
+                                top: '-4px',
+                                right: '-4px',
+                                width: '12px',
+                                height: '12px',
+                                backgroundColor: '#2a9d8f',
+                                borderRadius: '50%',
+                                border: '1px solid #ffffff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}>
+                                <span style={{ fontSize: '8px', color: '#ffffff', fontWeight: 700 }}>•</span>
                               </span>
                             )}
                             {isBanker && (
-                              <Crown className="absolute -top-1 -right-1 w-3 h-3 text-brand-gold" />
+                              <Crown 
+                                style={{
+                                  position: 'absolute',
+                                  top: '-4px',
+                                  right: '-4px',
+                                  width: '12px',
+                                  height: '12px',
+                                  color: '#f5b20a'
+                                }}
+                              />
                             )}
                           </div>
                         </td>
                       );
                     })}
-                    <td className="p-2 font-bold">{calculateTotalScore(player.id) || '-'}</td>
+                    <td style={{ padding: '8px', fontWeight: 700, color: '#1e2530' }}>{calculateTotalScore(player.id) || '-'}</td>
                   </tr>
-                  <tr className={`text-xs ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}`}>
-                    <td className="px-3 pb-2 text-left text-muted-foreground bg-inherit border-r border-border">HCP {player.courseHandicap}</td>
+                  <tr style={{ fontSize: '12px', backgroundColor: idx % 2 === 0 ? '#ffffff' : 'rgba(245,243,239,0.3)' }}>
+                    <td style={{ 
+                      padding: '0 12px 8px 12px', 
+                      textAlign: 'left', 
+                      color: '#737a85',
+                      backgroundColor: 'inherit',
+                      borderRight: '1px solid #dfe2e7'
+                    }}>HCP {player.courseHandicap}</td>
                     {holes.map(h => {
                       const money = getPlayerHoleMoney(player.id, h.number);
+                      const getMoneyColor = () => {
+                        if (money > 0) return '#22c55e';
+                        if (money < 0) return '#ef4444';
+                        return '#737a85';
+                      };
                       return (
-                        <td key={h.number} className="px-2 pb-2 border-r border-border/50">
-                          <span className={`font-mono ${money > 0 ? 'text-success' : money < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        <td key={h.number} style={{ padding: '0 8px 8px 8px', borderRight: '1px solid rgba(223,226,231,0.5)' }}>
+                          <span style={{ fontFamily: 'monospace', color: getMoneyColor() }}>
                             {money !== 0 ? (money > 0 ? `+${money}` : money) : '-'}
                           </span>
                         </td>
                       );
                     })}
-                    <td className="px-2 pb-2">
-                      <span className={`font-mono font-bold ${(roundTotals[player.id] || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    <td style={{ padding: '0 8px 8px 8px' }}>
+                      <span style={{ 
+                        fontFamily: 'monospace', 
+                        fontWeight: 700, 
+                        color: (roundTotals[player.id] || 0) >= 0 ? '#22c55e' : '#ef4444'
+                      }}>
                         ${roundTotals[player.id] || 0}
                       </span>
                     </td>
