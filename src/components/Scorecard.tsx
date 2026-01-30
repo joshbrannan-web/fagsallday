@@ -271,6 +271,7 @@ interface FBOMatchupResultsProps {
   scores: { [holeNumber: number]: HoleScores };
   gameData: GameData;
   courseHoles: Hole[];
+  viewMode: 'FRONT' | 'BACK';
 }
 
 const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
@@ -279,10 +280,15 @@ const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
   scores,
   gameData,
   courseHoles,
+  viewMode,
 }) => {
   const matchups = fboGame.config.fbo?.headToHeadMatchups || [];
   const fboData = gameData?.[fboGame.id] || {};
   const presses: FBOPressState[] = (fboData as any)[1]?._META_PRESSES || [];
+
+  const front9 = courseHoles.filter(h => h.number <= 9);
+  const back9 = courseHoles.filter(h => h.number > 9);
+  const activeHoles = viewMode === 'FRONT' ? front9 : back9;
 
   // Check completed holes
   const completedHoles = new Set<number>();
@@ -302,6 +308,16 @@ const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
   const backNineComplete = [10, 11, 12, 13, 14, 15, 16, 17, 18].every(h => completedHoles.has(h));
   const overallComplete = frontNineComplete && backNineComplete;
 
+  // Get dot winner for a specific matchup on a specific hole
+  const getMatchupDotForHole = (p1Id: string, p2Id: string, holeNum: number): string | null => {
+    const matchupDotsData = fboData[holeNum]?.matchupDots || {};
+    // Try both key orderings
+    const key1 = `${String(p1Id)}_${String(p2Id)}`;
+    const key2 = `${String(p2Id)}_${String(p1Id)}`;
+    const winner = matchupDotsData[key1] ?? matchupDotsData[key2];
+    return winner ? String(winner) : null;
+  };
+
   // Count dots for a player in a SPECIFIC matchup (uses matchupDots for H2H mode)
   const countDotsForMatchup = (
     p1Id: string,
@@ -311,11 +327,9 @@ const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
   ): { p1Dots: number; p2Dots: number } => {
     let p1Dots = 0;
     let p2Dots = 0;
-    const matchupKey = `${p1Id}_${p2Id}`;
     
     for (let h = startHole; h <= endHole; h++) {
-      const matchupDots = fboData[h]?.matchupDots || {};
-      const winner = matchupDots[matchupKey];
+      const winner = getMatchupDotForHole(p1Id, p2Id, h);
       if (String(winner) === String(p1Id)) p1Dots++;
       if (String(winner) === String(p2Id)) p2Dots++;
     }
@@ -336,15 +350,10 @@ const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
   fboPlayers.forEach(p => aggregatedTotals[p.id] = 0);
 
   return (
-    <div className="mt-4 space-y-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Trophy className="w-5 h-5 text-brand-gold" />
-        <h3 className="font-bold text-foreground">FBO Head-to-Head Matchups</h3>
-      </div>
-
+    <div className="mt-4 space-y-6">
       {matchups.map((matchup, idx) => {
-        const player1 = fboPlayers.find(p => p.id === matchup.player1Id);
-        const player2 = fboPlayers.find(p => p.id === matchup.player2Id);
+        const player1 = fboPlayers.find(p => String(p.id) === String(matchup.player1Id));
+        const player2 = fboPlayers.find(p => String(p.id) === String(matchup.player2Id));
         if (!player1 || !player2) return null;
 
         const matchupPresses = getPressesForMatchup(matchup.player1Id, matchup.player2Id);
@@ -394,10 +403,8 @@ const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
           // Use matchupDots for H2H mode press calculations
           let presserDots = 0;
           let opponentDots = 0;
-          const pressMatchupKey = `${matchup.player1Id}_${matchup.player2Id}`;
           for (let h = press.startHole; h <= pressEnd; h++) {
-            const matchupDotsData = fboData[h]?.matchupDots || {};
-            const winner = matchupDotsData[pressMatchupKey];
+            const winner = getMatchupDotForHole(matchup.player1Id, matchup.player2Id, h);
             if (String(winner) === String(press.playerId)) presserDots++;
             if (String(winner) === String(press.opponentId)) opponentDots++;
           }
@@ -431,180 +438,192 @@ const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
         aggregatedTotals[matchup.player1Id] += p1Total;
         aggregatedTotals[matchup.player2Id] += p2Total;
 
-        const segments = [
-          { label: 'Front 9', p1Dots: p1FrontDots, p2Dots: p2FrontDots, result: frontResult, complete: frontNineComplete },
-          { label: 'Back 9', p1Dots: p1BackDots, p2Dots: p2BackDots, result: backResult, complete: backNineComplete },
-          { label: 'Overall', p1Dots: p1OverallDots, p2Dots: p2OverallDots, result: overallResult, complete: overallComplete },
-        ];
+        // Calculate current 9 dots for subtotal column
+        const p1SubtotalDots = viewMode === 'FRONT' ? p1FrontDots : p1BackDots;
+        const p2SubtotalDots = viewMode === 'FRONT' ? p2FrontDots : p2BackDots;
 
         return (
-          <div key={idx} className="bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
+          <div key={idx} className="inline-block min-w-full bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
             {/* Matchup Header */}
-            <div className="bg-primary/10 px-4 py-3 border-b border-primary/20">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-foreground">{player1.name} vs {player2.name}</span>
-                <span className="text-sm text-muted-foreground">${matchup.unitValue} per segment</span>
+            <div className="bg-primary/10 px-4 py-2 border-b border-primary/20">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🎱</span>
+                <h3 className="font-bold text-foreground">{player1.name} vs {player2.name}</h3>
+                <span className="text-xs text-muted-foreground ml-auto">${matchup.unitValue} per segment</span>
               </div>
             </div>
 
-            {/* Segment Results Table */}
-            <div className="p-4">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-muted-foreground uppercase">
-                    <th className="text-left pb-2">Player</th>
-                    <th className="text-center pb-2">Front 9</th>
-                    <th className="text-center pb-2">Back 9</th>
-                    <th className="text-center pb-2">Overall</th>
-                    <th className="text-right pb-2">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Player 1 Row */}
-                  <tr className="border-t border-border/50">
-                    <td className="py-2">
-                      <div className="flex items-center gap-2">
-                        {(frontResult.winner === matchup.player1Id || backResult.winner === matchup.player1Id || overallResult.winner === matchup.player1Id) && (
-                          <Trophy className="w-4 h-4 text-brand-gold" />
-                        )}
-                        <span className="font-medium">{player1.name}</span>
-                      </div>
-                    </td>
-                    {segments.map(seg => (
-                      <td key={seg.label} className="text-center py-2">
-                        <div className="flex flex-col items-center">
-                          <span className={`font-mono ${
-                            seg.result.winner === matchup.player1Id ? 'text-success font-bold' :
-                            seg.result.winner === matchup.player2Id ? 'text-destructive' : ''
-                          }`}>
-                            {seg.p1Dots}
-                          </span>
-                          {seg.complete && seg.result.status === 'settled' && (
-                            <span className={`text-xs font-mono ${seg.result.p1Amount > 0 ? 'text-success' : 'text-destructive'}`}>
-                              {seg.result.p1Amount > 0 ? `+$${seg.result.p1Amount}` : `-$${Math.abs(seg.result.p1Amount)}`}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    ))}
-                    <td className="text-right py-2">
-                      <span className={`font-mono font-bold ${p1Total > 0 ? 'text-success' : p1Total < 0 ? 'text-destructive' : ''}`}>
-                        {p1Total > 0 ? `+$${p1Total}` : p1Total < 0 ? `-$${Math.abs(p1Total)}` : '$0'}
-                      </span>
-                    </td>
-                  </tr>
-
-                  {/* Player 2 Row */}
-                  <tr className="border-t border-border/50">
-                    <td className="py-2">
-                      <div className="flex items-center gap-2">
-                        {(frontResult.winner === matchup.player2Id || backResult.winner === matchup.player2Id || overallResult.winner === matchup.player2Id) && (
-                          <Trophy className="w-4 h-4 text-brand-gold" />
-                        )}
-                        <span className="font-medium">{player2.name}</span>
-                      </div>
-                    </td>
-                    {segments.map(seg => (
-                      <td key={seg.label} className="text-center py-2">
-                        <div className="flex flex-col items-center">
-                          <span className={`font-mono ${
-                            seg.result.winner === matchup.player2Id ? 'text-success font-bold' :
-                            seg.result.winner === matchup.player1Id ? 'text-destructive' : ''
-                          }`}>
-                            {seg.p2Dots}
-                          </span>
-                          {seg.complete && seg.result.status === 'settled' && (
-                            <span className={`text-xs font-mono ${seg.result.p2Amount > 0 ? 'text-success' : 'text-destructive'}`}>
-                              {seg.result.p2Amount > 0 ? `+$${seg.result.p2Amount}` : `-$${Math.abs(seg.result.p2Amount)}`}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    ))}
-                    <td className="text-right py-2">
-                      <span className={`font-mono font-bold ${p2Total > 0 ? 'text-success' : p2Total < 0 ? 'text-destructive' : ''}`}>
-                        {p2Total > 0 ? `+$${p2Total}` : p2Total < 0 ? `-$${Math.abs(p2Total)}` : '$0'}
-                      </span>
-                    </td>
-                  </tr>
-
-                  {/* Segment Status Row */}
-                  <tr className="border-t border-border/50 text-xs text-muted-foreground">
-                    <td className="py-2">Status</td>
-                    {segments.map(seg => (
-                      <td key={seg.label} className="text-center py-2">
-                        {!seg.complete ? (
-                          <span className="px-2 py-0.5 bg-muted rounded-full">In Progress</span>
-                        ) : seg.result.status === 'push' ? (
-                          <span className="px-2 py-0.5 bg-muted rounded-full flex items-center justify-center gap-1">
-                            <Minus className="w-3 h-3" /> Push
+            {/* Dots Table - Per Hole */}
+            <table className="w-full text-center border-collapse text-sm">
+              <thead>
+                <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
+                  <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
+                  {activeHoles.map(h => (
+                    <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
+                      {h.number}
+                    </th>
+                  ))}
+                  <th className="p-2 min-w-[50px] bg-muted">{viewMode === 'FRONT' ? 'F9' : 'B9'}</th>
+                  <th className="p-2 min-w-[50px] bg-primary/10">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Player 1 Row */}
+                <tr className="bg-card">
+                  <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
+                    <div className="flex items-center gap-2">
+                      {(frontResult.winner === matchup.player1Id || backResult.winner === matchup.player1Id || overallResult.winner === matchup.player1Id) && (
+                        <Trophy className="w-4 h-4 text-brand-gold" />
+                      )}
+                      {player1.name}
+                    </div>
+                  </td>
+                  {activeHoles.map(h => {
+                    const winner = getMatchupDotForHole(matchup.player1Id, matchup.player2Id, h.number);
+                    const hasDot = String(winner) === String(matchup.player1Id);
+                    return (
+                      <td key={h.number} className="p-2 border-r border-border/50">
+                        {hasDot ? (
+                          <span className="inline-flex items-center justify-center w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold">
+                            ●
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 bg-success/10 text-success rounded-full">Settled</span>
+                          <span className="text-muted-foreground/30">-</span>
                         )}
                       </td>
-                    ))}
-                    <td></td>
-                  </tr>
-                </tbody>
-              </table>
+                    );
+                  })}
+                  <td className="p-2 font-bold text-foreground">{p1SubtotalDots}</td>
+                  <td className="p-2 font-bold bg-primary/5">
+                    <span className="text-primary">{p1OverallDots}</span>
+                  </td>
+                </tr>
 
-              {/* Presses Section */}
-              {matchupPresses.length > 0 && (
-                <div className="border-t border-border mt-4 pt-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <AlertTriangle className="w-4 h-4 text-amber-500" />
-                    <span className="font-semibold text-sm">Presses</span>
-                  </div>
-                  <div className="space-y-2">
-                    {pressResults.map((pr, pIdx) => {
-                      const pressingPlayer = fboPlayers.find(p => p.id === String(pr.press.playerId));
-                      const opponent = fboPlayers.find(p => p.id === String(pr.press.opponentId));
-                      const segmentLabel = pr.press.segment === 'front' ? 'Front 9' : 
-                                           pr.press.segment === 'back' ? 'Back 9' : 'Overall';
-                      const pressLevelLabel = (pr.press.pressLevel || 1) > 1 ? ` (${pr.press.pressLevel}x)` : '';
+                {/* Player 2 Row */}
+                <tr className="bg-muted/30">
+                  <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
+                    <div className="flex items-center gap-2">
+                      {(frontResult.winner === matchup.player2Id || backResult.winner === matchup.player2Id || overallResult.winner === matchup.player2Id) && (
+                        <Trophy className="w-4 h-4 text-brand-gold" />
+                      )}
+                      {player2.name}
+                    </div>
+                  </td>
+                  {activeHoles.map(h => {
+                    const winner = getMatchupDotForHole(matchup.player1Id, matchup.player2Id, h.number);
+                    const hasDot = String(winner) === String(matchup.player2Id);
+                    return (
+                      <td key={h.number} className="p-2 border-r border-border/50">
+                        {hasDot ? (
+                          <span className="inline-flex items-center justify-center w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold">
+                            ●
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/30">-</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="p-2 font-bold text-foreground">{p2SubtotalDots}</td>
+                  <td className="p-2 font-bold bg-primary/5">
+                    <span className="text-primary">{p2OverallDots}</span>
+                  </td>
+                </tr>
 
-                      return (
-                        <div 
-                          key={pIdx} 
-                          className={`flex items-center justify-between px-3 py-2 rounded-md text-sm ${
-                            !pr.isComplete ? 'bg-amber-500/10 border border-amber-500/20' :
-                            pr.result === 'push' ? 'bg-muted/50' :
-                            pr.result === 'won' ? 'bg-success/10 border border-success/20' :
-                            'bg-destructive/10 border border-destructive/20'
-                          }`}
-                        >
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{pressingPlayer?.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {pressLevelLabel ? `${pressLevelLabel.trim()} ` : ''}pressed {segmentLabel} on #{pr.press.startHole}
-                              </span>
-                            </div>
-                            {pr.isComplete && pr.presserDots !== undefined && (
-                              <span className="text-xs text-muted-foreground mt-0.5">
-                                {pressingPlayer?.name?.charAt(0)}: {pr.presserDots} dots | {opponent?.name?.charAt(0)}: {pr.opponentDots} dots
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            {!pr.isComplete ? (
-                              <span className="text-xs text-amber-500 font-medium">In Progress</span>
-                            ) : pr.result === 'push' ? (
-                              <span className="text-xs text-muted-foreground font-medium">Push</span>
-                            ) : (
-                              <span className={`font-mono font-bold ${pr.result === 'won' ? 'text-success' : 'text-destructive'}`}>
-                                {pr.result === 'won' ? `+$${pr.press.unitValue}` : `-$${pr.press.unitValue}`}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* Results Row */}
+                <tr className="bg-muted/50 border-t border-border">
+                  <td className="p-2 text-left font-semibold text-xs text-muted-foreground sticky left-0 bg-muted/50 border-r border-border z-10">
+                    Result
+                  </td>
+                  <td colSpan={activeHoles.length} className="p-2 text-center">
+                    <div className="flex items-center justify-center gap-4 text-xs flex-wrap">
+                      <span className={frontResult.status === 'settled' && frontResult.winner ? 'font-semibold' : ''}>
+                        F9: {!frontNineComplete ? 'In Progress' : 
+                             frontResult.status === 'push' ? 'Push' :
+                             `${fboPlayers.find(p => String(p.id) === String(frontResult.winner))?.name} +$${matchup.unitValue}`}
+                      </span>
+                      <span className={backResult.status === 'settled' && backResult.winner ? 'font-semibold' : ''}>
+                        B9: {!backNineComplete ? 'In Progress' : 
+                             backResult.status === 'push' ? 'Push' :
+                             `${fboPlayers.find(p => String(p.id) === String(backResult.winner))?.name} +$${matchup.unitValue}`}
+                      </span>
+                      <span className={overallResult.status === 'settled' && overallResult.winner ? 'font-semibold' : ''}>
+                        Overall: {!overallComplete ? 'In Progress' : 
+                                  overallResult.status === 'push' ? 'Push' :
+                                  `${fboPlayers.find(p => String(p.id) === String(overallResult.winner))?.name} +$${matchup.unitValue}`}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="p-2 font-bold text-foreground"></td>
+                  <td className="p-2 font-bold bg-primary/5">
+                    <div className="flex flex-col text-xs">
+                      <span className={`font-mono ${p1Total > 0 ? 'text-success' : p1Total < 0 ? 'text-destructive' : ''}`}>
+                        {player1.name.charAt(0)}: {p1Total > 0 ? `+$${p1Total}` : p1Total < 0 ? `-$${Math.abs(p1Total)}` : '$0'}
+                      </span>
+                      <span className={`font-mono ${p2Total > 0 ? 'text-success' : p2Total < 0 ? 'text-destructive' : ''}`}>
+                        {player2.name.charAt(0)}: {p2Total > 0 ? `+$${p2Total}` : p2Total < 0 ? `-$${Math.abs(p2Total)}` : '$0'}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Presses Section */}
+            {matchupPresses.length > 0 && (
+              <div className="border-t border-border p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-4 h-4 text-warning" />
+                  <span className="font-semibold text-sm">Presses</span>
                 </div>
-              )}
-            </div>
+                <div className="space-y-2">
+                  {pressResults.map((pr, pIdx) => {
+                    const pressingPlayer = fboPlayers.find(p => p.id === String(pr.press.playerId));
+                    const opponent = fboPlayers.find(p => p.id === String(pr.press.opponentId));
+                    const segmentLabel = pr.press.segment === 'front' ? 'Front 9' : 
+                                         pr.press.segment === 'back' ? 'Back 9' : 'Overall';
+                    const pressLevelLabel = (pr.press.pressLevel || 1) > 1 ? ` (${pr.press.pressLevel}x)` : '';
+
+                    return (
+                      <div 
+                        key={pIdx} 
+                        className={`flex items-center justify-between px-3 py-2 rounded-md text-sm ${
+                          !pr.isComplete ? 'bg-warning/10 border border-warning/20' :
+                          pr.result === 'push' ? 'bg-muted/50' :
+                          pr.result === 'won' ? 'bg-success/10 border border-success/20' :
+                          'bg-destructive/10 border border-destructive/20'
+                        }`}
+                      >
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{pressingPlayer?.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {pressLevelLabel ? `${pressLevelLabel.trim()} ` : ''}pressed {segmentLabel} on #{pr.press.startHole}
+                            </span>
+                          </div>
+                          {pr.isComplete && pr.presserDots !== undefined && (
+                            <span className="text-xs text-muted-foreground mt-0.5">
+                              {pressingPlayer?.name?.charAt(0)}: {pr.presserDots} dots | {opponent?.name?.charAt(0)}: {pr.opponentDots} dots
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          {!pr.isComplete ? (
+                            <span className="text-xs text-warning font-medium">In Progress</span>
+                          ) : pr.result === 'push' ? (
+                            <span className="text-xs text-muted-foreground font-medium">Push</span>
+                          ) : (
+                            <span className={`font-mono font-bold ${pr.result === 'won' ? 'text-success' : 'text-destructive'}`}>
+                              {pr.result === 'won' ? `+$${pr.press.unitValue}` : `-$${pr.press.unitValue}`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
@@ -1025,111 +1044,115 @@ const Scorecard: React.FC = () => {
             );
           })}
 
-        {/* FBO Dots Section */}
+        {/* FBO Section */}
         {fboGame && fboPlayers.length > 0 && (
           <>
-            <div className="mt-4 inline-block min-w-full bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
-              <div className="bg-primary/10 px-4 py-2 border-b border-primary/20">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🎱</span>
-                  <h3 className="font-bold text-foreground">FBO Dots</h3>
-                  <span className="text-xs text-muted-foreground ml-auto">${fboGame.unitStake} per segment</span>
+            {/* FBO Dots Table - Only show for "All Together" mode, not Head-to-Head */}
+            {!(fboGame.config.fbo?.gameMode === 'headToHead' && 
+               fboGame.config.fbo?.headToHeadMatchups?.length > 0) && (
+              <div className="mt-4 inline-block min-w-full bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
+                <div className="bg-primary/10 px-4 py-2 border-b border-primary/20">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🎱</span>
+                    <h3 className="font-bold text-foreground">FBO Dots</h3>
+                    <span className="text-xs text-muted-foreground ml-auto">${fboGame.unitStake} per segment</span>
+                  </div>
                 </div>
-              </div>
-              <table className="w-full text-center border-collapse text-sm">
-                <thead>
-                  <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
-                    <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
-                    {activeHoles.map(h => (
-                      <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
-                        {h.number}
-                      </th>
-                    ))}
-                    <th className="p-2 min-w-[50px] bg-muted">{viewMode === 'FRONT' ? 'Front' : 'Back'}</th>
-                    <th className="p-2 min-w-[50px] bg-primary/10">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fboPlayers.map((player, idx) => (
-                    <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
-                      <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
-                        {player.name}
-                      </td>
-                      {activeHoles.map(h => {
-                        const dots = getDotsForHole(h.number);
-                        const hasDot = dots.includes(player.id);
-                        return (
-                          <td key={h.number} className="p-2 border-r border-border/50">
-                            {hasDot ? (
-                              <span className="inline-flex items-center justify-center w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold">
-                                ●
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground/30">-</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                      <td className="p-2 font-bold text-foreground">
-                        {getTotalDotsForPlayer(player.id, activeHoles)}
-                      </td>
-                      <td className="p-2 font-bold bg-primary/5">
-                        <span className="text-primary">{getOverallDotsForPlayer(player.id)}</span>
-                      </td>
+                <table className="w-full text-center border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
+                      <th className="p-3 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
+                      {activeHoles.map(h => (
+                        <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
+                          {h.number}
+                        </th>
+                      ))}
+                      <th className="p-2 min-w-[50px] bg-muted">{viewMode === 'FRONT' ? 'Front' : 'Back'}</th>
+                      <th className="p-2 min-w-[50px] bg-primary/10">Total</th>
                     </tr>
-                  ))}
-                  {/* FBO Press Indicator Row */}
-                  {(() => {
-                    const fboGameDataForPresses = currentRound.gameData?.[fboGame.id] || {};
-                    const fboPresses: FBOPressState[] = (fboGameDataForPresses as any)[1]?._META_PRESSES || [];
-                    
-                    if (fboPresses.length === 0) return null;
-                    
-                    return (
-                      <tr className="bg-amber-500/5 border-t border-amber-500/20">
-                        <td className="p-3 text-left font-semibold sticky left-0 bg-amber-500/5 border-r border-border z-10 text-amber-600">
-                          <div className="flex items-center gap-1">
-                            <AlertTriangle className="w-4 h-4" />
-                            Press
-                          </div>
+                  </thead>
+                  <tbody>
+                    {fboPlayers.map((player, idx) => (
+                      <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                        <td className="p-3 text-left font-semibold sticky left-0 bg-inherit border-r border-border z-10">
+                          {player.name}
                         </td>
                         {activeHoles.map(h => {
-                          const pressesOnHole = fboPresses.filter(p => p.startHole === h.number);
-                          if (pressesOnHole.length === 0) {
-                            return <td key={h.number} className="p-2 border-r border-border/50 text-muted-foreground/30">-</td>;
-                          }
-                          
+                          const dots = getDotsForHole(h.number);
+                          const hasDot = dots.includes(player.id);
                           return (
                             <td key={h.number} className="p-2 border-r border-border/50">
-                              <div className="flex flex-wrap gap-0.5 justify-center">
-                                {pressesOnHole.map((press, idx) => {
-                                  const player = fboPlayers.find(p => p.id === String(press.playerId));
-                                  const segmentIndicator = press.segment === 'front' ? 'F' : 
-                                                           press.segment === 'back' ? 'B' : 
-                                                           'O';
-                                  return (
-                                    <span 
-                                      key={idx}
-                                      className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 px-0.5 rounded text-[10px] font-bold ${
-                                        press.segment === 'overall' ? 'bg-primary text-primary-foreground' : 'bg-amber-500 text-white'
-                                      }`}
-                                    >
-                                      {player?.name?.charAt(0) || 'P'}{segmentIndicator}
-                                    </span>
-                                  );
-                                })}
-                              </div>
+                              {hasDot ? (
+                                <span className="inline-flex items-center justify-center w-6 h-6 bg-primary text-primary-foreground rounded-full text-xs font-bold">
+                                  ●
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/30">-</span>
+                              )}
                             </td>
                           );
                         })}
-                        <td className="p-2 font-bold text-foreground text-muted-foreground/30">-</td>
-                        <td className="p-2 font-bold bg-primary/5 text-muted-foreground/30">-</td>
+                        <td className="p-2 font-bold text-foreground">
+                          {getTotalDotsForPlayer(player.id, activeHoles)}
+                        </td>
+                        <td className="p-2 font-bold bg-primary/5">
+                          <span className="text-primary">{getOverallDotsForPlayer(player.id)}</span>
+                        </td>
                       </tr>
-                    );
-                  })()}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                    {/* FBO Press Indicator Row */}
+                    {(() => {
+                      const fboGameDataForPresses = currentRound.gameData?.[fboGame.id] || {};
+                      const fboPresses: FBOPressState[] = (fboGameDataForPresses as any)[1]?._META_PRESSES || [];
+                      
+                      if (fboPresses.length === 0) return null;
+                      
+                      return (
+                        <tr className="bg-warning/5 border-t border-warning/20">
+                          <td className="p-3 text-left font-semibold sticky left-0 bg-warning/5 border-r border-border z-10 text-warning">
+                            <div className="flex items-center gap-1">
+                              <AlertTriangle className="w-4 h-4" />
+                              Press
+                            </div>
+                          </td>
+                          {activeHoles.map(h => {
+                            const pressesOnHole = fboPresses.filter(p => p.startHole === h.number);
+                            if (pressesOnHole.length === 0) {
+                              return <td key={h.number} className="p-2 border-r border-border/50 text-muted-foreground/30">-</td>;
+                            }
+                            
+                            return (
+                              <td key={h.number} className="p-2 border-r border-border/50">
+                                <div className="flex flex-wrap gap-0.5 justify-center">
+                                  {pressesOnHole.map((press, pIdx) => {
+                                    const player = fboPlayers.find(p => p.id === String(press.playerId));
+                                    const segmentIndicator = press.segment === 'front' ? 'F' : 
+                                                             press.segment === 'back' ? 'B' : 
+                                                             'O';
+                                    return (
+                                      <span 
+                                        key={pIdx}
+                                        className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 px-0.5 rounded text-[10px] font-bold ${
+                                          press.segment === 'overall' ? 'bg-primary text-primary-foreground' : 'bg-warning text-warning-foreground'
+                                        }`}
+                                      >
+                                        {player?.name?.charAt(0) || 'P'}{segmentIndicator}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </td>
+                            );
+                          })}
+                          <td className="p-2 font-bold text-muted-foreground/30">-</td>
+                          <td className="p-2 font-bold bg-primary/5 text-muted-foreground/30">-</td>
+                        </tr>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* FBO Segment Results - Switch based on game mode */}
             {fboGame.config.fbo?.gameMode === 'headToHead' && 
@@ -1141,6 +1164,7 @@ const Scorecard: React.FC = () => {
                 scores={currentRound.scores}
                 gameData={currentRound.gameData}
                 courseHoles={holes}
+                viewMode={viewMode}
               />
             ) : (
               <FBOSegmentResults 
