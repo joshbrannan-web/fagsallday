@@ -1,315 +1,221 @@
 
-## Plan: Fix FBO Head-to-Head Press Detection ✅ COMPLETED
+## Plan: Press Button Toggle UI + Scorecard Bogey Square Styling
 
-### Summary
-Fixed the FBO Press UI not appearing in Head-to-Head mode by adding H2H-specific dormie detection functions that read from `matchupDots` instead of `dots`.
-
-### Changes Made
-1. **`src/services/gameEngine.ts`**: Added `getFBOMatchupDormieStatus` and `getFBOMatchupOverallDormieStatus` functions
-2. **`src/components/ActiveRound.tsx`**: Updated Press UI to detect H2H mode and render per-matchup press buttons with `opponentId`
+### Overview
+Two UI improvements:
+1. **Press Buttons**: Change pressed state to show green with a checkmark, allowing users to deselect/undo a press
+2. **Scorecard Scores**: Use a circle for birdies and a square for bogeys
 
 ---
 
-## Previous Issue Summary (Resolved)
-The FBO Press UI was not appearing for Brandon even though he was "past dormie" in his matchups against Josh and Clint. This was because:
+## Part 1: Press Button Toggle State
 
-1. **Dormie detection uses global `dots` array**: The functions `getFBODormieStatus` and `getFBOOverallDormieStatus` read from `fboData[h]?.dots` which contains global pool winners
-2. **Head-to-Head mode uses `matchupDots`**: In H2H mode, dot results are stored per-matchup in `matchupDots` (e.g., `{ "1_2": "1", "2_3": "3" }`)
-3. **Data mismatch**: Since `dots` is empty/undefined in H2H mode, no player is ever detected as dormie
+### Current Behavior
+- Press buttons show amber/primary color
+- Clicking adds a press to `_META_PRESSES` array
+- No visual indication that a press has been made
+- No way to undo a press
 
-### Current Data (Hole 8)
-| Matchup | Player 1 Dots | Player 2 Dots | Status |
-|---------|---------------|---------------|--------|
-| Josh (1) vs Brandon (2) | 7 | 0 | Brandon is past dormie (2 holes left, 7 behind) |
-| Josh (1) vs Clint (3) | 3 | 0 | Clint is dormie (needs 4 in 2 holes) |
-| Brandon (2) vs Clint (3) | 0 | 7 | Brandon is past dormie (2 holes left, 7 behind) |
-
----
-
-## Solution
-
-Add Head-to-Head specific dormie detection functions that read from `matchupDots` instead of `dots`, and update the ActiveRound UI to use these functions for H2H games.
+### New Behavior
+- After pressing, button turns **green** with a **checkmark icon**
+- Clicking the green button **removes** the press (undo/deselect)
+- Button text changes from "Press F9" to "Pressed F9 ✓"
 
 ---
 
-## Implementation Details
+### File: `src/components/ActiveRound.tsx`
 
-### Part 1: Add H2H Dormie Detection Functions
+#### Change 1: H2H Mode Press Buttons (lines 1186-1225)
 
-**File:** `src/services/gameEngine.ts`
-
-Add new functions for Head-to-Head dormie detection:
+For each matchup, check if a press already exists for the segment:
 
 ```typescript
-// Get dormie status for a specific H2H matchup in a segment
-export const getFBOMatchupDormieStatus = (
-  round: Round,
-  game: GameSettings,
-  player1Id: string,
-  player2Id: string,
-  currentHole: number
-): { 
-  player1: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
-  player2: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
-} => {
-  const fboData = round.gameData?.[game.id] || {};
-  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
-  const segmentStart = segment === 'front' ? 1 : 10;
-  const segmentEnd = segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
-  
-  // Build matchup key (try both orderings)
-  const key1 = `${player1Id}_${player2Id}`;
-  const key2 = `${player2Id}_${player1Id}`;
-  
-  // Count dots from matchupDots
-  let p1Dots = 0, p2Dots = 0;
-  for (let h = segmentStart; h < currentHole; h++) {
-    const matchupDots = fboData[h]?.matchupDots || {};
-    const winner = matchupDots[key1] ?? matchupDots[key2];
-    if (String(winner) === String(player1Id)) p1Dots++;
-    if (String(winner) === String(player2Id)) p2Dots++;
-  }
-  
-  return {
-    player1: {
-      isDormie: p1Dots + holesRemaining < p2Dots,
-      dotsBehind: Math.max(0, p2Dots - p1Dots),
-      holesRemaining,
-      segment
-    },
-    player2: {
-      isDormie: p2Dots + holesRemaining < p1Dots,
-      dotsBehind: Math.max(0, p1Dots - p2Dots),
-      holesRemaining,
-      segment
-    }
-  };
-};
-
-// Get Overall dormie status for a specific H2H matchup (holes 1-18)
-export const getFBOMatchupOverallDormieStatus = (
-  round: Round,
-  game: GameSettings,
-  player1Id: string,
-  player2Id: string,
-  currentHole: number
-): { 
-  player1: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
-  player2: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
-} => {
-  const fboData = round.gameData?.[game.id] || {};
-  const holesRemaining = 18 - currentHole + 1;
-  
-  const key1 = `${player1Id}_${player2Id}`;
-  const key2 = `${player2Id}_${player1Id}`;
-  
-  let p1Dots = 0, p2Dots = 0;
-  for (let h = 1; h < currentHole; h++) {
-    const matchupDots = fboData[h]?.matchupDots || {};
-    const winner = matchupDots[key1] ?? matchupDots[key2];
-    if (String(winner) === String(player1Id)) p1Dots++;
-    if (String(winner) === String(player2Id)) p2Dots++;
-  }
-  
-  return {
-    player1: {
-      isDormie: p1Dots + holesRemaining < p2Dots,
-      dotsBehind: Math.max(0, p2Dots - p1Dots),
-      holesRemaining
-    },
-    player2: {
-      isDormie: p2Dots + holesRemaining < p1Dots,
-      dotsBehind: Math.max(0, p1Dots - p2Dots),
-      holesRemaining
-    }
-  };
-};
-
-// Get H2H press eligibility for a specific matchup
-export const getFBOMatchupPressEligibility = (
-  round: Round,
-  game: GameSettings,
-  playerId: string,
-  opponentId: string,
-  segment: 'front' | 'back',
-  currentHole: number
-): { canPress: boolean; pressLevel: number; reason?: string } => {
-  const fboGameData = round.gameData?.[game.id] || {};
+// Check if press already exists for this matchup/segment
+const getPressExists = (playerId: string, opponentId: string, segment: 'front' | 'back' | 'overall'): boolean => {
+  const fboGameData = currentRound.gameData?.[fboGame.id] || {};
   const presses: FBOPressState[] = fboGameData[1]?._META_PRESSES || [];
-  
-  // Find presses for this specific matchup and segment
-  const matchupPresses = presses.filter(p => 
+  return presses.some(p => 
     String(p.playerId) === String(playerId) &&
     String(p.opponentId) === String(opponentId) &&
     p.segment === segment
   );
-  
-  if (matchupPresses.length === 0) {
-    // Check base dormie status for this matchup
-    const dormieStatus = getFBOMatchupDormieStatus(round, game, playerId, opponentId, currentHole);
-    const playerStatus = dormieStatus.player1; // player1 is always the first arg
-    if (!playerStatus.isDormie) {
-      return { canPress: false, pressLevel: 1, reason: 'Not dormie in matchup' };
-    }
-    return { canPress: true, pressLevel: 1 };
-  }
-  
-  // Has existing press - check if still dormie
-  const latestPress = matchupPresses.reduce((a, b) => 
-    a.startHole > b.startHole ? a : b
-  );
-  
-  const nextPressLevel = (latestPress.pressLevel || 1) + 1;
-  
-  if (latestPress.startHole >= currentHole) {
-    return { canPress: false, pressLevel: nextPressLevel, reason: 'Already pressed this hole' };
-  }
-  
-  // Check dormie on the press
-  // ... (implement dormie-on-press logic for matchups)
-  
-  return { canPress: true, pressLevel: nextPressLevel };
 };
 ```
 
----
+Update button rendering to show toggle state:
 
-### Part 2: Update FBO Press UI for Head-to-Head Mode
+```tsx
+{pm.segmentDormie && (() => {
+  const isPressed = getPressExists(pm.dormiePlayerId, pm.opponentId, segment);
+  return (
+    <button
+      onClick={() => isPressed 
+        ? handleFBOUnpress(fboGame.id, pm.dormiePlayerId, segment, pm.opponentId)
+        : handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId)
+      }
+      className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+        isPressed 
+          ? 'bg-success text-success-foreground hover:bg-success/80' 
+          : 'bg-amber-500 text-white hover:bg-amber-600'
+      }`}
+    >
+      <div className="flex items-center justify-center gap-1">
+        {isPressed && <Check className="w-4 h-4" />}
+        {isPressed ? 'Pressed' : 'Press'} {segment === 'front' ? 'F9' : 'B9'}
+      </div>
+      <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
+    </button>
+  );
+})()}
+```
 
-**File:** `src/components/ActiveRound.tsx` (around lines 1090-1220)
-
-Add conditional logic to detect H2H mode and render per-matchup press buttons:
+#### Change 2: Add handleFBOUnpress Function (after handleFBOPress, around line 412)
 
 ```typescript
-{fboGames.filter(g => g.config.fbo?.allowPresses).map(fboGame => {
-  const isHeadToHead = fboGame.config.fbo?.gameMode === 'headToHead';
-  const matchups = fboGame.config.fbo?.headToHeadMatchups || [];
+// Handler to remove/undo an FBO press
+const handleFBOUnpress = (
+  gameId: string, 
+  playerId: string, 
+  segment: 'front' | 'back' | 'overall', 
+  opponentId?: string
+) => {
+  const fboGameData = currentRound.gameData?.[gameId] || {};
+  const existingPresses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
   
-  if (isHeadToHead && matchups.length > 0) {
-    // HEAD-TO-HEAD MODE: Check dormie per matchup
-    const segment: 'front' | 'back' = activeHole <= 9 ? 'front' : 'back';
-    const onBackNine = activeHole > 9;
-    const segmentStartHole = activeHole <= 9 ? 1 : 10;
-    if (activeHole === segmentStartHole) return null;
-    
-    // Build list of pressable matchups
-    const pressableMatchups: Array<{
-      matchup: HeadToHeadMatchup;
-      dormiePlayerId: string;
-      opponentId: string;
-      dormiePlayerName: string;
-      opponentName: string;
-      dotsBehind: number;
-      holesRemaining: number;
-      pressLevel: number;
-      canPressSegment: boolean;
-      canPressOverall: boolean;
-    }> = [];
-    
-    matchups.forEach(matchup => {
-      const p1 = currentRound.players.find(p => String(p.id) === String(matchup.player1Id));
-      const p2 = currentRound.players.find(p => String(p.id) === String(matchup.player2Id));
-      if (!p1 || !p2) return;
-      
-      const dormieStatus = getFBOMatchupDormieStatus(
-        currentRound, fboGame, matchup.player1Id, matchup.player2Id, activeHole
-      );
-      
-      // Check if player1 is dormie
-      if (dormieStatus.player1.isDormie) {
-        pressableMatchups.push({
-          matchup,
-          dormiePlayerId: matchup.player1Id,
-          opponentId: matchup.player2Id,
-          dormiePlayerName: p1.name,
-          opponentName: p2.name,
-          dotsBehind: dormieStatus.player1.dotsBehind,
-          holesRemaining: dormieStatus.player1.holesRemaining,
-          pressLevel: 1, // TODO: Check existing presses
-          canPressSegment: true,
-          canPressOverall: onBackNine // Check overall dormie too
-        });
+  // Filter out the press to remove
+  const updatedPresses = existingPresses.filter(p => {
+    const matchesPlayer = String(p.playerId) === String(playerId);
+    const matchesSegment = p.segment === segment;
+    const matchesOpponent = opponentId 
+      ? String(p.opponentId) === String(opponentId)
+      : !p.opponentId;
+    return !(matchesPlayer && matchesSegment && matchesOpponent);
+  });
+  
+  updateGameData(gameId, 1 as any, '_META_PRESSES' as any, updatedPresses);
+  
+  const player = currentRound.players.find(p => p.id === playerId);
+  const segmentLabel = segment === 'front' ? 'Front 9' : 
+                       segment === 'back' ? 'Back 9' : 
+                       'Overall';
+  
+  import('sonner').then(({ toast }) => {
+    toast.info(`${player?.name} cancelled ${segmentLabel} press`);
+  });
+};
+```
+
+#### Change 3: Update "All Together" Mode Press Buttons (lines 1297-1335)
+
+Apply the same toggle pattern for non-H2H mode:
+
+```typescript
+// Check if press exists for non-H2H mode
+const checkPoolPressExists = (playerId: string, segment: 'front' | 'back' | 'overall'): boolean => {
+  const fboGameData = currentRound.gameData?.[fboGame.id] || {};
+  const presses: FBOPressState[] = fboGameData[1]?._META_PRESSES || [];
+  return presses.some(p => 
+    String(p.playerId) === String(playerId) &&
+    p.segment === segment &&
+    !p.opponentId // Pool mode has no opponent
+  );
+};
+
+// Update button to toggle:
+{canPressBack && (() => {
+  const isPressed = checkPoolPressExists(player.id, segment);
+  return (
+    <button
+      onClick={() => isPressed
+        ? handleFBOUnpress(fboGame.id, player.id, segment)
+        : handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel)
       }
-      
-      // Check if player2 is dormie
-      if (dormieStatus.player2.isDormie) {
-        pressableMatchups.push({
-          matchup,
-          dormiePlayerId: matchup.player2Id,
-          opponentId: matchup.player1Id,
-          dormiePlayerName: p2.name,
-          opponentName: p1.name,
-          dotsBehind: dormieStatus.player2.dotsBehind,
-          holesRemaining: dormieStatus.player2.holesRemaining,
-          pressLevel: 1,
-          canPressSegment: true,
-          canPressOverall: onBackNine
-        });
-      }
-    });
-    
-    if (pressableMatchups.length === 0) return null;
-    
-    return (
-      <div key={fboGame.id} className="bg-card rounded-2xl shadow-sm border border-amber-500/50 p-4 mb-4">
-        <h3 className="font-bold text-foreground flex items-center gap-2 mb-3">
-          <span className="bg-amber-500/20 text-amber-500 p-1.5 rounded text-lg">🎱</span>
-          FBO H2H Press Available
-        </h3>
-        <div className="space-y-3">
-          {pressableMatchups.map((pm, idx) => (
-            <div key={idx} className="p-3 bg-amber-500/10 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="w-4 h-4 text-amber-500" />
-                <span className="text-sm font-medium">
-                  {pm.dormiePlayerName} vs {pm.opponentName}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  ({pm.dotsBehind} behind, {pm.holesRemaining} left)
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => handleFBOPress(
-                    fboGame.id, 
-                    pm.dormiePlayerId, 
-                    segment, 
-                    pm.pressLevel, 
-                    pm.opponentId
-                  )}
-                  className="px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold"
-                >
-                  Press {segment === 'front' ? 'F9' : 'B9'}
-                  <span className="block text-xs opacity-80">${pm.matchup.unitValue}</span>
-                </button>
-                {pm.canPressOverall && (
-                  <button
-                    onClick={() => handleFBOPress(
-                      fboGame.id,
-                      pm.dormiePlayerId,
-                      'overall',
-                      pm.pressLevel,
-                      pm.opponentId
-                    )}
-                    className="px-3 py-2 bg-primary text-white rounded-lg text-sm font-bold"
-                  >
-                    Press Overall
-                    <span className="block text-xs opacity-80">${pm.matchup.unitValue}</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+      className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+        isPressed 
+          ? 'bg-success text-success-foreground' 
+          : 'bg-amber-500 text-white hover:bg-amber-600'
+      }`}
+    >
+      <div className="flex items-center justify-center gap-1">
+        {isPressed && <Check className="w-4 h-4" />}
+        {isPressed ? 'Pressed' : backPressLabel} {activeHole <= 9 ? 'F9' : 'B9'}
       </div>
-    );
-  } else {
-    // ALL TOGETHER MODE: Existing logic (unchanged)
-    // ...
+      <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+    </button>
+  );
+})()}
+```
+
+#### Change 4: Import Check Icon
+
+Add `Check` to the lucide-react imports at the top of the file.
+
+---
+
+## Part 2: Scorecard Bogey Square Styling
+
+### Current Behavior
+All scores use `rounded-full` (circle) regardless of whether it's a birdie or bogey.
+
+### New Behavior
+- **Circle** (`rounded-full`): For birdies (1 under par) and eagles (2+ under par)
+- **Square** (`rounded-lg`): For bogeys (1 over par) and double bogeys+ (2+ over par)
+- **No border**: For par scores
+
+---
+
+### File: `src/components/Scorecard.tsx` (lines 944-955)
+
+Update the score cell styling logic:
+
+```tsx
+{activeHoles.map(h => {
+  const score = getPlayerScore(player.id, h.number);
+  const diff = typeof score === 'number' ? score - h.par : 0;
+  
+  // Determine shape: circle for birdies/eagles, square for bogeys+
+  const isUnderPar = diff < 0;
+  const isOverPar = diff > 0;
+  const shapeClass = isUnderPar ? 'rounded-full' : isOverPar ? 'rounded-lg' : '';
+  
+  // Check for stroke indicator
+  let hasStroke = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id] === 1;
+  if (!hasStroke && stockton6Game) {
+    const autoStrokes = calculateRelativeStrokes(currentRound.players, h.handicapIndex);
+    hasStroke = autoStrokes[player.id] === 1;
   }
+  const isBanker = getBankerForHole(h.number) === player.id;
+  
+  return (
+    <td key={h.number} className="p-2 border-r border-border/50">
+      <div className="relative inline-block">
+        <span className={`inline-block w-8 h-8 leading-8 ${shapeClass} text-sm font-bold ${
+          diff <= -2 ? 'bg-brand-gold/20 text-brand-gold' :
+          diff === -1 ? 'bg-success/20 text-success' :
+          diff === 0 ? '' :
+          diff === 1 ? 'bg-destructive/10 text-destructive' :
+          'bg-destructive/20 text-destructive'
+        }`}>
+          {score}
+        </span>
+        {hasStroke && (
+          <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border border-background flex items-center justify-center">
+            <span className="text-[8px] text-primary-foreground font-bold">•</span>
+          </span>
+        )}
+        {isBanker && (
+          <Crown className="absolute -top-1 -right-1 w-3 h-3 text-brand-gold" />
+        )}
+      </div>
+    </td>
+  );
 })}
 ```
+
+**Key Change:**
+- `rounded-full` → Only applied when `diff < 0` (under par)
+- `rounded-lg` → Applied when `diff > 0` (over par)
+- No border class → For par scores
 
 ---
 
@@ -317,16 +223,27 @@ Add conditional logic to detect H2H mode and render per-matchup press buttons:
 
 | File | Changes |
 |------|---------|
-| `src/services/gameEngine.ts` | Add `getFBOMatchupDormieStatus`, `getFBOMatchupOverallDormieStatus`, and `getFBOMatchupPressEligibility` functions for H2H mode |
-| `src/components/ActiveRound.tsx` | Update FBO Press UI section to detect H2H mode and render per-matchup press buttons using new dormie functions |
+| `src/components/ActiveRound.tsx` | 1. Add `handleFBOUnpress` function<br>2. Add `Check` icon import<br>3. Update H2H press buttons to toggle green/amber with checkmark<br>4. Update "All Together" press buttons to toggle green/amber with checkmark |
+| `src/components/Scorecard.tsx` | Update score cell styling to use circle for birdies, square for bogeys |
 
 ---
 
-## Expected Outcome
+## Visual Summary
 
-After implementation:
-1. Brandon will see press buttons for both his matchups:
-   - "Brandon vs Josh" - Press B9 / Press Overall
-   - "Brandon vs Clint" - Press B9 / Press Overall
-2. The press will be stored with `opponentId` so settlement knows which matchup it applies to
-3. Each matchup press is independent - Brandon can press Josh but not Clint (or vice versa) if their dormie statuses differ
+### Press Button States
+
+| State | Color | Icon | Text |
+|-------|-------|------|------|
+| Not pressed | Amber (amber-500) | None | "Press F9" |
+| Pressed | Green (success) | ✓ Checkmark | "Pressed F9" |
+
+### Score Cell Shapes
+
+| Score | Shape | Background |
+|-------|-------|------------|
+| Eagle (-2) | Circle | Gold |
+| Birdie (-1) | Circle | Green |
+| Par (0) | None | None |
+| Bogey (+1) | Square | Light Red |
+| Double+ (+2) | Square | Red |
+
