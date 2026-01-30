@@ -1,258 +1,257 @@
 
 
-## Plan: Enhanced FBO Configuration with Separate Press Options
+## Updated Plan: FBO Head-to-Head Matchup View with Per-Matchup Presses
 
-This plan adds three major configuration options to the FBO (Front/Back/Overall) game:
-
-1. **Handicap Mode Selection** - Choose between "All Players Get Strokes" (Absolute) or "Lowest Handicap = 0" (Relative)
-2. **Game Mode Selection** - Choose between "All Together" (everyone competes in one pool) or "Head to Head" (players compete in multiple 1v1 matchups with configurable stakes)
-3. **Separate Back 9 & Overall Presses** - When past dormie, players can press Back 9 and/or Overall independently or together
+### Overview
+Create a specialized scorecard view for FBO Head-to-Head mode that displays each 1v1 matchup independently, showing dot counts, segment results, AND press results per matchup.
 
 ---
 
-## Part 1: Handicap Mode Selection
+## Part 1: Update FBOPressState for Head-to-Head Context
 
-### Current Behavior
-- FBO is hardcoded to "Absolute" mode
-- No option to use relative handicaps (lowest = 0)
+### Current Issue
+- `FBOPressState` only tracks `playerId` (who pressed) and `segment`
+- In head-to-head mode, a press should be against a **specific opponent**, not the entire pool
+- Current press settlement logic compares pressing player vs all FBO players
 
 ### Solution
-Add a radio selection in SetupWizard and update engine calculations.
+Add optional `opponentId` field to `FBOPressState`:
 
----
-
-## Part 2: Head-to-Head Game Mode
-
-### Current Behavior
-- All FBO players compete in one pool
-- Single winner takes from all losers per segment
-
-### Solution
-Add a "Head to Head" mode where users can create multiple 1v1 matchups with individual stakes.
-
----
-
-## Part 3: Separate Back 9 & Overall Presses (NEW)
-
-### Current Behavior
-- When on Back 9 (holes 10-18), players can only press the Back 9 segment
-- Overall segment cannot be pressed separately
-- Players cannot choose which segment(s) to press
-
-### Solution
-When a player is past dormie on the Back 9, show them two separate press options:
-1. **Press Back 9** - Counts dots from press hole to hole 18
-2. **Press Overall** - Counts dots from press hole to hole 18, settled when round complete
-
-When a player is dormie on BOTH Back 9 AND Overall simultaneously, they can:
-- Press just Back 9
-- Press just Overall  
-- Press BOTH (two separate bets)
-
-This requires:
-1. New dormie detection for Overall segment
-2. Separate UI buttons for Back 9 vs Overall when on Back 9
-3. Updated press settlement logic for Overall presses
-
----
-
-## Implementation Details
-
-### File 1: `src/types.ts`
-
-Expand FBO config interface:
+**File: `src/types.ts`**
 
 ```typescript
-fbo?: {
-  allowPresses: boolean;
-  handicapMode?: 'absolute' | 'relative';           // NEW
-  gameMode?: 'together' | 'headToHead';             // NEW
-  headToHeadMatchups?: Array<{                      // NEW
-    player1Id: string;
-    player2Id: string;
-    unitValue: number;
-  }>;
-};
-```
-
-Note: `FBOPressState.segment` already supports `'front' | 'back' | 'overall'` - no change needed.
-
----
-
-### File 2: `src/components/SetupWizard.tsx`
-
-Add new FBO configuration UI sections:
-
-```text
-FBO Configuration
------------------
-Players in FBO
-  [Player selection buttons - existing]
-
-Allow Presses
-  [Switch - existing]
-
-Handicap Mode (visible when Use Handicaps is on globally)
-  ( ) All Players Get Strokes
-      Each player's strokes calculated from their full handicap.
-  ( ) Lowest Handicap = 0
-      Strokes based on differential from lowest handicap player.
-
-Game Mode
-  ( ) All Together
-      Everyone competes in one pool. Most dots wins each segment.
-  ( ) Head to Head
-      Create 1v1 matchups with separate stakes.
-
-Head-to-Head Matchups (visible when Head to Head is selected)
-  +---------------------------+
-  | Matchup          | Stake  |
-  +---------------------------+
-  | [x] John vs Mike | $10    |
-  | [x] John vs Sam  | $10    |
-  | [ ] John vs Tom  | -      |
-  | [x] Mike vs Sam  | $5     |
-  +---------------------------+
+export interface FBOPressState {
+  playerId: string;
+  segment: 'front' | 'back' | 'overall';
+  startHole: number;
+  unitValue: number;
+  settled: boolean;
+  pressLevel: number;
+  opponentId?: string;  // NEW: For head-to-head mode, who is the press against
+  result?: {
+    winnerId: string | null;
+    amount: number;
+  };
+}
 ```
 
 ---
 
-### File 3: `src/services/gameEngine.ts`
+## Part 2: Update Press Creation for Head-to-Head Mode
 
-#### Change 1: Update `calculateFBOStrokes` for Relative Mode
+### File: `src/components/ActiveRound.tsx`
 
-Add `handicapMode` parameter and implement relative logic:
+When in head-to-head mode, a player can only be past dormie in a **specific matchup**. Update:
 
-```typescript
-export const calculateFBOStrokes = (
-  player: Player,
-  hole: Hole,
-  handicapMode: 'absolute' | 'relative' = 'absolute',
-  lowestCourseHandicap: number = 0
-): boolean => {
-  if (handicapMode === 'relative') {
-    const differential = player.courseHandicap - lowestCourseHandicap;
-    return differential >= hole.handicapIndex;
-  }
-  // Existing absolute logic
-  return player.courseHandicap >= hole.handicapIndex;
-};
-```
-
-#### Change 2: Add `getFBOOverallDormieStatus` function
-
-New function to detect dormie status for Overall segment (all 18 holes):
-
-```typescript
-export const getFBOOverallDormieStatus = (
-  round: Round,
-  game: GameSettings,
-  currentHole: number
-): { [playerId: string]: { isDormie: boolean; dotsBehind: number; holesRemaining: number } } => {
-  // Count all dots from hole 1 to currentHole-1
-  // Calculate if player can catch up by end of hole 18
-  // Return dormie status for Overall segment
-};
-```
-
-#### Change 3: Add `getFBOPressEligibilityOverall` function
-
-New function to check press eligibility for Overall segment:
-
-```typescript
-export const getFBOPressEligibilityOverall = (
-  round: Round,
-  game: GameSettings,
-  playerId: string,
-  currentHole: number
-): { canPress: boolean; pressLevel: number; reason?: string } => {
-  // Check existing Overall presses by this player
-  // Check if player is dormie on Overall (or their most recent Overall press)
-  // Return eligibility
-};
-```
-
-#### Change 4: Update press settlement logic in `calculateFBO`
-
-Handle Overall presses (settle at end of round):
-
-```typescript
-// In calculateFBO, update press processing:
-const segmentEnd = press.segment === 'front' ? 9 : 
-                   press.segment === 'back' ? 18 : 
-                   18; // Overall also ends at 18
-
-const isSegmentComplete = press.segment === 'front' ? frontNineComplete :
-                          press.segment === 'back' ? backNineComplete :
-                          overallComplete; // Overall needs full round
-```
-
-#### Change 5: Add Head-to-Head calculation mode
-
-New helper function for matchup-based calculations:
-
-```typescript
-const calculateFBOHeadToHead = (
-  round: Round,
-  game: GameSettings,
-  matchups: Array<{ player1Id: string; player2Id: string; unitValue: number }>
-): { playerResults: { [id: string]: number }; details: string[] } => {
-  // For each matchup, count dots independently
-  // Determine winner per segment for each matchup
-  // Apply stakes per matchup
-};
-```
-
----
-
-### File 4: `src/components/ActiveRound.tsx`
-
-#### Change 1: Update `handleFBOPress` to accept 'overall' segment
+1. **Modify press eligibility logic** to check dormie status per-matchup
+2. **Update press UI** to show which opponent the press is against
+3. **Update `handleFBOPress`** to include `opponentId` when in head-to-head mode
 
 ```typescript
 const handleFBOPress = (
   gameId: string, 
   playerId: string, 
-  segment: 'front' | 'back' | 'overall',  // Add 'overall'
-  pressLevel: number = 1
+  segment: 'front' | 'back' | 'overall', 
+  pressLevel: number = 1,
+  opponentId?: string  // NEW parameter
 ) => {
-  // Existing logic works, just update toast message
-  const segmentLabel = segment === 'front' ? 'Front 9' : 
-                       segment === 'back' ? 'Back 9' : 
-                       'Overall';
-  toast.success(`${player?.name} ${pressLabel} the ${segmentLabel}!`);
+  const newPress: FBOPressState = {
+    playerId: String(playerId),
+    segment,
+    startHole: activeHole,
+    unitValue: opponentId ? matchup.unitValue : fboGame.unitStake, // Use matchup stake
+    settled: false,
+    pressLevel,
+    opponentId: opponentId ? String(opponentId) : undefined  // NEW
+  };
+  // ... rest unchanged
 };
 ```
 
-#### Change 2: Update FBO Press UI to show separate Back 9 / Overall buttons
+---
 
-When on Back 9 (activeHole > 9), check eligibility for both segments:
+## Part 3: Update Press Settlement in Game Engine
+
+### File: `src/services/gameEngine.ts`
+
+Modify press settlement logic to handle head-to-head presses:
+
+```typescript
+// In calculateFBO, when processing presses:
+if (press.opponentId) {
+  // Head-to-head press: only compare pressing player vs opponent
+  const p1Dots = pressDots[press.playerId] || 0;
+  const p2Dots = pressDots[press.opponentId] || 0;
+  
+  if (p1Dots > p2Dots) {
+    results[press.playerId] += press.unitValue;
+    results[press.opponentId] -= press.unitValue;
+  } else if (p2Dots > p1Dots) {
+    results[press.opponentId] += press.unitValue;
+    results[press.playerId] -= press.unitValue;
+  }
+  // else: push
+} else {
+  // Global pool press: existing logic
+}
+```
+
+---
+
+## Part 4: Create FBOMatchupResults Component
+
+### File: `src/components/Scorecard.tsx`
+
+Add new component to display matchups with their presses:
+
+```text
++------------------------------------------+
+| John vs Mike                    $10/seg  |
++------------------------------------------+
+| Segment   | Front 9 | Back 9 | Overall   |
++-----------+---------+--------+-----------|
+| [Trophy] John   3      4         7       |
+| [Down]   Mike   2      3         5       |
+| Result   +$10    +$10    +$10  = +$30    |
++------------------------------------------+
+| PRESSES                                  |
+| John pressed B9 on #12: WON +$10         |
+| Mike pressed Overall on #14: LOST -$10   |
++------------------------------------------+
+```
+
+### Component Structure
+
+```typescript
+interface FBOMatchupResultsProps {
+  fboGame: GameSettings;
+  fboPlayers: Player[];
+  scores: { [holeNumber: number]: HoleScores };
+  gameData: GameData;
+  courseHoles: Hole[];
+}
+
+const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = (props) => {
+  const matchups = props.fboGame.config.fbo?.headToHeadMatchups || [];
+  const presses: FBOPressState[] = gameData[fboGame.id]?.[1]?._META_PRESSES || [];
+
+  return (
+    <div className="space-y-4">
+      {matchups.map((matchup, idx) => (
+        <MatchupCard 
+          key={idx}
+          matchup={matchup}
+          presses={presses.filter(p => 
+            // Filter presses for this matchup
+            (p.playerId === matchup.player1Id && p.opponentId === matchup.player2Id) ||
+            (p.playerId === matchup.player2Id && p.opponentId === matchup.player1Id)
+          )}
+          {...props}
+        />
+      ))}
+      
+      {/* Overall Summary */}
+      <MatchupTotalsSummary matchups={matchups} presses={presses} {...props} />
+    </div>
+  );
+};
+```
+
+### MatchupCard Component
+
+```typescript
+interface MatchupCardProps {
+  matchup: { player1Id: string; player2Id: string; unitValue: number };
+  presses: FBOPressState[];
+  // ... other props from FBOMatchupResultsProps
+}
+
+const MatchupCard: React.FC<MatchupCardProps> = ({ matchup, presses, ... }) => {
+  // 1. Get player objects
+  const player1 = fboPlayers.find(p => p.id === matchup.player1Id);
+  const player2 = fboPlayers.find(p => p.id === matchup.player2Id);
+  
+  // 2. Count dots per segment for each player
+  const countDots = (playerId: string, start: number, end: number) => {
+    let count = 0;
+    for (let h = start; h <= end; h++) {
+      if (fboData[h]?.dots?.includes(playerId)) count++;
+    }
+    return count;
+  };
+  
+  // 3. Determine segment completion (both players scored)
+  const isComplete = (start: number, end: number) => { ... };
+  
+  // 4. Calculate segment winners
+  // 5. Display presses associated with this matchup
+  
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between">
+          <span>{player1.name} vs {player2.name}</span>
+          <span className="text-muted-foreground">${matchup.unitValue}/segment</span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Segment results table */}
+        <table>
+          <thead>
+            <tr>
+              <th>Segment</th>
+              <th>Front 9</th>
+              <th>Back 9</th>
+              <th>Overall</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Player 1 row with dots and win/loss icons */}
+            {/* Player 2 row with dots and win/loss icons */}
+            {/* Result row with +/- amounts */}
+          </tbody>
+        </table>
+        
+        {/* Presses section (if any for this matchup) */}
+        {presses.length > 0 && (
+          <div className="border-t mt-4 pt-4">
+            <h4>Presses</h4>
+            {presses.map((press, idx) => (
+              <PressResultRow key={idx} press={press} matchup={matchup} />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+```
+
+---
+
+## Part 5: Update Main FBO Section Rendering
+
+### File: `src/components/Scorecard.tsx`
+
+Modify the FBO section to conditionally render matchup view:
 
 ```tsx
-{activeHole > 9 && (
+{fboGame && fboPlayers.length >= 2 && (
   <>
-    {/* Back 9 Press Button */}
-    {backPressEligibility.canPress && (
-      <button onClick={() => handleFBOPress(game.id, player.id, 'back', backPressEligibility.pressLevel)}>
-        Press Back 9 (${game.unitStake})
-      </button>
-    )}
+    {/* FBO Dots Table (existing) */}
     
-    {/* Overall Press Button */}
-    {overallPressEligibility.canPress && (
-      <button onClick={() => handleFBOPress(game.id, player.id, 'overall', overallPressEligibility.pressLevel)}>
-        Press Overall (${game.unitStake})
-      </button>
-    )}
-    
-    {/* Both Button (convenience) */}
-    {backPressEligibility.canPress && overallPressEligibility.canPress && (
-      <button onClick={() => {
-        handleFBOPress(game.id, player.id, 'back', backPressEligibility.pressLevel);
-        handleFBOPress(game.id, player.id, 'overall', overallPressEligibility.pressLevel);
-      }}>
-        Press Both (${game.unitStake * 2})
-      </button>
+    {/* Segment Results: Switch based on game mode */}
+    {fboGame.config.fbo?.gameMode === 'headToHead' && 
+     fboGame.config.fbo?.headToHeadMatchups?.length > 0 ? (
+      <FBOMatchupResults 
+        fboGame={fboGame}
+        fboPlayers={fboPlayers}
+        scores={currentRound.scores}
+        gameData={currentRound.gameData}
+        courseHoles={holes}
+      />
+    ) : (
+      <FBOSegmentResults {...existingProps} />
     )}
   </>
 )}
@@ -264,50 +263,60 @@ When on Back 9 (activeHole > 9), check eligibility for both segments:
 
 | File | Changes |
 |------|---------|
-| `src/types.ts` | Add `handicapMode`, `gameMode`, `headToHeadMatchups` to FBO config |
-| `src/components/SetupWizard.tsx` | Add handicap mode radio, game mode radio, and matchup builder UI |
-| `src/services/gameEngine.ts` | Add Overall dormie detection, update stroke calculation for relative mode, update press settlement for Overall, add head-to-head calculation |
-| `src/components/ActiveRound.tsx` | Update press handler for 'overall' segment, show separate Back 9/Overall press buttons |
-| `src/components/Scorecard.tsx` | Update press indicator row to show 'O' for Overall presses |
+| `src/types.ts` | Add `opponentId` to `FBOPressState` |
+| `src/components/ActiveRound.tsx` | Update `handleFBOPress` to accept `opponentId`; update press UI to show matchup-specific options in H2H mode |
+| `src/services/gameEngine.ts` | Update press settlement to handle H2H presses (player vs specific opponent) |
+| `src/components/Scorecard.tsx` | Add `FBOMatchupResults` and `MatchupCard` components; update FBO section conditional rendering |
 
 ---
 
 ## User Experience Flow
 
-### On Back 9 (Holes 10-18) with Presses Enabled:
+### Scorecard View (Head-to-Head Mode):
 
-1. System calculates dormie status for **both** Back 9 and Overall
-2. If player is past dormie on Back 9 only:
-   - Show "Press Back 9" button
-3. If player is past dormie on Overall only:
-   - Show "Press Overall" button
-4. If player is past dormie on BOTH:
-   - Show "Press Back 9" button
-   - Show "Press Overall" button
-   - Show "Press Both" button (convenience for pressing both at once)
+1. Each configured matchup displayed as a separate card
+2. Card shows:
+   - Header: "John vs Mike - $10/segment"
+   - Table with dot counts for Front 9, Back 9, Overall
+   - Winner (trophy) and loser (trending down) per segment
+   - +/- amount per segment and total
+3. Below the segment table, any presses associated with this matchup
+4. At the bottom, overall summary of winnings/losses per player across all matchups
 
-### Press Settlement:
-- Back 9 presses settle when hole 18 is complete (compare dots from startHole to 18)
-- Overall presses settle when hole 18 is complete (compare dots from startHole to 18, but conceptually the bet is on the full round's outcome)
+### Press Display Per Matchup:
+
+```text
++------------------------------------------+
+| PRESSES                                  |
++------------------------------------------+
+| John pressed Back 9 on #12               |
+|   J: 3 dots | M: 1 dot → WON +$10        |
++------------------------------------------+
+| Mike pressed Overall on #14              |
+|   M: 2 dots | J: 4 dots → LOST -$10      |
++------------------------------------------+
+```
 
 ---
 
 ## Edge Cases Handled
 
-1. **Front 9 presses**: Only "Back" option available (no Overall until round progresses)
-2. **Double/Triple presses**: Each segment tracks press levels independently
-3. **Press Both**: Creates two separate press records (one Back, one Overall)
-4. **Head-to-Head + Presses**: Presses work per-matchup, not globally
-5. **Scorecard display**: Shows segment indicator (F9/B9/O) for each press
+1. **No presses**: Matchup card shows segment results only
+2. **Multiple presses in same matchup**: Each press displayed separately with its own result
+3. **Double/Triple presses**: Show press level in display
+4. **Mix of global and H2H presses**: Legacy presses without `opponentId` still work in "All Together" mode
+5. **Incomplete segments**: Show "In Progress" for segments and presses not yet settled
 
 ---
 
-## Expected Outcome
+## Expected Result
 
 After implementation:
-1. Users can choose Absolute or Relative handicap mode for FBO
-2. Users can create 1v1 matchups with custom stakes instead of all-together pool
-3. When past dormie on Back 9, players see separate "Press Back 9" and "Press Overall" options
-4. Players can press one or both segments independently
-5. All presses are tracked and settled correctly per segment
+
+1. In Head-to-Head mode, scorecard shows individual matchup cards
+2. Each card displays segment results (dots, winners, payouts) for that 1v1
+3. Presses are associated with specific matchups and displayed within the relevant card
+4. Players can press in specific matchups when past dormie against that opponent
+5. Press payouts are calculated per-matchup (winner takes stake from loser, not pool)
+6. Overall summary aggregates results across all matchups
 
