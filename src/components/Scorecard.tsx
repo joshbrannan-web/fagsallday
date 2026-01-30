@@ -263,6 +263,366 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
     </div>
   );
 };
+
+// FBO Matchup Results Component (for Head-to-Head mode)
+interface FBOMatchupResultsProps {
+  fboGame: GameSettings;
+  fboPlayers: Player[];
+  scores: { [holeNumber: number]: HoleScores };
+  gameData: GameData;
+  courseHoles: Hole[];
+}
+
+const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
+  fboGame,
+  fboPlayers,
+  scores,
+  gameData,
+  courseHoles,
+}) => {
+  const matchups = fboGame.config.fbo?.headToHeadMatchups || [];
+  const fboData = gameData?.[fboGame.id] || {};
+  const presses: FBOPressState[] = (fboData as any)[1]?._META_PRESSES || [];
+
+  // Check completed holes
+  const completedHoles = new Set<number>();
+  for (let h = 1; h <= courseHoles.length; h++) {
+    const holeScores = scores[h];
+    if (!holeScores) continue;
+    const allPlayersScored = fboPlayers.every(p => {
+      const score = holeScores[p.id];
+      return score !== undefined && score !== null && score > 0;
+    });
+    if (allPlayersScored) {
+      completedHoles.add(h);
+    }
+  }
+
+  const frontNineComplete = [1, 2, 3, 4, 5, 6, 7, 8, 9].every(h => completedHoles.has(h));
+  const backNineComplete = [10, 11, 12, 13, 14, 15, 16, 17, 18].every(h => completedHoles.has(h));
+  const overallComplete = frontNineComplete && backNineComplete;
+
+  // Count dots per player
+  const countDotsForPlayer = (playerId: string, startHole: number, endHole: number): number => {
+    let count = 0;
+    for (let h = startHole; h <= endHole; h++) {
+      const holeDots: (string | number)[] = fboData[h]?.dots || [];
+      if (holeDots.map(id => String(id)).includes(String(playerId))) count++;
+    }
+    return count;
+  };
+
+  // Get presses for a specific matchup
+  const getPressesForMatchup = (p1Id: string, p2Id: string): FBOPressState[] => {
+    return presses.filter(p => 
+      (String(p.playerId) === String(p1Id) && String(p.opponentId) === String(p2Id)) ||
+      (String(p.playerId) === String(p2Id) && String(p.opponentId) === String(p1Id))
+    );
+  };
+
+  // Aggregate totals across all matchups
+  const aggregatedTotals: { [playerId: string]: number } = {};
+  fboPlayers.forEach(p => aggregatedTotals[p.id] = 0);
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Trophy className="w-5 h-5 text-brand-gold" />
+        <h3 className="font-bold text-foreground">FBO Head-to-Head Matchups</h3>
+      </div>
+
+      {matchups.map((matchup, idx) => {
+        const player1 = fboPlayers.find(p => p.id === matchup.player1Id);
+        const player2 = fboPlayers.find(p => p.id === matchup.player2Id);
+        if (!player1 || !player2) return null;
+
+        const matchupPresses = getPressesForMatchup(matchup.player1Id, matchup.player2Id);
+
+        // Calculate dots per segment
+        const p1FrontDots = countDotsForPlayer(matchup.player1Id, 1, 9);
+        const p1BackDots = countDotsForPlayer(matchup.player1Id, 10, 18);
+        const p1OverallDots = p1FrontDots + p1BackDots;
+
+        const p2FrontDots = countDotsForPlayer(matchup.player2Id, 1, 9);
+        const p2BackDots = countDotsForPlayer(matchup.player2Id, 10, 18);
+        const p2OverallDots = p2FrontDots + p2BackDots;
+
+        // Calculate segment results
+        const calculateSegmentResult = (p1Dots: number, p2Dots: number, isComplete: boolean) => {
+          if (!isComplete) return { winner: null, p1Amount: 0, p2Amount: 0, status: 'pending' as const };
+          if (p1Dots > p2Dots) {
+            return { winner: matchup.player1Id, p1Amount: matchup.unitValue, p2Amount: -matchup.unitValue, status: 'settled' as const };
+          } else if (p2Dots > p1Dots) {
+            return { winner: matchup.player2Id, p1Amount: -matchup.unitValue, p2Amount: matchup.unitValue, status: 'settled' as const };
+          }
+          return { winner: null, p1Amount: 0, p2Amount: 0, status: 'push' as const };
+        };
+
+        const frontResult = calculateSegmentResult(p1FrontDots, p2FrontDots, frontNineComplete);
+        const backResult = calculateSegmentResult(p1BackDots, p2BackDots, backNineComplete);
+        const overallResult = calculateSegmentResult(p1OverallDots, p2OverallDots, overallComplete);
+
+        // Calculate matchup total (segments only - presses tracked separately)
+        const p1SegmentTotal = frontResult.p1Amount + backResult.p1Amount + overallResult.p1Amount;
+        const p2SegmentTotal = frontResult.p2Amount + backResult.p2Amount + overallResult.p2Amount;
+
+        // Calculate press results for this matchup
+        let p1PressTotal = 0;
+        let p2PressTotal = 0;
+        const pressResults = matchupPresses.map(press => {
+          const pressEnd = press.segment === 'front' ? 9 : 18;
+          const isComplete = press.segment === 'front' ? frontNineComplete :
+                            press.segment === 'back' ? backNineComplete :
+                            overallComplete;
+          
+          if (!isComplete) {
+            return { press, result: null, isComplete: false };
+          }
+
+          let presserDots = 0;
+          let opponentDots = 0;
+          for (let h = press.startHole; h <= pressEnd; h++) {
+            const holeDots: (string | number)[] = fboData[h]?.dots || [];
+            holeDots.forEach((pid: string | number) => {
+              if (String(pid) === String(press.playerId)) presserDots++;
+              if (String(pid) === String(press.opponentId)) opponentDots++;
+            });
+          }
+
+          if (presserDots > opponentDots) {
+            if (String(press.playerId) === String(matchup.player1Id)) {
+              p1PressTotal += press.unitValue;
+              p2PressTotal -= press.unitValue;
+            } else {
+              p2PressTotal += press.unitValue;
+              p1PressTotal -= press.unitValue;
+            }
+            return { press, result: 'won' as const, presserDots, opponentDots, isComplete: true };
+          } else if (opponentDots > presserDots) {
+            if (String(press.playerId) === String(matchup.player1Id)) {
+              p1PressTotal -= press.unitValue;
+              p2PressTotal += press.unitValue;
+            } else {
+              p2PressTotal -= press.unitValue;
+              p1PressTotal += press.unitValue;
+            }
+            return { press, result: 'lost' as const, presserDots, opponentDots, isComplete: true };
+          }
+          return { press, result: 'push' as const, presserDots, opponentDots, isComplete: true };
+        });
+
+        const p1Total = p1SegmentTotal + p1PressTotal;
+        const p2Total = p2SegmentTotal + p2PressTotal;
+
+        // Update aggregated totals
+        aggregatedTotals[matchup.player1Id] += p1Total;
+        aggregatedTotals[matchup.player2Id] += p2Total;
+
+        const segments = [
+          { label: 'Front 9', p1Dots: p1FrontDots, p2Dots: p2FrontDots, result: frontResult, complete: frontNineComplete },
+          { label: 'Back 9', p1Dots: p1BackDots, p2Dots: p2BackDots, result: backResult, complete: backNineComplete },
+          { label: 'Overall', p1Dots: p1OverallDots, p2Dots: p2OverallDots, result: overallResult, complete: overallComplete },
+        ];
+
+        return (
+          <div key={idx} className="bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
+            {/* Matchup Header */}
+            <div className="bg-primary/10 px-4 py-3 border-b border-primary/20">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-foreground">{player1.name} vs {player2.name}</span>
+                <span className="text-sm text-muted-foreground">${matchup.unitValue} per segment</span>
+              </div>
+            </div>
+
+            {/* Segment Results Table */}
+            <div className="p-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-muted-foreground uppercase">
+                    <th className="text-left pb-2">Player</th>
+                    <th className="text-center pb-2">Front 9</th>
+                    <th className="text-center pb-2">Back 9</th>
+                    <th className="text-center pb-2">Overall</th>
+                    <th className="text-right pb-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Player 1 Row */}
+                  <tr className="border-t border-border/50">
+                    <td className="py-2">
+                      <div className="flex items-center gap-2">
+                        {(frontResult.winner === matchup.player1Id || backResult.winner === matchup.player1Id || overallResult.winner === matchup.player1Id) && (
+                          <Trophy className="w-4 h-4 text-brand-gold" />
+                        )}
+                        <span className="font-medium">{player1.name}</span>
+                      </div>
+                    </td>
+                    {segments.map(seg => (
+                      <td key={seg.label} className="text-center py-2">
+                        <div className="flex flex-col items-center">
+                          <span className={`font-mono ${
+                            seg.result.winner === matchup.player1Id ? 'text-success font-bold' :
+                            seg.result.winner === matchup.player2Id ? 'text-destructive' : ''
+                          }`}>
+                            {seg.p1Dots}
+                          </span>
+                          {seg.complete && seg.result.status === 'settled' && (
+                            <span className={`text-xs font-mono ${seg.result.p1Amount > 0 ? 'text-success' : 'text-destructive'}`}>
+                              {seg.result.p1Amount > 0 ? `+$${seg.result.p1Amount}` : `-$${Math.abs(seg.result.p1Amount)}`}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    ))}
+                    <td className="text-right py-2">
+                      <span className={`font-mono font-bold ${p1Total > 0 ? 'text-success' : p1Total < 0 ? 'text-destructive' : ''}`}>
+                        {p1Total > 0 ? `+$${p1Total}` : p1Total < 0 ? `-$${Math.abs(p1Total)}` : '$0'}
+                      </span>
+                    </td>
+                  </tr>
+
+                  {/* Player 2 Row */}
+                  <tr className="border-t border-border/50">
+                    <td className="py-2">
+                      <div className="flex items-center gap-2">
+                        {(frontResult.winner === matchup.player2Id || backResult.winner === matchup.player2Id || overallResult.winner === matchup.player2Id) && (
+                          <Trophy className="w-4 h-4 text-brand-gold" />
+                        )}
+                        <span className="font-medium">{player2.name}</span>
+                      </div>
+                    </td>
+                    {segments.map(seg => (
+                      <td key={seg.label} className="text-center py-2">
+                        <div className="flex flex-col items-center">
+                          <span className={`font-mono ${
+                            seg.result.winner === matchup.player2Id ? 'text-success font-bold' :
+                            seg.result.winner === matchup.player1Id ? 'text-destructive' : ''
+                          }`}>
+                            {seg.p2Dots}
+                          </span>
+                          {seg.complete && seg.result.status === 'settled' && (
+                            <span className={`text-xs font-mono ${seg.result.p2Amount > 0 ? 'text-success' : 'text-destructive'}`}>
+                              {seg.result.p2Amount > 0 ? `+$${seg.result.p2Amount}` : `-$${Math.abs(seg.result.p2Amount)}`}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    ))}
+                    <td className="text-right py-2">
+                      <span className={`font-mono font-bold ${p2Total > 0 ? 'text-success' : p2Total < 0 ? 'text-destructive' : ''}`}>
+                        {p2Total > 0 ? `+$${p2Total}` : p2Total < 0 ? `-$${Math.abs(p2Total)}` : '$0'}
+                      </span>
+                    </td>
+                  </tr>
+
+                  {/* Segment Status Row */}
+                  <tr className="border-t border-border/50 text-xs text-muted-foreground">
+                    <td className="py-2">Status</td>
+                    {segments.map(seg => (
+                      <td key={seg.label} className="text-center py-2">
+                        {!seg.complete ? (
+                          <span className="px-2 py-0.5 bg-muted rounded-full">In Progress</span>
+                        ) : seg.result.status === 'push' ? (
+                          <span className="px-2 py-0.5 bg-muted rounded-full flex items-center justify-center gap-1">
+                            <Minus className="w-3 h-3" /> Push
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-success/10 text-success rounded-full">Settled</span>
+                        )}
+                      </td>
+                    ))}
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Presses Section */}
+              {matchupPresses.length > 0 && (
+                <div className="border-t border-border mt-4 pt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <span className="font-semibold text-sm">Presses</span>
+                  </div>
+                  <div className="space-y-2">
+                    {pressResults.map((pr, pIdx) => {
+                      const pressingPlayer = fboPlayers.find(p => p.id === String(pr.press.playerId));
+                      const opponent = fboPlayers.find(p => p.id === String(pr.press.opponentId));
+                      const segmentLabel = pr.press.segment === 'front' ? 'Front 9' : 
+                                           pr.press.segment === 'back' ? 'Back 9' : 'Overall';
+                      const pressLevelLabel = (pr.press.pressLevel || 1) > 1 ? ` (${pr.press.pressLevel}x)` : '';
+
+                      return (
+                        <div 
+                          key={pIdx} 
+                          className={`flex items-center justify-between px-3 py-2 rounded-md text-sm ${
+                            !pr.isComplete ? 'bg-amber-500/10 border border-amber-500/20' :
+                            pr.result === 'push' ? 'bg-muted/50' :
+                            pr.result === 'won' ? 'bg-success/10 border border-success/20' :
+                            'bg-destructive/10 border border-destructive/20'
+                          }`}
+                        >
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{pressingPlayer?.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {pressLevelLabel ? `${pressLevelLabel.trim()} ` : ''}pressed {segmentLabel} on #{pr.press.startHole}
+                              </span>
+                            </div>
+                            {pr.isComplete && pr.presserDots !== undefined && (
+                              <span className="text-xs text-muted-foreground mt-0.5">
+                                {pressingPlayer?.name?.charAt(0)}: {pr.presserDots} dots | {opponent?.name?.charAt(0)}: {pr.opponentDots} dots
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            {!pr.isComplete ? (
+                              <span className="text-xs text-amber-500 font-medium">In Progress</span>
+                            ) : pr.result === 'push' ? (
+                              <span className="text-xs text-muted-foreground font-medium">Push</span>
+                            ) : (
+                              <span className={`font-mono font-bold ${pr.result === 'won' ? 'text-success' : 'text-destructive'}`}>
+                                {pr.result === 'won' ? `+$${pr.press.unitValue}` : `-$${pr.press.unitValue}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Aggregated Summary */}
+      {matchups.length > 1 && (
+        <div className="bg-card rounded-xl shadow-sm border border-primary/30 overflow-hidden">
+          <div className="bg-primary/10 px-4 py-3 border-b border-primary/20">
+            <span className="font-bold text-foreground">Overall Summary</span>
+          </div>
+          <div className="p-4">
+            <div className="grid gap-2">
+              {fboPlayers.map(player => {
+                const total = aggregatedTotals[player.id] || 0;
+                return (
+                  <div key={player.id} className="flex items-center justify-between px-3 py-2 rounded-md bg-muted/30">
+                    <span className="font-medium">{player.name}</span>
+                    <span className={`font-mono font-bold ${total > 0 ? 'text-success' : total < 0 ? 'text-destructive' : ''}`}>
+                      {total > 0 ? `+$${total}` : total < 0 ? `-$${Math.abs(total)}` : '$0'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Scorecard: React.FC = () => {
   const navigate = useNavigate();
   const { currentRound, roundTotals } = useApp();
@@ -758,14 +1118,26 @@ const Scorecard: React.FC = () => {
               </table>
             </div>
 
-            {/* FBO Segment Results */}
-            <FBOSegmentResults 
-              fboGame={fboGame}
-              fboPlayers={fboPlayers}
-              scores={currentRound.scores}
-              gameData={currentRound.gameData}
-              courseHoles={holes}
-            />
+            {/* FBO Segment Results - Switch based on game mode */}
+            {fboGame.config.fbo?.gameMode === 'headToHead' && 
+             fboGame.config.fbo?.headToHeadMatchups && 
+             fboGame.config.fbo.headToHeadMatchups.length > 0 ? (
+              <FBOMatchupResults 
+                fboGame={fboGame}
+                fboPlayers={fboPlayers}
+                scores={currentRound.scores}
+                gameData={currentRound.gameData}
+                courseHoles={holes}
+              />
+            ) : (
+              <FBOSegmentResults 
+                fboGame={fboGame}
+                fboPlayers={fboPlayers}
+                scores={currentRound.scores}
+                gameData={currentRound.gameData}
+                courseHoles={holes}
+              />
+            )}
 
             {/* FBO Round Totals */}
             <GameRoundTotals

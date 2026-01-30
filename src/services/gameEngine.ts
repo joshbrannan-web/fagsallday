@@ -1128,7 +1128,6 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       }
 
       // Calculate press result - handle 'overall' segment
-      const segmentEnd = 18; // All presses end at hole 18
       const isSegmentComplete = press.segment === 'front' ? frontNineComplete :
                                 press.segment === 'back' ? backNineComplete :
                                 overallComplete; // 'overall' requires full round complete
@@ -1143,42 +1142,78 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       }
 
       // Count dots in press range (from startHole to segment end)
-      const pressDots: { [id: string]: number } = {};
-      fboPlayers.forEach(p => pressDots[p.id] = 0);
-      
       const pressEnd = press.segment === 'front' ? 9 : 18;
-      for (let h = press.startHole; h <= pressEnd; h++) {
-        const holeDots = fboData[h]?.dots || [];
-        holeDots.forEach((playerId: string | number) => {
-          const normalizedId = String(playerId);
-          if (pressDots[normalizedId] !== undefined) {
-            pressDots[normalizedId]++;
-          }
-        });
-      }
-
-      // Determine press winner
-      const maxPressDots = Math.max(...Object.values(pressDots));
-      const pressWinners = Object.entries(pressDots).filter(([_, dots]) => dots === maxPressDots);
-      const pressLosers = Object.entries(pressDots).filter(([_, dots]) => dots < maxPressDots);
       
       const pressingPlayer = fboPlayers.find(p => p.id === String(press.playerId));
       const pressLevelLabel = (press.pressLevel || 1) > 1 ? ` (${press.pressLevel}x)` : '';
-      
-      if (pressWinners.length === 1 && maxPressDots > 0) {
-        const winnerId = pressWinners[0][0];
-        const winnerName = fboPlayers.find(p => p.id === winnerId)?.name;
-        const winAmount = press.unitValue * pressLosers.length;
+
+      // Check if this is a Head-to-Head press (has opponentId)
+      if (press.opponentId) {
+        // H2H Press: only compare pressing player vs specific opponent
+        const opponent = fboPlayers.find(p => p.id === String(press.opponentId));
+        if (!opponent) return;
+
+        let p1Dots = 0;
+        let p2Dots = 0;
         
-        results[winnerId] += winAmount;
-        pressLosers.forEach(([loserId]) => {
-          results[loserId] -= press.unitValue;
-        });
+        for (let h = press.startHole; h <= pressEnd; h++) {
+          const holeDots: (string | number)[] = fboData[h]?.dots || [];
+          holeDots.forEach((pid: string | number) => {
+            const normalizedId = String(pid);
+            if (normalizedId === String(press.playerId)) p1Dots++;
+            if (normalizedId === String(press.opponentId)) p2Dots++;
+          });
+        }
+
+        if (p1Dots > p2Dots) {
+          // Pressing player won
+          results[press.playerId] = (results[press.playerId] || 0) + press.unitValue;
+          results[press.opponentId] = (results[press.opponentId] || 0) - press.unitValue;
+          details.push(`Press${pressLevelLabel} by ${pressingPlayer?.name} vs ${opponent.name} (${segmentLabel} from hole ${press.startHole}): ${pressingPlayer?.name} wins $${press.unitValue}`);
+        } else if (p2Dots > p1Dots) {
+          // Opponent won
+          results[press.opponentId] = (results[press.opponentId] || 0) + press.unitValue;
+          results[press.playerId] = (results[press.playerId] || 0) - press.unitValue;
+          details.push(`Press${pressLevelLabel} by ${pressingPlayer?.name} vs ${opponent.name} (${segmentLabel} from hole ${press.startHole}): ${opponent.name} wins $${press.unitValue}`);
+        } else {
+          // Push
+          details.push(`Press${pressLevelLabel} by ${pressingPlayer?.name} vs ${opponent.name} (${segmentLabel} from hole ${press.startHole}): Push`);
+        }
+      } else {
+        // Global pool press (original behavior)
+        const pressDots: { [id: string]: number } = {};
+        fboPlayers.forEach(p => pressDots[p.id] = 0);
         
-        details.push(`Press${pressLevelLabel} by ${pressingPlayer?.name} (${segmentLabel} from hole ${press.startHole}): ${winnerName} wins $${winAmount}`);
-      } else if (pressWinners.length > 1 || maxPressDots === 0) {
-        // Push or tie
-        details.push(`Press${pressLevelLabel} by ${pressingPlayer?.name} (${segmentLabel} from hole ${press.startHole}): Push`);
+        for (let h = press.startHole; h <= pressEnd; h++) {
+          const holeDots = fboData[h]?.dots || [];
+          holeDots.forEach((playerId: string | number) => {
+            const normalizedId = String(playerId);
+            if (pressDots[normalizedId] !== undefined) {
+              pressDots[normalizedId]++;
+            }
+          });
+        }
+
+        // Determine press winner
+        const maxPressDots = Math.max(...Object.values(pressDots));
+        const pressWinners = Object.entries(pressDots).filter(([_, dots]) => dots === maxPressDots);
+        const pressLosers = Object.entries(pressDots).filter(([_, dots]) => dots < maxPressDots);
+        
+        if (pressWinners.length === 1 && maxPressDots > 0) {
+          const winnerId = pressWinners[0][0];
+          const winnerName = fboPlayers.find(p => p.id === winnerId)?.name;
+          const winAmount = press.unitValue * pressLosers.length;
+          
+          results[winnerId] += winAmount;
+          pressLosers.forEach(([loserId]) => {
+            results[loserId] -= press.unitValue;
+          });
+          
+          details.push(`Press${pressLevelLabel} by ${pressingPlayer?.name} (${segmentLabel} from hole ${press.startHole}): ${winnerName} wins $${winAmount}`);
+        } else if (pressWinners.length > 1 || maxPressDots === 0) {
+          // Push or tie
+          details.push(`Press${pressLevelLabel} by ${pressingPlayer?.name} (${segmentLabel} from hole ${press.startHole}): Push`);
+        }
       }
     });
   }

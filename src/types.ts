@@ -99,6 +99,7 @@ export interface FBOPressState {
   unitValue: number;       // Amount (same as base unit)
   settled: boolean;        // Whether press has been settled
   pressLevel: number;      // 1 = first press, 2 = double press, etc.
+  opponentId?: string;     // For head-to-head mode: who is the press against
   result?: {               // Only populated when settled
     winnerId: string | null;  // null = push
     amount: number;
