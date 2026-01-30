@@ -330,18 +330,31 @@ const ActiveRound: React.FC = () => {
 
   // handleFboDotToggle removed - FBO dots are now auto-calculated based on net scores
 
-  // FBO Press handler (supports double/triple press and overall segment)
-  const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back' | 'overall', pressLevel: number = 1) => {
+  // FBO Press handler (supports double/triple press and overall segment, and H2H mode with opponentId)
+  const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back' | 'overall', pressLevel: number = 1, opponentId?: string) => {
     const fboGame = currentRound.games.find(g => g.id === gameId);
     if (!fboGame) return;
+    
+    // For H2H mode, use the matchup's unit value if available
+    let unitValue = fboGame.unitStake;
+    if (opponentId && fboGame.config.fbo?.headToHeadMatchups) {
+      const matchup = fboGame.config.fbo.headToHeadMatchups.find(m => 
+        (m.player1Id === playerId && m.player2Id === opponentId) ||
+        (m.player2Id === playerId && m.player1Id === opponentId)
+      );
+      if (matchup) {
+        unitValue = matchup.unitValue;
+      }
+    }
     
     const newPress: FBOPressState = {
       playerId: String(playerId), // Ensure playerId is stored as string
       segment,
       startHole: activeHole,
-      unitValue: fboGame.unitStake,
+      unitValue,
       settled: false,
-      pressLevel
+      pressLevel,
+      opponentId: opponentId ? String(opponentId) : undefined
     };
     
     // Fix: Read from hole 1 where presses are stored
@@ -352,6 +365,7 @@ const ActiveRound: React.FC = () => {
     updateGameData(gameId, 1 as any, '_META_PRESSES' as any, [...existingPresses, newPress]);
     
     const player = currentRound.players.find(p => p.id === playerId);
+    const opponent = opponentId ? currentRound.players.find(p => p.id === opponentId) : null;
     const pressLabel = pressLevel === 1 ? 'pressed' : 
                        pressLevel === 2 ? 'double pressed' : 
                        `${pressLevel}x pressed`;
@@ -360,8 +374,10 @@ const ActiveRound: React.FC = () => {
                          segment === 'back' ? 'Back 9' : 
                          'Overall';
     
+    const vsLabel = opponent ? ` vs ${opponent.name}` : '';
+    
     import('sonner').then(({ toast }) => {
-      toast.success(`${player?.name} ${pressLabel} the ${segmentLabel}!`);
+      toast.success(`${player?.name} ${pressLabel} the ${segmentLabel}${vsLabel}!`);
     });
   };
 
