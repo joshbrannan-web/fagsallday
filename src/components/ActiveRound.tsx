@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, Fi
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
 import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
-import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, calculateFBOMatchupHoleWinner, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, calculatePerGameTotals } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, calculateFBOMatchupHoleWinner, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, getFBOMatchupDormieStatus, getFBOMatchupOverallDormieStatus, calculatePerGameTotals } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
@@ -1089,8 +1089,8 @@ const ActiveRound: React.FC = () => {
 
         {/* FBO Press UI - shown when presses enabled and player is dormie (or dormie on active press) */}
         {fboGames.filter(g => g.config.fbo?.allowPresses).map(fboGame => {
-          const fboPlayerIds = fboGame.config.fboPlayers || currentRound.players.map(p => p.id);
-          const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
+          const isHeadToHead = fboGame.config.fbo?.gameMode === 'headToHead';
+          const matchups = fboGame.config.fbo?.headToHeadMatchups || [];
           
           // Only show if we're not on hole 1 or 10 (need history to detect dormie)
           const segmentStartHole = activeHole <= 9 ? 1 : 10;
@@ -1098,6 +1098,143 @@ const ActiveRound: React.FC = () => {
           
           const segment: 'front' | 'back' = activeHole <= 9 ? 'front' : 'back';
           const onBackNine = activeHole > 9;
+          
+          // HEAD-TO-HEAD MODE: Render per-matchup press buttons
+          if (isHeadToHead && matchups.length > 0) {
+            // Build list of pressable matchups where one player is dormie
+            const pressableMatchups: Array<{
+              matchup: { player1Id: string; player2Id: string; unitValue: number };
+              dormiePlayerId: string;
+              opponentId: string;
+              dormiePlayerName: string;
+              opponentName: string;
+              dotsBehind: number;
+              holesRemaining: number;
+              segmentDormie: boolean;
+              overallDormie: boolean;
+            }> = [];
+            
+            matchups.forEach(matchup => {
+              const p1 = currentRound.players.find(p => String(p.id) === String(matchup.player1Id));
+              const p2 = currentRound.players.find(p => String(p.id) === String(matchup.player2Id));
+              if (!p1 || !p2) return;
+              
+              // Check segment dormie status
+              const segmentDormieStatus = getFBOMatchupDormieStatus(
+                currentRound, fboGame, matchup.player1Id, matchup.player2Id, activeHole
+              );
+              
+              // Check overall dormie status (only relevant on back 9)
+              const overallDormieStatus = onBackNine 
+                ? getFBOMatchupOverallDormieStatus(currentRound, fboGame, matchup.player1Id, matchup.player2Id, activeHole)
+                : null;
+              
+              // Check if player1 is dormie in segment or overall
+              if (segmentDormieStatus.player1.isDormie || overallDormieStatus?.player1.isDormie) {
+                pressableMatchups.push({
+                  matchup,
+                  dormiePlayerId: matchup.player1Id,
+                  opponentId: matchup.player2Id,
+                  dormiePlayerName: p1.name,
+                  opponentName: p2.name,
+                  dotsBehind: segmentDormieStatus.player1.dotsBehind,
+                  holesRemaining: segmentDormieStatus.player1.holesRemaining,
+                  segmentDormie: segmentDormieStatus.player1.isDormie,
+                  overallDormie: !!overallDormieStatus?.player1.isDormie
+                });
+              }
+              
+              // Check if player2 is dormie in segment or overall
+              if (segmentDormieStatus.player2.isDormie || overallDormieStatus?.player2.isDormie) {
+                pressableMatchups.push({
+                  matchup,
+                  dormiePlayerId: matchup.player2Id,
+                  opponentId: matchup.player1Id,
+                  dormiePlayerName: p2.name,
+                  opponentName: p1.name,
+                  dotsBehind: segmentDormieStatus.player2.dotsBehind,
+                  holesRemaining: segmentDormieStatus.player2.holesRemaining,
+                  segmentDormie: segmentDormieStatus.player2.isDormie,
+                  overallDormie: !!overallDormieStatus?.player2.isDormie
+                });
+              }
+            });
+            
+            if (pressableMatchups.length === 0) return null;
+            
+            return (
+              <div key={fboGame.id} className="bg-card rounded-2xl shadow-sm border border-amber-500/50 p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-foreground flex items-center gap-2">
+                    <span className="bg-amber-500/20 text-amber-500 p-1.5 rounded text-lg">🎱</span>
+                    FBO H2H Press Available
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {pressableMatchups.map((pm, idx) => (
+                    <div key={idx} className="p-3 bg-amber-500/10 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                        <span className="text-sm font-medium">
+                          {pm.dormiePlayerName} vs {pm.opponentName}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          ({pm.dotsBehind} behind, {pm.holesRemaining} left)
+                        </span>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {/* Segment Press Button (F9 or B9) */}
+                        {pm.segmentDormie && (
+                          <button
+                            onClick={() => handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId)}
+                            className="flex-1 min-w-[100px] px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors"
+                          >
+                            Press {segment === 'front' ? 'F9' : 'B9'}
+                            <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
+                          </button>
+                        )}
+                        
+                        {/* Overall Press Button (only on back 9) */}
+                        {pm.overallDormie && (
+                          <button
+                            onClick={() => handleFBOPress(fboGame.id, pm.dormiePlayerId, 'overall', 1, pm.opponentId)}
+                            className="flex-1 min-w-[100px] px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors"
+                          >
+                            Press Overall
+                            <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
+                          </button>
+                        )}
+                        
+                        {/* Press Both Button (convenience) */}
+                        {pm.segmentDormie && pm.overallDormie && (
+                          <button
+                            onClick={() => {
+                              handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId);
+                              setTimeout(() => {
+                                handleFBOPress(fboGame.id, pm.dormiePlayerId, 'overall', 1, pm.opponentId);
+                              }, 50);
+                            }}
+                            className="flex-1 min-w-[100px] px-3 py-2 bg-gradient-to-r from-amber-500 to-primary text-white rounded-lg text-sm font-bold hover:opacity-90 transition-opacity"
+                          >
+                            Press Both
+                            <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue * 2}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  Double-or-nothing for remaining holes in matchup
+                </p>
+              </div>
+            );
+          }
+          
+          // ALL TOGETHER MODE: Existing pool-based press UI
+          const fboPlayerIds = fboGame.config.fboPlayers || currentRound.players.map(p => p.id);
+          const fboPlayers = currentRound.players.filter(p => fboPlayerIds.includes(p.id));
           
           // Find players who can press Front/Back segment
           const backPressEligiblePlayers = fboPlayers.map(p => ({

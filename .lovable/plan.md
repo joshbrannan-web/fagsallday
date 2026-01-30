@@ -1,8 +1,17 @@
 
-## Plan: Fix FBO Head-to-Head Press Detection
+## Plan: Fix FBO Head-to-Head Press Detection ✅ COMPLETED
 
-### Problem Summary
-The FBO Press UI is not appearing for Brandon even though he is "past dormie" in his matchups against Josh and Clint. This is because:
+### Summary
+Fixed the FBO Press UI not appearing in Head-to-Head mode by adding H2H-specific dormie detection functions that read from `matchupDots` instead of `dots`.
+
+### Changes Made
+1. **`src/services/gameEngine.ts`**: Added `getFBOMatchupDormieStatus` and `getFBOMatchupOverallDormieStatus` functions
+2. **`src/components/ActiveRound.tsx`**: Updated Press UI to detect H2H mode and render per-matchup press buttons with `opponentId`
+
+---
+
+## Previous Issue Summary (Resolved)
+The FBO Press UI was not appearing for Brandon even though he was "past dormie" in his matchups against Josh and Clint. This was because:
 
 1. **Dormie detection uses global `dots` array**: The functions `getFBODormieStatus` and `getFBOOverallDormieStatus` read from `fboData[h]?.dots` which contains global pool winners
 2. **Head-to-Head mode uses `matchupDots`**: In H2H mode, dot results are stored per-matchup in `matchupDots` (e.g., `{ "1_2": "1", "2_3": "3" }`)

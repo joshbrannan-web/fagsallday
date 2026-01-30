@@ -874,6 +874,94 @@ export const getFBOOverallDormieStatus = (
   return result;
 };
 
+// ============ FBO Head-to-Head Dormie Detection Functions ============
+
+// Get dormie status for a specific H2H matchup in a segment (Front 9 or Back 9)
+// Uses matchupDots data instead of global dots array
+export const getFBOMatchupDormieStatus = (
+  round: Round,
+  game: GameSettings,
+  player1Id: string,
+  player2Id: string,
+  currentHole: number
+): { 
+  player1: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
+  player2: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
+} => {
+  const fboData = round.gameData?.[game.id] || {};
+  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
+  const segmentStart = segment === 'front' ? 1 : 10;
+  const segmentEnd = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEnd - currentHole + 1;
+  
+  // Build matchup keys (try both orderings)
+  const key1 = `${player1Id}_${player2Id}`;
+  const key2 = `${player2Id}_${player1Id}`;
+  
+  // Count dots from matchupDots for this specific matchup
+  let p1Dots = 0, p2Dots = 0;
+  for (let h = segmentStart; h < currentHole; h++) {
+    const matchupDots = fboData[h]?.matchupDots || {};
+    const winner = matchupDots[key1] ?? matchupDots[key2];
+    if (String(winner) === String(player1Id)) p1Dots++;
+    if (String(winner) === String(player2Id)) p2Dots++;
+  }
+  
+  return {
+    player1: {
+      isDormie: p1Dots + holesRemaining < p2Dots,
+      dotsBehind: Math.max(0, p2Dots - p1Dots),
+      holesRemaining,
+      segment
+    },
+    player2: {
+      isDormie: p2Dots + holesRemaining < p1Dots,
+      dotsBehind: Math.max(0, p1Dots - p2Dots),
+      holesRemaining,
+      segment
+    }
+  };
+};
+
+// Get Overall dormie status for a specific H2H matchup (holes 1-18)
+export const getFBOMatchupOverallDormieStatus = (
+  round: Round,
+  game: GameSettings,
+  player1Id: string,
+  player2Id: string,
+  currentHole: number
+): { 
+  player1: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
+  player2: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
+} => {
+  const fboData = round.gameData?.[game.id] || {};
+  const holesRemaining = 18 - currentHole + 1;
+  
+  const key1 = `${player1Id}_${player2Id}`;
+  const key2 = `${player2Id}_${player1Id}`;
+  
+  let p1Dots = 0, p2Dots = 0;
+  for (let h = 1; h < currentHole; h++) {
+    const matchupDots = fboData[h]?.matchupDots || {};
+    const winner = matchupDots[key1] ?? matchupDots[key2];
+    if (String(winner) === String(player1Id)) p1Dots++;
+    if (String(winner) === String(player2Id)) p2Dots++;
+  }
+  
+  return {
+    player1: {
+      isDormie: p1Dots + holesRemaining < p2Dots,
+      dotsBehind: Math.max(0, p2Dots - p1Dots),
+      holesRemaining
+    },
+    player2: {
+      isDormie: p2Dots + holesRemaining < p1Dots,
+      dotsBehind: Math.max(0, p1Dots - p2Dots),
+      holesRemaining
+    }
+  };
+};
+
 // Check if a player is dormie on their active Overall press bet
 export const isFBOPlayerDormieOnOverallPress = (
   round: Round,
