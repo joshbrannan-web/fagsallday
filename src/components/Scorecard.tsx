@@ -941,10 +941,15 @@ const Scorecard: React.FC = () => {
                         hasStroke = autoStrokes[player.id] === 1;
                       }
                       const isBanker = getBankerForHole(h.number) === player.id;
+                      // Determine shape: circle for birdies/eagles, square for bogeys+
+                      const isUnderPar = diff < 0;
+                      const isOverPar = diff > 0;
+                      const shapeClass = isUnderPar ? 'rounded-full' : isOverPar ? 'rounded-lg' : '';
+                      
                       return (
                         <td key={h.number} className="p-2 border-r border-border/50">
                           <div className="relative inline-block">
-                            <span className={`inline-block w-8 h-8 leading-8 rounded-full text-sm font-bold ${
+                            <span className={`inline-block w-8 h-8 leading-8 ${shapeClass} text-sm font-bold ${
                               diff <= -2 ? 'bg-brand-gold/20 text-brand-gold' :
                               diff === -1 ? 'bg-success/20 text-success' :
                               diff === 0 ? '' :

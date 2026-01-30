@@ -410,6 +410,60 @@ const ActiveRound: React.FC = () => {
     });
   };
 
+  // Handler to remove/undo an FBO press
+  const handleFBOUnpress = (
+    gameId: string, 
+    playerId: string, 
+    segment: 'front' | 'back' | 'overall', 
+    opponentId?: string
+  ) => {
+    const fboGameData = currentRound.gameData?.[gameId] || {};
+    const existingPresses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
+    
+    // Filter out the press to remove
+    const updatedPresses = existingPresses.filter(p => {
+      const matchesPlayer = String(p.playerId) === String(playerId);
+      const matchesSegment = p.segment === segment;
+      const matchesOpponent = opponentId 
+        ? String(p.opponentId) === String(opponentId)
+        : !p.opponentId;
+      return !(matchesPlayer && matchesSegment && matchesOpponent);
+    });
+    
+    updateGameData(gameId, 1 as any, '_META_PRESSES' as any, updatedPresses);
+    
+    const player = currentRound.players.find(p => p.id === playerId);
+    const segmentLabel = segment === 'front' ? 'Front 9' : 
+                         segment === 'back' ? 'Back 9' : 
+                         'Overall';
+    
+    import('sonner').then(({ toast }) => {
+      toast.info(`${player?.name} cancelled ${segmentLabel} press`);
+    });
+  };
+
+  // Helper to check if H2H press exists
+  const getH2HPressExists = (gameId: string, playerId: string, opponentId: string, segment: 'front' | 'back' | 'overall'): boolean => {
+    const fboGameData = currentRound.gameData?.[gameId] || {};
+    const presses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
+    return presses.some(p => 
+      String(p.playerId) === String(playerId) &&
+      String(p.opponentId) === String(opponentId) &&
+      p.segment === segment
+    );
+  };
+
+  // Helper to check if pool press exists
+  const getPoolPressExists = (gameId: string, playerId: string, segment: 'front' | 'back' | 'overall'): boolean => {
+    const fboGameData = currentRound.gameData?.[gameId] || {};
+    const presses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
+    return presses.some(p => 
+      String(p.playerId) === String(playerId) &&
+      p.segment === segment &&
+      !p.opponentId
+    );
+  };
+
   // 6's Press handler
   const handleSixesPress = (gameId: string, teamDormie: 'A' | 'B') => {
     const sixesGame = currentRound.games.find(g => g.id === gameId);
@@ -1185,29 +1239,57 @@ const ActiveRound: React.FC = () => {
                       
                       <div className="flex flex-wrap gap-2">
                         {/* Segment Press Button (F9 or B9) */}
-                        {pm.segmentDormie && (
-                          <button
-                            onClick={() => handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId)}
-                            className="flex-1 min-w-[100px] px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors"
-                          >
-                            Press {segment === 'front' ? 'F9' : 'B9'}
-                            <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
-                          </button>
-                        )}
+                        {pm.segmentDormie && (() => {
+                          const isPressed = getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, segment);
+                          return (
+                            <button
+                              onClick={() => isPressed 
+                                ? handleFBOUnpress(fboGame.id, pm.dormiePlayerId, segment, pm.opponentId)
+                                : handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId)
+                              }
+                              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                                isPressed 
+                                  ? 'bg-success text-success-foreground hover:bg-success/80' 
+                                  : 'bg-amber-500 text-white hover:bg-amber-600'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-1">
+                                {isPressed && <Check className="w-4 h-4" />}
+                                {isPressed ? 'Pressed' : 'Press'} {segment === 'front' ? 'F9' : 'B9'}
+                              </div>
+                              <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
+                            </button>
+                          );
+                        })()}
                         
                         {/* Overall Press Button (only on back 9) */}
-                        {pm.overallDormie && (
-                          <button
-                            onClick={() => handleFBOPress(fboGame.id, pm.dormiePlayerId, 'overall', 1, pm.opponentId)}
-                            className="flex-1 min-w-[100px] px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors"
-                          >
-                            Press Overall
-                            <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
-                          </button>
-                        )}
+                        {pm.overallDormie && (() => {
+                          const isPressed = getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, 'overall');
+                          return (
+                            <button
+                              onClick={() => isPressed 
+                                ? handleFBOUnpress(fboGame.id, pm.dormiePlayerId, 'overall', pm.opponentId)
+                                : handleFBOPress(fboGame.id, pm.dormiePlayerId, 'overall', 1, pm.opponentId)
+                              }
+                              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                                isPressed 
+                                  ? 'bg-success text-success-foreground hover:bg-success/80' 
+                                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-1">
+                                {isPressed && <Check className="w-4 h-4" />}
+                                {isPressed ? 'Pressed' : 'Press'} Overall
+                              </div>
+                              <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
+                            </button>
+                          );
+                        })()}
                         
-                        {/* Press Both Button (convenience) */}
-                        {pm.segmentDormie && pm.overallDormie && (
+                        {/* Press Both Button (convenience) - only show if neither is pressed */}
+                        {pm.segmentDormie && pm.overallDormie && 
+                         !getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, segment) &&
+                         !getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, 'overall') && (
                           <button
                             onClick={() => {
                               handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId);
@@ -1295,29 +1377,57 @@ const ActiveRound: React.FC = () => {
                       
                       <div className="flex flex-wrap gap-2">
                         {/* Back 9 Press Button */}
-                        {canPressBack && (
-                          <button
-                            onClick={() => handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel)}
-                            className="flex-1 min-w-[100px] px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors"
-                          >
-                            {backPressLabel} {activeHole <= 9 ? 'F9' : 'B9'}
-                            <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
-                          </button>
-                        )}
+                        {canPressBack && (() => {
+                          const isPressed = getPoolPressExists(fboGame.id, player.id, segment);
+                          return (
+                            <button
+                              onClick={() => isPressed
+                                ? handleFBOUnpress(fboGame.id, player.id, segment)
+                                : handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel)
+                              }
+                              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                                isPressed 
+                                  ? 'bg-success text-success-foreground hover:bg-success/80' 
+                                  : 'bg-amber-500 text-white hover:bg-amber-600'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-1">
+                                {isPressed && <Check className="w-4 h-4" />}
+                                {isPressed ? 'Pressed' : backPressLabel} {activeHole <= 9 ? 'F9' : 'B9'}
+                              </div>
+                              <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                            </button>
+                          );
+                        })()}
                         
                         {/* Overall Press Button (only on back 9) */}
-                        {canPressOverall && (
-                          <button
-                            onClick={() => handleFBOPress(fboGame.id, player.id, 'overall', overallElig!.eligibility.pressLevel)}
-                            className="flex-1 min-w-[100px] px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors"
-                          >
-                            {overallPressLabel} Overall
-                            <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
-                          </button>
-                        )}
+                        {canPressOverall && (() => {
+                          const isPressed = getPoolPressExists(fboGame.id, player.id, 'overall');
+                          return (
+                            <button
+                              onClick={() => isPressed
+                                ? handleFBOUnpress(fboGame.id, player.id, 'overall')
+                                : handleFBOPress(fboGame.id, player.id, 'overall', overallElig!.eligibility.pressLevel)
+                              }
+                              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                                isPressed 
+                                  ? 'bg-success text-success-foreground hover:bg-success/80' 
+                                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-1">
+                                {isPressed && <Check className="w-4 h-4" />}
+                                {isPressed ? 'Pressed' : overallPressLabel} Overall
+                              </div>
+                              <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                            </button>
+                          );
+                        })()}
                         
-                        {/* Press Both Button (convenience) */}
-                        {canPressBack && canPressOverall && (
+                        {/* Press Both Button (convenience) - only show if neither is pressed */}
+                        {canPressBack && canPressOverall && 
+                         !getPoolPressExists(fboGame.id, player.id, segment) &&
+                         !getPoolPressExists(fboGame.id, player.id, 'overall') && (
                           <button
                             onClick={() => {
                               handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel);
