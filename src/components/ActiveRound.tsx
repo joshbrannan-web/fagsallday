@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, Fi
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
 import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
-import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, calculatePerGameTotals } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, calculateFBOMatchupHoleWinner, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, calculatePerGameTotals } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
@@ -178,19 +178,48 @@ const ActiveRound: React.FC = () => {
     if (fboGames.length === 0) return;
     
     fboGames.forEach(game => {
-      // Calculate winners for current hole based on net scores
-      const winners = calculateFBOHoleWinners(currentRound, game, activeHole);
-      const currentDots: string[] = currentRound.gameData?.[game.id]?.[activeHole]?.dots || [];
+      const isHeadToHead = game.config.fbo?.gameMode === 'headToHead';
+      const matchups = game.config.fbo?.headToHeadMatchups || [];
       
-      // Only update if different (to avoid infinite loop)
-      const winnersSet = new Set(winners);
-      const currentSet = new Set(currentDots);
-      const isDifferent = winners.length !== currentDots.length || 
-                          winners.some(w => !currentSet.has(w)) ||
-                          currentDots.some(d => !winnersSet.has(d));
-      
-      if (isDifferent && winners.length > 0) {
-        updateGameData(game.id, activeHole, 'dots', winners);
+      if (isHeadToHead && matchups.length > 0) {
+        // HEAD-TO-HEAD MODE: Calculate dots per matchup independently
+        // Each matchup uses only its two players for relative handicap calculation
+        const matchupDots: { [matchupKey: string]: string | null } = {};
+        
+        matchups.forEach(matchup => {
+          const winner = calculateFBOMatchupHoleWinner(
+            currentRound,
+            game,
+            activeHole,
+            matchup.player1Id,
+            matchup.player2Id
+          );
+          const matchupKey = `${matchup.player1Id}_${matchup.player2Id}`;
+          matchupDots[matchupKey] = winner;
+        });
+        
+        // Store as matchupDots instead of dots
+        const currentMatchupDots = currentRound.gameData?.[game.id]?.[activeHole]?.matchupDots || {};
+        const isDifferent = JSON.stringify(matchupDots) !== JSON.stringify(currentMatchupDots);
+        
+        if (isDifferent) {
+          updateGameData(game.id, activeHole, 'matchupDots', matchupDots);
+        }
+      } else {
+        // ALL TOGETHER MODE: Existing global dots logic
+        const winners = calculateFBOHoleWinners(currentRound, game, activeHole);
+        const currentDots: string[] = currentRound.gameData?.[game.id]?.[activeHole]?.dots || [];
+        
+        // Only update if different (to avoid infinite loop)
+        const winnersSet = new Set(winners);
+        const currentSet = new Set(currentDots);
+        const isDifferent = winners.length !== currentDots.length || 
+                            winners.some(w => !currentSet.has(w)) ||
+                            currentDots.some(d => !winnersSet.has(d));
+        
+        if (isDifferent && winners.length > 0) {
+          updateGameData(game.id, activeHole, 'dots', winners);
+        }
       }
     });
   }, [currentRound?.scores, activeHole, currentRound?.games, updateGameData]);

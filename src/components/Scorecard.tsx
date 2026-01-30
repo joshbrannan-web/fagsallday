@@ -302,14 +302,25 @@ const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
   const backNineComplete = [10, 11, 12, 13, 14, 15, 16, 17, 18].every(h => completedHoles.has(h));
   const overallComplete = frontNineComplete && backNineComplete;
 
-  // Count dots per player
-  const countDotsForPlayer = (playerId: string, startHole: number, endHole: number): number => {
-    let count = 0;
+  // Count dots for a player in a SPECIFIC matchup (uses matchupDots for H2H mode)
+  const countDotsForMatchup = (
+    p1Id: string,
+    p2Id: string,
+    startHole: number,
+    endHole: number
+  ): { p1Dots: number; p2Dots: number } => {
+    let p1Dots = 0;
+    let p2Dots = 0;
+    const matchupKey = `${p1Id}_${p2Id}`;
+    
     for (let h = startHole; h <= endHole; h++) {
-      const holeDots: (string | number)[] = fboData[h]?.dots || [];
-      if (holeDots.map(id => String(id)).includes(String(playerId))) count++;
+      const matchupDots = fboData[h]?.matchupDots || {};
+      const winner = matchupDots[matchupKey];
+      if (String(winner) === String(p1Id)) p1Dots++;
+      if (String(winner) === String(p2Id)) p2Dots++;
     }
-    return count;
+    
+    return { p1Dots, p2Dots };
   };
 
   // Get presses for a specific matchup
@@ -338,13 +349,14 @@ const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
 
         const matchupPresses = getPressesForMatchup(matchup.player1Id, matchup.player2Id);
 
-        // Calculate dots per segment
-        const p1FrontDots = countDotsForPlayer(matchup.player1Id, 1, 9);
-        const p1BackDots = countDotsForPlayer(matchup.player1Id, 10, 18);
+        // Calculate dots per segment using per-matchup data
+        const { p1Dots: p1FrontDots, p2Dots: p2FrontDots } = countDotsForMatchup(
+          matchup.player1Id, matchup.player2Id, 1, 9
+        );
+        const { p1Dots: p1BackDots, p2Dots: p2BackDots } = countDotsForMatchup(
+          matchup.player1Id, matchup.player2Id, 10, 18
+        );
         const p1OverallDots = p1FrontDots + p1BackDots;
-
-        const p2FrontDots = countDotsForPlayer(matchup.player2Id, 1, 9);
-        const p2BackDots = countDotsForPlayer(matchup.player2Id, 10, 18);
         const p2OverallDots = p2FrontDots + p2BackDots;
 
         // Calculate segment results
@@ -379,14 +391,15 @@ const FBOMatchupResults: React.FC<FBOMatchupResultsProps> = ({
             return { press, result: null, isComplete: false };
           }
 
+          // Use matchupDots for H2H mode press calculations
           let presserDots = 0;
           let opponentDots = 0;
+          const pressMatchupKey = `${matchup.player1Id}_${matchup.player2Id}`;
           for (let h = press.startHole; h <= pressEnd; h++) {
-            const holeDots: (string | number)[] = fboData[h]?.dots || [];
-            holeDots.forEach((pid: string | number) => {
-              if (String(pid) === String(press.playerId)) presserDots++;
-              if (String(pid) === String(press.opponentId)) opponentDots++;
-            });
+            const matchupDotsData = fboData[h]?.matchupDots || {};
+            const winner = matchupDotsData[pressMatchupKey];
+            if (String(winner) === String(press.playerId)) presserDots++;
+            if (String(winner) === String(press.opponentId)) opponentDots++;
           }
 
           if (presserDots > opponentDots) {

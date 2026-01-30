@@ -41,6 +41,48 @@ export const calculateFBOStrokes = (
   return strokes;
 };
 
+// --- FBO Matchup Hole Winner Calculation (for Head-to-Head mode) ---
+// Calculate the dot winner for a specific 1v1 matchup on a hole
+// Uses ONLY the two players in the matchup for relative handicap calculation
+
+export const calculateFBOMatchupHoleWinner = (
+  round: Round,
+  game: GameSettings,
+  holeNumber: number,
+  player1Id: string,
+  player2Id: string
+): string | null => {
+  const hole = round.course.holes.find(h => h.number === holeNumber);
+  const holeScores = round.scores[holeNumber];
+  if (!hole || !holeScores) return null;
+
+  const player1 = round.players.find(p => String(p.id) === String(player1Id));
+  const player2 = round.players.find(p => String(p.id) === String(player2Id));
+  if (!player1 || !player2) return null;
+
+  // Check both players have scores
+  const p1Score = holeScores[player1.id];
+  const p2Score = holeScores[player2.id];
+  if (typeof p1Score !== 'number' || p1Score <= 0) return null;
+  if (typeof p2Score !== 'number' || p2Score <= 0) return null;
+
+  const handicapMode = game.config.fbo?.handicapMode || 'absolute';
+
+  // Calculate strokes for ONLY these two players (key for H2H relative mode)
+  const strokes = calculateFBOStrokes(
+    [player1, player2],  // Only pass the two matchup players
+    hole.handicapIndex,
+    handicapMode
+  );
+
+  const p1Net = p1Score - strokes[player1.id];
+  const p2Net = p2Score - strokes[player2.id];
+
+  if (p1Net < p2Net) return player1.id;
+  if (p2Net < p1Net) return player2.id;
+  return null; // Tie = no dot for either
+};
+
 // --- FBO Hole Winner Calculation ---
 // Returns array of player IDs who won (lowest net score) - allows ties
 
@@ -1005,20 +1047,35 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
   const headToHeadMatchups = game.config.fbo?.headToHeadMatchups || [];
 
   if (gameMode === 'headToHead' && headToHeadMatchups.length > 0) {
-    // Head-to-Head Mode: Calculate each matchup independently
+    // Head-to-Head Mode: Calculate each matchup independently using matchupDots
+    // Each matchup has its own handicap calculation based only on those 2 players
     headToHeadMatchups.forEach((matchup: { player1Id: string; player2Id: string; unitValue: number }) => {
       const p1 = fboPlayers.find(p => p.id === matchup.player1Id);
       const p2 = fboPlayers.find(p => p.id === matchup.player2Id);
       if (!p1 || !p2) return;
 
-      const calculateH2HSegment = (segment: 'front' | 'back' | 'overall', isComplete: boolean, label: string) => {
+      const matchupKey = `${matchup.player1Id}_${matchup.player2Id}`;
+
+      // Count dots from matchupDots for this specific matchup
+      const countMatchupDots = (startHole: number, endHole: number): { p1Dots: number; p2Dots: number } => {
+        let p1Dots = 0;
+        let p2Dots = 0;
+        for (let h = startHole; h <= endHole; h++) {
+          const matchupDots = fboData[h]?.matchupDots || {};
+          const winner = matchupDots[matchupKey];
+          if (String(winner) === String(matchup.player1Id)) p1Dots++;
+          if (String(winner) === String(matchup.player2Id)) p2Dots++;
+        }
+        return { p1Dots, p2Dots };
+      };
+
+      const calculateH2HSegment = (startHole: number, endHole: number, isComplete: boolean, label: string) => {
         if (!isComplete) {
           details.push(`${p1.name} vs ${p2.name} - ${label}: In progress`);
           return;
         }
 
-        const p1Dots = dotCounts[segment][p1.id] || 0;
-        const p2Dots = dotCounts[segment][p2.id] || 0;
+        const { p1Dots, p2Dots } = countMatchupDots(startHole, endHole);
 
         if (p1Dots > p2Dots) {
           results[p1.id] += matchup.unitValue;
@@ -1033,9 +1090,9 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         }
       };
 
-      calculateH2HSegment('front', frontNineComplete, 'Front 9');
-      calculateH2HSegment('back', backNineComplete, 'Back 9');
-      calculateH2HSegment('overall', overallComplete, 'Overall');
+      calculateH2HSegment(1, 9, frontNineComplete, 'Front 9');
+      calculateH2HSegment(10, 18, backNineComplete, 'Back 9');
+      calculateH2HSegment(1, 18, overallComplete, 'Overall');
     });
   } else {
     // All Together Mode (original behavior)
@@ -1149,20 +1206,27 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
 
       // Check if this is a Head-to-Head press (has opponentId)
       if (press.opponentId) {
-        // H2H Press: only compare pressing player vs specific opponent
+        // H2H Press: only compare pressing player vs specific opponent using matchupDots
         const opponent = fboPlayers.find(p => p.id === String(press.opponentId));
         if (!opponent) return;
+
+        // Find the matchup key (player IDs in consistent order)
+        const matchupKey = headToHeadMatchups.find(m => 
+          (m.player1Id === press.playerId && m.player2Id === press.opponentId) ||
+          (m.player2Id === press.playerId && m.player1Id === press.opponentId)
+        );
+        const normalizedMatchupKey = matchupKey 
+          ? `${matchupKey.player1Id}_${matchupKey.player2Id}` 
+          : `${press.playerId}_${press.opponentId}`;
 
         let p1Dots = 0;
         let p2Dots = 0;
         
         for (let h = press.startHole; h <= pressEnd; h++) {
-          const holeDots: (string | number)[] = fboData[h]?.dots || [];
-          holeDots.forEach((pid: string | number) => {
-            const normalizedId = String(pid);
-            if (normalizedId === String(press.playerId)) p1Dots++;
-            if (normalizedId === String(press.opponentId)) p2Dots++;
-          });
+          const matchupDots = fboData[h]?.matchupDots || {};
+          const winner = matchupDots[normalizedMatchupKey];
+          if (String(winner) === String(press.playerId)) p1Dots++;
+          if (String(winner) === String(press.opponentId)) p2Dots++;
         }
 
         if (p1Dots > p2Dots) {
