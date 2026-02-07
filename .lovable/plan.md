@@ -1,54 +1,45 @@
 
 
-## Feature: Show Favorite Rounds in Setup Wizard Favorites Section
+## Fix: Recent Rounds Status Labels in Setup Wizard
 
-### What Changes
+### Problem
 
-When a locked round is marked as a favorite, its course will appear in the **existing Favorites section** on Step 1 of the Setup Wizard, right alongside favorite courses. Tapping it loads that course into the new round setup.
+The Recent Rounds section in the Setup Wizard uses a simple ternary that only checks for `COMPLETE` and falls back to "In Progress" for everything else. This means `LOCKED` rounds incorrectly show as "In Progress."
 
-### How It Works
+### Change
 
-1. User favorites a locked round in Past Rounds (already implemented)
-2. User starts a new round and goes to the Setup Wizard
-3. In the Favorites section at the top of Step 1, they see:
-   - Their starred saved courses (existing behavior)
-   - Their starred rounds' courses (new) -- shown with a subtle "from round" label so the user can distinguish them
-4. Tapping a favorite round's course card loads the course data (name, location, holes, par, yardage) into the setup form, just like selecting a saved course
+**File: `src/components/SetupWizard.tsx`** (lines 931-933)
 
-### Visual Layout
+Replace the two-state ternary with a helper that handles all statuses:
 
-```text
---- Favorites ---
-[Star] Pine Valley Golf Club         (saved course)
-[Star] Bethpage Black - Jan 15, 2026 (from favorite round)
-[Star] Torrey Pines - Feb 1, 2026    (from favorite round)
+| Status | Label | Color |
+|--------|-------|-------|
+| `ACTIVE` | Active | Yellow |
+| `COMPLETE` | Complete | Green |
+| `LOCKED` | Locked | Blue |
+| `SETUP` | Setup | Gray (unlikely to appear) |
 
---- Recently Played ---
-[Course cards...]
-
---- Recent Rounds ---
-[Round cards...]
+**Current code (lines 931-933):**
+```tsx
+<span className={round.status === 'COMPLETE' ? 'text-green-600' : 'text-yellow-600'}>
+  {round.status === 'COMPLETE' ? 'Complete' : 'In Progress'}
+</span>
 ```
 
-### Technical Details
+**New code:**
+```tsx
+<span className={
+  round.status === 'LOCKED' ? 'text-blue-600' :
+  round.status === 'COMPLETE' ? 'text-green-600' :
+  round.status === 'ACTIVE' ? 'text-yellow-600' :
+  'text-muted-foreground'
+}>
+  {round.status === 'LOCKED' ? 'Locked' :
+   round.status === 'COMPLETE' ? 'Complete' :
+   round.status === 'ACTIVE' ? 'Active' :
+   round.status}
+</span>
+```
 
-**File: `src/components/SetupWizard.tsx`**
-
-In the Favorites section (lines 788-824), after rendering `favoriteCourses`, add a block that:
-
-1. Filters `roundHistory` for rounds where `isFavorite === true`
-2. Deduplicates against `favoriteCourses` by course name (so the same course doesn't show twice)
-3. Renders each favorite round as a tappable card with:
-   - Course name
-   - Date played and player count as subtitle
-   - A filled star icon (matching the existing favorite course cards)
-   - `onClick` calls `handleSelectSavedCourse(round.course)` then `setCourseMode("search")` to load the course details
-
-The section header condition changes from `favoriteCourses.length > 0` to `favoriteCourses.length > 0 || favoriteRounds.length > 0` so the Favorites label appears when either type exists.
-
-No other files need changes -- `roundHistory` and `isFavorite` are already available in the component via `useApp()`.
-
-| File | Change |
-|------|--------|
-| `src/components/SetupWizard.tsx` | Add favorite rounds to the Favorites section on Step 1, tappable to load course data |
+This is a single 2-line edit in one file. No other changes needed.
 
