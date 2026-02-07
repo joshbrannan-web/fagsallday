@@ -1,14 +1,15 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
-import { ArrowLeft, Calendar, MapPin, History, Trash2, PlayCircle, Lock } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, History, Trash2, PlayCircle, Lock, Star } from 'lucide-react';
 import { calculateRoundTotals, formatMoney } from '../services/gameEngine';
 
 const RoundCard: React.FC<{
   round: any;
   onView: (round: any) => void;
   onDelete?: (e: React.MouseEvent, id: string) => void;
-}> = ({ round, onView, onDelete }) => {
+  onToggleFavorite?: (e: React.MouseEvent, id: string) => void;
+}> = ({ round, onView, onDelete, onToggleFavorite }) => {
   const totals = calculateRoundTotals(round);
   let maxWin = -Infinity;
   let winnerName = '';
@@ -21,6 +22,7 @@ const RoundCard: React.FC<{
 
   const isActive = round.status === 'ACTIVE';
   const isLocked = round.status === 'LOCKED';
+  const isFavorite = round.isFavorite;
 
   return (
     <div
@@ -71,20 +73,34 @@ const RoundCard: React.FC<{
         </div>
       </div>
 
-      {onDelete && (
-        <button
-          onClick={(e) => onDelete(e, round.id)}
-          className="absolute top-4 right-4 p-2 text-destructive hover:bg-destructive/10 rounded-full"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      )}
+      <div className="absolute top-4 right-4 flex items-center gap-1">
+        {onToggleFavorite && (
+          <button
+            onClick={(e) => onToggleFavorite(e, round.id)}
+            className={`p-2 rounded-full transition-colors ${
+              isFavorite 
+                ? 'text-brand-gold hover:bg-brand-gold/10' 
+                : 'text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <Star className={`w-4 h-4 ${isFavorite ? 'fill-brand-gold' : ''}`} />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={(e) => onDelete(e, round.id)}
+            className="p-2 text-destructive hover:bg-destructive/10 rounded-full"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
     </div>
   );
 };
 
 const RoundHistory: React.FC = () => {
-  const { roundHistory, loadPastRound, deleteRound } = useApp();
+  const { roundHistory, loadPastRound, deleteRound, toggleRoundFavorite } = useApp();
   const navigate = useNavigate();
 
   const handleViewRound = (round: any) => {
@@ -104,8 +120,31 @@ const RoundHistory: React.FC = () => {
     }
   };
 
-  const recentRounds = roundHistory.filter(r => r.status === 'ACTIVE' || r.status === 'COMPLETE');
-  const completedRounds = roundHistory.filter(r => r.status === 'LOCKED');
+  const handleToggleFavorite = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleRoundFavorite(id);
+  };
+
+  // Take the 3 most recent rounds regardless of status
+  const allSorted = [...roundHistory].sort((a, b) => b.startTime - a.startTime);
+  const recentIds = new Set(allSorted.slice(0, 3).map(r => r.id));
+
+  // Recent = ACTIVE, COMPLETE, or any round in the top 3 most recent
+  const recentRounds = roundHistory
+    .filter(r => r.status === 'ACTIVE' || r.status === 'COMPLETE' || recentIds.has(r.id))
+    .sort((a, b) => b.startTime - a.startTime);
+
+  // Completed = LOCKED rounds that are NOT in the recent section
+  const completedRounds = roundHistory
+    .filter(r => r.status === 'LOCKED' && !recentIds.has(r.id))
+    .sort((a, b) => b.startTime - a.startTime);
+
+  // Favorites section
+  const favoriteRounds = roundHistory
+    .filter(r => r.isFavorite)
+    .sort((a, b) => b.startTime - a.startTime);
+
   const hasNoRounds = roundHistory.length === 0;
 
   return (
@@ -128,6 +167,22 @@ const RoundHistory: React.FC = () => {
           </div>
         ) : (
           <>
+            {favoriteRounds.length > 0 && (
+              <div className="space-y-3">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                  <Star className="w-3.5 h-3.5 fill-brand-gold text-brand-gold" /> Favorites
+                </h2>
+                {favoriteRounds.map(round => (
+                  <RoundCard
+                    key={`fav-${round.id}`}
+                    round={round}
+                    onView={handleViewRound}
+                    onToggleFavorite={handleToggleFavorite}
+                  />
+                ))}
+              </div>
+            )}
+
             {recentRounds.length > 0 && (
               <div className="space-y-3">
                 <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Recent Rounds</h2>
@@ -136,7 +191,8 @@ const RoundHistory: React.FC = () => {
                     key={round.id}
                     round={round}
                     onView={handleViewRound}
-                    onDelete={handleDelete}
+                    onDelete={round.status !== 'LOCKED' ? handleDelete : undefined}
+                    onToggleFavorite={handleToggleFavorite}
                   />
                 ))}
               </div>
@@ -150,6 +206,7 @@ const RoundHistory: React.FC = () => {
                     key={round.id}
                     round={round}
                     onView={handleViewRound}
+                    onToggleFavorite={handleToggleFavorite}
                   />
                 ))}
               </div>

@@ -957,6 +957,7 @@ const Scorecard: React.FC = () => {
                       // Determine shape: circle for birdies/eagles, square for bogeys+
                       const isUnderPar = diff < 0;
                       const isOverPar = diff > 0;
+                      const isDblBogeyPlus = diff >= 2;
                       const shapeClass = isUnderPar ? 'rounded-full' : isOverPar ? 'rounded-lg' : '';
                       
                       return (
@@ -966,8 +967,9 @@ const Scorecard: React.FC = () => {
                               diff <= -2 ? 'bg-brand-gold/20 text-brand-gold' :
                               diff === -1 ? 'bg-success/20 text-success' :
                               diff === 0 ? '' :
-                              diff === 1 ? 'bg-destructive/10 text-destructive' :
-                              'bg-destructive/20 text-destructive'
+                              isDblBogeyPlus ? 'border-2 border-foreground ring-2 ring-foreground ring-offset-1 text-destructive' :
+                              diff === 1 ? 'border-2 border-foreground text-destructive' :
+                              ''
                             }`}>
                               {score}
                             </span>
@@ -1391,15 +1393,15 @@ const Scorecard: React.FC = () => {
                           width: '32px',
                           height: '32px',
                           lineHeight: '32px',
-                          borderRadius: '50%',
                           fontSize: '14px',
                           fontWeight: 700,
                         };
-                        if (diff <= -2) return { ...base, backgroundColor: 'rgba(245,178,10,0.2)', color: '#f5b20a' };
-                        if (diff === -1) return { ...base, backgroundColor: 'rgba(34,197,94,0.2)', color: '#22c55e' };
+                        if (diff <= -2) return { ...base, borderRadius: '50%', backgroundColor: 'rgba(245,178,10,0.2)', color: '#f5b20a' };
+                        if (diff === -1) return { ...base, borderRadius: '50%', backgroundColor: 'rgba(34,197,94,0.2)', color: '#22c55e' };
                         if (diff === 0) return { ...base, color: '#1e2530' };
-                        if (diff === 1) return { ...base, backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' };
-                        return { ...base, backgroundColor: 'rgba(239,68,68,0.2)', color: '#ef4444' };
+                        if (diff === 1) return { ...base, borderRadius: '8px', border: '2px solid #1e2530', color: '#ef4444' };
+                        // Double bogey+
+                        return { ...base, borderRadius: '8px', border: '2px solid #1e2530', outline: '2px solid #1e2530', outlineOffset: '2px', color: '#ef4444' };
                       };
                       
                       return (

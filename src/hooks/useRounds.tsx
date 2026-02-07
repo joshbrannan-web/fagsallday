@@ -27,7 +27,8 @@ const dbRoundToRound = (dbRound: DbRound): Round => ({
   scores: dbRound.scores || {},
   gameData: dbRound.game_data || {},
   status: dbRound.status as Round['status'],
-  startTime: new Date(dbRound.start_time).getTime()
+  startTime: new Date(dbRound.start_time).getTime(),
+  isFavorite: (dbRound as any).is_favorite || false
 });
 
 export const useRounds = () => {
@@ -244,6 +245,41 @@ export const useRounds = () => {
     return updateRound(roundId, { status: 'COMPLETE' });
   };
 
+  const toggleRoundFavorite = async (roundId: string) => {
+    if (!user) return false;
+
+    const round = rounds.find(r => r.id === roundId);
+    if (!round) return false;
+
+    const newValue = !round.isFavorite;
+
+    // Optimistic update
+    setRounds(prev => prev.map(r => r.id === roundId ? { ...r, isFavorite: newValue } : r));
+    if (currentRound?.id === roundId) {
+      setCurrentRound(prev => prev ? { ...prev, isFavorite: newValue } : null);
+    }
+
+    try {
+      const { error } = await supabase
+        .from('rounds')
+        .update({ is_favorite: newValue } as any)
+        .eq('id', roundId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      // Revert optimistic update
+      setRounds(prev => prev.map(r => r.id === roundId ? { ...r, isFavorite: !newValue } : r));
+      if (currentRound?.id === roundId) {
+        setCurrentRound(prev => prev ? { ...prev, isFavorite: !newValue } : null);
+      }
+      toast.error('Failed to update favorite');
+      return false;
+    }
+  };
+
   return {
     rounds,
     currentRound,
@@ -256,6 +292,7 @@ export const useRounds = () => {
     clearLoadedRound,
     lockRound,
     unlockRound,
+    toggleRoundFavorite,
     refetch: fetchRounds
   };
 };

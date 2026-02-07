@@ -200,6 +200,7 @@ export interface Round {
   gameData: GameData;
   status: 'SETUP' | 'ACTIVE' | 'COMPLETE' | 'LOCKED';
   startTime: number;
+  isFavorite?: boolean;
 }
 
 export interface CalculationResult {
