@@ -45,6 +45,7 @@ export type Database = {
           game_data: Json
           games_data: Json
           id: string
+          is_favorite: boolean
           players_data: Json
           scores: Json
           start_time: string
@@ -58,6 +59,7 @@ export type Database = {
           game_data?: Json
           games_data: Json
           id?: string
+          is_favorite?: boolean
           players_data: Json
           scores?: Json
           start_time?: string
@@ -71,6 +73,7 @@ export type Database = {
           game_data?: Json
           games_data?: Json
           id?: string
+          is_favorite?: boolean
           players_data?: Json
           scores?: Json
           start_time?: string

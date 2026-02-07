@@ -23,6 +23,7 @@ export interface AppState {
   updateRoundCourse: (courseName: string, courseLocation: string) => void;
   lockRound: () => void;
   unlockRound: () => void;
+  toggleRoundFavorite: (roundId: string) => void;
   roundTotals: { [playerId: string]: number };
   isLoading: boolean;
 }
