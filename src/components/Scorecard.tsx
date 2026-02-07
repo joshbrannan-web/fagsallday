@@ -920,8 +920,20 @@ const Scorecard: React.FC = () => {
                     <div className="text-[10px] text-muted-foreground font-normal">IDX {h.handicapIndex}</div>
                   </th>
                 ))}
-                <th className="p-2 min-w-[50px] bg-muted">{viewMode === 'FRONT' ? 'F9' : 'B9'}</th>
-                <th className="p-2 min-w-[50px] bg-muted border-l border-border">18</th>
+                <th className="p-2 min-w-[50px] bg-muted">
+                  {viewMode === 'FRONT' ? 'F9' : 'B9'}
+                  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                    par {viewMode === 'FRONT'
+                      ? currentRound.course.holes.filter(h => h.number <= 9).reduce((sum, h) => sum + h.par, 0)
+                      : currentRound.course.holes.filter(h => h.number > 9).reduce((sum, h) => sum + h.par, 0)}
+                  </div>
+                </th>
+                <th className="p-2 min-w-[50px] bg-muted border-l border-border">
+                  18
+                  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                    par {currentRound.course.holes.reduce((sum, h) => sum + h.par, 0)}
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
