@@ -1353,7 +1353,12 @@ const Scorecard: React.FC = () => {
                   fontWeight: 700,
                   color: '#737a85',
                   textTransform: 'uppercase'
-                }}>Total</th>
+                }}>
+                  Total
+                  <div style={{ fontSize: '10px', color: '#737a85', fontWeight: 400, marginTop: '2px' }}>
+                    par {currentRound.course.holes.reduce((sum, h) => sum + h.par, 0)}
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
