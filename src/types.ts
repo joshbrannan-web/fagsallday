@@ -198,7 +198,7 @@ export interface Round {
   games: GameSettings[];
   scores: { [holeNumber: number]: HoleScores };
   gameData: GameData;
-  status: 'SETUP' | 'ACTIVE' | 'COMPLETE';
+  status: 'SETUP' | 'ACTIVE' | 'COMPLETE' | 'LOCKED';
   startTime: number;
 }
 

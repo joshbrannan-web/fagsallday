@@ -20,6 +20,8 @@ export interface AppState {
   toggleFavorite: (courseId: string) => void;
   isFavorite: (courseId: string) => boolean;
   clearLoadedRound: () => void;
+  updateRoundCourse: (courseName: string, courseLocation: string) => void;
+  lockRound: () => void;
   roundTotals: { [playerId: string]: number };
   isLoading: boolean;
 }

@@ -43,7 +43,8 @@ const AppContent: React.FC = () => {
     deleteRound: dbDeleteRound,
     finishRound: dbFinishRound,
     loadRound,
-    clearLoadedRound: dbClearLoadedRound
+    clearLoadedRound: dbClearLoadedRound,
+    lockRound: dbLockRound
   } = useRounds();
   const { 
     savedCourses: dbSavedCourses,
@@ -326,6 +327,28 @@ const AppContent: React.FC = () => {
     return false;
   };
 
+  const updateRoundCourse = async (courseName: string, courseLocation: string) => {
+    if (!currentRound) return;
+    const updatedCourse = { ...currentRound.course, name: courseName, location: courseLocation };
+    if (isAuthenticated) {
+      await updateRound(currentRound.id, { course: updatedCourse });
+    } else {
+      setLocalCurrentRound(prev => prev ? { ...prev, course: updatedCourse } : null);
+      setLocalRoundHistory(prev => prev.map(r => r.id === currentRound.id ? { ...r, course: updatedCourse } : r));
+    }
+  };
+
+  const lockRound = async () => {
+    if (!currentRound) return;
+    if (isAuthenticated) {
+      await dbLockRound(currentRound.id);
+    } else {
+      const lockedRound = { ...currentRound, status: 'LOCKED' as const };
+      setLocalCurrentRound(lockedRound);
+      setLocalRoundHistory(prev => prev.map(r => r.id === currentRound.id ? lockedRound : r));
+    }
+  };
+
   const value: AppState = {
     currentRound,
     savedCourses,
@@ -347,6 +370,8 @@ const AppContent: React.FC = () => {
     },
     toggleFavorite,
     isFavorite,
+    updateRoundCourse,
+    lockRound,
     roundTotals,
     isLoading
   };

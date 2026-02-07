@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { formatMoney, calculatePerGameTotals } from '../services/gameEngine';
-import { Home, Trophy, Share2, Edit2, Check, X } from 'lucide-react';
+import { Home, Trophy, Share2, Edit2, Check, X, Lock, MapPin } from 'lucide-react';
 import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,6 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
   if (config.useHandicaps !== undefined && type !== GameType.SIXES) {
     details.push(config.useHandicaps ? 'Handicaps: On' : 'Handicaps: Off');
     if (config.useHandicaps) {
-      // FBO is always Absolute mode (hardcoded in engine)
       if (type === GameType.FBO) {
         details.push('Mode: Absolute');
       } else if (config.handicapMode) {
@@ -25,17 +24,14 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
     }
   }
   
-  // Skins-specific
   if (type === GameType.SKINS && config.carryovers !== undefined) {
     details.push(config.carryovers ? 'Carryovers: On' : 'Carryovers: Off');
   }
   
-  // Nassau-specific
   if (type === GameType.NASSAU && config.presses !== undefined) {
     details.push(config.presses ? 'Presses: On' : 'Presses: Off');
   }
   
-  // Banker/Bloody Banker multipliers
   if (type === GameType.BANKER || type === GameType.BLOODY_BANKER) {
     if (config.birdieMultiplier && config.birdieMultiplier > 1) {
       details.push(`Birdie: ${config.birdieMultiplier}x`);
@@ -45,18 +41,14 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
     }
   }
   
-  // Stockton 6's dot value
   if (type === GameType.STOCKTON_6 && config.stockton6?.dotValue) {
     details.push(`Dots: $${config.stockton6.dotValue}/dot`);
   }
   
-  // 6's - read from gameData metadata for accurate values
   if (type === GameType.SIXES) {
-    // Read from Stretch 1 metadata (hole 1) where settings are stored
     const sixesData = gameData?.[game.id]?.[1];
     
     if (sixesData) {
-      // Use Handicaps
       const useHandicaps = sixesData._META_USE_HANDICAPS ?? config.useHandicaps ?? true;
       details.push(useHandicaps ? 'Handicaps: On' : 'Handicaps: Off');
       
@@ -65,11 +57,9 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
         details.push(`Mode: ${handicapMode === 'absolute' ? 'Absolute' : 'Relative'}`);
       }
       
-      // 2nd Ball Tiebreaker
       const useSecondBall = sixesData._META_USE_SECOND_BALL ?? false;
       details.push(useSecondBall ? '2nd Ball Tiebreaker: On' : '2nd Ball Tiebreaker: Off');
       
-      // Allow Presses
       const allowPresses = sixesData._META_ALLOW_PRESSES ?? false;
       if (allowPresses) {
         details.push('Presses: On');
@@ -77,12 +67,10 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
     }
   }
   
-  // Wolf tees first/last
   if (type === GameType.WOLF && config.wolf?.teesFirst !== undefined) {
     details.push(config.wolf.teesFirst ? 'Wolf Tees First' : 'Wolf Tees Last');
   }
   
-  // FBO players count and presses
   if (type === GameType.FBO) {
     if (config.fboPlayers?.length) {
       details.push(`${config.fboPlayers.length} players`);
@@ -92,22 +80,24 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
     }
   }
   
-  // Nine Points - no special config to show
-  
   return details;
 };
 
 const RoundSummary: React.FC = () => {
   const navigate = useNavigate();
-  const { currentRound, roundTotals, finishRound, updateGameDataBatch } = useApp();
+  const { currentRound, roundTotals, finishRound, updateGameDataBatch, updateRoundCourse, lockRound } = useApp();
   const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, number>>({});
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  
+  // Course editing state
+  const [editingCourse, setEditingCourse] = useState(false);
+  const [editCourseName, setEditCourseName] = useState('');
+  const [editCourseLocation, setEditCourseLocation] = useState('');
 
   // Initialize adjusted amounts from calculated totals
   useEffect(() => {
     if (currentRound && Object.keys(adjustedAmounts).length === 0) {
-      // Check for saved final adjustments first
       const savedAdjustments = currentRound.gameData?._META?.[0]?._FINAL_ADJUSTMENTS;
       
       if (savedAdjustments && Object.keys(savedAdjustments).length > 0) {
@@ -133,6 +123,10 @@ const RoundSummary: React.FC = () => {
     );
   }
 
+  const isLocked = currentRound.status === 'LOCKED';
+  const isComplete = currentRound.status === 'COMPLETE';
+  const canEdit = isComplete && !isLocked;
+
   const displayAmounts = Object.keys(adjustedAmounts).length > 0 ? adjustedAmounts : roundTotals;
 
   const sortedPlayers = [...currentRound.players].sort((a, b) => 
@@ -140,6 +134,7 @@ const RoundSummary: React.FC = () => {
   );
 
   const handleStartEdit = (playerId: string) => {
+    if (isLocked) return;
     setEditingPlayer(playerId);
     setEditValue(String(displayAmounts[playerId] || 0));
   };
@@ -161,8 +156,39 @@ const RoundSummary: React.FC = () => {
     setEditValue('');
   };
 
+  const handleStartCourseEdit = () => {
+    if (!canEdit) return;
+    setEditCourseName(currentRound.course.name);
+    setEditCourseLocation(currentRound.course.location || '');
+    setEditingCourse(true);
+  };
+
+  const handleSaveCourseEdit = async () => {
+    await updateRoundCourse(editCourseName.trim(), editCourseLocation.trim());
+    setEditingCourse(false);
+    toast.success('Course info updated');
+  };
+
+  const handleCancelCourseEdit = () => {
+    setEditingCourse(false);
+  };
+
+  const handleLockRound = async () => {
+    if (!window.confirm('Lock this round? Once locked, amounts and course info can no longer be edited.')) return;
+    
+    // Save any pending adjustments before locking
+    const hasAdjustments = currentRound.players.some(
+      p => adjustedAmounts[p.id] !== roundTotals[p.id]
+    );
+    if (hasAdjustments) {
+      await updateGameDataBatch('_META', 0, { _FINAL_ADJUSTMENTS: adjustedAmounts });
+    }
+    
+    await lockRound();
+    toast.success('Round locked!');
+  };
+
   const handleFinish = async () => {
-    // Save final adjusted amounts if any differ from calculated
     const hasAdjustments = currentRound.players.some(
       p => adjustedAmounts[p.id] !== roundTotals[p.id]
     );
@@ -183,7 +209,6 @@ const RoundSummary: React.FC = () => {
       year: 'numeric'
     });
 
-    // Calculate total strokes for each player
     const getPlayerTotalScore = (playerId: string) => {
       let total = 0;
       Object.values(currentRound.scores).forEach(holeScores => {
@@ -199,7 +224,6 @@ const RoundSummary: React.FC = () => {
       `${p.name}: ${formatMoney(displayAmounts[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
     ).join('\n');
 
-    // Build per-game breakdown if multiple games
     let gameBreakdown = '';
     if (currentRound.games.length > 1) {
       const perGameResults = calculatePerGameTotals(currentRound);
@@ -209,7 +233,6 @@ const RoundSummary: React.FC = () => {
         const game = currentRound.games.find(g => g.id === gameResult.gameId);
         if (!game) return;
         
-        // Skip games with no activity
         const hasActivity = Object.values(gameResult.playerResults).some(v => v !== 0);
         if (!hasActivity) return;
         
@@ -235,15 +258,59 @@ const RoundSummary: React.FC = () => {
     <div className="min-h-screen bg-background flex flex-col">
       <div className="bg-brand-dark text-primary-foreground p-6 text-center">
         <Trophy className="w-12 h-12 mx-auto mb-2 text-brand-gold" />
-        <h1 className="text-2xl font-bold">Round Complete</h1>
-        <p className="text-sm opacity-80">{currentRound.course.name}</p>
+        <div className="flex items-center justify-center gap-2">
+          <h1 className="text-2xl font-bold">Round Complete</h1>
+          {isLocked && <Lock className="w-5 h-5 text-brand-gold" />}
+        </div>
+        
+        {editingCourse ? (
+          <div className="mt-3 space-y-2 max-w-xs mx-auto">
+            <Input
+              value={editCourseName}
+              onChange={(e) => setEditCourseName(e.target.value)}
+              placeholder="Course name"
+              className="text-center bg-white/10 border-white/20 text-primary-foreground placeholder:text-primary-foreground/50"
+              autoFocus
+            />
+            <Input
+              value={editCourseLocation}
+              onChange={(e) => setEditCourseLocation(e.target.value)}
+              placeholder="Location"
+              className="text-center bg-white/10 border-white/20 text-primary-foreground placeholder:text-primary-foreground/50"
+            />
+            <div className="flex gap-2 justify-center">
+              <Button size="sm" variant="ghost" className="text-primary-foreground hover:bg-white/10" onClick={handleSaveCourseEdit}>
+                <Check className="w-4 h-4 mr-1" /> Save
+              </Button>
+              <Button size="sm" variant="ghost" className="text-primary-foreground hover:bg-white/10" onClick={handleCancelCourseEdit}>
+                <X className="w-4 h-4 mr-1" /> Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-1">
+            <button
+              onClick={canEdit ? handleStartCourseEdit : undefined}
+              className={`inline-flex items-center gap-1 text-sm opacity-80 ${canEdit ? 'hover:opacity-100 cursor-pointer' : 'cursor-default'}`}
+            >
+              {currentRound.course.name}
+              {canEdit && <Edit2 className="w-3 h-3" />}
+            </button>
+            {currentRound.course.location && (
+              <p className="text-xs opacity-60 flex items-center justify-center gap-1 mt-0.5">
+                <MapPin className="w-3 h-3" />
+                {currentRound.course.location}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 p-4 space-y-6">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Leaderboard</h2>
-            <span className="text-xs text-muted-foreground">Tap amount to adjust</span>
+            {!isLocked && <span className="text-xs text-muted-foreground">Tap amount to adjust</span>}
           </div>
           {sortedPlayers.map((player, idx) => {
             const amount = displayAmounts[player.id] || 0;
@@ -291,13 +358,14 @@ const RoundSummary: React.FC = () => {
                   </div>
                 ) : (
                   <button
-                    onClick={() => handleStartEdit(player.id)}
+                    onClick={() => !isLocked && handleStartEdit(player.id)}
+                    disabled={isLocked}
                     className={`flex items-center gap-2 text-xl font-bold font-mono ${
                       amount > 0 ? 'text-success' : amount < 0 ? 'text-destructive' : 'text-muted-foreground'
-                    }`}
+                    } ${isLocked ? 'cursor-default' : ''}`}
                   >
                     {formatMoney(amount)}
-                    <Edit2 className="w-4 h-4 opacity-50" />
+                    {!isLocked && <Edit2 className="w-4 h-4 opacity-50" />}
                   </button>
                 )}
               </div>
@@ -345,9 +413,21 @@ const RoundSummary: React.FC = () => {
             View Scorecard
           </Button>
         </div>
-        <Button onClick={handleFinish} className="w-full">
-          <Home className="w-4 h-4 mr-2" /> Finish & Save
-        </Button>
+        {canEdit && (
+          <Button variant="outline" onClick={handleLockRound} className="w-full">
+            <Lock className="w-4 h-4 mr-2" /> Lock Round
+          </Button>
+        )}
+        {currentRound.status === 'ACTIVE' && (
+          <Button onClick={handleFinish} className="w-full">
+            <Home className="w-4 h-4 mr-2" /> Finish & Save
+          </Button>
+        )}
+        {(isComplete || isLocked) && (
+          <Button onClick={() => navigate('/')} className="w-full">
+            <Home className="w-4 h-4 mr-2" /> Home
+          </Button>
+        )}
       </div>
     </div>
   );
