@@ -785,43 +785,70 @@ const SetupWizard: React.FC = () => {
               </button>
             </div>
 
-            {/* Favorite Courses */}
-            {favoriteCourses.length > 0 && (
-              <div className="space-y-3 pt-4 border-t border-border">
-                <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  Favorites
-                </Label>
-                <div className="grid gap-3">
-                  {favoriteCourses.map((course) => (
-                    <div
-                      key={course.id}
-                      className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 text-left transition-all flex items-center gap-3"
-                    >
+            {/* Favorites (saved courses + favorite rounds) */}
+            {(() => {
+              const favoriteRounds = roundHistory.filter(r => r.isFavorite);
+              const favCourseNames = new Set(favoriteCourses.map(c => c.name.toLowerCase()));
+              const dedupedFavoriteRounds = favoriteRounds.filter(r => !favCourseNames.has(r.course.name.toLowerCase()));
+              const hasFavorites = favoriteCourses.length > 0 || dedupedFavoriteRounds.length > 0;
+
+              return hasFavorites ? (
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                    Favorites
+                  </Label>
+                  <div className="grid gap-3">
+                    {favoriteCourses.map((course) => (
+                      <div
+                        key={course.id}
+                        className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 text-left transition-all flex items-center gap-3"
+                      >
+                        <button
+                          onClick={() => {
+                            handleSelectSavedCourse(course);
+                            setCourseMode("search");
+                          }}
+                          className="flex-1 text-left"
+                        >
+                          <div className="font-semibold">{course.name}</div>
+                          <div className="text-sm text-muted-foreground flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {course.location || "No location"}
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => toggleFavorite(course.id)}
+                          className="p-2 hover:bg-muted rounded-full transition-colors"
+                        >
+                          <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                        </button>
+                      </div>
+                    ))}
+                    {dedupedFavoriteRounds.map((round) => (
                       <button
+                        key={`fav-round-${round.id}`}
                         onClick={() => {
-                          handleSelectSavedCourse(course);
+                          handleSelectSavedCourse(round.course);
                           setCourseMode("search");
                         }}
-                        className="flex-1 text-left"
+                        className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 text-left transition-all flex items-center gap-3"
                       >
-                        <div className="font-semibold">{course.name}</div>
-                        <div className="text-sm text-muted-foreground flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {course.location || "No location"}
+                        <div className="flex-1">
+                          <div className="font-semibold">{round.course.name}</div>
+                          <div className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(round.startTime).toLocaleDateString()} · {round.players.length} player{round.players.length !== 1 ? 's' : ''}
+                            <span className="ml-1 text-xs italic text-muted-foreground/70">from round</span>
+                          </div>
                         </div>
-                      </button>
-                      <button
-                        onClick={() => toggleFavorite(course.id)}
-                        className="p-2 hover:bg-muted rounded-full transition-colors"
-                      >
                         <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                       </button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : null;
+            })()}
 
             {/* Recently Played Courses */}
             {nonFavoriteCourses.length > 0 && (
