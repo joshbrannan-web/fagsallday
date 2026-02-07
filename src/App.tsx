@@ -44,7 +44,8 @@ const AppContent: React.FC = () => {
     finishRound: dbFinishRound,
     loadRound,
     clearLoadedRound: dbClearLoadedRound,
-    lockRound: dbLockRound
+    lockRound: dbLockRound,
+    unlockRound: dbUnlockRound
   } = useRounds();
   const { 
     savedCourses: dbSavedCourses,
@@ -349,6 +350,17 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const unlockRound = async () => {
+    if (!currentRound) return;
+    if (isAuthenticated) {
+      await dbUnlockRound(currentRound.id);
+    } else {
+      const unlockedRound = { ...currentRound, status: 'COMPLETE' as const };
+      setLocalCurrentRound(unlockedRound);
+      setLocalRoundHistory(prev => prev.map(r => r.id === currentRound.id ? unlockedRound : r));
+    }
+  };
+
   const value: AppState = {
     currentRound,
     savedCourses,
@@ -372,6 +384,7 @@ const AppContent: React.FC = () => {
     isFavorite,
     updateRoundCourse,
     lockRound,
+    unlockRound,
     roundTotals,
     isLoading
   };

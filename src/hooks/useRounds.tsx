@@ -240,6 +240,10 @@ export const useRounds = () => {
     return updateRound(roundId, { status: 'LOCKED' });
   };
 
+  const unlockRound = async (roundId: string) => {
+    return updateRound(roundId, { status: 'COMPLETE' });
+  };
+
   return {
     rounds,
     currentRound,
@@ -251,6 +255,7 @@ export const useRounds = () => {
     loadRound,
     clearLoadedRound,
     lockRound,
+    unlockRound,
     refetch: fetchRounds
   };
 };

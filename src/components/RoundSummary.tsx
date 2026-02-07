@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
-import { formatMoney, calculatePerGameTotals } from '../services/gameEngine';
-import { Home, Trophy, Share2, Edit2, Check, X, Lock, MapPin } from 'lucide-react';
+import { formatMoney, calculatePerGameTotals, calculateSettlement } from '../services/gameEngine';
+import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin } from 'lucide-react';
 import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,7 +85,7 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
 
 const RoundSummary: React.FC = () => {
   const navigate = useNavigate();
-  const { currentRound, roundTotals, finishRound, updateGameDataBatch, updateRoundCourse, lockRound } = useApp();
+  const { currentRound, roundTotals, finishRound, updateGameDataBatch, updateRoundCourse, lockRound, unlockRound } = useApp();
   const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, number>>({});
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -188,6 +188,12 @@ const RoundSummary: React.FC = () => {
     toast.success('Round locked!');
   };
 
+  const handleUnlockRound = async () => {
+    if (!window.confirm('Unlock this round? This will allow editing amounts and course info again.')) return;
+    await unlockRound();
+    toast.success('Round unlocked');
+  };
+
   const handleFinish = async () => {
     const hasAdjustments = currentRound.players.some(
       p => adjustedAmounts[p.id] !== roundTotals[p.id]
@@ -244,7 +250,19 @@ const RoundSummary: React.FC = () => {
       });
     }
 
-    const text = `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}`;
+    // Settlement plan
+    let settlementText = '';
+    const playerAmounts = sortedPlayers.map(p => ({
+      name: p.name,
+      amount: displayAmounts[p.id] || 0
+    }));
+    const transactions = calculateSettlement(playerAmounts);
+    if (transactions.length > 0) {
+      const lines = transactions.map(t => `  ${t.from} pays ${t.to} $${t.amount}`).join('\n');
+      settlementText = `\n\n--- Who Pays Who ---\n${lines}`;
+    }
+
+    const text = `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}${settlementText}`;
 
     if (navigator.share) {
       await navigator.share({ title: 'Golf Round Results', text });
@@ -416,6 +434,11 @@ const RoundSummary: React.FC = () => {
         {canEdit && (
           <Button variant="outline" onClick={handleLockRound} className="w-full">
             <Lock className="w-4 h-4 mr-2" /> Lock Round
+          </Button>
+        )}
+        {isLocked && (
+          <Button variant="outline" onClick={handleUnlockRound} className="w-full">
+            <Unlock className="w-4 h-4 mr-2" /> Unlock Round
           </Button>
         )}
         {currentRound.status === 'ACTIVE' && (

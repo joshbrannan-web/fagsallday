@@ -2000,3 +2000,40 @@ export const areHolesComplete = (round: Round, throughHole: number): boolean => 
   }
   return true;
 };
+
+// --- Settlement Calculator ---
+// Minimizes the number of transactions needed to settle all balances
+
+export const calculateSettlement = (
+  playerAmounts: { name: string; amount: number }[]
+): { from: string; to: string; amount: number }[] => {
+  const creditors = playerAmounts
+    .filter(p => p.amount > 0)
+    .map(p => ({ ...p }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const debtors = playerAmounts
+    .filter(p => p.amount < 0)
+    .map(p => ({ name: p.name, amount: Math.abs(p.amount) }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const transactions: { from: string; to: string; amount: number }[] = [];
+
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const payment = Math.min(debtors[i].amount, creditors[j].amount);
+    if (payment > 0) {
+      transactions.push({
+        from: debtors[i].name,
+        to: creditors[j].name,
+        amount: payment
+      });
+    }
+    debtors[i].amount -= payment;
+    creditors[j].amount -= payment;
+    if (debtors[i].amount === 0) i++;
+    if (creditors[j].amount === 0) j++;
+  }
+
+  return transactions;
+};

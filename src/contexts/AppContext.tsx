@@ -22,6 +22,7 @@ export interface AppState {
   clearLoadedRound: () => void;
   updateRoundCourse: (courseName: string, courseLocation: string) => void;
   lockRound: () => void;
+  unlockRound: () => void;
   roundTotals: { [playerId: string]: number };
   isLoading: boolean;
 }
