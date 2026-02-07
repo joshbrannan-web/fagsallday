@@ -671,6 +671,7 @@ const Scorecard: React.FC = () => {
         quality: 0.95,
         backgroundColor: '#ffffff',
         pixelRatio: 2, // Higher quality for landscape viewing
+        style: { opacity: '1' }, // Force full opacity on cloned node (hidden container uses opacity-0)
       });
       
       // Convert data URL to blob for sharing
