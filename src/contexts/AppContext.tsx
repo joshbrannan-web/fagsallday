@@ -19,6 +19,7 @@ export interface AppState {
   deleteCourse: (courseId: string) => void;
   toggleFavorite: (courseId: string) => void;
   isFavorite: (courseId: string) => boolean;
+  clearLoadedRound: () => void;
   roundTotals: { [playerId: string]: number };
   isLoading: boolean;
 }

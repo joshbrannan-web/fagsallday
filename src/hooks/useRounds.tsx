@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { Round, Course, Player, GameSettings } from '@/types';
@@ -35,6 +35,7 @@ export const useRounds = () => {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const loadedRoundIdRef = useRef<string | null>(null);
 
   const fetchRounds = useCallback(async () => {
     if (!user) {
@@ -56,9 +57,20 @@ export const useRounds = () => {
       const fetchedRounds = (data || []).map(dbRoundToRound);
       setRounds(fetchedRounds);
 
-      // Find active round
-      const activeRound = fetchedRounds.find(r => r.status === 'ACTIVE');
-      setCurrentRound(activeRound || null);
+      // Preserve manually-loaded round across refetches (e.g. tab switch)
+      if (loadedRoundIdRef.current) {
+        const loadedRound = fetchedRounds.find(r => r.id === loadedRoundIdRef.current);
+        if (loadedRound) {
+          setCurrentRound(loadedRound);
+        } else {
+          loadedRoundIdRef.current = null;
+          const activeRound = fetchedRounds.find(r => r.status === 'ACTIVE');
+          setCurrentRound(activeRound || null);
+        }
+      } else {
+        const activeRound = fetchedRounds.find(r => r.status === 'ACTIVE');
+        setCurrentRound(activeRound || null);
+      }
     } catch (error) {
       console.error('Error fetching rounds:', error);
     } finally {
@@ -95,6 +107,7 @@ export const useRounds = () => {
       if (error) throw error;
 
       const newRound = dbRoundToRound(data as DbRound);
+      loadedRoundIdRef.current = null;
       setCurrentRound(newRound);
       setRounds(prev => [newRound, ...prev]);
       
@@ -197,6 +210,7 @@ export const useRounds = () => {
   const finishRound = async (roundId: string) => {
     const success = await updateRound(roundId, { status: 'COMPLETE' });
     if (success) {
+      loadedRoundIdRef.current = null;
       setCurrentRound(null);
       // Clear offline cache when round is complete
       offlineStorage.clearCachedRound();
@@ -205,7 +219,14 @@ export const useRounds = () => {
   };
 
   const loadRound = (round: Round) => {
+    loadedRoundIdRef.current = round.id;
     setCurrentRound(round);
+  };
+
+  const clearLoadedRound = () => {
+    loadedRoundIdRef.current = null;
+    const activeRound = rounds.find(r => r.status === 'ACTIVE');
+    setCurrentRound(activeRound || null);
   };
 
   return {
@@ -217,6 +238,7 @@ export const useRounds = () => {
     deleteRound,
     finishRound,
     loadRound,
+    clearLoadedRound,
     refetch: fetchRounds
   };
 };

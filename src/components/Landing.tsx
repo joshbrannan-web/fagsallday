@@ -16,9 +16,14 @@ import {
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
-  const { currentRound, isLoading: appLoading } = useApp();
+  const { currentRound, clearLoadedRound, isLoading: appLoading } = useApp();
   const { user, profile, signOut, isLoading: authLoading } = useAuth();
   const { isAdmin } = useAdminAuth();
+
+  // Clear any manually-loaded past round when returning to home
+  React.useEffect(() => {
+    clearLoadedRound();
+  }, []);
 
   const isLoading = appLoading || authLoading;
 

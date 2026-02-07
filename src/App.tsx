@@ -42,7 +42,8 @@ const AppContent: React.FC = () => {
     updateRound, 
     deleteRound: dbDeleteRound,
     finishRound: dbFinishRound,
-    loadRound
+    loadRound,
+    clearLoadedRound: dbClearLoadedRound
   } = useRounds();
   const { 
     savedCourses: dbSavedCourses,
@@ -341,6 +342,9 @@ const AppContent: React.FC = () => {
     saveCourse,
     updateCourse,
     deleteCourse,
+    clearLoadedRound: isAuthenticated ? dbClearLoadedRound : () => {
+      setLocalCurrentRound(null);
+    },
     toggleFavorite,
     isFavorite,
     roundTotals,
