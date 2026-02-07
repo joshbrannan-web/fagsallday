@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroIllustration from './HeroIllustration';
-import { Play, History, Flag, User, LogOut, Loader2, Users, Shield } from 'lucide-react';
+import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2 } from 'lucide-react';
 import { useApp } from '../App';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
@@ -54,6 +54,10 @@ const Landing: React.FC = () => {
                 </p>
               </div>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/profile')}>
+                <Edit2 className="w-4 h-4 mr-2" />
+                Edit Profile
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate('/players')}>
                 <Users className="w-4 h-4 mr-2" />
                 My Players
