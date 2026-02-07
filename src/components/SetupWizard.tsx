@@ -928,8 +928,16 @@ const SetupWizard: React.FC = () => {
                           <span>•</span>
                           <span>{round.players.length} players</span>
                           <span>•</span>
-                          <span className={round.status === 'COMPLETE' ? 'text-green-600' : 'text-yellow-600'}>
-                            {round.status === 'COMPLETE' ? 'Complete' : 'In Progress'}
+                          <span className={
+                            round.status === 'LOCKED' ? 'text-blue-600' :
+                            round.status === 'COMPLETE' ? 'text-green-600' :
+                            round.status === 'ACTIVE' ? 'text-yellow-600' :
+                            'text-muted-foreground'
+                          }>
+                            {round.status === 'LOCKED' ? 'Locked' :
+                             round.status === 'COMPLETE' ? 'Complete' :
+                             round.status === 'ACTIVE' ? 'Active' :
+                             round.status}
                           </span>
                         </div>
                       </div>
