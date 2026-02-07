@@ -122,7 +122,7 @@ export const useRounds = () => {
     }
   };
 
-  const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status'>>) => {
+  const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course'>>) => {
     if (!user) return false;
 
     // 1. ALWAYS update local state immediately (optimistic update)
@@ -144,6 +144,7 @@ export const useRounds = () => {
         if (updates.scores !== undefined) dbUpdates.scores = updates.scores;
         if (updates.gameData !== undefined) dbUpdates.game_data = updates.gameData;
         if (updates.status !== undefined) dbUpdates.status = updates.status;
+        if (updates.course !== undefined) dbUpdates.course_data = updates.course;
 
         const { error } = await supabase
           .from('rounds')
@@ -164,6 +165,9 @@ export const useRounds = () => {
         if (updates.status !== undefined) {
           offlineStorage.addToSyncQueue({ roundId, type: 'status', data: { status: updates.status } });
         }
+        if (updates.course !== undefined) {
+          offlineStorage.addToSyncQueue({ roundId, type: 'course', data: { course_data: updates.course } });
+        }
       }
     } else {
       // Offline - queue for sync when back online
@@ -175,6 +179,9 @@ export const useRounds = () => {
       }
       if (updates.status !== undefined) {
         offlineStorage.addToSyncQueue({ roundId, type: 'status', data: { status: updates.status } });
+      }
+      if (updates.course !== undefined) {
+        offlineStorage.addToSyncQueue({ roundId, type: 'course', data: { course_data: updates.course } });
       }
     }
 
@@ -229,6 +236,10 @@ export const useRounds = () => {
     setCurrentRound(activeRound || null);
   };
 
+  const lockRound = async (roundId: string) => {
+    return updateRound(roundId, { status: 'LOCKED' });
+  };
+
   return {
     rounds,
     currentRound,
@@ -239,6 +250,7 @@ export const useRounds = () => {
     finishRound,
     loadRound,
     clearLoadedRound,
+    lockRound,
     refetch: fetchRounds
   };
 };

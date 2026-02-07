@@ -6,7 +6,7 @@ const SYNC_QUEUE_KEY = 'fg_sync_queue';
 export interface SyncQueueItem {
   id: string;
   roundId: string;
-  type: 'scores' | 'gameData' | 'status';
+  type: 'scores' | 'gameData' | 'status' | 'course';
   data: any;
   timestamp: number;
 }
