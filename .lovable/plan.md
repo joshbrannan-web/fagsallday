@@ -1,143 +1,146 @@
 
 
-## Plan: Editable Course Info on Completed Rounds + Lock Feature
+## Plan: Scorecard Par Totals, Unlock Round, and Settlement Plan in Share
 
-### Overview
-Two features:
-1. **Edit Course Name/Location** on completed (but not locked) rounds from the Round Summary view
-2. **Lock a Round** to finalize it permanently, moving it into a "Completed Rounds" section in the history view
+Three features to implement:
 
 ---
 
-## Part 1: Edit Course Name & Location on Completed Rounds
+### Feature 1: Show Total Par for F9, B9, and 18 in the Scorecard
 
-### Where It Appears
-On the **Round Summary** page (`RoundSummary.tsx`), when viewing a completed round, the course name and location will become tappable/editable fields.
+Currently the scorecard header columns for "F9"/"B9" and "18" only show labels. We will add the total par from the course data underneath each label.
 
-### Behavior
-- Tapping the course name or location shows inline edit fields (same pattern as the existing amount editing)
-- Only available when the round status is `COMPLETE` (not `LOCKED`)
-- Saves the updated `course_data` to the database
+**File: `src/components/Scorecard.tsx`**
 
-### Implementation
+Update the header row (around line 923-924) to include par totals:
+
+- Calculate `front9Par` = sum of `par` for holes 1-9
+- Calculate `back9Par` = sum of `par` for holes 10-18
+- Calculate `totalPar` = front9Par + back9Par
+- Display the appropriate par under the F9/B9 and 18 column headers, using the same `text-[10px]` style as the per-hole par labels
+
+The header cells will look like:
+
+```
+F9              18
+par 36          par 72
+```
+
+---
+
+### Feature 2: Unlock a Locked Round
+
+Allow users to unlock a previously locked round so they can make edits again. This transitions the round from `LOCKED` back to `COMPLETE`.
 
 **File: `src/hooks/useRounds.tsx`**
-- Expand `updateRound` to also accept `course` updates
-- Add `course_data` mapping in the database update logic
+
+Add an `unlockRound` function:
+```typescript
+const unlockRound = async (roundId: string) => {
+  return updateRound(roundId, { status: 'COMPLETE' });
+};
+```
 
 **File: `src/contexts/AppContext.tsx`**
-- Add `updateRoundCourse: (courseName: string, courseLocation: string) => void` to AppState
+
+Add `unlockRound: () => void` to the `AppState` interface.
 
 **File: `src/App.tsx`**
-- Wire up `updateRoundCourse` that calls `updateRound` with updated course data
+
+- Destructure `unlockRound` (reusing `dbLockRound` pattern but for unlock)
+- Actually, we can add a new `dbUnlockRound` from `useRounds` and wire it through context
+- Wire `unlockRound` in the value object, handling both authenticated and local users
 
 **File: `src/components/RoundSummary.tsx`**
-- Add edit icons next to course name and location in the header
-- Add inline editing state (same Edit2/Check/X pattern used for amount editing)
-- Only show edit controls when round is `COMPLETE` (not `LOCKED`)
+
+- When the round is `LOCKED`, show an "Unlock Round" button (with an `Unlock` icon) in the footer area
+- Clicking it shows a confirmation prompt, then calls `unlockRound()`
+- After unlocking, the round goes back to `COMPLETE` status, re-enabling course and amount editing
 
 ---
 
-## Part 2: Lock a Finished Round
+### Feature 3: Settlement Plan in the Share Message
 
-### New Status
-Add `LOCKED` as a fourth round status alongside `SETUP`, `ACTIVE`, and `COMPLETE`.
+When the user shares round results, append a "Settlement Plan" section that tells each player who they need to pay and how much. The algorithm minimizes the number of transactions.
 
-### Behavior
-- A "Lock Round" button appears on the Round Summary when viewing a `COMPLETE` round
-- Locking changes the status to `LOCKED`
-- Locked rounds cannot be edited (no course name/location changes, no amount adjustments)
-- Locked rounds cannot be deleted
+**Algorithm: Minimum Transactions Settlement**
 
-### History Page Sections
-The Round History page will split into two sections:
-1. **Recent Rounds** - Active and Complete rounds (editable, deletable)
-2. **Completed Rounds** - Locked rounds (read-only, no delete button)
+Given player balances (e.g., Josh: +$45, Mike: +$20, Dave: -$30, Tom: -$35):
 
----
+1. Separate players into creditors (positive balance) and debtors (negative balance)
+2. Sort creditors descending by amount owed to them
+3. Sort debtors descending by amount they owe (most negative first)
+4. Greedily match: the largest debtor pays the largest creditor up to the minimum of what they owe / are owed, then adjust balances and repeat
+5. This produces the minimum number of transactions needed
 
-## Technical Details
+**Example:**
 
-### File: `src/types.ts`
-- Update the Round `status` union type:
-```typescript
-status: 'SETUP' | 'ACTIVE' | 'COMPLETE' | 'LOCKED';
+```
+Results:
+  Josh: +$45
+  Mike: +$20
+  Dave: -$30
+  Tom:  -$35
+
+Settlement:
+  Tom pays Josh $35
+  Dave pays Josh $10
+  Dave pays Mike $20
 ```
 
-### File: `src/hooks/useRounds.tsx`
+Without optimization, Tom would need to pay both Josh and Mike, and Dave would also need to pay both. With the greedy approach, we get 3 transactions (the theoretical minimum for 2 creditors and 2 debtors), and we match the largest debtor (Tom, -$35) with the largest creditor (Josh, +$45) first, settling Tom completely in one payment. Then Dave's remaining $30 is split: $10 to finish off Josh's balance, and $20 to Mike.
 
-**Change 1: Expand updateRound to accept course updates**
+**File: `src/services/gameEngine.ts`**
+
+Add a new utility function:
+
 ```typescript
-const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course'>>) => {
-  // ... existing logic ...
-  // Add course_data mapping:
-  if (updates.course !== undefined) dbUpdates.course_data = updates.course;
+export const calculateSettlement = (
+  playerAmounts: { name: string; amount: number }[]
+): { from: string; to: string; amount: number }[] => {
+  // Filter out zero balances
+  const creditors = playerAmounts
+    .filter(p => p.amount > 0)
+    .map(p => ({ ...p }))
+    .sort((a, b) => b.amount - a.amount);
+  
+  const debtors = playerAmounts
+    .filter(p => p.amount < 0)
+    .map(p => ({ name: p.name, amount: Math.abs(p.amount) }))
+    .sort((a, b) => b.amount - a.amount);
+  
+  const transactions: { from: string; to: string; amount: number }[] = [];
+  
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const payment = Math.min(debtors[i].amount, creditors[j].amount);
+    transactions.push({
+      from: debtors[i].name,
+      to: creditors[j].name,
+      amount: payment
+    });
+    debtors[i].amount -= payment;
+    creditors[j].amount -= payment;
+    if (debtors[i].amount === 0) i++;
+    if (creditors[j].amount === 0) j++;
+  }
+  
+  return transactions;
 };
 ```
 
-**Change 2: Add lockRound function**
-```typescript
-const lockRound = async (roundId: string) => {
-  return updateRound(roundId, { status: 'LOCKED' });
-};
+**File: `src/components/RoundSummary.tsx`**
+
+Update the `handleShare` function to append the settlement plan after the existing share text:
+
+```
+--- Who Pays Who ---
+Tom pays Josh $35
+Dave pays Josh $10
+Dave pays Mike $20
 ```
 
-Return `lockRound` from the hook.
-
-### File: `src/contexts/AppContext.tsx`
-- Add to AppState interface:
-```typescript
-updateRoundCourse: (courseName: string, courseLocation: string) => void;
-lockRound: () => void;
-```
-
-### File: `src/App.tsx`
-- Wire `updateRoundCourse` to update `currentRound.course` with new name/location via `updateRound`
-- Wire `lockRound` from `useRounds` and pass it through context
-- Add offline queue support for `course_data` updates in `updateRound`
-
-### File: `src/components/RoundSummary.tsx`
-
-**Change 1: Editable course name/location in header**
-- Add state for `editingCourse`, `editCourseName`, `editCourseLocation`
-- When tapped (and status is `COMPLETE`), show Input fields for name and location
-- Save calls `updateRoundCourse(name, location)`
-- When status is `LOCKED`, show a lock icon and no edit controls
-
-**Change 2: Lock Round button**
-- Add a "Lock Round" button in the footer area (only when status is `COMPLETE`)
-- Clicking shows a confirmation dialog
-- On confirm, calls `lockRound()` and shows a success toast
-- When round is `LOCKED`, hide the "Finish & Save" button (already saved) and show a "Locked" badge
-
-**Change 3: Disable amount editing when locked**
-- When status is `LOCKED`, the leaderboard amounts are read-only (no Edit2 icon, no tap handler)
-
-### File: `src/components/RoundHistory.tsx`
-
-**Change 1: Split into two sections**
-```text
-+------------------------------------------+
-| <- Back          Past Rounds             |
-+------------------------------------------+
-|                                          |
-|  --- Recent Rounds ---                   |
-|  [Active/Complete round cards]           |
-|  (with delete button)                    |
-|                                          |
-|  --- Completed Rounds ---                |
-|  [Locked round cards with lock icon]     |
-|  (no delete button)                      |
-|                                          |
-+------------------------------------------+
-```
-
-- Filter rounds into two arrays: `recentRounds` (ACTIVE + COMPLETE) and `completedRounds` (LOCKED)
-- Recent rounds keep existing behavior (deletable, tappable)
-- Completed rounds show a lock icon badge, no delete button, still tappable to view
-
-**Change 2: Lock icon on locked round cards**
-- Add a small lock icon badge next to the course name for locked rounds (similar to the LIVE badge for active rounds)
+This section only appears if there are actual non-zero balances (i.e., money changed hands). Players at $0 are excluded from the settlement.
 
 ---
 
@@ -145,62 +148,10 @@ lockRound: () => void;
 
 | File | Changes |
 |------|---------|
-| `src/types.ts` | Add `LOCKED` to Round status union |
-| `src/hooks/useRounds.tsx` | Expand `updateRound` to handle `course` field, add `lockRound`, add offline queue for `course_data` |
-| `src/contexts/AppContext.tsx` | Add `updateRoundCourse` and `lockRound` to AppState |
-| `src/App.tsx` | Wire `updateRoundCourse` and `lockRound` through context |
-| `src/components/RoundSummary.tsx` | Add editable course name/location, Lock button, disable edits when locked |
-| `src/components/RoundHistory.tsx` | Split into Recent Rounds and Completed Rounds sections |
-
----
-
-## Visual Summary
-
-### Round Summary - Complete (editable)
-```text
-+------------------------------------------+
-|        [Trophy Icon]                     |
-|      Round Complete                      |
-|   [Course Name] [edit icon]              |
-|   [Location]    [edit icon]              |
-+------------------------------------------+
-|  Leaderboard (tap to adjust)             |
-|  1. Josh    $25  [edit]                  |
-|  2. Mike   -$25  [edit]                  |
-+------------------------------------------+
-|  [Share]  [Scorecard]                    |
-|  [Lock Round]                            |
-|  [Finish & Save]                         |
-+------------------------------------------+
-```
-
-### Round Summary - Locked (read-only)
-```text
-+------------------------------------------+
-|        [Trophy Icon]                     |
-|      Round Complete [Lock icon]          |
-|      Course Name                         |
-|      Location                            |
-+------------------------------------------+
-|  Leaderboard                             |
-|  1. Josh    $25                          |
-|  2. Mike   -$25                          |
-+------------------------------------------+
-|  [Share]  [Scorecard]                    |
-|  [Home]                                  |
-+------------------------------------------+
-```
-
-### History Page Sections
-```text
-+------------------------------------------+
-|  Recent Rounds                           |
-|  [Card: Oak Hills - LIVE]  [delete]      |
-|  [Card: Pine Valley]       [delete]      |
-|                                          |
-|  Completed Rounds                        |
-|  [Card: Augusta - Lock icon]             |
-|  [Card: Pebble - Lock icon]              |
-+------------------------------------------+
-```
+| `src/components/Scorecard.tsx` | Add par totals to F9/B9 and 18 header columns |
+| `src/services/gameEngine.ts` | Add `calculateSettlement` utility function |
+| `src/hooks/useRounds.tsx` | Add `unlockRound` function |
+| `src/contexts/AppContext.tsx` | Add `unlockRound` to AppState interface |
+| `src/App.tsx` | Wire `unlockRound` through context for both auth and local users |
+| `src/components/RoundSummary.tsx` | Add Unlock button for locked rounds; add settlement plan to share text |
 
