@@ -1,31 +1,38 @@
 
 
-## Fix: Black Image on Share Scorecard
+## Fix: Add Course Par Under "Total" in Share Image Scorecard
 
-### Root Cause
-
-The hidden scorecard capture container uses `opacity-0` (Tailwind) to hide it from view. When `html-to-image` clones this element for PNG generation, it preserves `opacity: 0`, making all content fully transparent. Transparent pixels render as **black** in most image viewers and messaging apps.
+### Problem
+The hidden scorecard capture container (used for the Share Image feature) shows "Total" in the header but does not display the course par underneath it. The on-screen scorecard already shows par totals under its F9/B9 and 18 columns, but the image capture container was not updated to match.
 
 ### Fix
 
-**File: `src/components/Scorecard.tsx`** (line ~670)
+**File: `src/components/Scorecard.tsx`** (lines 1348-1356)
 
-Add `style: { opacity: '1' }` to the `toPng` options so the cloned node is rendered at full opacity during capture:
+Add a par total line under the "Total" text in the hidden capture container's header row, matching the style of the per-hole par labels:
 
 ```typescript
-const dataUrl = await toPng(scorecardRef.current, {
-  quality: 0.95,
-  backgroundColor: '#ffffff',
-  pixelRatio: 2,
-  style: { opacity: '1' },  // Force full opacity on cloned node
-});
+<th style={{ 
+  padding: '8px', 
+  minWidth: '50px', 
+  backgroundColor: '#f5f3ef',
+  fontSize: '12px',
+  fontWeight: 700,
+  color: '#737a85',
+  textTransform: 'uppercase'
+}}>
+  Total
+  <div style={{ fontSize: '10px', color: '#737a85', fontWeight: 400, marginTop: '2px' }}>
+    par {currentRound.course.holes.reduce((sum, h) => sum + h.par, 0)}
+  </div>
+</th>
 ```
 
-This is a single-line addition. The original hidden div stays invisible on screen (opacity-0 remains in the className), but the cloned copy used for image generation renders at full opacity.
+This adds a single `<div>` element showing "par 72" (or whatever the course total par is) directly under the "Total" label, using the same inline style as the per-hole par labels.
 
 ### Files Changed
 
 | File | Change |
 |------|--------|
-| `src/components/Scorecard.tsx` | Add `style: { opacity: '1' }` to the `toPng` options object (1 line) |
+| `src/components/Scorecard.tsx` | Add par total display under "Total" header in the hidden image capture container (1 line addition) |
 
