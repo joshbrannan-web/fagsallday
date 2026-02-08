@@ -182,6 +182,39 @@ export type Database = {
         }
         Relationships: []
       }
+      verified_courses: {
+        Row: {
+          course_data: Json
+          course_location: string
+          course_name: string
+          id: string
+          total_par: number
+          total_yardage: number
+          verified_at: string
+          verified_by: string
+        }
+        Insert: {
+          course_data: Json
+          course_location?: string
+          course_name: string
+          id?: string
+          total_par?: number
+          total_yardage?: number
+          verified_at?: string
+          verified_by: string
+        }
+        Update: {
+          course_data?: Json
+          course_location?: string
+          course_name?: string
+          id?: string
+          total_par?: number
+          total_yardage?: number
+          verified_at?: string
+          verified_by?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

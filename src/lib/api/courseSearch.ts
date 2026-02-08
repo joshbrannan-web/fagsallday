@@ -81,3 +81,36 @@ export function courseDataToCourse(courseData: CourseSearchResponse['course']): 
     })),
   };
 }
+
+export async function searchVerifiedLibrary(query: string): Promise<Array<{
+  id: string;
+  course_name: string;
+  course_location: string;
+  course_data: Course;
+  total_par: number;
+  total_yardage: number;
+}>> {
+  if (!query.trim()) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('verified_courses')
+      .select('id, course_name, course_location, course_data, total_par, total_yardage')
+      .ilike('course_name', `%${query.trim()}%`)
+      .limit(10);
+
+    if (error) throw error;
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      course_name: row.course_name,
+      course_location: row.course_location,
+      course_data: row.course_data as Course,
+      total_par: row.total_par,
+      total_yardage: row.total_yardage,
+    }));
+  } catch (error) {
+    console.error('Error searching verified library:', error);
+    return [];
+  }
+}

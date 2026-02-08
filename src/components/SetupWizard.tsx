@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../App";
 import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from "../types";
@@ -7,6 +7,7 @@ import { searchCourse, fetchCourseDetails, courseDataToCourse } from "@/lib/api/
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSavedPlayers } from "@/hooks/useSavedPlayers";
+import { useVerifiedCourses, VerifiedCourseResult } from "@/hooks/useVerifiedCourses";
 import TeamSetupStep from "./TeamSetupStep";
 import {
   ArrowLeft,
@@ -25,6 +26,8 @@ import {
   Save,
   Star,
   Calendar,
+  ShieldCheck,
+  BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -191,6 +194,7 @@ const SetupWizard: React.FC = () => {
   const { startNewRound, savedCourses, favoriteCourses, nonFavoriteCourses, saveCourse, updateCourse, deleteCourse, toggleFavorite, isFavorite, roundHistory, deleteRound } = useApp();
   const { user, profile } = useAuth();
   const { savedPlayers, addPlayer: addSavedPlayer } = useSavedPlayers();
+  const { searchVerifiedCourses, verifyCourse, checkIfVerified, isVerifying } = useVerifiedCourses();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -209,6 +213,8 @@ const SetupWizard: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Array<{ name: string; location: string; url: string }>>([]);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+  const [verifiedResults, setVerifiedResults] = useState<VerifiedCourseResult[]>([]);
+  const [verifiedCourseNames, setVerifiedCourseNames] = useState<Set<string>>(new Set());
 
   // Tee box selection (from scanned scorecard)
   const [availableTeeBoxes, setAvailableTeeBoxes] = useState<TeeBox[]>([]);
@@ -224,6 +230,22 @@ const SetupWizard: React.FC = () => {
 
   // Step 3: Games
   const [selectedGames, setSelectedGames] = useState<GameSettings[]>([]);
+
+  // Load verified status for saved courses
+  useEffect(() => {
+    const loadVerifiedNames = async () => {
+      const allCourseNames = [...favoriteCourses, ...nonFavoriteCourses].map(c => c.name);
+      if (allCourseNames.length === 0) return;
+      
+      const verified = new Set<string>();
+      for (const name of allCourseNames) {
+        const isV = await checkIfVerified(name);
+        if (isV) verified.add(name.toLowerCase());
+      }
+      setVerifiedCourseNames(verified);
+    };
+    loadVerifiedNames();
+  }, [favoriteCourses, nonFavoriteCourses, checkIfVerified]);
 
   // Pre-populate Player 1 with the signed-in user's profile
   React.useEffect(() => {
@@ -346,6 +368,28 @@ const SetupWizard: React.FC = () => {
     setSearchResults([]);
   };
 
+  const handleSelectVerifiedCourse = (result: VerifiedCourseResult) => {
+    const courseData = result.course_data;
+    const course: Course = {
+      id: crypto.randomUUID(),
+      name: courseData.name || result.course_name,
+      location: courseData.location || result.course_location,
+      holes: courseData.holes || [],
+    };
+    setSelectedCourse(course);
+    setHoles(course.holes);
+    setCourseName(course.name);
+    setCourseLocation(course.location);
+    toast.success(`Loaded ${course.name} from verified library!`);
+  };
+
+  const handleVerifyCourse = async (course: Course) => {
+    const success = await verifyCourse(course);
+    if (success) {
+      setVerifiedCourseNames(prev => new Set([...prev, course.name.toLowerCase()]));
+    }
+  };
+
   const handleFetchCourseData = async () => {
     if (!courseName.trim()) {
       toast.error("Please enter a course name");
@@ -353,13 +397,25 @@ const SetupWizard: React.FC = () => {
     }
 
     setIsSearching(true);
-    toast.info("Searching course database...");
+    setVerifiedResults([]);
+
+    // Search verified library first (instant)
+    const verifiedMatches = await searchVerifiedCourses(courseName);
+    setVerifiedResults(verifiedMatches);
+
+    if (verifiedMatches.length > 0) {
+      toast.info(`Found ${verifiedMatches.length} verified course${verifiedMatches.length > 1 ? 's' : ''}!`);
+    } else {
+      toast.info("Searching course database...");
+    }
 
     try {
       const result = await searchCourse(courseName, courseLocation);
 
       if (!result.success) {
-        toast.error(result.error || "Failed to find course");
+        if (verifiedMatches.length === 0) {
+          toast.error(result.error || "Failed to find course");
+        }
         setIsSearching(false);
         return;
       }
@@ -375,8 +431,10 @@ const SetupWizard: React.FC = () => {
         }
       } else if (result.courses && result.courses.length > 0) {
         setSearchResults(result.courses);
-        toast.info(`Found ${result.courses.length} possible matches`);
-      } else {
+        if (verifiedMatches.length === 0) {
+          toast.info(`Found ${result.courses.length} possible matches`);
+        }
+      } else if (verifiedMatches.length === 0) {
         toast.warning("No course data found. Using default values.");
         const defaultCourse = createDefaultCourse(courseName, courseLocation);
         setSelectedCourse(defaultCourse);
@@ -384,7 +442,9 @@ const SetupWizard: React.FC = () => {
       }
     } catch (error) {
       console.error("Error fetching course:", error);
-      toast.error("Failed to fetch course data");
+      if (verifiedMatches.length === 0) {
+        toast.error("Failed to fetch course data");
+      }
     } finally {
       setIsSearching(false);
     }
@@ -811,12 +871,29 @@ const SetupWizard: React.FC = () => {
                           }}
                           className="flex-1 text-left"
                         >
-                          <div className="font-semibold">{course.name}</div>
+                          <div className="font-semibold flex items-center gap-2">
+                            {course.name}
+                            {verifiedCourseNames.has(course.name.toLowerCase()) && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                                <BadgeCheck className="w-3 h-3" /> Verified
+                              </span>
+                            )}
+                          </div>
                           <div className="text-sm text-muted-foreground flex items-center gap-1">
                             <MapPin className="w-3 h-3" />
                             {course.location || "No location"}
                           </div>
                         </button>
+                        {!verifiedCourseNames.has(course.name.toLowerCase()) && user && (
+                          <button
+                            onClick={() => handleVerifyCourse(course)}
+                            disabled={isVerifying}
+                            className="p-2 hover:bg-primary/10 rounded-full transition-colors text-muted-foreground hover:text-primary"
+                            title="Verify and share with community"
+                          >
+                            <ShieldCheck className="w-5 h-5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => toggleFavorite(course.id)}
                           className="p-2 hover:bg-muted rounded-full transition-colors"
@@ -869,12 +946,29 @@ const SetupWizard: React.FC = () => {
                         }}
                         className="flex-1 text-left"
                       >
-                        <div className="font-semibold">{course.name}</div>
+                        <div className="font-semibold flex items-center gap-2">
+                          {course.name}
+                          {verifiedCourseNames.has(course.name.toLowerCase()) && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                              <BadgeCheck className="w-3 h-3" /> Verified
+                            </span>
+                          )}
+                        </div>
                         <div className="text-sm text-muted-foreground flex items-center gap-1">
                           <MapPin className="w-3 h-3" />
                           {course.location || "No location"}
                         </div>
                       </button>
+                      {!verifiedCourseNames.has(course.name.toLowerCase()) && user && (
+                        <button
+                          onClick={() => handleVerifyCourse(course)}
+                          disabled={isVerifying}
+                          className="p-2 hover:bg-primary/10 rounded-full transition-colors text-muted-foreground hover:text-primary"
+                          title="Verify and share with community"
+                        >
+                          <ShieldCheck className="w-5 h-5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => toggleFavorite(course.id)}
                         className="p-2 hover:bg-muted rounded-full transition-colors"
@@ -1028,10 +1122,43 @@ const SetupWizard: React.FC = () => {
                 )}
               </Button>
 
-              {/* Search Results */}
+              {/* Verified Course Results */}
+              {verifiedResults.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <BadgeCheck className="w-4 h-4 text-primary" />
+                    Verified by community ({verifiedResults.length})
+                  </Label>
+                  {verifiedResults.map((result) => (
+                    <button
+                      key={result.id}
+                      onClick={() => handleSelectVerifiedCourse(result)}
+                      className="w-full p-3 rounded-lg border-2 border-primary/30 bg-primary/5 hover:border-primary/60 text-left transition-all"
+                    >
+                      <div className="flex items-center gap-2">
+                        <BadgeCheck className="w-4 h-4 text-primary flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">{result.course_name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {result.course_location || "No location"} · Par {result.total_par} · {result.total_yardage.toLocaleString()} yards
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* External Search Results */}
               {searchResults.length > 0 && (
                 <div className="space-y-2">
-                  <Label className="text-sm text-muted-foreground">Select a course ({searchResults.length} found)</Label>
+                  {verifiedResults.length > 0 && (
+                    <div className="border-t border-border pt-3" />
+                  )}
+                  <Label className="text-sm text-muted-foreground">
+                    <Globe className="w-3.5 h-3.5 inline mr-1" />
+                    External results ({searchResults.length} found)
+                  </Label>
                   {searchResults.map((result, idx) => (
                     <button
                       key={idx}
