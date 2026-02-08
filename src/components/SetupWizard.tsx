@@ -903,24 +903,43 @@ const SetupWizard: React.FC = () => {
                       </div>
                     ))}
                     {dedupedFavoriteRounds.map((round) => (
-                      <button
+                      <div
                         key={`fav-round-${round.id}`}
-                        onClick={() => {
-                          handleSelectSavedCourse(round.course);
-                          setCourseMode("search");
-                        }}
                         className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 text-left transition-all flex items-center gap-3"
                       >
-                        <div className="flex-1">
-                          <div className="font-semibold">{round.course.name}</div>
+                        <button
+                          onClick={() => {
+                            handleSelectSavedCourse(round.course);
+                            setCourseMode("search");
+                          }}
+                          className="flex-1 text-left"
+                        >
+                          <div className="font-semibold flex items-center gap-2">
+                            {round.course.name}
+                            {verifiedCourseNames.has(round.course.name.toLowerCase()) && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                                <BadgeCheck className="w-3 h-3" /> Verified
+                              </span>
+                            )}
+                          </div>
                           <div className="text-sm text-muted-foreground flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
                             {new Date(round.startTime).toLocaleDateString()} · {round.players.length} player{round.players.length !== 1 ? 's' : ''}
                             <span className="ml-1 text-xs italic text-muted-foreground/70">from round</span>
                           </div>
-                        </div>
+                        </button>
+                        {!verifiedCourseNames.has(round.course.name.toLowerCase()) && user && (
+                          <button
+                            onClick={() => handleVerifyCourse(round.course)}
+                            disabled={isVerifying}
+                            className="p-2 hover:bg-primary/10 rounded-full transition-colors text-muted-foreground hover:text-primary"
+                            title="Verify and share with community"
+                          >
+                            <ShieldCheck className="w-5 h-5" />
+                          </button>
+                        )}
                         <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
