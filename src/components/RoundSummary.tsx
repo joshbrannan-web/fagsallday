@@ -434,10 +434,10 @@ const RoundSummary: React.FC = () => {
           <Button variant="outline" onClick={() => scorecardImageRef.current?.shareImage()} className="flex-1">
             <Image className="w-4 h-4 mr-2" /> Share Scorecard
           </Button>
-          <Button variant="outline" onClick={() => navigate('/scorecard')} className="flex-1">
-            View Scorecard
-          </Button>
         </div>
+        <Button variant="outline" onClick={() => navigate('/scorecard')} className="w-full">
+          View Scorecard
+        </Button>
         {canEdit && (
           <Button variant="outline" onClick={handleLockRound} className="w-full">
             <Lock className="w-4 h-4 mr-2" /> Lock Round
