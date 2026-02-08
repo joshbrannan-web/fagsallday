@@ -1,38 +1,73 @@
 
-
-## Update "Return to Hole" Button on Scorecard Page
+## Add "Share Scorecard" Button to Round Complete Page
 
 ### What Changes
-The "Return to Hole" button at the bottom of the Scorecard page will become context-aware:
+Add a "Share Scorecard" button to the Round Summary page (`src/components/RoundSummary.tsx`) that generates and shares a PNG image of the full 18-hole scorecard -- identical to the "Share Image" button on the Scorecard page.
 
-1. **All holes complete** -- The button changes to "Round Complete" with a flag icon, and navigates to the Round Summary page (`/summary`) instead of the Active Round page.
+### Approach
+Rather than duplicating the ~200 lines of hidden scorecard markup and all the helper functions, extract the shared logic into a reusable component that both pages can use.
 
-2. **Holes remaining** -- The button stays as "Return to Hole" with a play icon, and navigates to the **last hole where a score was recorded** (current behavior, already correct).
+### Files Changed
 
-### How "All Holes Complete" Is Determined
-A hole is considered complete when **every player** in the round has a score recorded for that hole. The round is complete when all holes in the course (`currentRound.course.holes`) are complete.
+**1. New file: `src/components/ScorecardImage.tsx`**
+
+Extract the hidden scorecard container and the share handler into a standalone component:
+
+- Accept `currentRound`, `roundTotals`, and game engine helpers as props
+- Render the hidden `div` (fixed, opacity-0, 1200px wide) with the full 18-hole table using inline styles (same markup currently at lines 1290-1486 of Scorecard.tsx)
+- Expose a `ref` or imperative handle so the parent can trigger the image capture
+- Include the `handleShareImage` function that calls `toPng` from `html-to-image`, converts to blob, and uses `navigator.share` or falls back to download
+
+The component will use `React.forwardRef` with `useImperativeHandle` to expose a `shareImage()` method that parents can call.
+
+**2. Update: `src/components/Scorecard.tsx`**
+
+- Remove the hidden scorecard container JSX (lines 1290-1486)
+- Remove the `scorecardRef` and `handleShareImage` function
+- Import and render `ScorecardImage`, passing the round data
+- Wire the "Share Image" button to call the component's `shareImage()` method via ref
+
+**3. Update: `src/components/RoundSummary.tsx`**
+
+- Import `ScorecardImage` component
+- Import required game engine helpers (`calculateAggregatedHolePnL`, `calculateBanker`, score/money helpers)
+- Render the `ScorecardImage` component (hidden, same as Scorecard page)
+- Add a "Share Scorecard" button in the bottom action bar, next to the existing "Share" (text) and "View Scorecard" buttons
+- Wire the button to call `shareImage()` via ref
+- Add `Image` icon from lucide-react for the button
+
+### Button Placement
+
+The bottom action bar currently has two buttons in a row: "Share" and "View Scorecard". The new layout will be three buttons in a row:
+
+```
+[ Share ]  [ Share Scorecard ]  [ View Scorecard ]
+```
+
+All three use `variant="outline"` and `flex-1` for equal width.
 
 ### Technical Details
 
-**File: `src/components/Scorecard.tsx` (lines 1488-1502)**
+The `ScorecardImage` component needs these calculations internally (moved from Scorecard.tsx):
+- `calculateAggregatedHolePnL` for per-hole money
+- `getBankerForHole` for crown icons
+- `calculateRelativeStrokes` for stroke dots
+- `calculateTotalScore` for the total column
+- Score styling logic (birdie circles, bogey squares, etc.)
 
-Replace the current static "Return to Hole" button with conditional logic:
+The component signature:
 
 ```typescript
-// Determine if all holes are complete
-const totalHoles = currentRound.course.holes.length;
-const allHolesComplete = currentRound.course.holes.every(hole => {
-  const holeScores = currentRound.scores[hole.number];
-  if (!holeScores) return false;
-  return currentRound.players.every(p => {
-    const score = holeScores[p.id];
-    return score !== undefined && score !== null && score > 0;
-  });
-});
+export interface ScorecardImageHandle {
+  shareImage: () => Promise<void>;
+}
+
+interface ScorecardImageProps {
+  currentRound: Round;
+  roundTotals: Record<string, number>;
+}
+
+const ScorecardImage = React.forwardRef<ScorecardImageHandle, ScorecardImageProps>(...)
 ```
 
-Then in the JSX:
-- If `allHolesComplete`: render a button labeled "Round Complete" with `Flag` icon, navigating to `/summary`
-- Otherwise: render the existing "Return to Hole" button with `Play` icon, navigating to `/active` with the last scored hole
-
-No other files are affected. The logic for finding the "last hole with a score" remains unchanged.
+This keeps both Scorecard and RoundSummary pages clean while ensuring the generated image is always identical regardless of which page triggers it.
