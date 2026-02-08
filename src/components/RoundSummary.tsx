@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { formatMoney, calculatePerGameTotals, calculateSettlement } from '../services/gameEngine';
-import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin } from 'lucide-react';
+import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image } from 'lucide-react';
 import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
 
 const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>): string[] => {
   const details: string[] = [];
@@ -89,6 +90,7 @@ const RoundSummary: React.FC = () => {
   const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, number>>({});
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const scorecardImageRef = useRef<ScorecardImageHandle>(null);
   
   // Course editing state
   const [editingCourse, setEditingCourse] = useState(false);
@@ -422,10 +424,15 @@ const RoundSummary: React.FC = () => {
         </div>
       </div>
 
+      <ScorecardImage ref={scorecardImageRef} currentRound={currentRound} roundTotals={displayAmounts} />
+
       <div className="p-4 bg-card border-t border-border space-y-3">
         <div className="flex gap-3">
           <Button variant="outline" onClick={handleShare} className="flex-1">
             <Share2 className="w-4 h-4 mr-2" /> Share
+          </Button>
+          <Button variant="outline" onClick={() => scorecardImageRef.current?.shareImage()} className="flex-1">
+            <Image className="w-4 h-4 mr-2" /> Share Scorecard
           </Button>
           <Button variant="outline" onClick={() => navigate('/scorecard')} className="flex-1">
             View Scorecard

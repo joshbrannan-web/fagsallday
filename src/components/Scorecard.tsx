@@ -8,8 +8,8 @@ import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretch
 import { SixesMatchSummary } from './sixes';
 import { Button } from '@/components/ui/button';
 import GameRoundTotals from './GameRoundTotals';
+import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
 import { GameType, GameSettings, Player, HoleScores, GameData, Hole, WolfHoleData, FBOPressState, SixesPressState } from '../types';
-import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
 
 // FBO Segment Results Component
@@ -659,44 +659,7 @@ const Scorecard: React.FC = () => {
   const navigate = useNavigate();
   const { currentRound, roundTotals } = useApp();
   const [viewMode, setViewMode] = useState<'FRONT' | 'BACK'>('FRONT');
-  const scorecardRef = useRef<HTMLDivElement>(null);
-
-  const handleShareImage = async () => {
-    if (!scorecardRef.current || !currentRound) return;
-    
-    try {
-      toast.info('Generating scorecard image...');
-      
-      const dataUrl = await toPng(scorecardRef.current, {
-        quality: 0.95,
-        backgroundColor: '#ffffff',
-        pixelRatio: 2, // Higher quality for landscape viewing
-        style: { opacity: '1' }, // Force full opacity on cloned node (hidden container uses opacity-0)
-      });
-      
-      // Convert data URL to blob for sharing
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
-      const file = new File([blob], 'scorecard.png', { type: 'image/png' });
-      
-      if (navigator.share && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `${currentRound.course.name} Scorecard`,
-          files: [file],
-        });
-      } else {
-        // Fallback: download the image
-        const link = document.createElement('a');
-        link.download = `scorecard-${currentRound.course.name.replace(/\s+/g, '-')}.png`;
-        link.href = dataUrl;
-        link.click();
-        toast.success('Scorecard image downloaded!');
-      }
-    } catch (err) {
-      console.error('Share image failed:', err);
-      toast.error('Failed to generate image');
-    }
-  };
+  const scorecardImageRef = useRef<ScorecardImageHandle>(null);
 
   if (!currentRound) {
     return (
@@ -1287,206 +1250,10 @@ const Scorecard: React.FC = () => {
         )}
       </div>
 
-      {/* Hidden full 18-hole scorecard for image capture - using inline styles for html-to-image compatibility */}
-      <div 
-        ref={scorecardRef}
-        className="fixed top-0 left-0 opacity-0 pointer-events-none z-[-1]"
-        style={{ width: '1200px' }}
-        aria-hidden="true"
-      >
-        <div style={{ 
-          backgroundColor: '#ffffff', 
-          borderRadius: '12px', 
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          border: '1px solid #dfe2e7',
-          overflow: 'hidden'
-        }}>
-          {/* Header */}
-          <div style={{ 
-            backgroundColor: 'rgba(245,243,239,0.5)', 
-            padding: '12px 16px', 
-            borderBottom: '1px solid #dfe2e7' 
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <h3 style={{ fontWeight: 700, color: '#1e2530', fontSize: '18px', margin: 0 }}>
-                {currentRound.course.name}
-              </h3>
-              <p style={{ fontSize: '12px', color: '#737a85', marginTop: '4px' }}>
-                {new Date(currentRound.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </p>
-            </div>
-          </div>
-          
-          {/* Full 18-hole table */}
-          <table style={{ width: '100%', textAlign: 'center', borderCollapse: 'collapse', fontSize: '14px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f5f3ef' }}>
-                <th style={{ 
-                  padding: '12px', 
-                  textAlign: 'left', 
-                  minWidth: '100px', 
-                  backgroundColor: '#f5f3ef',
-                  borderRight: '1px solid #dfe2e7',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  color: '#737a85',
-                  textTransform: 'uppercase'
-                }}>Player</th>
-                {holes.map(h => (
-                  <th key={h.number} style={{ 
-                    padding: '8px', 
-                    minWidth: '40px', 
-                    borderRight: '1px solid rgba(223,226,231,0.5)',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    color: '#737a85',
-                    textTransform: 'uppercase'
-                  }}>
-                    {h.number}
-                    <div style={{ fontSize: '10px', color: '#737a85', fontWeight: 400, marginTop: '2px' }}>par {h.par}</div>
-                    <div style={{ fontSize: '10px', color: '#737a85', fontWeight: 400 }}>IDX {h.handicapIndex}</div>
-                  </th>
-                ))}
-                <th style={{ 
-                  padding: '8px', 
-                  minWidth: '50px', 
-                  backgroundColor: '#f5f3ef',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  color: '#737a85',
-                  textTransform: 'uppercase'
-                }}>
-                  Total
-                  <div style={{ fontSize: '10px', color: '#737a85', fontWeight: 400, marginTop: '2px' }}>
-                    par {currentRound.course.holes.reduce((sum, h) => sum + h.par, 0)}
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentRound.players.map((player, idx) => (
-                <React.Fragment key={player.id}>
-                  <tr style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : 'rgba(245,243,239,0.3)' }}>
-                    <td style={{ 
-                      padding: '12px', 
-                      textAlign: 'left', 
-                      fontWeight: 600, 
-                      backgroundColor: 'inherit',
-                      borderRight: '1px solid #dfe2e7',
-                      color: '#1e2530'
-                    }}>
-                      {player.name}
-                    </td>
-                    {holes.map(h => {
-                      const score = getPlayerScore(player.id, h.number);
-                      const diff = typeof score === 'number' ? score - h.par : 0;
-                      let hasStroke = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id] === 1;
-                      if (!hasStroke && stockton6Game) {
-                        const autoStrokes = calculateRelativeStrokes(currentRound.players, h.handicapIndex);
-                        hasStroke = autoStrokes[player.id] === 1;
-                      }
-                      const isBanker = getBankerForHole(h.number) === player.id;
-                      
-                      const getScoreStyle = (): React.CSSProperties => {
-                        const base: React.CSSProperties = {
-                          display: 'inline-block',
-                          width: '32px',
-                          height: '32px',
-                          lineHeight: '32px',
-                          fontSize: '14px',
-                          fontWeight: 700,
-                        };
-                        if (diff <= -2) return { ...base, borderRadius: '50%', backgroundColor: 'rgba(245,178,10,0.2)', color: '#f5b20a' };
-                        if (diff === -1) return { ...base, borderRadius: '50%', backgroundColor: 'rgba(34,197,94,0.2)', color: '#22c55e' };
-                        if (diff === 0) return { ...base, color: '#1e2530' };
-                        if (diff === 1) return { ...base, borderRadius: '8px', border: '2px solid #1e2530', color: '#ef4444' };
-                        // Double bogey+
-                        return { ...base, borderRadius: '8px', border: '2px solid #1e2530', outline: '2px solid #1e2530', outlineOffset: '2px', color: '#ef4444' };
-                      };
-                      
-                      return (
-                        <td key={h.number} style={{ padding: '8px', borderRight: '1px solid rgba(223,226,231,0.5)' }}>
-                          <div style={{ position: 'relative', display: 'inline-block' }}>
-                            <span style={getScoreStyle()}>
-                              {score}
-                            </span>
-                            {hasStroke && (
-                              <span style={{
-                                position: 'absolute',
-                                top: '-4px',
-                                right: '-4px',
-                                width: '12px',
-                                height: '12px',
-                                backgroundColor: '#2a9d8f',
-                                borderRadius: '50%',
-                                border: '1px solid #ffffff',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}>
-                                <span style={{ fontSize: '8px', color: '#ffffff', fontWeight: 700 }}>•</span>
-                              </span>
-                            )}
-                            {isBanker && (
-                              <Crown 
-                                style={{
-                                  position: 'absolute',
-                                  top: '-4px',
-                                  right: '-4px',
-                                  width: '12px',
-                                  height: '12px',
-                                  color: '#f5b20a'
-                                }}
-                              />
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                    <td style={{ padding: '8px', fontWeight: 700, color: '#1e2530' }}>{calculateTotalScore(player.id) || '-'}</td>
-                  </tr>
-                  <tr style={{ fontSize: '12px', backgroundColor: idx % 2 === 0 ? '#ffffff' : 'rgba(245,243,239,0.3)' }}>
-                    <td style={{ 
-                      padding: '0 12px 8px 12px', 
-                      textAlign: 'left', 
-                      color: '#737a85',
-                      backgroundColor: 'inherit',
-                      borderRight: '1px solid #dfe2e7'
-                    }}>HCP {player.courseHandicap}</td>
-                    {holes.map(h => {
-                      const money = getPlayerHoleMoney(player.id, h.number);
-                      const getMoneyColor = () => {
-                        if (money > 0) return '#22c55e';
-                        if (money < 0) return '#ef4444';
-                        return '#737a85';
-                      };
-                      return (
-                        <td key={h.number} style={{ padding: '0 8px 8px 8px', borderRight: '1px solid rgba(223,226,231,0.5)' }}>
-                          <span style={{ fontFamily: 'monospace', color: getMoneyColor() }}>
-                            {money !== 0 ? (money > 0 ? `+${money}` : money) : '-'}
-                          </span>
-                        </td>
-                      );
-                    })}
-                    <td style={{ padding: '0 8px 8px 8px' }}>
-                      <span style={{ 
-                        fontFamily: 'monospace', 
-                        fontWeight: 700, 
-                        color: (roundTotals[player.id] || 0) >= 0 ? '#22c55e' : '#ef4444'
-                      }}>
-                        ${roundTotals[player.id] || 0}
-                      </span>
-                    </td>
-                  </tr>
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <ScorecardImage ref={scorecardImageRef} currentRound={currentRound} roundTotals={roundTotals} />
 
       <div className="p-4 bg-card border-t border-border flex gap-3">
-        <Button variant="outline" onClick={handleShareImage} className="flex-1">
+        <Button variant="outline" onClick={() => scorecardImageRef.current?.shareImage()} className="flex-1">
           <Share2 className="w-4 h-4 mr-2" /> Share Image
         </Button>
         {(() => {
