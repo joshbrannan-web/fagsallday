@@ -541,6 +541,15 @@ const SetupWizard: React.FC = () => {
     setPlayers(players.map((p) => ({ ...p, tee: teeBox.name })));
 
     setCourseMode("search"); // Go to course details view
+
+    // Auto-verify scanned courses to the community library
+    if (user) {
+      verifyCourse(course).then(success => {
+        if (success) {
+          setVerifiedCourseNames(prev => new Set([...prev, course.name.toLowerCase()]));
+        }
+      });
+    }
   };
 
   const handleSaveScannedCourse = async () => {
@@ -573,6 +582,15 @@ const SetupWizard: React.FC = () => {
     await saveCourse(course);
     setSelectedCourse(course);
     toast.success("Course saved!");
+
+    // Auto-verify saved scanned courses to the community library
+    if (user) {
+      verifyCourse(course).then(success => {
+        if (success) {
+          setVerifiedCourseNames(prev => new Set([...prev, course.name.toLowerCase()]));
+        }
+      });
+    }
   };
 
   const handleAddPlayer = () => {
