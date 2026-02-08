@@ -1389,12 +1389,29 @@ const SetupWizard: React.FC = () => {
             </div>
 
             {/* Course name preview */}
-            <div className="p-4 rounded-xl bg-success/10 border border-success/20">
+            <div className="p-4 rounded-xl bg-success/10 border border-success/20 space-y-3">
               <div className="flex items-center gap-2 text-success font-semibold">
                 <Check className="w-5 h-5" />
                 Course data extracted!
               </div>
-              <p className="text-sm text-muted-foreground mt-1">{courseName}</p>
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">Course Name</Label>
+                <Input
+                  value={courseName}
+                  onChange={(e) => setCourseName(e.target.value)}
+                  placeholder="Enter course name"
+                  className="bg-background"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">Location (optional)</Label>
+                <Input
+                  value={courseLocation}
+                  onChange={(e) => setCourseLocation(e.target.value)}
+                  placeholder="e.g. City, State"
+                  className="bg-background"
+                />
+              </div>
             </div>
 
             {/* Tee Box Options */}
