@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
-import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2 } from 'lucide-react';
+import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag } from 'lucide-react';
 import { calculateAggregatedHolePnL, calculateBanker, calculateFBO } from '../services/gameEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
 import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, getSixesMode, SixesMode } from '../services/sixesEngine';
@@ -1489,16 +1489,34 @@ const Scorecard: React.FC = () => {
         <Button variant="outline" onClick={handleShareImage} className="flex-1">
           <Share2 className="w-4 h-4 mr-2" /> Share Image
         </Button>
-        <Button onClick={() => {
-          // Find the last hole with any score posted
+        {(() => {
+          const allHolesComplete = currentRound.course.holes.every(hole => {
+            const holeScores = currentRound.scores[hole.number];
+            if (!holeScores) return false;
+            return currentRound.players.every(p => {
+              const score = holeScores[p.id];
+              return score !== undefined && score !== null && score > 0;
+            });
+          });
+
+          if (allHolesComplete) {
+            return (
+              <Button onClick={() => navigate('/summary')} className="flex-1">
+                <Flag className="w-4 h-4 mr-2" /> Round Complete
+              </Button>
+            );
+          }
+
           const holesWithScores = Object.keys(currentRound.scores)
             .map(Number)
             .filter(h => Object.values(currentRound.scores[h] || {}).some(s => typeof s === 'number'));
           const lastHole = holesWithScores.length > 0 ? Math.max(...holesWithScores) : 1;
-          navigate('/active', { state: { startHole: lastHole } });
-        }} className="flex-1">
-          <Play className="w-4 h-4 mr-2" /> Return to Hole
-        </Button>
+          return (
+            <Button onClick={() => navigate('/active', { state: { startHole: lastHole } })} className="flex-1">
+              <Play className="w-4 h-4 mr-2" /> Return to Hole
+            </Button>
+          );
+        })()}
       </div>
     </div>
   );
