@@ -156,7 +156,7 @@ Important notes:
             ]
           }
         ],
-        max_tokens: 4096,
+        max_tokens: 8192,
         temperature: 0.1,
       }),
     });
@@ -175,11 +175,41 @@ Important notes:
     
     console.log('AI response received, parsing JSON...');
 
-    // Extract JSON from the response (handle markdown code blocks)
+    // Extract JSON from the response (handle markdown code blocks, including truncated ones)
     let jsonString = content;
+    // First try: complete code block
     const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) {
       jsonString = jsonMatch[1].trim();
+    } else {
+      // Fallback: opening fence without closing (truncated response)
+      const openFenceMatch = content.match(/```(?:json)?\s*([\s\S]*)/);
+      if (openFenceMatch) {
+        jsonString = openFenceMatch[1].trim();
+      }
+    }
+    
+    // If JSON is truncated (no closing brace), try to repair by closing open structures
+    if (jsonString && !jsonString.trimEnd().endsWith('}')) {
+      // Find the last complete object/array boundary and truncate there
+      const lastBrace = jsonString.lastIndexOf('}');
+      if (lastBrace > 0) {
+        // Count remaining open braces/brackets after truncation point
+        const truncated = jsonString.slice(0, lastBrace + 1);
+        let openBraces = 0;
+        let openBrackets = 0;
+        for (const ch of truncated) {
+          if (ch === '{') openBraces++;
+          if (ch === '}') openBraces--;
+          if (ch === '[') openBrackets++;
+          if (ch === ']') openBrackets--;
+        }
+        // Close any remaining open structures
+        let repaired = truncated;
+        while (openBrackets > 0) { repaired += ']'; openBrackets--; }
+        while (openBraces > 0) { repaired += '}'; openBraces--; }
+        jsonString = repaired;
+      }
     }
 
     let parsedData: ParsedScorecard;
