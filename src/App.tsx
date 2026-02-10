@@ -25,6 +25,7 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
 import { supabase } from '@/integrations/supabase/client';
 import { AppContext, AppState } from './contexts/AppContext';
+import ConnectionStatusBar from './components/ConnectionStatusBar';
 import { toast } from 'sonner';
 
 // Re-export useApp for backward compatibility
@@ -393,6 +394,7 @@ const AppContent: React.FC = () => {
 
   return (
     <AppContext.Provider value={value}>
+      <ConnectionStatusBar />
       <HashRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
