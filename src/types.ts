@@ -117,7 +117,7 @@ export interface GameSettings {
     handicapPct?: number; // e.g., 100% or 80%
     birdieTriple?: boolean; // For Banker: 3x payout on Gross Birdie (legacy)
     eagleQuintuple?: boolean; // For Banker: 5x payout on Gross Eagle (legacy)
-    birdieMultiplier?: number; // For Banker: 1 = none, 3 = triple
+    birdieMultiplier?: number; // For Banker: 1 = none, 2 = double, 3 = triple
     eagleMultiplier?: number; // For Banker: 1 = none, 3 = triple, 5 = quintuple
     fboPlayers?: string[]; // For FBO: player IDs participating in this game
     // FBO game config
