@@ -140,11 +140,6 @@ const RoundHistory: React.FC = () => {
     .filter(r => r.status === 'LOCKED' && !recentIds.has(r.id))
     .sort((a, b) => b.startTime - a.startTime);
 
-  // Favorites section
-  const favoriteRounds = roundHistory
-    .filter(r => r.isFavorite)
-    .sort((a, b) => b.startTime - a.startTime);
-
   const hasNoRounds = roundHistory.length === 0;
 
   return (
@@ -167,21 +162,7 @@ const RoundHistory: React.FC = () => {
           </div>
         ) : (
           <>
-            {favoriteRounds.length > 0 && (
-              <div className="space-y-3">
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                  <Star className="w-3.5 h-3.5 fill-brand-gold text-brand-gold" /> Favorites
-                </h2>
-                {favoriteRounds.map(round => (
-                  <RoundCard
-                    key={`fav-${round.id}`}
-                    round={round}
-                    onView={handleViewRound}
-                    onToggleFavorite={handleToggleFavorite}
-                  />
-                ))}
-              </div>
-            )}
+
 
             {recentRounds.length > 0 && (
               <div className="space-y-3">
