@@ -9,6 +9,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Rate limiting: 10 password resets per minute per admin
+const rateLimits = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const windowMs = 60_000;
+  const maxRequests = 10;
+  const limit = rateLimits.get(userId);
+  if (!limit || now > limit.resetAt) {
+    rateLimits.set(userId, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (limit.count >= maxRequests) return false;
+  limit.count++;
+  return true;
+}
+
 interface ResetPasswordRequest {
   userId: string;
   userEmail: string;
@@ -16,7 +32,6 @@ interface ResetPasswordRequest {
 }
 
 serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -68,6 +83,14 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "Forbidden: Admin access required" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Rate limit check
+    if (!checkRateLimit(user.id)) {
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again later." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
