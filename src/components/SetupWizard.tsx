@@ -2236,6 +2236,15 @@ const SetupWizard: React.FC = () => {
                                   </Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="2" id={`birdie-double-${selectedGame.id}`} />
+                                  <Label
+                                    htmlFor={`birdie-double-${selectedGame.id}`}
+                                    className="font-normal cursor-pointer"
+                                  >
+                                    Double (2x)
+                                  </Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
                                   <RadioGroupItem value="3" id={`birdie-triple-${selectedGame.id}`} />
                                   <Label
                                     htmlFor={`birdie-triple-${selectedGame.id}`}
