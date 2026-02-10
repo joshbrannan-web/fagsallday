@@ -1,0 +1,27 @@
+{
+  "name": "Golf Betting App",
+  "short_name": "GolfBets",
+  "display": "standalone",
+  "start_url": "/",
+  "theme_color": "#339E8F",
+  "background_color": "#FAF8F5",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "192x192",
+      "type": "image/x-icon",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "512x512",
+      "type": "image/x-icon",
+      "purpose": "any maskable"
+    }
+  ]
+}

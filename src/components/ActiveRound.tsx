@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useWakeLock } from '@/hooks/useWakeLock';
 import { offlineStorage } from '@/services/offlineStorage';
 import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
 import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, calculateFBOMatchupHoleWinner, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, getFBOMatchupDormieStatus, getFBOMatchupOverallDormieStatus, calculatePerGameTotals } from '../services/gameEngine';
@@ -29,8 +30,16 @@ const ActiveRound: React.FC = () => {
   const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(true);
   
   const isOnline = useOnlineStatus();
+  const { isActive: wakeLockActive } = useWakeLock(true);
   const pendingSyncCount = offlineStorage.getPendingSyncCount();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Refresh/close guard - warn user before leaving during active round
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   // All hooks must be called before any early returns!
   // Bloody Banker "Down the Most" logic for holes 16, 17, 18
@@ -529,8 +538,11 @@ const ActiveRound: React.FC = () => {
               <span>IDX {courseHole?.handicapIndex}</span>
             </div>
           </div>
-          {/* Offline/Sync Status Indicator */}
-          <div className="absolute right-0">
+          {/* Offline/Sync/WakeLock Status Indicators */}
+          <div className="absolute right-0 flex items-center gap-1.5">
+            {wakeLockActive && (
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Screen staying on" />
+            )}
             {!isOnline ? (
               <div className="bg-warning/20 text-warning px-2 py-1 rounded-full text-xs flex items-center gap-1">
                 <WifiOff className="w-3 h-3" />
