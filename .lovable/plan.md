@@ -1,20 +1,18 @@
 
 
-## Remove Favorites Section from Past Rounds
+## Add Birdie Double (2x) Option to Banker Games
 
 ### Summary
-Remove the "Favorites" category from the Past Rounds page. The star/favorite functionality will remain on round cards, but favorites will only be surfaced in the Setup Wizard (Step 1) for quick course selection.
+Add a "Double (2x)" option to the Birdie Multiplier radio group in the Banker/Bloody Banker game setup. No calculation engine changes are needed -- the engine already supports any numeric multiplier value.
 
 ### Changes
 
-**File: `src/components/RoundHistory.tsx`**
+**File: `src/components/SetupWizard.tsx`**
+- Add a new RadioGroupItem with `value="2"` and label "Double (2x)" between the existing "None" (1) and "Triple (3x)" (3) options in the Birdie Multiplier radio group
 
-1. Remove the `favoriteRounds` filtered array (lines ~128-130)
-2. Remove the entire Favorites rendering block (the `{favoriteRounds.length > 0 && ...}` JSX section)
-3. Keep the star toggle button on individual round cards so users can still mark/unmark favorites from this page
+**File: `src/types.ts`**
+- Update the comment on `birdieMultiplier` from `// 1 = none, 3 = triple` to `// 1 = none, 2 = double, 3 = triple`
 
-### What Stays the Same
-- Star icon on each round card still toggles favorite status
-- Favorites continue to appear in the Setup Wizard Step 1 for quick course selection
-- Recent Rounds and Completed Rounds sections remain unchanged
+### Why No Engine Changes Are Needed
+The game engine (`gameEngine.ts`) already uses the numeric `birdieMultiplier` value directly in its calculations (e.g., `bankerBaseMultiplier *= birdieMultiplier`). Setting it to `2` will automatically apply a 2x payout on birdies. The Round Summary display also already reads the numeric value dynamically (`Birdie: 2x`).
 
