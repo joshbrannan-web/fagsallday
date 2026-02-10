@@ -1,43 +1,20 @@
 
 
-## Add PWA Home Screen Icons
+## Remove Favorites Section from Past Rounds
 
-### What We'll Do
-Use the uploaded logo image as the app's home screen icon by copying it into the project and updating the manifest.
+### Summary
+Remove the "Favorites" category from the Past Rounds page. The star/favorite functionality will remain on round cards, but favorites will only be surfaced in the Setup Wizard (Step 1) for quick course selection.
 
-### Steps
+### Changes
 
-1. **Copy the uploaded image** to `public/icon-512.png` (it will serve as the base icon)
-2. **Copy it again** to `public/icon-192.png` (browsers will downscale automatically from a larger image, so using the same file at both sizes works fine)
-3. **Update `public/manifest.json`** to reference the new PNG icons instead of `favicon.ico`:
-   - 192x192 icon with `purpose: "any maskable"`
-   - 512x512 icon with `purpose: "any maskable"`
-4. **Update `index.html`** to add an `apple-touch-icon` link pointing to the 192px icon (improves iOS home screen appearance)
+**File: `src/components/RoundHistory.tsx`**
 
-### Technical Details
+1. Remove the `favoriteRounds` filtered array (lines ~128-130)
+2. Remove the entire Favorites rendering block (the `{favoriteRounds.length > 0 && ...}` JSX section)
+3. Keep the star toggle button on individual round cards so users can still mark/unmark favorites from this page
 
-**manifest.json icon entries:**
-```json
-"icons": [
-  {
-    "src": "/icon-192.png",
-    "sizes": "192x192",
-    "type": "image/png",
-    "purpose": "any maskable"
-  },
-  {
-    "src": "/icon-512.png",
-    "sizes": "512x512",
-    "type": "image/png",
-    "purpose": "any maskable"
-  }
-]
-```
+### What Stays the Same
+- Star icon on each round card still toggles favorite status
+- Favorites continue to appear in the Setup Wizard Step 1 for quick course selection
+- Recent Rounds and Completed Rounds sections remain unchanged
 
-**index.html addition:**
-```html
-<link rel="apple-touch-icon" href="/icon-192.png">
-```
-
-### Result
-When users "Add to Home Screen" on Android or iOS, they will see this golf superheroes logo as the app icon instead of the low-quality favicon.
