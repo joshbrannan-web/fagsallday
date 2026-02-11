@@ -1,59 +1,52 @@
 
 
-## Block Next-Hole Navigation Until All Scores Are Entered
+## Auto Sign-Out After 24 Hours (Unless Round Active)
 
 ### What changes
 
-When a user taps the "next hole" arrow (or the finish flag on hole 18), the app will check if every player has a score entered for the current hole. If not, it will:
-1. Show a toast message: "Enter scores for all players before moving on"
-2. Scroll to the first player card that still needs a score
+The app will automatically sign the user out if their session has been active for more than 24 hours, ensuring they always reload the latest app version. If an active round is in progress, the sign-out is deferred until the round completes.
 
-Going to the **previous** hole will remain unrestricted.
+### How it works
+
+1. On login, store the sign-in timestamp in localStorage (e.g., `fg_session_start`)
+2. A `useEffect` in `AuthProvider` runs an interval (every 60 seconds) that checks:
+   - Is the session older than 24 hours?
+   - Is there currently an active round? (check `offlineStorage.getCachedRound()` for an ACTIVE status)
+3. If session is expired AND no active round: call `signOut()` and show a toast ("Session expired -- please sign in again"), then clear the timestamp
+4. If session is expired BUT a round is active: skip sign-out (the user finishes their round uninterrupted)
+5. After the round finishes, the next interval tick will catch the expired session and sign out
 
 ### Technical details
 
-**File: `src/components/ActiveRound.tsx`**
+**File: `src/hooks/useAuth.tsx`**
 
-1. **Add a ref map for player cards** -- Create a `playerCardRefs` object (using `useRef<Record<string, HTMLDivElement | null>>`) to track each player's score card DOM element. Attach a ref to each player card div inside the `currentRound.players.map(...)` block (around line 1610).
+1. **Store login timestamp** -- In the `onAuthStateChange` callback, when `event === 'SIGNED_IN'`, write `Date.now()` to `localStorage` under key `fg_session_start`. On `SIGNED_OUT`, remove the key.
 
-2. **Create a `canAdvanceHole()` helper function** -- Defined inside the component, this checks if all players have a valid numeric score for `activeHole`:
+2. **Add session expiry check** -- Inside the `useEffect` that sets up auth, add a `setInterval` (60-second tick):
    ```typescript
-   const canAdvanceHole = (): boolean => {
-     return currentRound.players.every(p => {
-       const score = currentRound.scores[activeHole]?.[p.id];
-       return typeof score === 'number' && score > 0;
-     });
-   };
+   const SESSION_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+
+   const intervalId = setInterval(() => {
+     const sessionStart = localStorage.getItem('fg_session_start');
+     if (!sessionStart) return;
+
+     const elapsed = Date.now() - Number(sessionStart);
+     if (elapsed < SESSION_MAX_AGE) return;
+
+     // Check for active round
+     const cached = offlineStorage.getCachedRound();
+     if (cached && cached.status === 'ACTIVE') return; // defer
+
+     // Expired and no active round -- sign out
+     supabase.auth.signOut();
+     localStorage.removeItem('fg_session_start');
+     toast.info('Session expired. Please sign in again to get the latest updates.');
+   }, 60_000);
    ```
+   Return cleanup: `clearInterval(intervalId)` in the effect's teardown.
 
-3. **Create a `handleNextHole()` function** -- Replaces the inline `setActiveHole(h => h + 1)` and the `navigate('/summary')` calls:
-   ```typescript
-   const handleNextHole = () => {
-     if (!canAdvanceHole()) {
-       // Find first player missing a score
-       const missingPlayer = currentRound.players.find(p => {
-         const score = currentRound.scores[activeHole]?.[p.id];
-         return !(typeof score === 'number' && score > 0);
-       });
-       if (missingPlayer) {
-         playerCardRefs.current[missingPlayer.id]?.scrollIntoView({ 
-           behavior: 'smooth', block: 'center' 
-         });
-       }
-       toast.error('Enter scores for all players before moving on');
-       return;
-     }
-     if (activeHole === 18) {
-       navigate('/summary');
-     } else {
-       setActiveHole(h => h + 1);
-     }
-   };
-   ```
-
-4. **Update navigation buttons (lines 607-621)** -- Replace both the hole-18 finish button's `onClick` and the next-hole button's `onClick` to call `handleNextHole()` instead of their current inline handlers.
-
-5. **Add `ref` to player card divs (around line 1610)** -- Attach `ref={el => { playerCardRefs.current[p.id] = el; }}` to each player's outermost card div.
+3. **Import dependencies** -- Add imports for `offlineStorage` and `toast` (sonner) at the top of the file.
 
 ### Files to modify
-- `src/components/ActiveRound.tsx` (single file change)
+- `src/hooks/useAuth.tsx` (single file change)
+
