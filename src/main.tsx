@@ -1,5 +1,5 @@
-import React from "react";
-import { createRoot } from "react-dom/client";
+import * as React from "react";
+import * as ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
@@ -12,5 +12,6 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+const root = ReactDOM.createRoot(document.getElementById("root")!);
+root.render(React.createElement(React.StrictMode, null, React.createElement(App)));
 
