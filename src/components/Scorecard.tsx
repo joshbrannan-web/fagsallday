@@ -1274,12 +1274,16 @@ const Scorecard: React.FC = () => {
             );
           }
 
-          const holesWithScores = Object.keys(currentRound.scores)
-            .map(Number)
-            .filter(h => Object.values(currentRound.scores[h] || {}).some(s => typeof s === 'number'));
-          const lastHole = holesWithScores.length > 0 ? Math.max(...holesWithScores) : 1;
+          const firstIncompleteHole = currentRound.course.holes.find(hole => {
+            const holeScores = currentRound.scores[hole.number];
+            if (!holeScores) return true;
+            return !currentRound.players.every(p => {
+              const score = holeScores[p.id];
+              return typeof score === 'number' && score > 0;
+            });
+          })?.number || 1;
           return (
-            <Button onClick={() => navigate('/active', { state: { startHole: lastHole } })} className="flex-1">
+            <Button onClick={() => navigate('/active', { state: { startHole: firstIncompleteHole } })} className="flex-1">
               <Play className="w-4 h-4 mr-2" /> Return to Hole
             </Button>
           );
