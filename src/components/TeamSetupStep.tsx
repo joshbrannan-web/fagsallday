@@ -43,6 +43,15 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
     sixesGame?.config?.sixes?.mode ?? 'sixes'
   );
 
+  // Team Banker state
+  const teamBankerGame = selectedGames.find(g => g.type === GameType.TEAM_BANKER);
+  const [tbTeamA, setTbTeamA] = useState<string[]>([]);
+  const [tbTeamB, setTbTeamB] = useState<string[]>([]);
+  const [tbUnitValue, setTbUnitValue] = useState(teamBankerGame?.unitStake ?? 3);
+  const [tbUseSecondBall, setTbUseSecondBall] = useState(
+    teamBankerGame?.config?.teamBanker?.useSecondBallTiebreaker ?? false
+  );
+
   // Auto-assign teams if 4 players
   useEffect(() => {
     const playerIds = players.map(p => p.id);
@@ -55,8 +64,12 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
         setSixesTeamA([playerIds[0], playerIds[1]]);
         setSixesTeamB([playerIds[2], playerIds[3]]);
       }
+      if (teamBankerGame && tbTeamA.length === 0 && tbTeamB.length === 0) {
+        setTbTeamA([playerIds[0], playerIds[1]]);
+        setTbTeamB([playerIds[2], playerIds[3]]);
+      }
     }
-  }, [players, stockton6Game, sixesGame]);
+  }, [players, stockton6Game, sixesGame, teamBankerGame]);
 
   const handlePlayerToggle = (
     playerId: string,
@@ -96,12 +109,9 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
   };
 
   const canConfirm = () => {
-    if (stockton6Game && (stockton6TeamA.length !== 2 || stockton6TeamB.length !== 2)) {
-      return false;
-    }
-    if (sixesGame && (sixesTeamA.length !== 2 || sixesTeamB.length !== 2)) {
-      return false;
-    }
+    if (stockton6Game && (stockton6TeamA.length !== 2 || stockton6TeamB.length !== 2)) return false;
+    if (sixesGame && (sixesTeamA.length !== 2 || sixesTeamB.length !== 2)) return false;
+    if (teamBankerGame && (tbTeamA.length !== 2 || tbTeamB.length !== 2)) return false;
     return true;
   };
 
@@ -122,7 +132,7 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
 
     if (sixesGame && sixesTeamA.length === 2 && sixesTeamB.length === 2) {
       initialGameData[sixesGame.id] = {
-        1: {  // Hole 1 is the stretch start hole
+        1: {
           _META_TEAM_A: sixesTeamA,
           _META_TEAM_B: sixesTeamB,
           _META_UNIT_VALUE: sixesUnitValue,
@@ -131,6 +141,23 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
           _META_ALLOW_PRESSES: sixesAllowPresses,
           _META_HANDICAP_MODE: sixesGame.config?.handicapMode ?? 'absolute',
           _META_MODE: sixesMode,
+          _META_LOCKED: true,
+        }
+      };
+    }
+
+    if (teamBankerGame && tbTeamA.length === 2 && tbTeamB.length === 2) {
+      initialGameData[teamBankerGame.id] = {
+        1: {
+          _META_TEAM_A: tbTeamA,
+          _META_TEAM_B: tbTeamB,
+          _META_UNIT_VALUE: tbUnitValue,
+          _META_USE_HANDICAPS: teamBankerGame.config?.useHandicaps ?? true,
+          _META_USE_SECOND_BALL: tbUseSecondBall,
+          _META_HANDICAP_MODE: teamBankerGame.config?.handicapMode ?? 'relative',
+          _META_BIRDIE_MULT: teamBankerGame.config?.birdieMultiplier ?? 3,
+          _META_EAGLE_MULT: teamBankerGame.config?.eagleMultiplier ?? 5,
+          _META_MODE: teamBankerGame.config?.teamBanker?.mode ?? 'sixes',
           _META_LOCKED: true,
         }
       };
@@ -397,6 +424,38 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
               checked={sixesAllowPresses}
               onCheckedChange={setSixesAllowPresses}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Team Banker Team Setup */}
+      {teamBankerGame && renderTeamSection(
+        '🏦👥',
+        "Team Banker",
+        tbTeamA,
+        setTbTeamA,
+        tbTeamB,
+        setTbTeamB,
+        <div className="space-y-3 pt-2 border-t border-border">
+          <div className="bg-muted rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">Unit Stake</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setTbUnitValue(v => Math.max(1, v - 1))}
+                  className="bg-card border border-border w-8 h-8 rounded-lg text-sm font-bold">-</button>
+                <span className="text-xl font-bold text-foreground min-w-[50px] text-center">${tbUnitValue}</span>
+                <button onClick={() => setTbUnitValue(v => v + 1)}
+                  className="bg-card border border-border w-8 h-8 rounded-lg text-sm font-bold">+</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-xl">
+            <div>
+              <Label className="text-sm font-medium">2nd Ball Tiebreaker</Label>
+              <p className="text-xs text-muted-foreground">If 1st balls tie, compare 2nd balls</p>
+            </div>
+            <Switch checked={tbUseSecondBall} onCheckedChange={setTbUseSecondBall} />
           </div>
         </div>
       )}

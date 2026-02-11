@@ -33,7 +33,8 @@ export enum GameType {
   BLOODY_BANKER = 'BLOODY_BANKER',
   FBO = 'FBO',
   STOCKTON_6 = 'STOCKTON_6',
-  SIXES = 'SIXES'
+  SIXES = 'SIXES',
+  TEAM_BANKER = 'TEAM_BANKER'
 }
 
 // Wolf game types
@@ -138,6 +139,11 @@ export interface GameSettings {
     // Wolf game config
     wolf?: {
       teesFirst: boolean; // true = Wolf tees first, false = Wolf tees last
+    };
+    // Team Banker game config
+    teamBanker?: {
+      mode: 'eighteen' | 'sixes' | 'threes'; // team rotation frequency
+      useSecondBallTiebreaker: boolean;
     };
     // 6's game config
     sixes?: {

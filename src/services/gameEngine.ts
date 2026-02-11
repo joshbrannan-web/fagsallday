@@ -1,6 +1,7 @@
 import { Course, GameSettings, GameType, Player, Round, GameResult, WolfHoleData, FBOPressState } from "../types";
 import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
+import { calculateTeamBanker } from "./teamBankerEngine";
 
 // --- FBO Stroke Calculation (supports both Absolute and Relative modes) ---
 
@@ -1647,6 +1648,9 @@ export const calculatePerGameTotals = (round: Round): {
         break;
       case GameType.SIXES:
         result = calculateSixes(round, game);
+        break;
+      case GameType.TEAM_BANKER:
+        result = calculateTeamBanker(round, game);
         break;
       default:
         return;

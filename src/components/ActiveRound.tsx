@@ -24,6 +24,8 @@ import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './st
 import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRelativeStrokes } from '../services/stockton6Engine';
 import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
 import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses, getSixesMode, getStretchStartHole, SixesMode } from '../services/sixesEngine';
+import { TeamBankerTeamSetup } from './teamBanker';
+import { isTeamBankerStretchStartHole, getTeamBankerTeamAssignment, getTeamBankerStretchForHole, getTeamBankerMode, getTeamBankerStretchStartHole as getTBStretchStartHole } from '../services/teamBankerEngine';
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
@@ -142,8 +144,20 @@ const ActiveRound: React.FC = () => {
     return !teamAssignment;
   }, [currentRound, activeHole]);
 
+  // Team Banker: Check if we need to show team setup
+  const teamBankerNeedsSetup = useMemo(() => {
+    if (!currentRound) return false;
+    const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
+    if (!tbGame) return false;
+    const mode = getTeamBankerMode(currentRound.gameData, tbGame.id);
+    if (!isTeamBankerStretchStartHole(activeHole, mode)) return false;
+    const stretch = getTeamBankerStretchForHole(activeHole, mode);
+    const assignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, stretch, mode);
+    return !assignment;
+  }, [currentRound, activeHole]);
 
-  // Get which team a player is on for the current hole (6's or Stockton 6's)
+
+  // Get which team a player is on for the current hole (6's, Stockton 6's, or Team Banker)
   const getPlayerTeamColor = (playerId: string): 'A' | 'B' | null => {
     if (!currentRound) return null;
     
@@ -167,6 +181,18 @@ const ActiveRound: React.FC = () => {
       if (teamAssignment) {
         if (teamAssignment.teamA.includes(playerId)) return 'A';
         if (teamAssignment.teamB.includes(playerId)) return 'B';
+      }
+    }
+    
+    // Then check Team Banker
+    const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
+    if (tbGame) {
+      const mode = getTeamBankerMode(currentRound.gameData, tbGame.id);
+      const stretch = getTeamBankerStretchForHole(activeHole, mode);
+      const assignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, stretch, mode);
+      if (assignment) {
+        if (assignment.teamA.includes(playerId)) return 'A';
+        if (assignment.teamB.includes(playerId)) return 'B';
       }
     }
     
