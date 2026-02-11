@@ -623,7 +623,8 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
       // For Bloody Banker on holes 16, 17, 18: custom stake becomes the BASE BET
       // Formula: Base Bet × Banker Multiplier (Double All) × Player Multiplier = Final Bet
       let payout: number;
-      if (game.type === GameType.BLOODY_BANKER && h >= 16 && h <= 18) {
+      const isBloodyActive = game.type === GameType.BLOODY_BANKER || (round.gameData?.[game.id]?.[0]?.['_META_BLOODY_ACTIVATED'] === true);
+      if (isBloodyActive && h >= 16 && h <= 18) {
         const customStake = holeBankerData[`_STAKE_${p.id}`];
         if (customStake !== undefined && customStake > 0) {
           // Custom stake is the new base bet
@@ -1764,7 +1765,8 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
             // For Bloody Banker on holes 16, 17, 18: custom stake becomes the BASE BET
             // Formula: Base Bet × Banker Multiplier (Double All) × Player Multiplier = Final Bet
             let betAmount: number;
-            if (game.type === GameType.BLOODY_BANKER && holeNumber >= 16 && holeNumber <= 18) {
+            const isBloodyActive = game.type === GameType.BLOODY_BANKER || (round.gameData?.[game.id]?.[0]?.['_META_BLOODY_ACTIVATED'] === true);
+            if (isBloodyActive && holeNumber >= 16 && holeNumber <= 18) {
               const customStake = holeData[`_STAKE_${player.id}`];
               if (customStake !== undefined && customStake > 0) {
                 // Custom stake is the new base bet
