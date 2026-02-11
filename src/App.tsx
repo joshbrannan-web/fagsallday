@@ -28,8 +28,7 @@ import { AppContext, AppState } from './contexts/AppContext';
 import ConnectionStatusBar from './components/ConnectionStatusBar';
 import { toast } from 'sonner';
 
-// Re-export useApp for backward compatibility
-export { useApp } from './contexts/AppContext';
+// useApp is exported from './contexts/AppContext' - import it from there directly
 
 const queryClient = new QueryClient();
 

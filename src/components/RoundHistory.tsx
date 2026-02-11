@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { ArrowLeft, Calendar, MapPin, History, Trash2, PlayCircle, Lock, Star } from 'lucide-react';
 import { calculateRoundTotals, formatMoney } from '../services/gameEngine';
 

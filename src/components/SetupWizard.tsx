@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useApp } from "../App";
+import { useApp } from "../contexts/AppContext";
 import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from "../types";
 import { calculateCourseHandicap } from "../services/gameEngine";
 import { searchCourse, fetchCourseDetails, courseDataToCourse } from "@/lib/api/courseSearch";

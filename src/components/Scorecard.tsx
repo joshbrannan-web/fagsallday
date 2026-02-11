@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag } from 'lucide-react';
 import { calculateAggregatedHolePnL, calculateBanker, calculateFBO } from '../services/gameEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
