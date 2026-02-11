@@ -1,4 +1,4 @@
-const CACHE_NAME = 'golf-app-v1';
+const CACHE_NAME = 'golf-app-v2';
 const PRECACHE_URLS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
@@ -22,28 +22,41 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only cache same-origin, non-API requests
+  const url = new URL(event.request.url);
+
+  // Skip non-GET requests
+  if (event.request.method !== 'GET') return;
+
+  // Skip external origins entirely
+  if (url.origin !== self.location.origin) return;
+
+  // Skip Supabase API paths
   if (
-    event.request.url.startsWith(self.location.origin) &&
-    !event.request.url.includes('/rest/') &&
-    !event.request.url.includes('/auth/') &&
-    !event.request.url.includes('/functions/')
-  ) {
-    event.respondWith(
-      caches.match(event.request).then(cached => {
-        return cached || fetch(event.request).then(response => {
-          if (response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+    url.pathname.includes('/rest/') ||
+    url.pathname.includes('/auth/') ||
+    url.pathname.includes('/functions/')
+  ) return;
+
+  // Stale-while-revalidate for same-origin assets
+  event.respondWith(
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.match(event.request).then(cachedResponse => {
+        const fetchPromise = fetch(event.request).then(networkResponse => {
+          if (networkResponse.ok) {
+            cache.put(event.request, networkResponse.clone());
           }
-          return response;
+          return networkResponse;
+        }).catch(() => {
+          // Network failed — if navigating, serve index.html from cache
+          if (event.request.mode === 'navigate') {
+            return cache.match('/index.html');
+          }
+          return undefined;
         });
-      }).catch(() => {
-        // If both cache and network fail, return the cached index for navigation requests
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
-      })
-    );
-  }
+
+        // Return cached version immediately, or wait for network
+        return cachedResponse || fetchPromise;
+      });
+    })
+  );
 });
