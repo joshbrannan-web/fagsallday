@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { formatMoney, calculatePerGameTotals, calculateSettlement } from '../services/gameEngine';
 import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image } from 'lucide-react';
 import { GameSettings, GameType } from '@/types';
