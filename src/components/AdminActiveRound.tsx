@@ -17,7 +17,11 @@ const AdminActiveRound: React.FC = () => {
   const bloodyBankerDownPlayer = useMemo(() => {
     if (!currentRound) return null;
     
-    const bloodyBankerGames = currentRound.games.filter(g => g.type === GameType.BLOODY_BANKER);
+    // Include both explicit Bloody Banker games AND regular Banker games with activation flag
+    const bloodyBankerGames = currentRound.games.filter(g => 
+      g.type === GameType.BLOODY_BANKER || 
+      (g.type === GameType.BANKER && currentRound.gameData?.[g.id]?.[0]?.['_META_BLOODY_ACTIVATED'] === true)
+    );
     if (bloodyBankerGames.length === 0) return null;
     
     if (activeHole < 16 || activeHole > 18) return null;

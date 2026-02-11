@@ -2,6 +2,16 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { offlineStorage } from '@/services/offlineStorage';
@@ -42,11 +52,33 @@ const ActiveRound: React.FC = () => {
   }, []);
 
   // All hooks must be called before any early returns!
+  // State for Bloody Banker activation dialog
+  const [showBloodyActivateDialog, setShowBloodyActivateDialog] = useState<string | null>(null); // gameId or null
+
+  // Check if any regular Banker game needs the activation prompt at hole 16
+  useEffect(() => {
+    if (!currentRound || activeHole !== 16) return;
+    
+    const regularBankerGames = currentRound.games.filter(g => g.type === GameType.BANKER);
+    for (const game of regularBankerGames) {
+      const alreadyChosen = currentRound.gameData?.[game.id]?.[0]?.['_META_BLOODY_ACTIVATED'];
+      if (alreadyChosen === undefined || alreadyChosen === null) {
+        // Haven't made a choice yet — show dialog
+        setShowBloodyActivateDialog(game.id);
+        return;
+      }
+    }
+  }, [currentRound, activeHole]);
+
   // Bloody Banker "Down the Most" logic for holes 16, 17, 18
   const bloodyBankerDownPlayer = useMemo(() => {
     if (!currentRound) return null;
     
-    const bloodyBankerGames = currentRound.games.filter(g => g.type === GameType.BLOODY_BANKER);
+    // Include both explicit Bloody Banker games AND regular Banker games with activation flag
+    const bloodyBankerGames = currentRound.games.filter(g => 
+      g.type === GameType.BLOODY_BANKER || 
+      (g.type === GameType.BANKER && currentRound.gameData?.[g.id]?.[0]?.['_META_BLOODY_ACTIVATED'] === true)
+    );
     if (bloodyBankerGames.length === 0) return null;
     
     // Check if current hole is 16, 17, or 18
@@ -1974,6 +2006,37 @@ const ActiveRound: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Bloody Banker Activation Dialog */}
+      <AlertDialog open={!!showBloodyActivateDialog} onOpenChange={(open) => { if (!open) setShowBloodyActivateDialog(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>🩸 Activate Bloody Banker?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You've reached hole 16! Want to activate Bloody Banker rules for holes 16, 17, and 18? 
+              The player who is down the most will get to set the stakes for the remaining holes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              if (showBloodyActivateDialog) {
+                updateGameData(showBloodyActivateDialog, 0, '_META_BLOODY_ACTIVATED', false);
+              }
+              setShowBloodyActivateDialog(null);
+            }}>
+              No, Keep Standard
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (showBloodyActivateDialog) {
+                updateGameData(showBloodyActivateDialog, 0, '_META_BLOODY_ACTIVATED', true);
+              }
+              setShowBloodyActivateDialog(null);
+            }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes, Go Bloody!
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
