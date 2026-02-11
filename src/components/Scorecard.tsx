@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag } from 'lucide-react';
 import { calculateAggregatedHolePnL, calculateBanker, calculateFBO } from '../services/gameEngine';
+import { calculateTeamBanker } from '../services/teamBankerEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
 import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, getSixesMode, SixesMode } from '../services/sixesEngine';
 import { SixesMatchSummary } from './sixes';
@@ -1243,6 +1244,23 @@ const Scorecard: React.FC = () => {
             />
           </>
         )}
+
+        {/* Team Banker Round Totals */}
+        {currentRound.games
+          .filter(g => g.type === GameType.TEAM_BANKER)
+          .map(game => {
+            const result = calculateTeamBanker(currentRound, game);
+            return (
+              <GameRoundTotals
+                key={game.id}
+                gameName="Team Banker"
+                playerResults={result.playerResults}
+                players={currentRound.players}
+                icon={<span className="text-lg">👥🏦</span>}
+                accentColor="primary"
+              />
+            );
+          })}
 
         {/* 6's Match Play Section */}
         {sixesGame && (
