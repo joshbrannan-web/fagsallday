@@ -157,6 +157,16 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     maxPlayers: 4,
     config: { useHandicaps: true, handicapMode: 'absolute', sixes: { useSecondBallTiebreaker: false, mode: 'sixes' } },
   },
+  {
+    type: GameType.TEAM_BANKER,
+    name: "Team Banker",
+    description: "2v2 team game: all players pick multipliers, team with best net score wins.",
+    icon: "🏦👥",
+    defaultUnitStake: 3,
+    minPlayers: 4,
+    maxPlayers: 4,
+    config: { useHandicaps: true, handicapMode: 'relative', birdieMultiplier: 3, eagleMultiplier: 5, teamBanker: { mode: 'sixes', useSecondBallTiebreaker: false } },
+  },
 ];
 
 // Default 18 holes
@@ -706,7 +716,7 @@ const SetupWizard: React.FC = () => {
 
   // Check if any selected game requires team setup
   const hasTeamGame = selectedGames.some(
-    g => g.type === GameType.SIXES || g.type === GameType.STOCKTON_6
+    g => g.type === GameType.SIXES || g.type === GameType.STOCKTON_6 || g.type === GameType.TEAM_BANKER
   );
 
   const handleNext = () => {
@@ -2209,7 +2219,7 @@ const SetupWizard: React.FC = () => {
                           </div>
                         )}
 
-                        {(game.type === GameType.BANKER || game.type === GameType.BLOODY_BANKER) && (
+                        {(game.type === GameType.BANKER || game.type === GameType.BLOODY_BANKER || game.type === GameType.TEAM_BANKER) && (
                           <div className="space-y-4">
                             <div className="space-y-2">
                               <Label className="text-sm font-medium">Birdie Multiplier</Label>
@@ -2298,8 +2308,62 @@ const SetupWizard: React.FC = () => {
                                   </Label>
                                 </div>
                               </RadioGroup>
-                            </div>
                           </div>
+
+                          {/* Team Banker-specific: Rotation Mode + 2nd Ball Tiebreaker */}
+                          {game.type === GameType.TEAM_BANKER && (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Rotation Mode</Label>
+                                <RadioGroup
+                                  value={selectedGame.config.teamBanker?.mode || 'sixes'}
+                                  onValueChange={(value: 'eighteen' | 'sixes' | 'threes') => {
+                                    setSelectedGames(
+                                      selectedGames.map((g) =>
+                                        g.id === selectedGame.id
+                                          ? { ...g, config: { ...g.config, teamBanker: { ...g.config.teamBanker!, mode: value, useSecondBallTiebreaker: g.config.teamBanker?.useSecondBallTiebreaker ?? false } } }
+                                          : g,
+                                      ),
+                                    );
+                                  }}
+                                  className="flex gap-3"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="eighteen" id={`tb-mode-18-${selectedGame.id}`} />
+                                    <Label htmlFor={`tb-mode-18-${selectedGame.id}`} className="font-normal cursor-pointer">18 Holes</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="sixes" id={`tb-mode-6-${selectedGame.id}`} />
+                                    <Label htmlFor={`tb-mode-6-${selectedGame.id}`} className="font-normal cursor-pointer">6's</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="threes" id={`tb-mode-3-${selectedGame.id}`} />
+                                    <Label htmlFor={`tb-mode-3-${selectedGame.id}`} className="font-normal cursor-pointer">3's</Label>
+                                  </div>
+                                </RadioGroup>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                                <div>
+                                  <Label className="text-sm font-medium">2nd Ball Tiebreaker</Label>
+                                  <p className="text-xs text-muted-foreground">If 1st balls tie, compare 2nd balls</p>
+                                </div>
+                                <Switch
+                                  checked={selectedGame.config.teamBanker?.useSecondBallTiebreaker ?? false}
+                                  onCheckedChange={(checked) => {
+                                    setSelectedGames(
+                                      selectedGames.map((g) =>
+                                        g.id === selectedGame.id
+                                          ? { ...g, config: { ...g.config, teamBanker: { ...g.config.teamBanker!, mode: g.config.teamBanker?.mode ?? 'sixes', useSecondBallTiebreaker: checked } } }
+                                          : g,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         )}
                       </div>
                     )}
