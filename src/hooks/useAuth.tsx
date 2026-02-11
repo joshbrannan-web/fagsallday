@@ -1,6 +1,8 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { offlineStorage } from '@/services/offlineStorage';
+import { toast } from 'sonner';
 
 interface Profile {
   id: string;
@@ -58,6 +60,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         
+        if (event === 'SIGNED_IN') {
+          if (!localStorage.getItem('fg_session_start')) {
+            localStorage.setItem('fg_session_start', String(Date.now()));
+          }
+        } else if (event === 'SIGNED_OUT') {
+          localStorage.removeItem('fg_session_start');
+        }
+        
         // Defer profile fetch with setTimeout to avoid deadlock
         if (session?.user) {
           setTimeout(() => {
@@ -84,7 +94,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    const SESSION_MAX_AGE = 24 * 60 * 60 * 1000;
+
+    const intervalId = setInterval(() => {
+      const sessionStart = localStorage.getItem('fg_session_start');
+      if (!sessionStart) return;
+
+      const elapsed = Date.now() - Number(sessionStart);
+      if (elapsed < SESSION_MAX_AGE) return;
+
+      const cached = offlineStorage.getCachedRound();
+      if (cached && cached.status === 'ACTIVE') return;
+
+      supabase.auth.signOut();
+      localStorage.removeItem('fg_session_start');
+      toast.info('Session expired. Please sign in again to get the latest updates.');
+    }, 60_000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(intervalId);
+    };
   }, []);
 
   const signUp = async (email: string, password: string, displayName: string, handicapIndex: number) => {
