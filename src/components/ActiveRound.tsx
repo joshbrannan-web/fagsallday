@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -43,6 +44,7 @@ const ActiveRound: React.FC = () => {
   const { isActive: wakeLockActive } = useWakeLock(true);
   const pendingSyncCount = offlineStorage.getPendingSyncCount();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const playerCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Refresh/close guard - warn user before leaving during active round
   useEffect(() => {
@@ -298,6 +300,34 @@ const ActiveRound: React.FC = () => {
   }
 
   const courseHole = currentRound.course.holes.find(h => h.number === activeHole);
+
+  const canAdvanceHole = (): boolean => {
+    return currentRound.players.every(p => {
+      const score = currentRound.scores[activeHole]?.[p.id];
+      return typeof score === 'number' && score > 0;
+    });
+  };
+
+  const handleNextHole = () => {
+    if (!canAdvanceHole()) {
+      const missingPlayer = currentRound.players.find(p => {
+        const score = currentRound.scores[activeHole]?.[p.id];
+        return !(typeof score === 'number' && score > 0);
+      });
+      if (missingPlayer) {
+        playerCardRefs.current[missingPlayer.id]?.scrollIntoView({ 
+          behavior: 'smooth', block: 'center' 
+        });
+      }
+      toast.error('Enter scores for all players before moving on');
+      return;
+    }
+    if (activeHole === 18) {
+      navigate('/summary');
+    } else {
+      setActiveHole(h => h + 1);
+    }
+  };
   const openBetGames = currentRound.games.filter(g => g.type === GameType.OPEN_BETTING);
   const bankerGames = currentRound.games.filter(g => g.type === GameType.BANKER || g.type === GameType.BLOODY_BANKER);
   const bloodyBankerGames = currentRound.games.filter(g => g.type === GameType.BLOODY_BANKER);
@@ -606,14 +636,14 @@ const ActiveRound: React.FC = () => {
           </div>
           {activeHole === 18 ? (
             <button 
-              onClick={() => navigate('/summary')}
+              onClick={handleNextHole}
               className="bg-brand-gold p-3 rounded-xl shadow-lg animate-pulse"
             >
               <Flag className="w-6 h-6 text-brand-dark" />
             </button>
           ) : (
             <button 
-              onClick={() => setActiveHole(h => h + 1)}
+              onClick={handleNextHole}
               className="bg-primary p-3 rounded-xl disabled:opacity-30"
             >
               <ChevronRight className="w-6 h-6" />
@@ -1697,7 +1727,7 @@ const ActiveRound: React.FC = () => {
           const playerTeam = getPlayerTeamColor(p.id);
           
           return (
-            <div key={p.id} className={`rounded-2xl shadow-sm border overflow-hidden ${
+            <div key={p.id} ref={el => { playerCardRefs.current[p.id] = el; }} className={`rounded-2xl shadow-sm border overflow-hidden ${
               isBanker 
                 ? 'border-brand-gold ring-2 ring-brand-gold/20 bg-card' 
                 : playerTeam === 'A'
