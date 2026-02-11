@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { Round, Player, Course, GameSettings } from './types';
 import Landing from './components/Landing';
 import SetupWizard from './components/SetupWizard';
@@ -15,6 +15,16 @@ import Profile from './pages/Profile';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -28,9 +38,87 @@ import { AppContext, AppState } from './contexts/AppContext';
 import ConnectionStatusBar from './components/ConnectionStatusBar';
 import { toast } from 'sonner';
 
-// useApp is exported from './contexts/AppContext' - import it from there directly
-
 const queryClient = new QueryClient();
+
+// Round recovery component - must be inside HashRouter for useNavigate
+const RoundRecovery: React.FC<{
+  currentRound: Round | null;
+  isLoading: boolean;
+  recoveryChecked: React.MutableRefObject<boolean>;
+  showRecoveryDialog: boolean;
+  setShowRecoveryDialog: (v: boolean) => void;
+  recoveryRound: Round | null;
+  setRecoveryRound: (r: Round | null) => void;
+  setLocalCurrentRound: (r: Round | null) => void;
+  isAuthenticated: boolean;
+  loadPastRound: (r: Round) => void;
+}> = ({ currentRound, isLoading, recoveryChecked, showRecoveryDialog, setShowRecoveryDialog, recoveryRound, setRecoveryRound, setLocalCurrentRound, isAuthenticated, loadPastRound }) => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isLoading || recoveryChecked.current || currentRound) return;
+    recoveryChecked.current = true;
+
+    const cached = offlineStorage.getCachedRound();
+    if (!cached || cached.status !== 'ACTIVE') return;
+
+    const ageMs = Date.now() - (cached.startTime || 0);
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+    if (ageMs < TWENTY_FOUR_HOURS) {
+      if (isAuthenticated) {
+        loadPastRound(cached);
+      } else {
+        setLocalCurrentRound(cached);
+      }
+      toast.success('Resuming your round...');
+      navigate('/active');
+    } else {
+      setRecoveryRound(cached);
+      setShowRecoveryDialog(true);
+    }
+  }, [isLoading, currentRound]);
+
+  const handleResume = () => {
+    if (!recoveryRound) return;
+    if (isAuthenticated) {
+      loadPastRound(recoveryRound);
+    } else {
+      setLocalCurrentRound(recoveryRound);
+    }
+    setShowRecoveryDialog(false);
+    setRecoveryRound(null);
+    toast.success('Resuming your round...');
+    navigate('/active');
+  };
+
+  const handleDiscard = () => {
+    offlineStorage.clearCachedRound();
+    setShowRecoveryDialog(false);
+    setRecoveryRound(null);
+  };
+
+  return (
+    <AlertDialog open={showRecoveryDialog} onOpenChange={setShowRecoveryDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Unfinished Round Found</AlertDialogTitle>
+          <AlertDialogDescription>
+            You have an unfinished round from{' '}
+            {recoveryRound?.startTime
+              ? new Date(recoveryRound.startTime).toLocaleDateString()
+              : 'a previous session'}
+            . Would you like to resume or discard it?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleDiscard}>Discard</AlertDialogCancel>
+          <AlertDialogAction onClick={handleResume}>Resume</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
 
 const AppContent: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -62,7 +150,6 @@ const AppContent: React.FC = () => {
   const { addPlayer: addSavedPlayer } = useSavedPlayers();
   const isOnline = useOnlineStatus();
   const [isSyncing, setIsSyncing] = useState(false);
-  // Fallback to localStorage for non-authenticated users
   const [localCurrentRound, setLocalCurrentRound] = useState<Round | null>(() => {
     const saved = localStorage.getItem('fg_current_round');
     return saved ? JSON.parse(saved) : null;
@@ -80,7 +167,6 @@ const AppContent: React.FC = () => {
 
   const [roundTotals, setRoundTotals] = useState<{ [playerId: string]: number }>({});
 
-  // Determine which data source to use
   const isAuthenticated = !!user;
   const currentRound = isAuthenticated ? dbCurrentRound : localCurrentRound;
   const savedCourses = isAuthenticated ? dbSavedCourses : localSavedCourses;
@@ -89,6 +175,9 @@ const AppContent: React.FC = () => {
   const roundHistory = isAuthenticated ? rounds : localRoundHistory;
   const isLoading = authLoading || (isAuthenticated && (roundsLoading || coursesLoading));
   const pendingSyncCount = offlineStorage.getPendingSyncCount();
+  const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
+  const [recoveryRound, setRecoveryRound] = useState<Round | null>(null);
+  const recoveryChecked = useRef(false);
 
   // Sync pending changes when coming back online
   useEffect(() => {
@@ -127,6 +216,13 @@ const AppContent: React.FC = () => {
       syncPendingChanges();
     }
   }, [isOnline, isAuthenticated, user]);
+
+  // Cache the active round for offline recovery
+  useEffect(() => {
+    if (currentRound && currentRound.status === 'ACTIVE') {
+      offlineStorage.cacheRound(currentRound);
+    }
+  }, [currentRound]);
 
   // Calculate totals when round changes
   useEffect(() => {
@@ -170,7 +266,6 @@ const AppContent: React.FC = () => {
   }, [localRoundHistory, isAuthenticated]);
 
   const startNewRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>) => {
-    // Auto-save all players when authenticated
     if (isAuthenticated) {
       for (const player of players) {
         if (player.name.trim()) {
@@ -195,14 +290,9 @@ const AppContent: React.FC = () => {
 
   const updateScore = async (holeNumber: number, playerId: string, score: number) => {
     if (!currentRound) return;
-
     const newScores = { ...currentRound.scores };
     if (!newScores[holeNumber]) newScores[holeNumber] = {};
-    newScores[holeNumber] = {
-      ...newScores[holeNumber],
-      [playerId]: score
-    };
-
+    newScores[holeNumber] = { ...newScores[holeNumber], [playerId]: score };
     if (isAuthenticated) {
       await updateRound(currentRound.id, { scores: newScores });
     } else {
@@ -212,15 +302,10 @@ const AppContent: React.FC = () => {
 
   const updateGameData = async (gameId: string, holeNumber: number, key: string, value: any) => {
     if (!currentRound) return;
-
     const newGameData = { ...currentRound.gameData };
     if (!newGameData[gameId]) newGameData[gameId] = {};
     if (!newGameData[gameId][holeNumber]) newGameData[gameId][holeNumber] = {};
-    newGameData[gameId][holeNumber] = {
-      ...newGameData[gameId][holeNumber],
-      [key]: value
-    };
-
+    newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], [key]: value };
     if (isAuthenticated) {
       await updateRound(currentRound.id, { gameData: newGameData });
     } else {
@@ -230,15 +315,10 @@ const AppContent: React.FC = () => {
 
   const updateGameDataBatch = async (gameId: string, holeNumber: number, updates: Record<string, any>) => {
     if (!currentRound) return;
-
     const newGameData = { ...currentRound.gameData };
     if (!newGameData[gameId]) newGameData[gameId] = {};
     if (!newGameData[gameId][holeNumber]) newGameData[gameId][holeNumber] = {};
-    newGameData[gameId][holeNumber] = {
-      ...newGameData[gameId][holeNumber],
-      ...updates
-    };
-
+    newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], ...updates };
     if (isAuthenticated) {
       await updateRound(currentRound.id, { gameData: newGameData });
     } else {
@@ -248,7 +328,6 @@ const AppContent: React.FC = () => {
 
   const finishRound = async () => {
     if (!currentRound) return;
-
     if (isAuthenticated) {
       await dbFinishRound(currentRound.id);
     } else {
@@ -264,6 +343,7 @@ const AppContent: React.FC = () => {
       });
       setLocalCurrentRound(null);
     }
+    offlineStorage.clearCachedRound();
   };
 
   const loadPastRound = (round: Round) => {
@@ -319,7 +399,6 @@ const AppContent: React.FC = () => {
     if (isAuthenticated) {
       await dbToggleFavorite(courseId);
     }
-    // Non-authenticated users cannot use favorites
   };
 
   const isFavorite = (courseId: string) => {
@@ -395,6 +474,18 @@ const AppContent: React.FC = () => {
     <AppContext.Provider value={value}>
       <ConnectionStatusBar />
       <HashRouter>
+        <RoundRecovery
+          currentRound={currentRound}
+          isLoading={isLoading}
+          recoveryChecked={recoveryChecked}
+          showRecoveryDialog={showRecoveryDialog}
+          setShowRecoveryDialog={setShowRecoveryDialog}
+          recoveryRound={recoveryRound}
+          setRecoveryRound={setRecoveryRound}
+          setLocalCurrentRound={setLocalCurrentRound}
+          isAuthenticated={isAuthenticated}
+          loadPastRound={loadPastRound}
+        />
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />

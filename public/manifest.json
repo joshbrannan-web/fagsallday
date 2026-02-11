@@ -1,10 +1,12 @@
 {
   "name": "Golf Betting App",
   "short_name": "GolfBets",
-  "display": "standalone",
+  "description": "Track golf bets and scores during your round",
   "start_url": "/",
-  "theme_color": "#339E8F",
-  "background_color": "#FAF8F5",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#16a34a",
+  "background_color": "#0f172a",
   "icons": [
     {
       "src": "/icon-192.png",
