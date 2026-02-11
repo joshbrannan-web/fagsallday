@@ -25,7 +25,7 @@ import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRela
 import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
 import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses, getSixesMode, getStretchStartHole, SixesMode } from '../services/sixesEngine';
 import { TeamBankerTeamSetup } from './teamBanker';
-import { isTeamBankerStretchStartHole, getTeamBankerTeamAssignment, getTeamBankerStretchForHole, getTeamBankerMode, getTeamBankerStretchStartHole as getTBStretchStartHole } from '../services/teamBankerEngine';
+import { isTeamBankerStretchStartHole, getTeamBankerTeamAssignment, getTeamBankerStretchForHole, getTeamBankerMode, getTeamBankerStretchStartHole as getTBStretchStartHole, getTeamBankerAllStretches } from '../services/teamBankerEngine';
 
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
@@ -772,8 +772,71 @@ const ActiveRound: React.FC = () => {
         );
       })()}
 
+      {/* Team Banker Team Setup - Show at stretch starts if teams not set */}
+      {(() => {
+        const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
+        if (!tbGame || !teamBankerNeedsSetup) return null;
+        
+        const mode = getTeamBankerMode(currentRound.gameData, tbGame.id);
+        const stretch = getTeamBankerStretchForHole(activeHole, mode);
+        
+        // Get Stretch 1 settings to carry forward
+        const stretch1Data = currentRound.gameData?.[tbGame.id]?.[1];
+        const stretch1Settings = stretch > 1 && stretch1Data ? {
+          unitValue: stretch1Data._META_UNIT_VALUE ?? tbGame.unitStake,
+          useHandicaps: stretch1Data._META_USE_HANDICAPS ?? tbGame.config.useHandicaps ?? true,
+          handicapMode: stretch1Data._META_HANDICAP_MODE ?? tbGame.config.handicapMode ?? 'relative',
+          useSecondBallTiebreaker: stretch1Data._META_USE_SECOND_BALL ?? false,
+          birdieMultiplier: stretch1Data._META_BIRDIE_MULT ?? tbGame.config.birdieMultiplier ?? 3,
+          eagleMultiplier: stretch1Data._META_EAGLE_MULT ?? tbGame.config.eagleMultiplier ?? 5,
+          mode: stretch1Data._META_MODE ?? mode,
+        } : null;
+        
+        // Gather previous stretch teams for auto-rotation
+        const previousStretchTeams: { teamA: string[]; teamB: string[] }[] = [];
+        for (let s = 1; s < stretch; s++) {
+          const prevAssignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, s as any, mode);
+          if (prevAssignment) {
+            previousStretchTeams.push({ teamA: prevAssignment.teamA, teamB: prevAssignment.teamB });
+          }
+        }
+        
+        return (
+          <div className="flex-1 overflow-y-auto p-4">
+            <TeamBankerTeamSetup
+              players={currentRound.players}
+              stretch={stretch}
+              mode={mode}
+              existingUnitValue={stretch1Settings?.unitValue ?? tbGame.unitStake}
+              existingUseHandicaps={stretch1Settings?.useHandicaps ?? tbGame.config.useHandicaps ?? true}
+              existingHandicapMode={stretch1Settings?.handicapMode ?? tbGame.config.handicapMode ?? 'relative'}
+              existingUseSecondBall={stretch1Settings?.useSecondBallTiebreaker ?? tbGame.config.teamBanker?.useSecondBallTiebreaker ?? false}
+              existingBirdieMultiplier={stretch1Settings?.birdieMultiplier ?? tbGame.config.birdieMultiplier ?? 3}
+              existingEagleMultiplier={stretch1Settings?.eagleMultiplier ?? tbGame.config.eagleMultiplier ?? 5}
+              previousStretchTeams={previousStretchTeams}
+              onConfirm={(teamA, teamB, unitValue, useHandicaps, handicapMode, useSecondBall, birdieMultiplier, eagleMultiplier) => {
+                const stretchStartHole = getTBStretchStartHole(stretch, mode);
+                updateGameDataBatch(tbGame.id, stretchStartHole, {
+                  _META_TEAM_A: teamA,
+                  _META_TEAM_B: teamB,
+                  _META_UNIT_VALUE: unitValue,
+                  _META_USE_HANDICAPS: useHandicaps,
+                  _META_HANDICAP_MODE: handicapMode,
+                  _META_USE_SECOND_BALL: useSecondBall,
+                  _META_BIRDIE_MULT: birdieMultiplier,
+                  _META_EAGLE_MULT: eagleMultiplier,
+                  _META_MODE: mode,
+                  _META_LOCKED: true
+                });
+              }}
+              onCancel={() => navigate('/summary')}
+            />
+          </div>
+        );
+      })()}
+
       {/* Main Scoring Area - Hidden when team setup is needed */}
-      {!stockton6NeedsSetup && !sixesNeedsSetup && (
+      {!stockton6NeedsSetup && !sixesNeedsSetup && !teamBankerNeedsSetup && (
       <div 
         ref={scrollContainerRef}
         className={`flex-1 overflow-y-auto p-4 space-y-4 ${
@@ -1857,6 +1920,47 @@ const ActiveRound: React.FC = () => {
                 </button>
               </div>
 
+              {/* Team Banker Multiplier Controls */}
+              {(() => {
+                const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
+                if (!tbGame) return null;
+                const tbMode = getTeamBankerMode(currentRound.gameData, tbGame.id);
+                const tbStretch = getTeamBankerStretchForHole(activeHole, tbMode);
+                const tbAssignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, tbStretch, tbMode);
+                if (!tbAssignment) return null;
+                
+                const tbHoleData = currentRound.gameData?.[tbGame.id]?.[activeHole] || {};
+                const playerMult = tbHoleData[p.id] || 1;
+                const allPlayerIds = [...tbAssignment.teamA, ...tbAssignment.teamB];
+                const compoundMult = allPlayerIds.reduce((acc, pid) => acc * (tbHoleData[pid] || 1), 1);
+                const currentBet = tbAssignment.unitValue * compoundMult;
+                
+                return (
+                  <div className="border-t border-border bg-emerald-500/5 p-2">
+                    <div className="flex justify-between items-center mb-2 px-1">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Team Banker (${currentBet}/player)</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {[2, 3, 4].map(mult => {
+                        const isActive = playerMult === mult;
+                        const label = mult === 2 ? 'Double' : (mult === 3 ? 'Triple' : 'PreQuad');
+                        return (
+                          <button
+                            key={mult}
+                            onClick={() => {
+                              updateGameData(tbGame.id, activeHole, p.id, isActive ? 1 : mult);
+                            }}
+                            className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border hover:border-primary'}`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Banker Game Controls */}
               {bankerData && !bankerData.isBanker && (
                 <div className="border-t border-border bg-brand-gold/5 p-2">
@@ -2006,6 +2110,8 @@ const ActiveRound: React.FC = () => {
                     return '9 Pts';
                   case GameType.OPEN_BETTING:
                     return 'Bets';
+                  case GameType.TEAM_BANKER:
+                    return 'TB';
                   default:
                     return type;
                 }

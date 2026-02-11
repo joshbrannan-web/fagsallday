@@ -72,6 +72,26 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
     details.push(config.wolf.teesFirst ? 'Wolf Tees First' : 'Wolf Tees Last');
   }
   
+  if (type === GameType.TEAM_BANKER) {
+    const tbData = gameData?.[game.id]?.[1];
+    if (tbData) {
+      const useHcp = tbData._META_USE_HANDICAPS ?? config.useHandicaps ?? true;
+      details.push(useHcp ? 'Handicaps: On' : 'Handicaps: Off');
+      if (useHcp) {
+        const hcpMode = tbData._META_HANDICAP_MODE ?? config.handicapMode ?? 'relative';
+        details.push(`Mode: ${hcpMode === 'absolute' ? 'Absolute' : 'Relative'}`);
+      }
+      const useSecondBall = tbData._META_USE_SECOND_BALL ?? false;
+      details.push(useSecondBall ? '2nd Ball Tiebreaker: On' : '2nd Ball Tiebreaker: Off');
+      const bMult = tbData._META_BIRDIE_MULT ?? config.birdieMultiplier ?? 1;
+      if (bMult > 1) details.push(`Birdie: ${bMult}x`);
+      const eMult = tbData._META_EAGLE_MULT ?? config.eagleMultiplier ?? 1;
+      if (eMult > 1) details.push(`Eagle: ${eMult}x`);
+      const tbMode = tbData._META_MODE ?? config.teamBanker?.mode ?? 'sixes';
+      details.push(`Rotation: ${tbMode === 'eighteen' ? '18 Holes' : tbMode === 'threes' ? "3's" : "6's"}`);
+    }
+  }
+  
   if (type === GameType.FBO) {
     if (config.fboPlayers?.length) {
       details.push(`${config.fboPlayers.length} players`);
