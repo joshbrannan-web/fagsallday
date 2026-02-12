@@ -79,6 +79,12 @@ const TeamBankerTeamSetup: React.FC<TeamBankerTeamSetupProps> = ({
       if (stretch === 1 || previousStretchTeams.length === 0) {
         setTeamA([players[0].id, players[1].id]);
         setTeamB([players[2].id, players[3].id]);
+      } else if (previousStretchTeams.length >= 3) {
+        // All 3 unique pairings used — cycle back through the sequence
+        const cycleIndex = (stretch - 1) % 3;
+        const source = previousStretchTeams[cycleIndex];
+        setTeamA([...source.teamA]);
+        setTeamB([...source.teamB]);
       } else {
         const rotated = getRotatedTeams(playerIds, previousStretchTeams);
         setTeamA(rotated.teamA);
