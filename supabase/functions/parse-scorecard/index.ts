@@ -2,10 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
 
 interface TeeBox {
   name: string;
@@ -29,12 +26,18 @@ interface ParsedScorecard {
 }
 
 serve(async (req) => {
+  const origin = req.headers.get("origin") || "";
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': corsOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  };
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Authentication check - require logged-in user
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
@@ -43,7 +46,6 @@ serve(async (req) => {
       );
     }
 
-    // Verify the JWT token
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -71,7 +73,6 @@ serve(async (req) => {
       );
     }
 
-    // Validate image size (limit to ~10MB base64 which is ~7.5MB actual)
     if (imageBase64.length > 10 * 1024 * 1024) {
       return new Response(
         JSON.stringify({ success: false, error: 'Image is too large. Please use an image under 7.5MB.' }),
@@ -175,26 +176,20 @@ Important notes:
     
     console.log('AI response received, parsing JSON...');
 
-    // Extract JSON from the response (handle markdown code blocks, including truncated ones)
     let jsonString = content;
-    // First try: complete code block
     const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) {
       jsonString = jsonMatch[1].trim();
     } else {
-      // Fallback: opening fence without closing (truncated response)
       const openFenceMatch = content.match(/```(?:json)?\s*([\s\S]*)/);
       if (openFenceMatch) {
         jsonString = openFenceMatch[1].trim();
       }
     }
     
-    // If JSON is truncated (no closing brace), try to repair by closing open structures
     if (jsonString && !jsonString.trimEnd().endsWith('}')) {
-      // Find the last complete object/array boundary and truncate there
       const lastBrace = jsonString.lastIndexOf('}');
       if (lastBrace > 0) {
-        // Count remaining open braces/brackets after truncation point
         const truncated = jsonString.slice(0, lastBrace + 1);
         let openBraces = 0;
         let openBrackets = 0;
@@ -204,7 +199,6 @@ Important notes:
           if (ch === '[') openBrackets++;
           if (ch === ']') openBrackets--;
         }
-        // Close any remaining open structures
         let repaired = truncated;
         while (openBrackets > 0) { repaired += ']'; openBrackets--; }
         while (openBraces > 0) { repaired += '}'; openBraces--; }
@@ -217,7 +211,6 @@ Important notes:
       parsedData = JSON.parse(jsonString);
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', content);
-      // Try to salvage what we can
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -228,9 +221,7 @@ Important notes:
       );
     }
 
-    // Validate and normalize the data
     if (!parsedData.teeBoxes || parsedData.teeBoxes.length === 0) {
-      // Create a default tee box if none extracted
       parsedData.teeBoxes = [{
         name: 'White Tees',
         color: 'white',
@@ -245,11 +236,8 @@ Important notes:
       }];
     }
 
-    // Ensure each tee box has valid data
     parsedData.teeBoxes = parsedData.teeBoxes.map(teeBox => {
       const holes = teeBox.holes || [];
-      
-      // Fill in missing holes
       const normalizedHoles = [];
       const numHoles = holes.length > 9 ? 18 : 9;
       

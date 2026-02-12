@@ -4,10 +4,7 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
 
 // Simple in-memory rate limiting for password reset abuse prevention
 const resetRateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -15,8 +12,8 @@ const resetRateLimits = new Map<string, { count: number; resetAt: number }>();
 function checkResetRateLimit(email: string): boolean {
   const identifier = email.toLowerCase().trim();
   const now = Date.now();
-  const windowMs = 15 * 60 * 1000; // 15 minutes
-  const maxRequests = 3; // 3 requests per 15 minutes per email
+  const windowMs = 15 * 60 * 1000;
+  const maxRequests = 3;
   
   const limit = resetRateLimits.get(identifier);
   
@@ -39,25 +36,29 @@ interface GenerateResetLinkRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
+  const origin = req.headers.get("origin") || "";
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { email, origin }: GenerateResetLinkRequest = await req.json();
+    const { email, origin: requestOrigin }: GenerateResetLinkRequest = await req.json();
 
-    if (!email || !origin) {
+    if (!email || !requestOrigin) {
       return new Response(
         JSON.stringify({ error: "Email and origin are required" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Rate limiting to prevent email bombing
     if (!checkResetRateLimit(email)) {
       console.log("Rate limit exceeded for password reset:", email);
-      // Return success to prevent user enumeration (don't reveal if email exists)
       return new Response(
         JSON.stringify({ success: true, message: "If an account exists with this email, a reset link has been sent" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -66,7 +67,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Generating password reset link for:", email);
 
-    // Create Supabase admin client
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -78,10 +78,8 @@ const handler = async (req: Request): Promise<Response> => {
       }
     );
 
-    // Always use production URL for password reset redirects
     const PRODUCTION_URL = "https://fagsallday.com";
     
-    // Generate the reset link using Admin API (this does NOT send Supabase's default email)
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email: email,
@@ -101,7 +99,7 @@ const handler = async (req: Request): Promise<Response> => {
     const resetLink = data.properties?.action_link;
 
     if (!resetLink) {
-      console.error("No action link returned from Supabase");
+      console.error("No action link returned");
       return new Response(
         JSON.stringify({ error: "Failed to generate reset link" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -110,7 +108,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Reset link generated successfully, sending branded email...");
 
-    // Send the custom branded email with the actual reset link
     const emailResponse = await resend.emails.send({
       from: "F&Gs All Day <noreply@fagsallday.com>",
       to: [email],

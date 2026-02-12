@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
 
 // Simple in-memory rate limiting (per edge function instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -48,12 +45,18 @@ interface CourseListItem {
 }
 
 serve(async (req) => {
+  const origin = req.headers.get("origin") || "";
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': corsOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  };
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Verify JWT authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
@@ -80,7 +83,6 @@ serve(async (req) => {
     const userId = user.id;
     console.log('Authenticated user:', userId);
 
-    // Rate limiting: 10 requests per minute per user
     if (!checkRateLimit(`search-course:${userId}`, 10, 60000)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Rate limit exceeded. Please wait before trying again.' }),
@@ -114,14 +116,12 @@ serve(async (req) => {
       );
     }
 
-    // Mode 1: Search for courses on BlueGolf using Firecrawl
     if (mode === 'search') {
-      return await searchCourses(FIRECRAWL_API_KEY, LOVABLE_API_KEY, courseName, location);
+      return await searchCourses(FIRECRAWL_API_KEY, LOVABLE_API_KEY, courseName, location, corsHeaders);
     }
     
-    // Mode 2: Fetch detailed scorecard for a specific course
     if (mode === 'fetch' && selectedCourseUrl) {
-      return await fetchCourseDetails(FIRECRAWL_API_KEY, LOVABLE_API_KEY, selectedCourseUrl, courseName);
+      return await fetchCourseDetails(FIRECRAWL_API_KEY, LOVABLE_API_KEY, selectedCourseUrl, courseName, corsHeaders);
     }
 
     return new Response(
@@ -131,27 +131,24 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in search-course:', error);
+    const origin = req.headers.get("origin") || "";
+    const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
     return new Response(
       JSON.stringify({ 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { 'Access-Control-Allow-Origin': corsOrigin, 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Content-Type': 'application/json' } }
     );
   }
 });
 
 // Helper function to normalize BlueGolf URLs to the detailedscorecard.htm format
 function normalizeBlueGolfUrl(url: string): string {
-  // If URL already contains detailedscorecard.htm, return as is
   if (url.includes('detailedscorecard.htm')) {
     return url;
   }
   
-  // Extract the course slug from various URL formats
-  // Format 1: /bluegolf/course/course/[slug]/...
-  // Format 2: /bluegolf/coursehome/[slug]/...
-  // Format 3: course.bluegolf.com/bluegolf/[slug]/...
   let slug = '';
   
   const courseMatch = url.match(/\/bluegolf\/course\/course\/([^\/]+)/);
@@ -162,7 +159,6 @@ function normalizeBlueGolfUrl(url: string): string {
     if (homepageMatch) {
       slug = homepageMatch[1];
     } else {
-      // Try to extract from simpler URL patterns
       const simpleMatch = url.match(/course\.bluegolf\.com\/bluegolf\/([^\/]+)/);
       if (simpleMatch && !simpleMatch[1].includes('course')) {
         slug = simpleMatch[1];
@@ -174,7 +170,6 @@ function normalizeBlueGolfUrl(url: string): string {
     return `https://course.bluegolf.com/bluegolf/course/course/${slug}/detailedscorecard.htm`;
   }
   
-  // If we can't parse it, return original
   return url;
 }
 
@@ -182,7 +177,6 @@ function normalizeBlueGolfUrl(url: string): string {
 function extractLocationFromResult(result: { title?: string; description?: string; url?: string }): string {
   const text = `${result.title || ''} ${result.description || ''}`;
   
-  // Common patterns for location in golf course descriptions
   const patterns = [
     /in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})/,
     /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})/,
@@ -201,9 +195,7 @@ function extractLocationFromResult(result: { title?: string; description?: strin
 
 // Extract course name from search result
 function extractCourseName(result: { title?: string; url?: string }): string {
-  // Try to get name from title first
   if (result.title) {
-    // Remove common suffixes like "- BlueGolf", "| BlueGolf", etc.
     const cleanTitle = result.title
       .replace(/\s*[-|]\s*BlueGolf.*$/i, '')
       .replace(/\s*[-|]\s*Scorecard.*$/i, '')
@@ -215,11 +207,9 @@ function extractCourseName(result: { title?: string; url?: string }): string {
     }
   }
   
-  // Try to extract from URL
   if (result.url) {
     const urlMatch = result.url.match(/\/course\/([^\/]+)/);
     if (urlMatch) {
-      // Convert slug to title case
       return urlMatch[1]
         .replace(/([a-z])([A-Z])/g, '$1 $2')
         .replace(/[_-]/g, ' ')
@@ -232,7 +222,7 @@ function extractCourseName(result: { title?: string; url?: string }): string {
   return 'Unknown Course';
 }
 
-async function searchCourses(firecrawlKey: string, lovableKey: string, courseName: string, location?: string): Promise<Response> {
+async function searchCourses(firecrawlKey: string, lovableKey: string, courseName: string, location: string | undefined, corsHeaders: Record<string, string>): Promise<Response> {
   const searchQuery = location 
     ? `site:course.bluegolf.com ${courseName} ${location} scorecard`
     : `site:course.bluegolf.com ${courseName} scorecard`;
@@ -280,11 +270,9 @@ async function searchCourses(firecrawlKey: string, lovableKey: string, courseNam
     );
   }
 
-  // Filter and transform results to course list
   const courses: CourseListItem[] = searchResults
     .filter((result: any) => {
       const url = result.url || '';
-      // Only include BlueGolf course URLs
       return url.includes('course.bluegolf.com') && 
              (url.includes('/course/') || url.includes('/bluegolf/'));
     })
@@ -293,17 +281,15 @@ async function searchCourses(firecrawlKey: string, lovableKey: string, courseNam
       location: extractLocationFromResult(result),
       url: normalizeBlueGolfUrl(result.url),
     }))
-    // Remove duplicates by URL
     .filter((course: CourseListItem, index: number, self: CourseListItem[]) => 
       index === self.findIndex(c => c.url === course.url)
     );
 
   console.log('Parsed courses:', courses);
 
-  // If only one course found, automatically fetch its details
   if (courses.length === 1 && courses[0].url) {
     console.log('Single course found, fetching details...');
-    return await fetchCourseDetails(firecrawlKey, lovableKey, courses[0].url, courses[0].name);
+    return await fetchCourseDetails(firecrawlKey, lovableKey, courses[0].url, courses[0].name, corsHeaders);
   }
 
   return new Response(
@@ -316,16 +302,14 @@ async function searchCourses(firecrawlKey: string, lovableKey: string, courseNam
   );
 }
 
-async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, courseUrl: string, courseName: string): Promise<Response> {
+async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, courseUrl: string, courseName: string, corsHeaders: Record<string, string>): Promise<Response> {
   console.log(`Fetching scorecard details from: ${courseUrl}`);
 
-  // Ensure URL is properly formatted and normalized to detailedscorecard.htm
   let formattedUrl = courseUrl.trim();
   if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
     formattedUrl = `https://${formattedUrl}`;
   }
   
-  // Normalize URL to use the detailedscorecard.htm format
   formattedUrl = normalizeBlueGolfUrl(formattedUrl);
 
   console.log('Scraping BlueGolf page with Firecrawl:', formattedUrl);
@@ -339,8 +323,8 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
     body: JSON.stringify({
       url: formattedUrl,
       formats: ['markdown'],
-      onlyMainContent: false, // We need the full page including scorecard tables
-      waitFor: 2000, // Wait for dynamic content to load
+      onlyMainContent: false,
+      waitFor: 2000,
     }),
   });
 
@@ -371,7 +355,6 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
   console.log('Scraped content length:', scrapedMarkdown.length);
   console.log('Scraped content preview:', scrapedMarkdown.substring(0, 500));
 
-  // Check if the page contains a 404 error
   if (scrapedMarkdown.includes('404') && scrapedMarkdown.includes('Page Not Found')) {
     console.error('BlueGolf page returned 404');
     return new Response(
@@ -384,7 +367,6 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
     );
   }
 
-  // Step 2: Use Lovable AI to parse the scraped content
   const systemPrompt = `You are a golf course data parser. Your task is to extract scorecard data from BlueGolf page content.
 
 The content contains a scorecard table with this structure:
@@ -469,7 +451,6 @@ Return ONLY the JSON object with the parsed data.`;
       throw new Error('Invalid course data structure');
     }
 
-    // Normalize hole data
     courseData.holes = courseData.holes.map((hole, index) => ({
       number: hole.number || index + 1,
       par: hole.par || 4,
@@ -477,7 +458,6 @@ Return ONLY the JSON object with the parsed data.`;
       handicapIndex: hole.handicapIndex || (index + 1)
     }));
 
-    // Recalculate totals from parsed data
     courseData.totalPar = courseData.holes.reduce((sum, h) => sum + h.par, 0);
     courseData.totalYardage = courseData.holes.reduce((sum, h) => sum + h.yardage, 0);
 
@@ -509,13 +489,11 @@ Return ONLY the JSON object with the parsed data.`;
 function parseJsonFromContent(content: string): any {
   let jsonStr = content;
   
-  // Remove markdown code blocks if present
   const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) {
     jsonStr = jsonMatch[1].trim();
   }
   
-  // Try to find JSON object in the response
   const objectMatch = jsonStr.match(/\{[\s\S]*\}/);
   if (objectMatch) {
     jsonStr = objectMatch[0];
