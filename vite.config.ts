@@ -23,9 +23,9 @@ export default defineConfig(({ mode }) => {
       dedupe: ["react", "react-dom"],
     },
     define: {
-      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
-      'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(env.VITE_SUPABASE_PUBLISHABLE_KEY),
-      'import.meta.env.VITE_SUPABASE_PROJECT_ID': JSON.stringify(env.VITE_SUPABASE_PROJECT_ID),
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || 'https://wvmpxjcghlgtitdhozlj.supabase.co'),
+      'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2bXB4amNnaGxndGl0ZGhvemxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNDQ1NDMsImV4cCI6MjA4MTgyMDU0M30.W8-qRvLBU2ZykRczLyX6uXd3ThcA0N7Ygn7JpvgEA4A'),
+      'import.meta.env.VITE_SUPABASE_PROJECT_ID': JSON.stringify(env.VITE_SUPABASE_PROJECT_ID || 'wvmpxjcghlgtitdhozlj'),
     },
     optimizeDeps: {
       include: ["react", "react-dom", "@radix-ui/react-tooltip"],
