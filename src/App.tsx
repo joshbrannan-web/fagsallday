@@ -474,34 +474,32 @@ const AppContent: React.FC = () => {
   return (
     <AppContext.Provider value={value}>
       <ConnectionStatusBar />
-      <HashRouter>
-        <RoundRecovery
-          currentRound={currentRound}
-          isLoading={isLoading}
-          recoveryChecked={recoveryChecked}
-          showRecoveryDialog={showRecoveryDialog}
-          setShowRecoveryDialog={setShowRecoveryDialog}
-          recoveryRound={recoveryRound}
-          setRecoveryRound={setRecoveryRound}
-          setLocalCurrentRound={setLocalCurrentRound}
-          isAuthenticated={isAuthenticated}
-          loadPastRound={loadPastRound}
-        />
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/players" element={<Players />} />
-          <Route path="/setup" element={<SetupWizard />} />
-          <Route path="/active" element={<ActiveRound />} />
-          <Route path="/scorecard" element={<Scorecard />} />
-          <Route path="/summary" element={<RoundSummary />} />
-          <Route path="/history" element={<RoundHistory />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/admin/round/:roundId" element={<AdminRoundView />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </HashRouter>
+      <RoundRecovery
+        currentRound={currentRound}
+        isLoading={isLoading}
+        recoveryChecked={recoveryChecked}
+        showRecoveryDialog={showRecoveryDialog}
+        setShowRecoveryDialog={setShowRecoveryDialog}
+        recoveryRound={recoveryRound}
+        setRecoveryRound={setRecoveryRound}
+        setLocalCurrentRound={setLocalCurrentRound}
+        isAuthenticated={isAuthenticated}
+        loadPastRound={loadPastRound}
+      />
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/players" element={<Players />} />
+        <Route path="/setup" element={<SetupWizard />} />
+        <Route path="/active" element={<ActiveRound />} />
+        <Route path="/scorecard" element={<Scorecard />} />
+        <Route path="/summary" element={<RoundSummary />} />
+        <Route path="/history" element={<RoundHistory />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/round/:roundId" element={<AdminRoundView />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </AppContext.Provider>
   );
 };
@@ -512,7 +510,9 @@ const App: React.FC = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <AppContent />
+        <HashRouter>
+          <AppContent />
+        </HashRouter>
       </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>
