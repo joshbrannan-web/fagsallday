@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
 
 // Rate limiting: 20 requests per minute per admin
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -27,12 +24,18 @@ interface DeleteUserRequest {
 }
 
 serve(async (req: Request) => {
+  const origin = req.headers.get("origin") || "";
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get the authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -41,7 +44,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Parse request body
     const { userId }: DeleteUserRequest = await req.json();
     if (!userId) {
       return new Response(
@@ -50,7 +52,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Create Supabase client with user's token
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -59,7 +60,6 @@ serve(async (req: Request) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Get the current user
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) {
       return new Response(
@@ -68,7 +68,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Prevent self-deletion
     if (user.id === userId) {
       return new Response(
         JSON.stringify({ error: "Cannot delete your own account" }),
@@ -76,7 +75,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Check if user is admin using RPC
     const { data: isAdmin, error: roleError } = await userClient.rpc("has_role", {
       _user_id: user.id,
       _role: "admin",
@@ -89,7 +87,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Rate limit check
     if (!checkRateLimit(user.id)) {
       return new Response(
         JSON.stringify({ error: "Too many requests. Please try again later." }),
@@ -97,7 +94,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Use admin client to delete the user
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
     
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);

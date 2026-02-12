@@ -4,11 +4,7 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
 
 // Simple in-memory rate limiting for welcome email abuse prevention
 const welcomeRateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -16,8 +12,8 @@ const welcomeRateLimits = new Map<string, { count: number; resetAt: number }>();
 function checkWelcomeRateLimit(email: string): boolean {
   const identifier = email.toLowerCase().trim();
   const now = Date.now();
-  const windowMs = 60 * 60 * 1000; // 1 hour
-  const maxRequests = 2; // 2 requests per hour per email (initial + potential retry)
+  const windowMs = 60 * 60 * 1000;
+  const maxRequests = 2;
   
   const limit = welcomeRateLimits.get(identifier);
   
@@ -40,13 +36,18 @@ interface WelcomeEmailRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
+  const origin = req.headers.get("origin") || "";
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Verify JWT authentication
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -72,7 +73,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { email, displayName }: WelcomeEmailRequest = await req.json();
 
-    // Security: Only allow sending welcome email to the authenticated user's email
     if (email.toLowerCase() !== user.email?.toLowerCase()) {
       console.log("Attempted to send welcome email to non-matching email:", email, "vs", user.email);
       return new Response(
@@ -81,10 +81,8 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Rate limiting to prevent email bombing
     if (!checkWelcomeRateLimit(email)) {
       console.log("Rate limit exceeded for welcome email:", email);
-      // Return success to not break signup flow
       return new Response(
         JSON.stringify({ id: "rate-limited", message: "Email rate limited" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

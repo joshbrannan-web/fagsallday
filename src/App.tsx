@@ -12,6 +12,7 @@ import Players from './pages/Players';
 import Admin from './pages/Admin';
 import AdminRoundView from './pages/AdminRoundView';
 import Profile from './pages/Profile';
+import NotFound from './pages/NotFound';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -498,6 +499,7 @@ const AppContent: React.FC = () => {
           <Route path="/profile" element={<Profile />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/admin/round/:roundId" element={<AdminRoundView />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </HashRouter>
     </AppContext.Provider>

@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
 
 // Rate limiting: 30 requests per minute per admin
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -23,12 +20,18 @@ function checkRateLimit(userId: string): boolean {
 }
 
 serve(async (req: Request) => {
+  const origin = req.headers.get("origin") || "";
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get the authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -37,7 +40,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Create Supabase client with user's token
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,7 +48,6 @@ serve(async (req: Request) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Get the current user
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) {
       return new Response(
@@ -55,7 +56,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Check if user is admin using RPC
     const { data: isAdmin, error: roleError } = await userClient.rpc("has_role", {
       _user_id: user.id,
       _role: "admin",
@@ -68,7 +68,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Rate limit check
     if (!checkRateLimit(user.id)) {
       return new Response(
         JSON.stringify({ error: "Too many requests. Please try again later." }),
@@ -76,16 +75,13 @@ serve(async (req: Request) => {
       );
     }
 
-    // Use admin client to fetch all users
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Get all auth users
     const { data: authUsers, error: authError } = await adminClient.auth.admin.listUsers();
     if (authError) {
       throw authError;
     }
 
-    // Get all profiles (admin can see all via RLS)
     const { data: profiles, error: profilesError } = await userClient
       .from("profiles")
       .select("*");
@@ -93,7 +89,6 @@ serve(async (req: Request) => {
       throw profilesError;
     }
 
-    // Get round counts per user
     const { data: rounds, error: roundsError } = await userClient
       .from("rounds")
       .select("user_id");
@@ -101,13 +96,11 @@ serve(async (req: Request) => {
       throw roundsError;
     }
 
-    // Count rounds per user
     const roundCounts: Record<string, number> = {};
     rounds?.forEach((r) => {
       roundCounts[r.user_id] = (roundCounts[r.user_id] || 0) + 1;
     });
 
-    // Merge data
     const users = authUsers.users.map((authUser) => {
       const profile = profiles?.find((p) => p.id === authUser.id);
       return {

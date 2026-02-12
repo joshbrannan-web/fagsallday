@@ -4,10 +4,7 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
 
 // Rate limiting: 10 password resets per minute per admin
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -32,12 +29,18 @@ interface ResetPasswordRequest {
 }
 
 serve(async (req: Request) => {
+  const origin = req.headers.get("origin") || "";
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get the authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -46,16 +49,14 @@ serve(async (req: Request) => {
       );
     }
 
-    // Parse request body
-    const { userId, userEmail, origin }: ResetPasswordRequest = await req.json();
-    if (!userId || !userEmail || !origin) {
+    const { userId, userEmail, origin: requestOrigin }: ResetPasswordRequest = await req.json();
+    if (!userId || !userEmail || !requestOrigin) {
       return new Response(
         JSON.stringify({ error: "userId, userEmail, and origin are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create Supabase client with user's token
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -64,7 +65,6 @@ serve(async (req: Request) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Get the current user (admin)
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) {
       return new Response(
@@ -73,7 +73,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Check if user is admin using RPC
     const { data: isAdmin, error: roleError } = await userClient.rpc("has_role", {
       _user_id: user.id,
       _role: "admin",
@@ -86,7 +85,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Rate limit check
     if (!checkRateLimit(user.id)) {
       return new Response(
         JSON.stringify({ error: "Too many requests. Please try again later." }),
@@ -94,7 +92,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Use admin client to generate password reset link
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
     
     const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
@@ -106,15 +103,12 @@ serve(async (req: Request) => {
       throw linkError || new Error("Failed to generate reset link");
     }
 
-    // Extract the token from the generated link and create hash-based URL
     const generatedUrl = new URL(linkData.properties.action_link);
     const token = generatedUrl.searchParams.get("token");
     const type = generatedUrl.searchParams.get("type");
     
-    // Create hash-based reset URL for HashRouter compatibility
-    const resetLink = `${origin}/#/auth?mode=reset&token=${token}&type=${type}`;
+    const resetLink = `${requestOrigin}/#/auth?mode=reset&token=${token}&type=${type}`;
 
-    // Send the password reset email
     const emailResponse = await resend.emails.send({
       from: "Fags All Day Golf <noreply@fagsallday.com>",
       to: [userEmail],

@@ -119,7 +119,7 @@ export const calculateHoleBallResults = (
     
     // Use manual stroke if set, otherwise use relative stroke calculation
     const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null 
-      ? manualStrokes 
+      ? Math.max(0, Math.min(manualStrokes, 3)) 
       : relativeStrokes[playerId];
     
     // Apply net score with relative strokes (pass 0 for courseHandicap since we're using explicit strokes)
