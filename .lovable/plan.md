@@ -1,25 +1,53 @@
 
 
-## Fix: Restore the .env File
+## Fix Team Rotation for 3's Mode (6 Stretches)
 
-The `.env` file was deleted from the repo, but `src/integrations/supabase/client.ts` reads `import.meta.env.VITE_SUPABASE_URL` and `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY` at startup. Without these values, the Supabase client throws "supabaseUrl is required" and the app crashes.
+### Problem
+With 4 players, there are only 3 unique team pairings possible. In 6's mode (3 stretches) and Stockton 6's (3 stretches), the rotation works correctly because there are exactly 3 stretches matching the 3 unique pairings.
 
-### What needs to happen
+In 3's mode (6 stretches), the rotation exhausts all unique pairings after stretch 3. For stretches 4-6, the current fallback always returns the same default pairing (players 1+2 vs 3+4) instead of cycling back through the original sequence.
 
-Recreate the `.env` file at the project root with the three environment variables this project needs:
+### Solution
+Update the `getRotatedTeams` function in all three team setup components to handle the cycling case:
 
+- When `previousStretchTeams.length >= 3` (all unique pairings exhausted), use modular indexing to repeat the sequence: stretch 4 reuses stretch 1's teams, stretch 5 reuses stretch 2's, stretch 6 reuses stretch 3's.
+
+### Files to change
+
+1. **`src/components/sixes/SixesTeamSetup.tsx`** -- Update the `useEffect` auto-assign logic: when `previousStretchTeams.length >= 3`, set teams from `previousStretchTeams[(stretch - 1) % 3]` instead of calling `getRotatedTeams` (which would hit the fallback).
+
+2. **`src/components/teamBanker/TeamBankerTeamSetup.tsx`** -- Same change: when previous teams count >= 3, cycle using modular index.
+
+3. **`src/components/stockton6/Stockton6TeamSetup.tsx`** -- Stockton 6's only has 3 stretches so this isn't strictly needed, but for consistency, the same guard can be added.
+
+### Technical Detail
+
+In each setup component's `useEffect`, the auto-assign block will change from:
+
+```text
+if (stretch === 1 || previousStretchTeams.length === 0) {
+  // default first pairing
+} else {
+  const rotated = getRotatedTeams(playerIds, previousStretchTeams);
+  // ...
+}
 ```
-VITE_SUPABASE_PROJECT_ID="wvmpxjcghlgtitdhozlj"
-VITE_SUPABASE_URL="https://wvmpxjcghlgtitdhozlj.supabase.co"
-VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2bXB4amNnaGxndGl0ZGhvemxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNDQ1NDMsImV4cCI6MjA4MTgyMDU0M30.W8-qRvLBU2ZykRczLyX6uXd3ThcA0N7Ygn7JpvgEA4A"
+
+to:
+
+```text
+if (stretch === 1 || previousStretchTeams.length === 0) {
+  // default first pairing
+} else if (previousStretchTeams.length >= 3) {
+  // All 3 unique pairings used -- cycle back through the sequence
+  const cycleIndex = (stretch - 1) % 3;
+  const source = previousStretchTeams[cycleIndex];
+  setTeamA([...source.teamA]);
+  setTeamB([...source.teamB]);
+} else {
+  const rotated = getRotatedTeams(playerIds, previousStretchTeams);
+  // ...
+}
 ```
 
-These are all public/publishable values -- they are designed to be in client-side code and are not secrets.
-
-### Why this is safe
-- The `VITE_SUPABASE_URL` is just the project endpoint (public).
-- The `VITE_SUPABASE_PUBLISHABLE_KEY` is the anon key, which is intentionally public. Security is enforced by Row Level Security (RLS) policies on the database, not by hiding this key.
-- This file is auto-managed by Lovable Cloud and is expected to exist.
-
-### Technical detail
-No other code changes are needed. The Supabase client in `src/integrations/supabase/client.ts` already reads these variables correctly -- it just needs them to be present.
+This ensures stretches 4, 5, 6 mirror stretches 1, 2, 3 respectively.
