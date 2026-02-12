@@ -1,61 +1,25 @@
 
 
-## Phase 1: Security and Stability Fixes
+## Fix: Restore the .env File
 
-### 1. Clean up supabase/config.toml
-Remove all `[functions.*]` sections with `verify_jwt = false`. The file will only contain:
-```toml
-project_id = "wvmpxjcghlgtitdhozlj"
+The `.env` file was deleted from the repo, but `src/integrations/supabase/client.ts` reads `import.meta.env.VITE_SUPABASE_URL` and `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY` at startup. Without these values, the Supabase client throws "supabaseUrl is required" and the app crashes.
+
+### What needs to happen
+
+Recreate the `.env` file at the project root with the three environment variables this project needs:
+
 ```
-Note: This file is listed as auto-managed by the system. We will attempt the edit, but if the system prevents it, JWT validation is already handled in-code for all functions.
-
-### 2. CORS Origin Restriction (7 Edge Functions)
-Replace `"Access-Control-Allow-Origin": "*"` with dynamic origin checking in all 7 functions:
-- `admin-delete-user/index.ts`
-- `admin-list-users/index.ts`
-- `admin-reset-password/index.ts`
-- `generate-reset-link/index.ts`
-- `parse-scorecard/index.ts`
-- `search-course/index.ts`
-- `send-welcome-email/index.ts`
-
-Each function will get:
-```typescript
-const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
-const origin = req.headers.get("origin") || "";
-const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
-```
-And all `corsHeaders` objects will use `corsOrigin` instead of `"*"`.
-
-Since `corsOrigin` is computed per-request (inside the handler), the `corsHeaders` must be moved inside the handler or constructed dynamically. Each function will build CORS headers inside the request handler.
-
-### 3. Manual Stroke Validation in gameEngine.ts
-Clamp manual strokes to `[0, 3]` at all 4 locations where `MANUAL_STROKES` is read:
-
-- **Line 274** (`calculateGameStrokes`): Change `return manualStrokes;` to `return Math.max(0, Math.min(manualStrokes, 3));`
-- **Line 577** (banker calc): Change `playerStrokesReceived = playerManualStrokes;` to `playerStrokesReceived = Math.max(0, Math.min(playerManualStrokes, 3));`
-- **Line 1738** (banker matchup): Change `playerStrokes = manualStrokes;` to `playerStrokes = Math.max(0, Math.min(manualStrokes, 3));`
-- **Line 1954** (team banker): Change `playerStrokesReceived = playerManualStrokes;` to `playerStrokesReceived = Math.max(0, Math.min(playerManualStrokes, 3));`
-
-Also clamp `bankerManualStrokes` at line 580 where it appears.
-
-### 4. Manual Stroke Validation in stockton6Engine.ts
-At **line 121-122**, change:
-```typescript
-const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null 
-  ? manualStrokes 
-```
-to:
-```typescript
-const effectiveStrokes = manualStrokes !== undefined && manualStrokes !== null 
-  ? Math.max(0, Math.min(manualStrokes, 3))
+VITE_SUPABASE_PROJECT_ID="wvmpxjcghlgtitdhozlj"
+VITE_SUPABASE_URL="https://wvmpxjcghlgtitdhozlj.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2bXB4amNnaGxndGl0ZGhvemxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNDQ1NDMsImV4cCI6MjA4MTgyMDU0M30.W8-qRvLBU2ZykRczLyX6uXd3ThcA0N7Ygn7JpvgEA4A"
 ```
 
-### 5. Catch-All 404 Route in App.tsx
-- Add `import NotFound from "./pages/NotFound";` with the other page imports (after line 14)
-- Add `<Route path="*" element={<NotFound />} />` as the last route before `</Routes>` (after line 500)
+These are all public/publishable values -- they are designed to be in client-side code and are not secrets.
 
-### Technical Notes
-- The `supabase/config.toml` is noted as auto-managed. If edits are blocked, a note will be provided.
-- All 7 edge functions will be redeployed automatically after changes.
-- CORS changes require moving header construction inside request handlers since origin is per-request.
+### Why this is safe
+- The `VITE_SUPABASE_URL` is just the project endpoint (public).
+- The `VITE_SUPABASE_PUBLISHABLE_KEY` is the anon key, which is intentionally public. Security is enforced by Row Level Security (RLS) policies on the database, not by hiding this key.
+- This file is auto-managed by Lovable Cloud and is expected to exist.
+
+### Technical detail
+No other code changes are needed. The Supabase client in `src/integrations/supabase/client.ts` already reads these variables correctly -- it just needs them to be present.
