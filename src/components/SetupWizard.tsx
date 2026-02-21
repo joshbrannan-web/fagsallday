@@ -28,6 +28,7 @@ import {
   Calendar,
   ShieldCheck,
   BadgeCheck,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // Types for tee box data
 interface TeeBox {
@@ -168,6 +170,21 @@ const GAME_LIBRARY: GameLibraryItem[] = [
     config: { useHandicaps: true, handicapMode: 'relative', birdieMultiplier: 3, eagleMultiplier: 5, teamBanker: { mode: 'sixes', useSecondBallTiebreaker: false } },
   },
 ];
+
+// Detailed game info for popovers
+const GAME_DETAILS: Record<string, { howItWorks: string; idealPlayers: string; examplePayout: string }> = {
+  [GameType.BANKER]: { howItWorks: "Each hole, one player is designated the 'banker' and plays against everyone else. Players choose multipliers (1x-5x) before the hole. Birdies triple the payout, eagles quintuple it.", idealPlayers: "3-4 players", examplePayout: "$3 unit × 3x multiplier × birdie = $27 win" },
+  [GameType.BLOODY_BANKER]: { howItWorks: "Same as Banker, but on holes 16-18, the player losing the most money is forced to be banker — adding extra pressure.", idealPlayers: "3-4 players", examplePayout: "$3 unit × forced banker on 18 = high-stakes finish" },
+  [GameType.STOCKTON_6]: { howItWorks: "Teams of 2 play 1-Ball and 2-Ball Nassau across three 6-hole stretches. Includes dots (birdie, greenie) and auto-presses when 2-down.", idealPlayers: "Exactly 4 players", examplePayout: "$5 unit: ~$30-60 swing per stretch" },
+  [GameType.FBO]: { howItWorks: "Each hole, lowest net score earns a 'dot.' Three bets run simultaneously: Front 9, Back 9, and Overall 18. Player with most dots in each segment wins.", idealPlayers: "2-8 players", examplePayout: "$10/segment: 5 dots vs 3 dots = $20 win" },
+  [GameType.SKINS]: { howItWorks: "Lowest net score wins the 'skin' on each hole. If two or more players tie, the skin carries over to the next hole, building the pot.", idealPlayers: "3-4 players", examplePayout: "$3/skin: 3 carryovers = $12 skin" },
+  [GameType.NASSAU]: { howItWorks: "Three separate match-play bets: Front 9, Back 9, and Overall 18. Each is an independent wager based on net scores.", idealPlayers: "Exactly 2 players", examplePayout: "$3/bet: max exposure $9" },
+  [GameType.OPEN_BETTING]: { howItWorks: "Manually track any side bet between players — closest to pin, longest drive, or any custom wager you agree on.", idealPlayers: "Any group size", examplePayout: "Whatever you agree on!" },
+  [GameType.WOLF]: { howItWorks: "Rotating 'Wolf' picks a partner after watching tee shots, or goes Lone Wolf for double points. Blind Lone Wolf (declared before anyone tees off) pays 3x.", idealPlayers: "Exactly 4 players", examplePayout: "$1/point: Lone Wolf win = $3/player" },
+  [GameType.NINE_POINTS]: { howItWorks: "9 points split each hole among 3 players: 5 for best net, 3 for second, 1 for worst. At the end, points are compared and differences paid out.", idealPlayers: "Exactly 3 players", examplePayout: "$1/point: 36-point target over 18" },
+  [GameType.SIXES]: { howItWorks: "2v2 teams rotate every 6 holes (or every 3). Lowest ball wins each hole. Team winning the most holes in a stretch wins the bet.", idealPlayers: "Exactly 4 players", examplePayout: "$10/stretch: win 4 holes vs 2 = $20" },
+  [GameType.TEAM_BANKER]: { howItWorks: "2v2 team version of Banker. All players choose multipliers. Team with the best combined net score wins, applying multipliers for payouts.", idealPlayers: "Exactly 4 players", examplePayout: "$3 unit: team multipliers amplify" },
+};
 
 // Default 18 holes
 const createDefaultCourse = (name: string, location: string): Course => ({
@@ -1694,7 +1711,28 @@ const SetupWizard: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <span className="text-2xl">{game.icon}</span>
                           <div>
-                            <div className="font-semibold">{game.name}</div>
+                            <div className="font-semibold flex items-center gap-1.5">
+                              {game.name}
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-muted-foreground hover:text-primary transition-colors"
+                                  >
+                                    <Info className="w-3.5 h-3.5" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-72 text-sm space-y-2" side="top">
+                                  <p className="font-semibold">{game.name}</p>
+                                  <p className="text-muted-foreground text-xs">{GAME_DETAILS[game.type]?.howItWorks}</p>
+                                  <div className="flex gap-4 text-xs">
+                                    <div><span className="font-medium">Players:</span> {GAME_DETAILS[game.type]?.idealPlayers}</div>
+                                  </div>
+                                  <div className="text-xs"><span className="font-medium">Example:</span> {GAME_DETAILS[game.type]?.examplePayout}</div>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
                             <div className="text-sm text-muted-foreground">{game.description}</div>
                             {isDisabled && (
                               <div className="text-xs text-destructive mt-1">
@@ -1704,7 +1742,7 @@ const SetupWizard: React.FC = () => {
                           </div>
                         </div>
                         <div
-                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                             isSelected ? "bg-primary border-primary" : "border-border"
                           }`}
                         >

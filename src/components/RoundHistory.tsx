@@ -1,8 +1,21 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { ArrowLeft, Calendar, MapPin, History, Trash2, PlayCircle, Lock, Star } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, History, Trash2, PlayCircle, Lock, Star, Search, Plus, TrendingUp, Trophy } from 'lucide-react';
 import { calculateRoundTotals, formatMoney } from '../services/gameEngine';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const RoundCard: React.FC<{
   round: any;
@@ -24,6 +37,16 @@ const RoundCard: React.FC<{
   const isLocked = round.status === 'LOCKED';
   const isFavorite = round.isFavorite;
 
+  // Count scored holes
+  const totalHoles = round.course?.holes?.length || 18;
+  const scoredHoles = Object.keys(round.scores || {}).filter(h => {
+    const holeScores = round.scores[h];
+    return round.players.some((p: any) => typeof holeScores?.[p.id] === 'number' && holeScores[p.id] > 0);
+  }).length;
+
+  // Get game names
+  const gameNames = (round.games || []).map((g: any) => g.name);
+
   return (
     <div
       className={`relative w-full bg-card rounded-xl shadow-sm border overflow-hidden ${
@@ -34,7 +57,7 @@ const RoundCard: React.FC<{
         onClick={() => onView(round)}
         className="p-4 cursor-pointer hover:bg-muted/30 active:bg-muted/50 transition-colors"
       >
-        <div className="flex justify-between items-start mb-3 pr-12">
+        <div className="flex justify-between items-start mb-2 pr-12">
           <div>
             <h3 className="font-bold text-lg flex items-center gap-2">
               {round.course.name}
@@ -55,10 +78,29 @@ const RoundCard: React.FC<{
           </div>
         </div>
 
+        {/* Game badges */}
+        {gameNames.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {gameNames.map((name: string, i: number) => (
+              <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0">
+                {name}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         <div className="flex justify-between items-center">
-          <div className="text-xs text-muted-foreground flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            {new Date(round.startTime).toLocaleDateString()}
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              {new Date(round.startTime).toLocaleDateString()}
+            </div>
+            {/* Holes completed indicator */}
+            {(isActive || scoredHoles < totalHoles) && scoredHoles > 0 && (
+              <div className="text-xs text-muted-foreground">
+                {scoredHoles}/{totalHoles} holes
+              </div>
+            )}
           </div>
           {maxWin > 0 && (
             <div className="text-sm">
@@ -88,7 +130,7 @@ const RoundCard: React.FC<{
         )}
         {onDelete && (
           <button
-            onClick={(e) => onDelete(e, round.id)}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(e, round.id); }}
             className="p-2 text-destructive hover:bg-destructive/10 rounded-full"
           >
             <Trash2 className="w-4 h-4" />
@@ -102,6 +144,8 @@ const RoundCard: React.FC<{
 const RoundHistory: React.FC = () => {
   const { roundHistory, loadPastRound, deleteRound, toggleRoundFavorite } = useApp();
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const handleViewRound = (round: any) => {
     loadPastRound(round);
@@ -112,11 +156,16 @@ const RoundHistory: React.FC = () => {
     }
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (window.confirm("Delete this round permanently?")) {
-      deleteRound(id);
+    setDeleteId(id);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteId) {
+      deleteRound(deleteId);
+      setDeleteId(null);
     }
   };
 
@@ -126,21 +175,57 @@ const RoundHistory: React.FC = () => {
     toggleRoundFavorite(id);
   };
 
-  // Take the 3 most recent rounds regardless of status
-  const allSorted = [...roundHistory].sort((a, b) => b.startTime - a.startTime);
+  // Filter rounds by search
+  const filteredHistory = useMemo(() => {
+    if (!searchQuery.trim()) return roundHistory;
+    const q = searchQuery.toLowerCase();
+    return roundHistory.filter(r =>
+      r.course.name.toLowerCase().includes(q) ||
+      r.course.location?.toLowerCase().includes(q) ||
+      r.players.some((p: any) => p.name.toLowerCase().includes(q))
+    );
+  }, [roundHistory, searchQuery]);
+
+  // Stats
+  const stats = useMemo(() => {
+    if (roundHistory.length === 0) return null;
+    const totalRounds = roundHistory.length;
+
+    // Most-played course
+    const courseCounts: Record<string, number> = {};
+    roundHistory.forEach(r => {
+      const name = r.course.name;
+      courseCounts[name] = (courseCounts[name] || 0) + 1;
+    });
+    const topCourse = Object.entries(courseCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+
+    // Lifetime net P&L (sum of first player's results as proxy for "you")
+    let lifetimeNet = 0;
+    roundHistory.forEach(r => {
+      const totals = calculateRoundTotals(r);
+      const firstPlayerId = r.players[0]?.id;
+      if (firstPlayerId && totals[firstPlayerId]) {
+        lifetimeNet += totals[firstPlayerId];
+      }
+    });
+
+    return { totalRounds, topCourse, lifetimeNet };
+  }, [roundHistory]);
+
+  // Categorize filtered rounds
+  const allSorted = [...filteredHistory].sort((a, b) => b.startTime - a.startTime);
   const recentIds = new Set(allSorted.slice(0, 3).map(r => r.id));
 
-  // Recent = ACTIVE, COMPLETE, or any round in the top 3 most recent
-  const recentRounds = roundHistory
+  const recentRounds = filteredHistory
     .filter(r => r.status === 'ACTIVE' || r.status === 'COMPLETE' || recentIds.has(r.id))
     .sort((a, b) => b.startTime - a.startTime);
 
-  // Completed = LOCKED rounds that are NOT in the recent section
-  const completedRounds = roundHistory
+  const completedRounds = filteredHistory
     .filter(r => r.status === 'LOCKED' && !recentIds.has(r.id))
     .sort((a, b) => b.startTime - a.startTime);
 
   const hasNoRounds = roundHistory.length === 0;
+  const hasNoResults = filteredHistory.length === 0 && !hasNoRounds;
 
   return (
     <div className="min-h-screen bg-background">
@@ -151,19 +236,58 @@ const RoundHistory: React.FC = () => {
         <h1 className="text-xl font-bold">Past Rounds</h1>
       </div>
 
-      <div className="p-4 space-y-6">
+      <div className="p-4 space-y-4">
+        {/* Stats Summary */}
+        {stats && (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-card rounded-lg border border-border p-3 text-center">
+              <div className="text-lg font-bold">{stats.totalRounds}</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Rounds</div>
+            </div>
+            <div className="bg-card rounded-lg border border-border p-3 text-center">
+              <div className="text-sm font-bold truncate">{stats.topCourse}</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Top Course</div>
+            </div>
+            <div className="bg-card rounded-lg border border-border p-3 text-center">
+              <div className={`text-lg font-bold ${stats.lifetimeNet >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {formatMoney(stats.lifetimeNet)}
+              </div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Net P&L</div>
+            </div>
+          </div>
+        )}
+
+        {/* Search */}
+        {!hasNoRounds && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by course or player..."
+              className="pl-9"
+            />
+          </div>
+        )}
+
         {hasNoRounds ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
             <div className="bg-muted/50 p-6 rounded-full mb-4">
               <History className="w-12 h-12 opacity-50" />
             </div>
             <p className="font-semibold">No rounds saved yet.</p>
-            <p className="text-sm">Finish a round to see it here.</p>
+            <p className="text-sm mb-4">Start a round to see your history here.</p>
+            <Button onClick={() => navigate('/setup')} className="gap-2">
+              <Plus className="w-4 h-4" /> Start New Round
+            </Button>
+          </div>
+        ) : hasNoResults ? (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Search className="w-8 h-8 opacity-50 mb-2" />
+            <p className="text-sm">No rounds match "{searchQuery}"</p>
           </div>
         ) : (
-          <>
-
-
+          <div className="space-y-6">
             {recentRounds.length > 0 && (
               <div className="space-y-3">
                 <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Recent Rounds</h2>
@@ -172,7 +296,7 @@ const RoundHistory: React.FC = () => {
                     key={round.id}
                     round={round}
                     onView={handleViewRound}
-                    onDelete={round.status !== 'LOCKED' ? handleDelete : undefined}
+                    onDelete={round.status !== 'LOCKED' ? handleDeleteClick : undefined}
                     onToggleFavorite={handleToggleFavorite}
                   />
                 ))}
@@ -192,9 +316,27 @@ const RoundHistory: React.FC = () => {
                 ))}
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Round</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this round and all its data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

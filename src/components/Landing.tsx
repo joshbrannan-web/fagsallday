@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroIllustration from './HeroIllustration';
-import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2 } from 'lucide-react';
+import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2, HelpCircle } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Button } from '@/components/ui/button';
+import OnboardingOverlay from './OnboardingOverlay';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ const Landing: React.FC = () => {
   const { currentRound, clearLoadedRound, isLoading: appLoading } = useApp();
   const { user, profile, signOut, isLoading: authLoading } = useAuth();
   const { isAdmin } = useAdminAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Clear any manually-loaded past round when returning to home
   React.useEffect(() => {
@@ -41,7 +43,8 @@ const Landing: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8 bg-background animate-fade-in">
-      {/* User Menu - Top Right */}
+      {/* Onboarding Overlay */}
+      {user && <OnboardingOverlay forceOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />}
       <div className="absolute top-4 right-4">
         {user ? (
           <DropdownMenu>
@@ -73,6 +76,10 @@ const Landing: React.FC = () => {
                   Admin Panel
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem onClick={() => setShowOnboarding(true)}>
+                <HelpCircle className="w-4 h-4 mr-2" />
+                How It Works
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                 <LogOut className="w-4 h-4 mr-2" />
