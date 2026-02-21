@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle, Grid3X3 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -41,6 +43,8 @@ const ActiveRound: React.FC = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   // Always start minimized - user can expand at any time
   const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(true);
+  const [showHomeConfirm, setShowHomeConfirm] = useState(false);
+  const [showHolePicker, setShowHolePicker] = useState(false);
   
   const isOnline = useOnlineStatus();
   const { isActive: wakeLockActive } = useWakeLock(true);
@@ -612,27 +616,77 @@ const ActiveRound: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background">
+      {/* Home Confirmation Dialog */}
+      <AlertDialog open={showHomeConfirm} onOpenChange={setShowHomeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave Round?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your round will be saved. You can return anytime to continue scoring.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate('/')}>Go Home</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Top Bar: Hole Nav */}
-      <div className="bg-brand-dark text-primary-foreground p-4 shadow-lg sticky top-0 z-20">
-        <div className="flex items-center justify-center mb-4 relative">
-          <button className="p-2 absolute left-0" onClick={() => navigate('/summary')}><Menu className="w-5 h-5" /></button>
-          <div className="flex flex-col items-center text-center">
-            <h1 className="text-2xl font-bold">Hole {activeHole}</h1>
-            <div className="flex gap-3 text-xs text-muted-foreground font-mono tracking-wider">
-              <span>PAR {courseHole?.par}</span>
-              <span className="opacity-50">|</span>
-              <span>{courseHole?.yardage} YDS</span>
-              <span className="opacity-50">|</span>
-              <span>IDX {courseHole?.handicapIndex}</span>
-            </div>
+      <div className="bg-brand-dark text-primary-foreground p-4 pb-2 shadow-lg sticky top-0 z-20">
+        <div className="flex items-center justify-center mb-3 relative">
+          <div className="absolute left-0 flex items-center gap-1">
+            <button className="p-2" onClick={() => setShowHomeConfirm(true)}><Home className="w-5 h-5" /></button>
+            <button className="p-2" onClick={() => navigate('/summary')}><Menu className="w-5 h-5" /></button>
           </div>
+          <Popover open={showHolePicker} onOpenChange={setShowHolePicker}>
+            <PopoverTrigger asChild>
+              <button className="flex flex-col items-center text-center cursor-pointer hover:opacity-80 transition-opacity">
+                <h1 className="text-2xl font-bold flex items-center gap-1">Hole {activeHole} <Grid3X3 className="w-4 h-4 opacity-50" /></h1>
+                <div className="flex gap-3 text-xs text-muted-foreground font-mono tracking-wider">
+                  <span>PAR {courseHole?.par}</span>
+                  <span className="opacity-50">|</span>
+                  <span>{courseHole?.yardage} YDS</span>
+                  <span className="opacity-50">|</span>
+                  <span>IDX {courseHole?.handicapIndex}</span>
+                </div>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3" side="bottom">
+              <p className="text-xs font-semibold text-muted-foreground mb-2">Jump to Hole</p>
+              <div className="grid grid-cols-6 gap-1.5">
+                {Array.from({ length: 18 }, (_, i) => i + 1).map(hole => {
+                  const isScored = currentRound.players.every(p => {
+                    const s = currentRound.scores[hole]?.[p.id];
+                    return typeof s === 'number' && s > 0;
+                  });
+                  const isCurrent = hole === activeHole;
+                  return (
+                    <button
+                      key={hole}
+                      onClick={() => { setActiveHole(hole); setShowHolePicker(false); }}
+                      className={`w-9 h-9 rounded-lg text-sm font-bold flex items-center justify-center transition-colors ${
+                        isCurrent
+                          ? 'bg-primary text-primary-foreground'
+                          : isScored
+                            ? 'bg-success/20 text-success'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                      }`}
+                    >
+                      {isScored && !isCurrent ? <Check className="w-3.5 h-3.5" /> : hole}
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
           {/* Offline/Sync/WakeLock Status Indicators */}
           <div className="absolute right-0 flex items-center gap-1.5">
             {wakeLockActive && (
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Screen staying on" />
+              <div className="w-2 h-2 rounded-full bg-success animate-pulse" title="Screen staying on" />
             )}
             {!isOnline ? (
-              <div className="bg-warning/20 text-warning px-2 py-1 rounded-full text-xs flex items-center gap-1">
+              <div className="bg-destructive/20 text-destructive px-2 py-1 rounded-full text-xs flex items-center gap-1">
                 <WifiOff className="w-3 h-3" />
                 Offline
               </div>
@@ -644,6 +698,31 @@ const ActiveRound: React.FC = () => {
             ) : null}
           </div>
         </div>
+
+        {/* Hole completion dots */}
+        <div className="flex justify-center gap-1 mb-3">
+          {Array.from({ length: 18 }, (_, i) => i + 1).map(hole => {
+            const isScored = currentRound.players.every(p => {
+              const s = currentRound.scores[hole]?.[p.id];
+              return typeof s === 'number' && s > 0;
+            });
+            const isCurrent = hole === activeHole;
+            return (
+              <button
+                key={hole}
+                onClick={() => setActiveHole(hole)}
+                className={`w-2 h-2 rounded-full transition-colors ${
+                  isCurrent
+                    ? 'bg-primary scale-150'
+                    : isScored
+                      ? 'bg-success'
+                      : 'bg-muted-foreground/30'
+                }`}
+              />
+            );
+          })}
+        </div>
+
         <div className="flex justify-between items-center gap-4">
           <button 
             disabled={activeHole === 1}
@@ -655,7 +734,7 @@ const ActiveRound: React.FC = () => {
           <div className="flex-1 flex justify-center">
             <button 
               onClick={() => navigate('/scorecard')}
-              className="bg-white/10 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-white/20 transition-colors"
+              className="bg-primary-foreground/10 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-primary-foreground/20 transition-colors"
             >
               <FileText className="w-4 h-4" /> Scorecard
             </button>
@@ -676,6 +755,15 @@ const ActiveRound: React.FC = () => {
             </button>
           )}
         </div>
+
+        {/* Progress bar */}
+        {(() => {
+          const scored = Object.keys(currentRound.scores).filter(h => {
+            const hs = currentRound.scores[Number(h)];
+            return currentRound.players.every(p => typeof hs?.[p.id] === 'number' && hs[p.id] > 0);
+          }).length;
+          return <Progress value={(scored / 18) * 100} className="h-1 mt-2 bg-muted-foreground/20" />;
+        })()}
       </div>
 
       {/* Stockton 6's Team Setup - Show at stretch starts if teams not set */}
