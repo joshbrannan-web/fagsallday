@@ -27,10 +27,12 @@ const UserSearchDialog: React.FC<UserSearchDialogProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<UserResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = useCallback(async () => {
     if (!searchTerm.trim() || searchTerm.trim().length < 2) return;
     setIsSearching(true);
+    setHasSearched(true);
     try {
       const { data, error } = await supabase.rpc('search_users_by_name', {
         search_term: searchTerm.trim(),
@@ -50,7 +52,7 @@ const UserSearchDialog: React.FC<UserSearchDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setHasSearched(false); } onOpenChange(v); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -58,7 +60,7 @@ const UserSearchDialog: React.FC<UserSearchDialogProps> = ({
         <div className="flex gap-2">
           <Input
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setHasSearched(false); }}
             onKeyDown={handleKeyDown}
             placeholder="Search by name..."
             autoFocus
@@ -68,7 +70,7 @@ const UserSearchDialog: React.FC<UserSearchDialogProps> = ({
           </Button>
         </div>
         <div className="space-y-2 max-h-64 overflow-y-auto">
-          {results.length === 0 && !isSearching && searchTerm.trim().length >= 2 && (
+          {results.length === 0 && !isSearching && hasSearched && (
             <p className="text-sm text-muted-foreground text-center py-4">No users found</p>
           )}
           {results.map((user) => (
