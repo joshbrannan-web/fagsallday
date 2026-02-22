@@ -1,39 +1,29 @@
 
 
-## Incomplete Round Actions on Summary Page
+## Sync Return-to-Hole Logic and Improve Scorecard Navigation
 
-Add conditional buttons and logic to the Round Summary page based on whether all 18 holes have been scored.
+Three changes across two files:
 
-### What Changes
+### 1. RoundSummary: Smart "Return to Hole" navigation
+Currently the "Return to Hole" button on the Round Summary page just navigates to `/active` with no state. Update it to use the same logic as the Scorecard: find the first incomplete hole (where not every player has a numeric score > 0) and pass it as `startHole`.
 
-- When the round is **not fully complete** (not all holes scored for all players), two new buttons appear below "View Scorecard":
-  - **Return to Hole** -- navigates back to `/active` so the user can continue scoring
-  - **Delete Round** -- deletes the current round and navigates home
-- The **Finish & Save** button only appears when all 18 holes have been completed (every player has a non-null score for all holes)
-- The header will say "Round Summary" instead of "Round Complete" when holes are still missing
+### 2. Scorecard: Remove back arrow button
+Remove the back arrow (`ArrowLeft`) button in the sticky header bar. The header will just show "Scorecard" centered, with a spacer on both sides for balance.
 
-### How Completeness Is Determined
-
-A round is considered fully complete when every hole (1-18) has a non-null score for every player. This is checked by iterating through `currentRound.scores` for holes 1-18 and verifying each player has a numeric score.
+### 3. Scorecard: Highlight the current hole
+Highlight the column header of the first incomplete hole so the user understands they can click it to return to scoring. The highlight will use a distinct background color (e.g., `bg-primary/20` with a ring) on that hole's `<th>` element, making it visually stand out from the other hole numbers.
 
 ### Technical Details
 
 **File: `src/components/RoundSummary.tsx`**
 
-1. Add a computed boolean `allHolesComplete`:
-   ```
-   Check holes 1-18, for each hole verify every player
-   has a non-null score in currentRound.scores[hole][playerId]
-   ```
+- Compute `firstIncompleteHole` using the same logic as Scorecard (lines 1295-1302): find the first hole where not every player has a score > 0
+- Update the "Return to Hole" button (currently around line 492) to navigate with `{ state: { startHole: firstIncompleteHole } }`
 
-2. Add a `handleDeleteRound` function that calls `deleteRound(currentRound.id)`, then `clearLoadedRound()`, then navigates to `/`
+**File: `src/components/Scorecard.tsx`**
 
-3. Update the header text: show "Round Summary" when `!allHolesComplete`, "Round Complete" when complete
+- Remove the back arrow button from the header (line 837), and replace it with a `<div className="w-10" />` spacer (matching the right side)
+- Remove `ArrowLeft` from the lucide-react import
+- Compute `firstIncompleteHole` once at the component level (move it out of the bottom button IIFE so it can be reused)
+- In the hole header `<th>` elements (lines 878-886), add a conditional highlight class when `h.number === firstIncompleteHole` -- something like a primary-colored ring and background tint to draw the user's eye
 
-4. In the bottom button area (lines 449-481), after the "View Scorecard" button:
-   - If `!allHolesComplete` and round status is `ACTIVE`: show "Return to Hole" button (navigates to `/active`) and "Delete Round" button (destructive variant, calls `handleDeleteRound`)
-   - Change the existing "Finish & Save" condition from `currentRound.status === 'ACTIVE'` to `currentRound.status === 'ACTIVE' && allHolesComplete`
-
-5. Import `Trash2, ArrowLeft` from lucide-react for the new button icons
-
-No other files need changes -- `deleteRound` and `clearLoadedRound` already exist in AppContext.
