@@ -1,26 +1,28 @@
 
 
-## Fix GHIN Sync - API Compatibility
+## Fix CORS for GHIN Sync Edge Function
 
-The GHIN sync is failing with a 400 error because the edge function is using an outdated API format. Two changes are needed in `supabase/functions/sync-ghin-handicap/index.ts`:
+The GHIN sync edge function is working correctly server-side, but the browser is rejecting the response because the CORS `Access-Control-Allow-Origin` header doesn't include the Lovable preview domain.
 
-### Changes
+### The Problem
 
-1. **Fix the login API URL** from `https://api.ghin.com/api/v1/golfer_login.json` to `https://api2.ghin.com/api/v1/golfer_login.json`
+The edge function has a hardcoded allowlist of origins:
+- `https://fagsallday.com`
+- `https://www.fagsallday.com`  
+- `https://fagsallday.lovable.app`
 
-2. **Add the required `token` field** to the login request body (an arbitrary value required by the GHIN API):
-   ```
-   body: { user: { ... }, token: "123" }
-   ```
+But the preview runs on `https://902ceb91-387f-4b92-88e1-503add1c6d7a.lovableproject.com`, which is not in the list.
 
-3. **Fix the search API URL** from `https://api.ghin.com/api/v1/golfers/search.json` to `https://api2.ghin.com/api/v1/golfers/search.json`
+### The Fix
+
+Update `supabase/functions/sync-ghin-handicap/index.ts` to use a wildcard `Access-Control-Allow-Origin: *` header (consistent with Lovable's recommended CORS pattern for edge functions), or add a pattern match for `.lovableproject.com` domains.
+
+Using `*` is the simplest and recommended approach since the function already validates the JWT for security.
 
 ### Technical Details
 
 In `supabase/functions/sync-ghin-handicap/index.ts`:
-- Line ~89: Change login URL to `https://api2.ghin.com/api/v1/golfer_login.json`
-- Line ~92: Add `token: "123"` alongside the `user` object in the request body
-- Line ~108: Change search URL to `https://api2.ghin.com/api/v1/golfers/search.json`
+- Replace the `ALLOWED_ORIGINS` array and `getCorsHeaders` function with a simple `corsHeaders` object using `'Access-Control-Allow-Origin': '*'`
+- Update all `Response` constructors to use the simplified `corsHeaders`
 
-These are the only changes needed. The rest of the function logic (auth, rate limiting, profile update) is correct.
-
+This is a one-file change. The function's JWT validation already ensures only authenticated users can call it.
