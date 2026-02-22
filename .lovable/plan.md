@@ -1,75 +1,63 @@
 
-
-## Add "What's New" Popup on Login (Updated Dialog Order)
+## Add "Find App User" to Setup Wizard Step 2
 
 ### Overview
 
-Show a "What's New" dialog the first time a user logs in after updates have been deployed. The dialog now appears **before** the GHIN prompt, so users learn about GHIN sync as a new feature before being asked to enter their number.
-
-### Dialog Sequencing (Updated Order)
-
-1. **Onboarding Overlay** -- first-time users only, sets `fg_onboarding_complete` on dismiss
-2. **What's New** -- shows after onboarding is complete, before GHIN prompt
-3. **GHIN Prompt** -- shows after What's New is dismissed
-
-This means:
-- New users see: Onboarding -> What's New -> GHIN Prompt (in sequence)
-- Existing users who haven't seen this version's What's New: What's New -> then GHIN (if not already linked/dismissed)
-- No two dialogs ever overlap
-
-### What's New Content
-
-1. **GHIN Handicap Sync** -- Link your GHIN number to automatically pull your handicap from USGA. One-way sync keeps your index current.
-2. **Live Round Viewing** -- If you're a linked player in someone else's round, you can now view the live scorecard in real-time from the home screen.
-3. **Round Sharing** -- Finished rounds are automatically shared with linked players so everyone can see results in their history.
+Add a button in the player setup step (Step 2 of 3) that lets users search for other app users by name. When a user is found and selected, they are automatically added to the user's "My Players" list as a linked player and filled into the current round's player slot.
 
 ### Changes
 
-**New file: `src/components/WhatsNewDialog.tsx`**
+**Modified file: `src/components/SetupWizard.tsx`**
 
-- Dialog with scrollable list of updates, each with icon, title, and description
-- Single "Got It" button to dismiss
-- Open condition checks:
-  - User is logged in
-  - `fg_onboarding_complete` is `'true'` in localStorage
-  - `fg_whats_new_seen` does not match `WHATS_NEW_VERSION`
-- No longer checks for GHIN status (since it now shows before GHIN prompt)
-- On dismiss: `localStorage.setItem('fg_whats_new_seen', WHATS_NEW_VERSION)`
+1. **Import `UserSearchDialog`** from `@/components/UserSearchDialog`
 
-**Modified file: `src/components/GhinPrompt.tsx`**
+2. **Add state variables:**
+   - `showUserSearch: boolean` (default `false`)
+   - `userSearchSlotIndex: number | null` (default `null`) -- tracks which player slot triggered the search, or `null` if adding a new player
 
-- Add one additional condition to the existing `useEffect` that controls when the GHIN dialog opens
-- Only show GHIN prompt when `localStorage('fg_whats_new_seen')` matches the current `WHATS_NEW_VERSION` (meaning What's New has been dismissed)
-- Import the `WHATS_NEW_VERSION` constant from `WhatsNewDialog.tsx`
-- All other GHIN prompt logic stays the same
+3. **Add a handler `handleAppUserSelected`** that:
+   - Receives the selected user (`{ id, display_name }`) and the slot index
+   - Calls `addSavedPlayer(display_name, 0, 'White', userId)` to save + link the player in "My Players"
+   - Fetches the user's handicap from profiles table via `supabase.from('profiles').select('handicap_index').eq('id', userId).single()` -- but since RLS only allows users to read their own profile, this won't work. Instead, we'll use the display_name and default handicap (0), and the user can manually adjust. The linked_user_id is what matters for sharing.
+   - Fills the player slot (or adds to first empty slot / appends) with the user's display name, handicap 0, and `linkedUserId` set
 
-**Modified file: `src/components/Landing.tsx`**
+4. **Add "Find App User" button** in Step 2, next to the existing "Add Player" and "Saved Players" buttons (the bottom button row at lines 1714-1758):
+   - Show a `Search` icon button labeled with a person-search icon (`Users` or `Search`)
+   - Only visible when `user` is logged in
+   - Clicking opens `UserSearchDialog`
 
-- Import and render `WhatsNewDialog` alongside existing `OnboardingOverlay` and `GhinPrompt` (only when `user` is truthy)
-- No extra state or props needed -- each dialog self-manages via localStorage
+5. **Render `UserSearchDialog`** at the bottom of the Step 2 section with:
+   - `open={showUserSearch}`
+   - `onOpenChange={setShowUserSearch}`
+   - `title="Find App User"`
+   - `onSelect` handler that calls `handleAppUserSelected`
+
+### UI Layout (Bottom buttons in Step 2)
+
+Currently:
+- [Add Player] [Saved Players icon]
+
+Updated:
+- [Add Player] [Find App User icon] [Saved Players icon]
+
+The "Find App User" button uses a `Search` icon to distinguish it from the existing saved players button.
+
+### Flow
+
+1. User taps the "Find App User" button
+2. `UserSearchDialog` opens (same component used on My Players page)
+3. User types a name and searches
+4. Results show matching app users
+5. User taps a result
+6. The selected user is:
+   - Added to "My Players" as a linked player (via `addSavedPlayer`)
+   - Filled into the next available empty player slot in the round setup
+   - Shows the "Linked User" badge on their player card
+7. Dialog closes
 
 ### Technical Details
 
-**WhatsNewDialog open logic:**
-```
-const WHATS_NEW_VERSION = "2026-02-22";  // exported
-
-useEffect:
-  if user is logged in
-    AND localStorage('fg_onboarding_complete') === 'true'
-    AND localStorage('fg_whats_new_seen') !== WHATS_NEW_VERSION
-  then open dialog
-```
-
-**GhinPrompt updated open logic (existing + one new check):**
-```
-useEffect:
-  if profile loaded
-    AND no ghin_number on profile
-    AND fg_ghin_prompt_dismissed not set
-    AND localStorage('fg_whats_new_seen') === WHATS_NEW_VERSION   // NEW
-  then open dialog
-```
-
-To add future updates, bump `WHATS_NEW_VERSION` and update the `updates` array. The What's New dialog reappears for all users, and GHIN prompt remains gated behind it.
-
+- Reuses the existing `UserSearchDialog` component and `search_users_by_name` RPC -- no new backend changes needed
+- Reuses the existing `addSavedPlayer` from `useSavedPlayers` hook -- handles dedup (if player name already exists, updates instead)
+- The selected user's handicap defaults to 0 since we can't read other users' profiles (RLS restriction). The user can manually adjust the handicap in the slot.
+- `linkedUserId` is set on the player slot so round sharing works correctly when the round starts
