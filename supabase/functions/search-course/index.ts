@@ -383,7 +383,65 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
   console.log('Scraped content length:', scrapedMarkdown.length);
   console.log('Scraped content preview:', scrapedMarkdown.substring(0, 500));
 
-  if (scrapedMarkdown.includes('404') && scrapedMarkdown.includes('Page Not Found')) {
+  // Detect CAPTCHA or insufficient content
+  const isCaptcha = (md: string) =>
+    md.length < 1000 ||
+    md.toLowerCase().includes('confirm you are human') ||
+    md.toLowerCase().includes('solve a puzzle') ||
+    md.toLowerCase().includes('security check') ||
+    md.toLowerCase().includes('captcha');
+
+  let finalMarkdown = scrapedMarkdown;
+
+  if (isCaptcha(scrapedMarkdown)) {
+    console.log('CAPTCHA detected on first attempt, retrying after delay...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    const retryResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${firecrawlKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: formattedUrl,
+        formats: ['markdown'],
+        onlyMainContent: false,
+        waitFor: 5000,
+      }),
+    });
+
+    if (retryResponse.ok) {
+      const retryData = await retryResponse.json();
+      const retryMarkdown = retryData.data?.markdown || retryData.markdown || '';
+      console.log('Retry scraped content length:', retryMarkdown.length);
+
+      if (isCaptcha(retryMarkdown)) {
+        console.error('CAPTCHA detected on retry as well');
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'BlueGolf blocked the request with a security check. Please try again in a moment or enter course details manually.',
+            sourceUrl: formattedUrl
+          }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      finalMarkdown = retryMarkdown;
+    } else {
+      console.error('Retry scrape failed:', retryResponse.status);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'BlueGolf blocked the request. Please try again in a moment or enter course details manually.',
+          sourceUrl: formattedUrl
+        }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  if (finalMarkdown.includes('404') && finalMarkdown.includes('Page Not Found')) {
     console.error('BlueGolf page returned 404');
     return new Response(
       JSON.stringify({ 
@@ -425,14 +483,16 @@ Guidelines:
 - IMPORTANT: Parse the ACTUAL numbers from the table, do not make up values
 - If a value is unclear, use reasonable defaults but flag it
 - Ensure all 18 holes are extracted in order
-- IMPORTANT: For the "location" field, look for the course's city and state on the page (often shown in the header, breadcrumb, or address area). The location MUST be a real city and state — never leave it empty or as "Location not specified". If the page shows an address, extract the city and state from it.${locationHint}`;
+- IMPORTANT: For the "location" field, look for the course's city and state on the page (often shown in the header, breadcrumb, or address area). The location MUST be a real city and state — never leave it empty or as "Location not specified". If the page shows an address, extract the city and state from it.${locationHint}
+
+CRITICAL: If the page content does not contain an actual scorecard table with numeric hole data (par, yardage, handicap values), you MUST return { "error": "no_scorecard_data" } instead of guessing. NEVER invent, estimate, or use memorized values. Only extract data that is explicitly present in the content.`;
 
   const userPrompt = `Parse the golf course scorecard from this BlueGolf page content for "${courseName}":
 
-${scrapedMarkdown}
+${finalMarkdown}
 
 Extract all 18 holes with their par, yardage (from Blue/Back tees), and handicap index.
-Return ONLY the JSON object with the parsed data.`;
+Return ONLY the JSON object with the parsed data. If the content does not contain a scorecard table, return { "error": "no_scorecard_data" }.`;
 
   console.log('Calling Lovable AI to parse scorecard...');
 
@@ -479,6 +539,19 @@ Return ONLY the JSON object with the parsed data.`;
 
   try {
     const courseData: CourseData = parseJsonFromContent(content);
+    
+    // Handle AI indicating no scorecard data was found
+    if ((courseData as any).error === 'no_scorecard_data') {
+      console.log('AI reported no scorecard data in page content');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'The scorecard data could not be read from BlueGolf. The page may be blocked or not contain scorecard information. Please try again or enter course details manually.',
+          sourceUrl: formattedUrl
+        }),
+        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     if (!courseData.name || !courseData.holes || !Array.isArray(courseData.holes)) {
       throw new Error('Invalid course data structure');
