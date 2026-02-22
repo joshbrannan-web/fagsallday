@@ -8,6 +8,8 @@ interface Profile {
   id: string;
   display_name: string | null;
   handicap_index: number;
+  ghin_number: string | null;
+  ghin_last_synced: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -20,7 +22,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, displayName: string, handicapIndex: number) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: Partial<Pick<Profile, 'display_name' | 'handicap_index'>>) => Promise<{ error: Error | null }>;
+  updateProfile: (updates: Partial<Pick<Profile, 'display_name' | 'handicap_index' | 'ghin_number' | 'ghin_last_synced'>>) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -168,7 +170,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateProfile = async (updates: Partial<Pick<Profile, 'display_name' | 'handicap_index'>>) => {
+  const updateProfile = async (updates: Partial<Pick<Profile, 'display_name' | 'handicap_index' | 'ghin_number' | 'ghin_last_synced'>>) => {
     if (!user) return { error: new Error('Not authenticated') };
 
     const { error } = await supabase
