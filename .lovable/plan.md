@@ -1,24 +1,34 @@
 
 
-## Show Linked Status in Saved Player Selection
+## Fix: Admin Portal Not Loading (CORS Issue)
 
-### What Changes
-When selecting from saved players during round setup, show a visual indicator (badge/icon) next to players who are linked to an app user account. This applies to both:
+### Problem
+All backend functions have a hardcoded list of allowed origins for security (CORS). The preview environment uses a different URL (`id-preview--...lovable.app`) that isn't in that list, so every request from the preview is blocked -- causing the "Failed to load admin data" error.
 
-1. **The per-slot dropdown** ("Choose from saved players..." Select component) -- lines 1630-1640
-2. **The "Saved Players" dialog** (opened via the UserPlus button) -- lines 1706-1723
+### Solution
+Update all 6 backend functions to also accept requests from the preview URL. This is done by allowing any `*.lovable.app` subdomain, which covers both the published site and the preview environment.
+
+### Files to Update
+1. `supabase/functions/admin-list-users/index.ts`
+2. `supabase/functions/admin-delete-user/index.ts`
+3. `supabase/functions/admin-reset-password/index.ts`
+4. `supabase/functions/generate-reset-link/index.ts`
+5. `supabase/functions/send-welcome-email/index.ts`
+6. `supabase/functions/parse-scorecard/index.ts`
 
 ### Technical Details
+In each file, replace the strict origin check:
+```typescript
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
+const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+```
 
-**1. Per-slot Select dropdown (line 1636-1638)**
-Currently shows: `{sp.name} (HCP: {sp.handicap_index})`
-Change to include a linked indicator: `{sp.name} (HCP: {sp.handicap_index}) [Linked]` or a small UserCheck icon text.
+With a check that also accepts any `*.lovable.app` subdomain:
+```typescript
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
+const isAllowed = allowedOrigins.includes(origin) || origin.endsWith(".lovable.app");
+const corsOrigin = isAllowed ? origin : allowedOrigins[0];
+```
 
-Since `SelectItem` only supports text content reliably, we will append a text indicator like " - Linked" when `sp.linked_user_id` is set.
-
-**2. Saved Players dialog (lines 1712-1722)**
-Currently shows name, handicap, and tee. Add a small `UserCheck` icon badge next to the player name when `sp.linked_user_id` is present, matching the style used elsewhere in the app.
-
-### Files Modified
-- `src/components/SetupWizard.tsx` -- Two small edits to the saved player display in the dropdown and dialog
+This keeps the existing production domains and adds safe support for preview/development URLs.
 
