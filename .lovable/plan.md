@@ -1,83 +1,75 @@
 
 
-## Allow Linked Players to View Active Rounds (Read-Only Scorecard)
+## Add "What's New" Popup on Login (Updated Dialog Order)
 
 ### Overview
 
-When a linked player logs in and someone else has started a round they're participating in, they'll see a "View Active Round" button on the home screen. Tapping it takes them directly to a **read-only Scorecard page** -- no hole-by-hole view, no editing. The only action available is "Return to Home".
+Show a "What's New" dialog the first time a user logs in after updates have been deployed. The dialog now appears **before** the GHIN prompt, so users learn about GHIN sync as a new feature before being asked to enter their number.
+
+### Dialog Sequencing (Updated Order)
+
+1. **Onboarding Overlay** -- first-time users only, sets `fg_onboarding_complete` on dismiss
+2. **What's New** -- shows after onboarding is complete, before GHIN prompt
+3. **GHIN Prompt** -- shows after What's New is dismissed
+
+This means:
+- New users see: Onboarding -> What's New -> GHIN Prompt (in sequence)
+- Existing users who haven't seen this version's What's New: What's New -> then GHIN (if not already linked/dismissed)
+- No two dialogs ever overlap
+
+### What's New Content
+
+1. **GHIN Handicap Sync** -- Link your GHIN number to automatically pull your handicap from USGA. One-way sync keeps your index current.
+2. **Live Round Viewing** -- If you're a linked player in someone else's round, you can now view the live scorecard in real-time from the home screen.
+3. **Round Sharing** -- Finished rounds are automatically shared with linked players so everyone can see results in their history.
 
 ### Changes
 
-#### 1. Database: Enable realtime on `rounds` table
+**New file: `src/components/WhatsNewDialog.tsx`**
 
-Run a migration so the Supabase realtime client can push live score updates to viewers:
+- Dialog with scrollable list of updates, each with icon, title, and description
+- Single "Got It" button to dismiss
+- Open condition checks:
+  - User is logged in
+  - `fg_onboarding_complete` is `'true'` in localStorage
+  - `fg_whats_new_seen` does not match `WHATS_NEW_VERSION`
+- No longer checks for GHIN status (since it now shows before GHIN prompt)
+- On dismiss: `localStorage.setItem('fg_whats_new_seen', WHATS_NEW_VERSION)`
 
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE public.rounds;
-```
+**Modified file: `src/components/GhinPrompt.tsx`**
 
-#### 2. Insert participants at round creation
+- Add one additional condition to the existing `useEffect` that controls when the GHIN dialog opens
+- Only show GHIN prompt when `localStorage('fg_whats_new_seen')` matches the current `WHATS_NEW_VERSION` (meaning What's New has been dismissed)
+- Import the `WHATS_NEW_VERSION` constant from `WhatsNewDialog.tsx`
+- All other GHIN prompt logic stays the same
 
-**File: `src/hooks/useRounds.tsx`**
+**Modified file: `src/components/Landing.tsx`**
 
-In `createRound`, call `insertRoundParticipants()` right after the round is successfully inserted (so linked players can see the round immediately, not just after it's finished/locked).
-
-#### 3. Fetch shared ACTIVE rounds
-
-**File: `src/hooks/useRounds.tsx`**
-
-Change the shared rounds status filter from `['LOCKED', 'COMPLETE']` to `['ACTIVE', 'LOCKED', 'COMPLETE']` so linked players can see active rounds.
-
-#### 4. Add realtime subscription for shared active rounds
-
-**File: `src/hooks/useRounds.tsx`**
-
-After fetching rounds, subscribe to Postgres changes on the `rounds` table for any shared ACTIVE round IDs. When an update arrives (score changes), merge updated data into state so the viewer sees live scores without refreshing.
-
-#### 5. "View Active Round" button on Landing page
-
-**File: `src/components/Landing.tsx`**
-
-- Import `Eye` icon from lucide-react
-- Check if any round in `roundHistory` has `isShared === true` and `status === 'ACTIVE'`
-- If so, show a "View Active Round" button (with Eye icon, distinct styling) between "Resume Round" and "Start New Round"
-- Clicking it calls `loadPastRound(sharedActiveRound)` and navigates to `/scorecard`
-
-#### 6. Make Scorecard read-only for shared rounds
-
-**File: `src/components/Scorecard.tsx`**
-
-When `currentRound.isShared === true`:
-
-- Show a banner at the top: "Viewing [Owner]'s Round -- Read Only"
-- **Disable hole number clicks** in the table header (remove `onClick` and `cursor-pointer` styling) so the viewer cannot navigate into individual holes
-- **Replace the bottom footer buttons** entirely: instead of "Share Image" + "Return to Hole" / "Round Complete", show only a single "Return to Home" button that navigates to `/`
-- The scorecard grid, scores, and game totals remain fully visible (view-only)
-
-#### 7. No changes to ActiveRound or RoundSummary for viewers
-
-Since viewers go directly to `/scorecard` and their only exit is "Return to Home", they never reach the ActiveRound hole-by-hole view or RoundSummary page. No read-only guards are needed there.
+- Import and render `WhatsNewDialog` alongside existing `OnboardingOverlay` and `GhinPrompt` (only when `user` is truthy)
+- No extra state or props needed -- each dialog self-manages via localStorage
 
 ### Technical Details
 
-**Realtime subscription pattern (useRounds.tsx):**
+**WhatsNewDialog open logic:**
 ```
-useEffect -> identify shared ACTIVE round IDs
-  -> subscribe to supabase channel 'shared-rounds'
-  -> on postgres_changes UPDATE for those round IDs
-  -> merge new scores/gameData/status into local state
-  -> cleanup: unsubscribe on unmount or when IDs change
+const WHATS_NEW_VERSION = "2026-02-22";  // exported
+
+useEffect:
+  if user is logged in
+    AND localStorage('fg_onboarding_complete') === 'true'
+    AND localStorage('fg_whats_new_seen') !== WHATS_NEW_VERSION
+  then open dialog
 ```
 
-**Scorecard read-only check:**
+**GhinPrompt updated open logic (existing + one new check):**
 ```
-const isReadOnly = currentRound?.isShared === true;
+useEffect:
+  if profile loaded
+    AND no ghin_number on profile
+    AND fg_ghin_prompt_dismissed not set
+    AND localStorage('fg_whats_new_seen') === WHATS_NEW_VERSION   // NEW
+  then open dialog
 ```
 
-This single flag controls:
-- Hole header click disabled
-- Footer replaced with "Return to Home"
-- Read-only banner shown
-
-**RLS:** No changes needed -- participants can already SELECT rounds they're in via existing `round_participants` RLS policy. They cannot UPDATE since no UPDATE policy exists for non-owners.
+To add future updates, bump `WHATS_NEW_VERSION` and update the `updates` array. The What's New dialog reappears for all users, and GHIN prompt remains gated behind it.
 
