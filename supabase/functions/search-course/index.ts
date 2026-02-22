@@ -239,17 +239,17 @@ async function searchCourses(firecrawlKey: string, lovableKey: string, courseNam
 
   console.log(`Searching BlueGolf for courses with Firecrawl: ${searchQuery}`);
 
-  const response = await fetch('https://api.firecrawl.dev/v1/search', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${firecrawlKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      query: searchQuery,
-      limit: 10,
-    }),
-  });
+    const response = await fetch('https://api.firecrawl.dev/v1/search', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${firecrawlKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: searchQuery,
+        limit: 10,
+      }),
+    });
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -280,20 +280,38 @@ async function searchCourses(firecrawlKey: string, lovableKey: string, courseNam
     );
   }
 
-  const courses: CourseListItem[] = searchResults
+  // Filter to valid BlueGolf URLs and deduplicate
+  const filteredResults = searchResults
     .filter((result: any) => {
       const url = result.url || '';
       return url.includes('course.bluegolf.com') && 
              (url.includes('/course/') || url.includes('/bluegolf/'));
     })
-    .map((result: any) => ({
-      name: extractCourseName(result),
-      location: extractLocationFromResult(result),
-      url: normalizeBlueGolfUrl(result.url),
-    }))
-    .filter((course: CourseListItem, index: number, self: CourseListItem[]) => 
-      index === self.findIndex(c => c.url === course.url)
-    );
+    .filter((result: any, index: number, self: any[]) => {
+      const normalizedUrl = normalizeBlueGolfUrl(result.url);
+      return index === self.findIndex((r: any) => normalizeBlueGolfUrl(r.url) === normalizedUrl);
+    });
+
+  // Use AI to look up locations based on course names and titles
+  let aiExtracted: Record<string, { name: string; location: string }> = {};
+  if (filteredResults.length > 0) {
+    try {
+      aiExtracted = await extractNamesAndLocationsWithAI(lovableKey, filteredResults);
+      console.log('AI extracted data:', JSON.stringify(aiExtracted, null, 2));
+    } catch (e) {
+      console.error('AI batch extraction failed, falling back to regex:', e);
+    }
+  }
+
+  const courses: CourseListItem[] = filteredResults.map((result: any) => {
+    const normalizedUrl = normalizeBlueGolfUrl(result.url);
+    const ai = aiExtracted[result.url] || aiExtracted[normalizedUrl];
+    return {
+      name: ai?.name || extractCourseName(result),
+      location: ai?.location || extractLocationFromResult(result),
+      url: normalizedUrl,
+    };
+  });
 
   console.log('Parsed courses:', courses);
 
@@ -506,6 +524,65 @@ Return ONLY the JSON object with the parsed data.`;
   }
 }
 
+async function extractNamesAndLocationsWithAI(
+  lovableKey: string,
+  results: Array<{ url: string; title?: string; description?: string }>
+): Promise<Record<string, { name: string; location: string }>> {
+  const summaries = results.map((r, i) => 
+    `${i + 1}. URL: ${r.url}\n   Title: ${r.title || 'N/A'}\n   Description: ${r.description || 'N/A'}`
+  ).join('\n');
+
+  const prompt = `You are a golf course expert. Given these BlueGolf search results, identify the full official name and physical location (City, State) of each golf course.
+
+Use your knowledge of real golf courses to determine the correct city and state. The URL slug often contains the course identifier.
+
+Return a JSON array:
+[
+  { "url": "the exact URL from the input", "name": "Full Course Name", "location": "City, ST" },
+  ...
+]
+
+Rules:
+- "name": full official course name, not "Course" or generic titles
+- "location": real US city + 2-letter state (e.g. "Ponte Vedra Beach, FL")  
+- Use your knowledge of golf courses — most well-known courses have known locations
+- If you truly cannot determine the location, use "Location not specified"
+- Return ONLY the JSON array
+
+Search results:
+${summaries}`;
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${lovableKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash-lite',
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`AI extraction failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('No content from AI');
+
+  const parsed: Array<{ url: string; name: string; location: string }> = parseJsonFromContent(content);
+  
+  const map: Record<string, { name: string; location: string }> = {};
+  for (const item of parsed) {
+    if (item.url) {
+      map[item.url] = { name: item.name, location: item.location };
+    }
+  }
+  return map;
+}
+
 function parseJsonFromContent(content: string): any {
   let jsonStr = content;
   
@@ -514,9 +591,15 @@ function parseJsonFromContent(content: string): any {
     jsonStr = jsonMatch[1].trim();
   }
   
+  // Try matching an array first, then an object
+  const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    return JSON.parse(arrayMatch[0]);
+  }
+
   const objectMatch = jsonStr.match(/\{[\s\S]*\}/);
   if (objectMatch) {
-    jsonStr = objectMatch[0];
+    return JSON.parse(objectMatch[0]);
   }
 
   return JSON.parse(jsonStr);
