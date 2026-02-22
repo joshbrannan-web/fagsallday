@@ -42,6 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import UserSearchDialog from "@/components/UserSearchDialog";
 
 // Types for tee box data
 interface TeeBox {
@@ -230,6 +231,7 @@ const SetupWizard: React.FC = () => {
   const [courseMode, setCourseMode] = useState<CourseFinderMode>("select");
   const [isLoading, setIsLoading] = useState(false);
   const [showSavedPlayers, setShowSavedPlayers] = useState(false);
+  const [showUserSearch, setShowUserSearch] = useState(false);
 
   // Step 1: Course
   const [courseName, setCourseName] = useState("");
@@ -381,6 +383,32 @@ const SetupWizard: React.FC = () => {
     }
     setShowSavedPlayers(false);
     toast.success(`Added ${savedPlayer.name}`);
+  };
+
+  const handleAppUserSelected = async (selectedUser: { id: string; display_name: string }) => {
+    // Add to saved players as a linked player
+    await addSavedPlayer(selectedUser.display_name, 0, 'White', selectedUser.id);
+
+    const newPlayer: Player = {
+      id: Date.now().toString(),
+      name: selectedUser.display_name,
+      handicapIndex: 0,
+      courseHandicap: 0,
+      tee: 'White',
+      linkedUserId: selectedUser.id,
+    };
+
+    // Find first empty slot or append
+    const emptyIndex = players.findIndex((p) => !p.name.trim());
+    if (emptyIndex !== -1) {
+      setPlayers(players.map((p, i) => (i === emptyIndex ? { ...newPlayer, id: p.id } : p)));
+    } else if (players.length < 8) {
+      setPlayers([...players, newPlayer]);
+    } else {
+      toast.error('Maximum 8 players allowed');
+      return;
+    }
+    toast.success(`Added ${selectedUser.display_name}`);
   };
 
   const handleSavePlayer = async (player: Player) => {
@@ -1717,6 +1745,11 @@ const SetupWizard: React.FC = () => {
                     <Plus className="w-4 h-4 mr-2" />
                     Add Player
                   </Button>
+                  {user && (
+                    <Button variant="outline" onClick={() => setShowUserSearch(true)}>
+                      <Search className="w-4 h-4" />
+                    </Button>
+                  )}
                   {user && savedPlayers.length > 0 && (
                     <Dialog open={showSavedPlayers} onOpenChange={setShowSavedPlayers}>
                       <DialogTrigger asChild>
@@ -1757,6 +1790,12 @@ const SetupWizard: React.FC = () => {
                   )}
                 </div>
               )}
+              <UserSearchDialog
+                open={showUserSearch}
+                onOpenChange={setShowUserSearch}
+                onSelect={handleAppUserSelected}
+                title="Find App User"
+              />
             </div>
           </div>
         )}
