@@ -231,7 +231,8 @@ const SetupWizard: React.FC = () => {
   const [courseMode, setCourseMode] = useState<CourseFinderMode>("select");
   const [isLoading, setIsLoading] = useState(false);
   const [showSavedPlayers, setShowSavedPlayers] = useState(false);
-  const [showUserSearch, setShowUserSearch] = useState(false);
+   const [showUserSearch, setShowUserSearch] = useState(false);
+   const [userSearchSlotIndex, setUserSearchSlotIndex] = useState<number | null>(null);
 
   // Step 1: Course
   const [courseName, setCourseName] = useState("");
@@ -398,15 +399,21 @@ const SetupWizard: React.FC = () => {
       linkedUserId: selectedUser.id,
     };
 
-    // Find first empty slot or append
-    const emptyIndex = players.findIndex((p) => !p.name.trim());
-    if (emptyIndex !== -1) {
-      setPlayers(players.map((p, i) => (i === emptyIndex ? { ...newPlayer, id: p.id } : p)));
-    } else if (players.length < 8) {
-      setPlayers([...players, newPlayer]);
+    if (userSearchSlotIndex !== null) {
+      // Fill the specific slot that triggered the search
+      setPlayers(players.map((p, i) => (i === userSearchSlotIndex ? { ...newPlayer, id: p.id } : p)));
+      setUserSearchSlotIndex(null);
     } else {
-      toast.error('Maximum 8 players allowed');
-      return;
+      // Find first empty slot or append
+      const emptyIndex = players.findIndex((p) => !p.name.trim());
+      if (emptyIndex !== -1) {
+        setPlayers(players.map((p, i) => (i === emptyIndex ? { ...newPlayer, id: p.id } : p)));
+      } else if (players.length < 8) {
+        setPlayers([...players, newPlayer]);
+      } else {
+        toast.error('Maximum 8 players allowed');
+        return;
+      }
     }
     toast.success(`Added ${selectedUser.display_name}`);
   };
@@ -1668,31 +1675,46 @@ const SetupWizard: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Saved Players Selector for this slot */}
-                  {user && savedPlayers.length > 0 && (
-                    <Select
-                      value=""
-                      onValueChange={(value) => {
-                        const sp = savedPlayers.find((p) => p.id === value);
-                        if (sp) handleSelectSavedPlayerForSlot(idx, sp);
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Choose from saved players..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {savedPlayers
-                          .filter(
-                            (sp) => !players.some((p) => p.name.trim().toLowerCase() === sp.name.trim().toLowerCase()),
-                          )
-                          .map((sp) => (
-                            <SelectItem key={sp.id} value={sp.id}>
-                              {sp.name} (HCP: {sp.handicap_index}){sp.linked_user_id ? " ✓ Linked" : ""}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  {/* Saved Players Selector + Find App User for this slot */}
+                  <div className="flex gap-2 items-center">
+                    {user && savedPlayers.length > 0 && (
+                      <Select
+                        value=""
+                        onValueChange={(value) => {
+                          const sp = savedPlayers.find((p) => p.id === value);
+                          if (sp) handleSelectSavedPlayerForSlot(idx, sp);
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Choose from saved players..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {savedPlayers
+                            .filter(
+                              (sp) => !players.some((p) => p.name.trim().toLowerCase() === sp.name.trim().toLowerCase()),
+                            )
+                            .map((sp) => (
+                              <SelectItem key={sp.id} value={sp.id}>
+                                {sp.name} (HCP: {sp.handicap_index}){sp.linked_user_id ? " ✓ Linked" : ""}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {user && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => {
+                          setUserSearchSlotIndex(idx);
+                          setShowUserSearch(true);
+                        }}
+                      >
+                        <Search className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1745,10 +1767,10 @@ const SetupWizard: React.FC = () => {
                     <Plus className="w-4 h-4 mr-2" />
                     Add Player
                   </Button>
-                  {user && (
-                    <Button variant="outline" onClick={() => setShowUserSearch(true)}>
-                      <Search className="w-4 h-4" />
-                    </Button>
+                   {user && (
+                     <Button variant="outline" onClick={() => { setUserSearchSlotIndex(null); setShowUserSearch(true); }}>
+                       <Search className="w-4 h-4" />
+                     </Button>
                   )}
                   {user && savedPlayers.length > 0 && (
                     <Dialog open={showSavedPlayers} onOpenChange={setShowSavedPlayers}>
