@@ -107,7 +107,7 @@ export const useRounds = () => {
             .from('rounds')
             .select('*')
             .in('id', sharedRoundIds)
-            .in('status', ['LOCKED', 'COMPLETE'])
+            .in('status', ['ACTIVE', 'LOCKED', 'COMPLETE'])
             .order('start_time', { ascending: false });
 
           if (!sharedError && sharedData) {
@@ -149,6 +149,44 @@ export const useRounds = () => {
     fetchRounds();
   }, [fetchRounds]);
 
+  // Realtime subscription for shared active rounds
+  useEffect(() => {
+    const sharedActiveIds = rounds
+      .filter(r => r.isShared && r.status === 'ACTIVE')
+      .map(r => r.id);
+
+    if (sharedActiveIds.length === 0) return;
+
+    const channel = supabase
+      .channel('shared-active-rounds')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rounds',
+        },
+        (payload) => {
+          const updated = payload.new as DbRound;
+          if (!sharedActiveIds.includes(updated.id)) return;
+          
+          const players = (updated.players_data as Player[]);
+          const ownerName = players?.[0]?.name || 'Unknown';
+          const updatedRound = dbRoundToRound(updated, true, ownerName);
+
+          setRounds(prev => prev.map(r => r.id === updated.id ? updatedRound : r));
+          if (loadedRoundIdRef.current === updated.id) {
+            setCurrentRound(updatedRound);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [rounds.filter(r => r.isShared && r.status === 'ACTIVE').map(r => r.id).join(',')]);
+
   const createRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>): Promise<Round | null> => {
     if (!user) {
       toast.error('Please sign in to start a round');
@@ -177,6 +215,9 @@ export const useRounds = () => {
       loadedRoundIdRef.current = null;
       setCurrentRound(newRound);
       setRounds(prev => [newRound, ...prev]);
+      
+      // Insert participants immediately so linked players can see the round
+      await insertRoundParticipants(data.id, players, user.id);
       
       // Cache for offline play
       offlineStorage.cacheRound(newRound);

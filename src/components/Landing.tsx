@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroIllustration from './HeroIllustration';
-import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2, HelpCircle } from 'lucide-react';
+import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2, HelpCircle, Eye } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
@@ -18,7 +18,7 @@ import {
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
-  const { currentRound, clearLoadedRound, isLoading: appLoading } = useApp();
+  const { currentRound, clearLoadedRound, isLoading: appLoading, roundHistory, loadPastRound } = useApp();
   const { user, profile, signOut, isLoading: authLoading } = useAuth();
   const { isAdmin } = useAdminAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -124,7 +124,7 @@ const Landing: React.FC = () => {
         <div className="space-y-4">
           {user ? (
             <>
-              {currentRound && currentRound.status === 'ACTIVE' && (
+              {currentRound && currentRound.status === 'ACTIVE' && !currentRound.isShared && (
                 <button
                   onClick={() => navigate('/active')}
                   className="w-full bg-success text-success-foreground font-bold py-4 px-6 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg animate-pulse-subtle"
@@ -133,6 +133,23 @@ const Landing: React.FC = () => {
                   Resume Round
                 </button>
               )}
+
+              {(() => {
+                const sharedActiveRound = roundHistory.find(r => r.isShared && r.status === 'ACTIVE');
+                if (!sharedActiveRound) return null;
+                return (
+                  <button
+                    onClick={() => {
+                      loadPastRound(sharedActiveRound);
+                      navigate('/scorecard');
+                    }}
+                    className="w-full bg-accent text-accent-foreground font-bold py-4 px-6 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg border-2 border-primary/20"
+                  >
+                    <Eye className="w-5 h-5" />
+                    View Active Round
+                  </button>
+                );
+              })()}
               
               <button
                 onClick={() => navigate('/setup')}
