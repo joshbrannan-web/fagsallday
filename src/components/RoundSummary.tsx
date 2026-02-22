@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { formatMoney, calculatePerGameTotals, calculateSettlement } from '../services/gameEngine';
-import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image } from 'lucide-react';
+import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image, Trash2, ArrowLeft } from 'lucide-react';
 import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,7 +106,7 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
 
 const RoundSummary: React.FC = () => {
   const navigate = useNavigate();
-  const { currentRound, roundTotals, finishRound, updateGameDataBatch, updateRoundCourse, lockRound, unlockRound } = useApp();
+  const { currentRound, roundTotals, finishRound, updateGameDataBatch, updateRoundCourse, lockRound, unlockRound, deleteRound, clearLoadedRound } = useApp();
   const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, number>>({});
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -148,6 +148,24 @@ const RoundSummary: React.FC = () => {
   const isLocked = currentRound.status === 'LOCKED';
   const isComplete = currentRound.status === 'COMPLETE';
   const canEdit = isComplete && !isLocked;
+
+  const allHolesComplete = (() => {
+    for (let hole = 1; hole <= 18; hole++) {
+      const holeScores = currentRound.scores[hole];
+      if (!holeScores) return false;
+      for (const player of currentRound.players) {
+        if (holeScores[player.id] === null || holeScores[player.id] === undefined) return false;
+      }
+    }
+    return true;
+  })();
+
+  const handleDeleteRound = async () => {
+    if (!window.confirm('Delete this round? This cannot be undone.')) return;
+    await deleteRound(currentRound.id);
+    clearLoadedRound();
+    navigate('/');
+  };
 
   const displayAmounts = Object.keys(adjustedAmounts).length > 0 ? adjustedAmounts : roundTotals;
 
@@ -299,7 +317,7 @@ const RoundSummary: React.FC = () => {
       <div className="bg-brand-dark text-primary-foreground p-6 text-center">
         <Trophy className="w-12 h-12 mx-auto mb-2 text-brand-gold" />
         <div className="flex items-center justify-center gap-2">
-          <h1 className="text-2xl font-bold">Round Complete</h1>
+          <h1 className="text-2xl font-bold">{allHolesComplete ? 'Round Complete' : 'Round Summary'}</h1>
           {isLocked && <Lock className="w-5 h-5 text-brand-gold" />}
         </div>
         
@@ -468,7 +486,17 @@ const RoundSummary: React.FC = () => {
             <Unlock className="w-4 h-4 mr-2" /> Unlock Round
           </Button>
         )}
-        {currentRound.status === 'ACTIVE' && (
+        {!allHolesComplete && currentRound.status === 'ACTIVE' && (
+          <>
+            <Button variant="outline" onClick={() => navigate('/active')} className="w-full">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Return to Hole
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteRound} className="w-full">
+              <Trash2 className="w-4 h-4 mr-2" /> Delete Round
+            </Button>
+          </>
+        )}
+        {currentRound.status === 'ACTIVE' && allHolesComplete && (
           <Button onClick={handleFinish} className="w-full">
             <Home className="w-4 h-4 mr-2" /> Finish & Save
           </Button>
