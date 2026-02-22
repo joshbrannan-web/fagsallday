@@ -91,10 +91,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const loginRes = await fetch("https://api.ghin.com/api/v1/golfer_login.json", {
+    const loginRes = await fetch("https://api2.ghin.com/api/v1/golfer_login.json", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user: { email_or_ghin: ghinEmail, password: ghinPassword, remember_me: true } }),
+      body: JSON.stringify({ user: { email_or_ghin: ghinEmail, password: ghinPassword, remember_me: true }, token: "123" }),
     });
 
     if (!loginRes.ok) {
@@ -117,12 +117,13 @@ Deno.serve(async (req) => {
 
     // Look up golfer by GHIN number
     const searchRes = await fetch(
-      `https://api.ghin.com/api/v1/golfers/search.json?golfer_id=${ghin_number}&status=Active`,
+      `https://api2.ghin.com/api/v1/golfers/search.json?golfer_id=${ghin_number}&status=Active&per_page=1&page=1`,
       { headers: { Authorization: `Bearer ${ghinToken}` } },
     );
 
     if (!searchRes.ok) {
-      console.error("GHIN search failed:", searchRes.status);
+      const searchErrBody = await searchRes.text();
+      console.error("GHIN search failed:", searchRes.status, searchErrBody);
       return new Response(JSON.stringify({ error: "Failed to look up GHIN number" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
