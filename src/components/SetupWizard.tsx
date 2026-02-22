@@ -1634,7 +1634,7 @@ const SetupWizard: React.FC = () => {
                           )
                           .map((sp) => (
                             <SelectItem key={sp.id} value={sp.id}>
-                              {sp.name} (HCP: {sp.handicap_index})
+                              {sp.name} (HCP: {sp.handicap_index}){sp.linked_user_id ? " ✓ Linked" : ""}
                             </SelectItem>
                           ))}
                       </SelectContent>
@@ -1715,7 +1715,12 @@ const SetupWizard: React.FC = () => {
                                 onClick={() => handleSelectSavedPlayer(sp)}
                                 className="w-full p-3 rounded-lg border border-border bg-card hover:border-primary/50 text-left transition-all"
                               >
-                                <div className="font-medium">{sp.name}</div>
+                                <div className="font-medium flex items-center gap-1.5">
+                                  {sp.name}
+                                  {sp.linked_user_id && (
+                                    <UserCheck className="h-3.5 w-3.5 text-primary" />
+                                  )}
+                                </div>
                                 <div className="text-xs text-muted-foreground">
                                   Handicap: {sp.handicap_index} • Tee: {sp.tee}
                                 </div>
