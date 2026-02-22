@@ -242,6 +242,7 @@ const SetupWizard: React.FC = () => {
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [verifiedResults, setVerifiedResults] = useState<VerifiedCourseResult[]>([]);
   const [verifiedCourseNames, setVerifiedCourseNames] = useState<Set<string>>(new Set());
+  const [courseSaved, setCourseSaved] = useState(false);
 
   // Tee box selection (from scanned scorecard)
   const [availableTeeBoxes, setAvailableTeeBoxes] = useState<TeeBox[]>([]);
@@ -1268,16 +1269,61 @@ const SetupWizard: React.FC = () => {
 
               {/* Selected Course Info */}
               {selectedCourse && (
-                <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
-                  <div className="flex items-center gap-2 text-primary font-medium">
-                    <Check className="w-4 h-4" />
-                    Course data loaded!
+                <>
+                  <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
+                    <div className="flex items-center gap-2 text-primary font-medium">
+                      <Check className="w-4 h-4" />
+                      Course data loaded!
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      {selectedCourse.holes.length} holes • Par {selectedCourse.holes.reduce((sum, h) => sum + h.par, 0)}{" "}
+                      • {selectedCourse.holes.reduce((sum, h) => sum + h.yardage, 0).toLocaleString()} yards
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {selectedCourse.holes.length} holes • Par {selectedCourse.holes.reduce((sum, h) => sum + h.par, 0)}{" "}
-                    • {selectedCourse.holes.reduce((sum, h) => sum + h.yardage, 0).toLocaleString()} yards
+
+                  {/* Save & Verify action buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={courseSaved}
+                      onClick={async () => {
+                        const updatedCourse: Course = {
+                          ...selectedCourse,
+                          name: courseName || selectedCourse.name,
+                          location: courseLocation || selectedCourse.location,
+                        };
+                        await saveCourse(updatedCourse);
+                        setCourseSaved(true);
+                        toast.success("Course saved for later!");
+                      }}
+                      className="flex-1"
+                    >
+                      {courseSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                      {courseSaved ? "Saved" : "Save for Later"}
+                    </Button>
+
+                    {user && !verifiedCourseNames.has((courseName || selectedCourse.name).toLowerCase()) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isVerifying}
+                        onClick={async () => {
+                          const updatedCourse: Course = {
+                            ...selectedCourse,
+                            name: courseName || selectedCourse.name,
+                            location: courseLocation || selectedCourse.location,
+                          };
+                          await handleVerifyCourse(updatedCourse);
+                        }}
+                        className="flex-1"
+                      >
+                        {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                        Verify for Community
+                      </Button>
+                    )}
                   </div>
-                </div>
+                </>
               )}
             </div>
 
