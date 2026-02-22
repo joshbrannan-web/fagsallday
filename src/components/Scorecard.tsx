@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { ArrowLeft, Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag } from 'lucide-react';
+import { Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag } from 'lucide-react';
 import { calculateAggregatedHolePnL, calculateBanker, calculateFBO } from '../services/gameEngine';
 import { calculateTeamBanker } from '../services/teamBankerEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
@@ -831,12 +831,19 @@ const Scorecard: React.FC = () => {
     return total;
   };
 
+  const firstIncompleteHole = currentRound.course.holes.find(hole => {
+    const holeScores = currentRound.scores[hole.number];
+    if (!holeScores) return true;
+    return !currentRound.players.every(p => {
+      const score = holeScores[p.id];
+      return typeof score === 'number' && score > 0;
+    });
+  })?.number || null;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="bg-brand-dark text-primary-foreground p-4 shadow-sm sticky top-0 z-10 flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-white/10 rounded-full">
-          <ArrowLeft className="w-6 h-6" />
-        </button>
+        <div className="w-10" />
         <h1 className="text-xl font-bold">Scorecard</h1>
         <div className="w-10" />
       </div>
@@ -877,7 +884,9 @@ const Scorecard: React.FC = () => {
                 {activeHoles.map(h => (
                   <th 
                     key={h.number} 
-                    className="p-2 min-w-[40px] border-r border-border/50 cursor-pointer hover:bg-primary/10 transition-colors"
+                    className={`p-2 min-w-[40px] border-r border-border/50 cursor-pointer hover:bg-primary/10 transition-colors ${
+                      h.number === firstIncompleteHole ? 'bg-primary/20 ring-2 ring-primary ring-inset' : ''
+                    }`}
                     onClick={() => navigate('/active', { state: { startHole: h.number } })}
                   >
                     {h.number}
@@ -1274,38 +1283,15 @@ const Scorecard: React.FC = () => {
         <Button variant="outline" onClick={() => scorecardImageRef.current?.shareImage()} className="flex-1">
           <Share2 className="w-4 h-4 mr-2" /> Share Image
         </Button>
-        {(() => {
-          const allHolesComplete = currentRound.course.holes.every(hole => {
-            const holeScores = currentRound.scores[hole.number];
-            if (!holeScores) return false;
-            return currentRound.players.every(p => {
-              const score = holeScores[p.id];
-              return score !== undefined && score !== null && score > 0;
-            });
-          });
-
-          if (allHolesComplete) {
-            return (
-              <Button onClick={() => navigate('/summary')} className="flex-1">
-                <Flag className="w-4 h-4 mr-2" /> Round Complete
-              </Button>
-            );
-          }
-
-          const firstIncompleteHole = currentRound.course.holes.find(hole => {
-            const holeScores = currentRound.scores[hole.number];
-            if (!holeScores) return true;
-            return !currentRound.players.every(p => {
-              const score = holeScores[p.id];
-              return typeof score === 'number' && score > 0;
-            });
-          })?.number || 1;
-          return (
-            <Button onClick={() => navigate('/active', { state: { startHole: firstIncompleteHole } })} className="flex-1">
-              <Play className="w-4 h-4 mr-2" /> Return to Hole
-            </Button>
-          );
-        })()}
+        {firstIncompleteHole === null ? (
+          <Button onClick={() => navigate('/summary')} className="flex-1">
+            <Flag className="w-4 h-4 mr-2" /> Round Complete
+          </Button>
+        ) : (
+          <Button onClick={() => navigate('/active', { state: { startHole: firstIncompleteHole } })} className="flex-1">
+            <Play className="w-4 h-4 mr-2" /> Return to Hole
+          </Button>
+        )}
       </div>
     </div>
   );
