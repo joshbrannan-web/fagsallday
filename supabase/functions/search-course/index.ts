@@ -247,7 +247,7 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      return await fetchCourseDetails(FIRECRAWL_API_KEY, LOVABLE_API_KEY, selectedCourseUrl, courseName, corsHeaders);
+      return await fetchCourseDetails(FIRECRAWL_API_KEY, LOVABLE_API_KEY, selectedCourseUrl, courseName, corsHeaders, undefined, GOLF_COURSE_API_KEY);
     }
 
     return new Response(
@@ -460,7 +460,8 @@ async function searchCourses(firecrawlKey: string, lovableKey: string, courseNam
   );
 }
 
-async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, courseUrl: string, courseName: string, corsHeaders: Record<string, string>, searchLocation?: string): Promise<Response> {
+async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, courseUrl: string, courseName: string, corsHeaders: Record<string, string>, searchLocation?: string, golfCourseApiKey?: string): Promise<Response> {
+  const GOLF_COURSE_API_KEY = golfCourseApiKey;
   console.log(`Fetching scorecard details from: ${courseUrl}`);
 
   let formattedUrl = courseUrl.trim();
@@ -548,7 +549,14 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
 
       if (isCaptcha(retryMarkdown)) {
         console.error('CAPTCHA detected on retry as well');
-        // Fallback: check verified courses library
+        // Fallback chain: GolfCourseAPI -> verified courses -> error
+        const apiFallback = await tryGolfCourseAPIFallback(courseName, GOLF_COURSE_API_KEY);
+        if (apiFallback) {
+          return new Response(
+            JSON.stringify({ success: true, course: apiFallback, source: 'golfcourseapi-fallback' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
         const fallback = await tryVerifiedCourseFallback(courseName);
         if (fallback) {
           console.log('Found verified course fallback for:', courseName);
@@ -574,6 +582,13 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
       finalMarkdown = retryMarkdown;
     } else {
       console.error('Retry scrape failed:', retryResponse.status);
+      const apiFallback = await tryGolfCourseAPIFallback(courseName, GOLF_COURSE_API_KEY);
+      if (apiFallback) {
+        return new Response(
+          JSON.stringify({ success: true, course: apiFallback, source: 'golfcourseapi-fallback' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       const fallback = await tryVerifiedCourseFallback(courseName);
       if (fallback) {
         console.log('Found verified course fallback for:', courseName);
@@ -751,6 +766,26 @@ Return ONLY the JSON object with the parsed data. If the content does not contai
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+  }
+}
+
+async function tryGolfCourseAPIFallback(courseName: string, apiKey?: string): Promise<CourseData | null> {
+  if (!apiKey) return null;
+  try {
+    console.log(`[GolfCourseAPI Fallback] Searching for: ${courseName}`);
+    const results = await searchGolfCourseAPI(courseName, apiKey);
+    if (results.length === 0) return null;
+    
+    // Try to find an exact or close match
+    const courseId = results[0].url.replace('golfcourseapi:', '');
+    const details = await fetchFromGolfCourseAPI(courseId, apiKey);
+    if (details) {
+      console.log(`[GolfCourseAPI Fallback] Successfully fetched: ${details.name}`);
+    }
+    return details;
+  } catch (e) {
+    console.error('[GolfCourseAPI Fallback] Error:', e);
+    return null;
   }
 }
 
