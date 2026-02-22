@@ -488,7 +488,17 @@ const RoundSummary: React.FC = () => {
         )}
         {!allHolesComplete && currentRound.status === 'ACTIVE' && (
           <>
-            <Button variant="outline" onClick={() => navigate('/active')} className="w-full">
+            <Button variant="outline" onClick={() => {
+              const firstIncompleteHole = currentRound.course.holes.find(hole => {
+                const holeScores = currentRound.scores[hole.number];
+                if (!holeScores) return true;
+                return !currentRound.players.every(p => {
+                  const score = holeScores[p.id];
+                  return typeof score === 'number' && score > 0;
+                });
+              })?.number || 1;
+              navigate('/active', { state: { startHole: firstIncompleteHole } });
+            }} className="w-full">
               <ArrowLeft className="w-4 h-4 mr-2" /> Return to Hole
             </Button>
             <Button variant="destructive" onClick={handleDeleteRound} className="w-full">
