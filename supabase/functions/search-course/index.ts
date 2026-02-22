@@ -228,7 +228,7 @@ serve(async (req) => {
           console.error('[GolfCourseAPI] Search error, falling back:', e);
         }
       }
-      return await searchCourses(FIRECRAWL_API_KEY, LOVABLE_API_KEY, courseName, location, corsHeaders);
+      return await searchCourses(FIRECRAWL_API_KEY, LOVABLE_API_KEY, courseName, location, corsHeaders, GOLF_COURSE_API_KEY);
     }
     
     if (mode === 'fetch' && selectedCourseUrl) {
@@ -362,7 +362,7 @@ function extractCourseName(result: { title?: string; url?: string }): string {
   return 'Unknown Course';
 }
 
-async function searchCourses(firecrawlKey: string, lovableKey: string, courseName: string, location: string | undefined, corsHeaders: Record<string, string>): Promise<Response> {
+async function searchCourses(firecrawlKey: string, lovableKey: string, courseName: string, location: string | undefined, corsHeaders: Record<string, string>, golfCourseApiKey?: string): Promise<Response> {
   const searchQuery = location 
     ? `site:course.bluegolf.com ${courseName} ${location} scorecard`
     : `site:course.bluegolf.com ${courseName} scorecard`;
@@ -447,7 +447,7 @@ async function searchCourses(firecrawlKey: string, lovableKey: string, courseNam
 
   if (courses.length === 1 && courses[0].url) {
     console.log('Single course found, fetching details...');
-    return await fetchCourseDetails(firecrawlKey, lovableKey, courses[0].url, courses[0].name, corsHeaders, courses[0].location);
+    return await fetchCourseDetails(firecrawlKey, lovableKey, courses[0].url, courses[0].name, corsHeaders, courses[0].location, golfCourseApiKey);
   }
 
   return new Response(
