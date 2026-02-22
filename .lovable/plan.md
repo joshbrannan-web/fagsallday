@@ -1,64 +1,63 @@
 
 
-## Fix: BlueGolf CAPTCHA Blocking Causes Fabricated Scorecard Data
+## Integrate GolfCourseAPI.com as Primary Course Data Source
 
-### Root Cause
+### What This Does
 
-When Firecrawl scrapes a BlueGolf detail page (e.g., `detailedscorecard.htm`), BlueGolf frequently returns a CAPTCHA challenge instead of the actual scorecard. The AI then receives no real data and invents realistic-looking numbers from its training knowledge. This is why HCP, yardage, and other values do not match the actual BlueGolf scorecard.
+Replaces the unreliable BlueGolf scraping pipeline with GolfCourseAPI.com -- a dedicated golf course API that returns structured scorecard data directly, with no CAPTCHA issues. Your API key has been verified against their documentation.
 
-### Solution
+### API Key Storage
 
-Two changes to `supabase/functions/search-course/index.ts`:
+Your GolfCourseAPI.com key (`3IB6B2PEFCVNH62LYJ4V4INR6Y`) will be stored as a secure backend secret (`GOLF_COURSE_API_KEY`) so it's never exposed in client code.
 
-#### 1. Detect CAPTCHA / Empty Content and Fail Gracefully
+### How the New Flow Works
 
-Before sending scraped content to the AI, check if the markdown contains CAPTCHA indicators (e.g., "confirm you are human", "solve a puzzle") or is suspiciously short (under ~1000 chars for a full scorecard page). If detected, return an error telling the user the page was blocked, rather than silently generating fake data.
+1. **Search**: User types a course name -> calls `GET /v1/search?search_query=...` -> returns a list of matching courses with IDs and locations
+2. **Fetch Details**: User selects a course -> calls `GET /v1/courses/{id}` -> returns full scorecard with all tee boxes, par, yardage, handicap index, rating, and slope
+3. **Fallback Chain**: If GolfCourseAPI returns no results, fall back to the verified courses library, then to BlueGolf scraping as a last resort
 
-Add this check after line 384 (after logging the scraped content preview):
+### Data Mapping
 
-```
-if (scrapedMarkdown.length < 1000 || 
-    scrapedMarkdown.includes('confirm you are human') || 
-    scrapedMarkdown.includes('solve a puzzle') ||
-    scrapedMarkdown.includes('security check')) {
-  return Response with error: "BlueGolf blocked the request. Please try again in a moment or enter course details manually."
-}
-```
+The API returns data in this structure per tee box:
+- `tee_name`, `course_rating`, `slope_rating`, `total_yards`, `par_total`
+- `holes[]` with `par`, `yardage`, `handicap` for each hole
 
-#### 2. Add a Retry with Delay
+This maps directly to the app's existing `HoleData` type (`number`, `par`, `yardage`, `handicapIndex`).
 
-Before failing, attempt one retry after a short delay (2-3 seconds). CAPTCHA blocks are sometimes transient. Use `waitFor: 5000` on the retry to give the page more time to load.
+### Technical Changes
 
-```
-Flow:
-  1. Scrape with waitFor: 2000
-  2. If CAPTCHA detected, wait 3 seconds
-  3. Retry scrape with waitFor: 5000
-  4. If still CAPTCHA, return error to user
-```
+All changes in `supabase/functions/search-course/index.ts`:
 
-#### 3. Strengthen the AI Prompt to Never Fabricate
+#### 1. Add GolfCourseAPI search function
+- New `searchGolfCourseAPI(query, apiKey)` function
+- Calls `GET https://api.golfcourseapi.com/v1/search?search_query=...`
+- Header: `Authorization: Key <apiKey>`
+- Returns list of courses with their API IDs and locations
 
-Update the system prompt (line 402) to add an explicit instruction:
+#### 2. Add GolfCourseAPI fetch-details function
+- New `fetchFromGolfCourseAPI(courseId, apiKey)` function
+- Calls `GET https://api.golfcourseapi.com/v1/courses/{id}`
+- Extracts the male tee boxes by default (with all hole data)
+- Maps to existing `CourseData` format
 
-```
-"CRITICAL: If the page content does not contain an actual scorecard table with 
-numeric hole data, return { "error": "no_scorecard_data" } instead of guessing. 
-Never invent or estimate values."
-```
+#### 3. Update search mode handler
+- Try GolfCourseAPI first for search
+- Convert results to `CourseListItem[]` format (using API course ID as the URL identifier)
+- Fall back to existing Firecrawl/BlueGolf pipeline if API returns no results
 
-Then handle this `error` response in the parsing logic and return a user-friendly message.
+#### 4. Update fetch mode handler
+- Detect GolfCourseAPI course IDs (numeric) vs BlueGolf URLs
+- Route to appropriate fetcher
+- Keep existing BlueGolf + verified course fallback chain intact
 
-### Summary of Changes
+#### 5. Store API key as secret
+- Add `GOLF_COURSE_API_KEY` as a backend secret
 
-All in `supabase/functions/search-course/index.ts`:
+### What Stays the Same
 
-1. Add CAPTCHA detection after scraping (check content length and keywords)
-2. Add one retry with longer wait time before giving up
-3. Add "never fabricate" instruction to the AI system prompt
-4. Handle AI "no data" response gracefully with a clear user-facing error
-
-### Why This Matters
-
-Without this fix, users receive incorrect scorecard data that looks valid. They may not realize the HCP, yardage, or par values are wrong until they compare against a physical scorecard. Failing explicitly is far better than returning silently wrong data.
+- Verified courses library and fallback logic
+- BlueGolf scraping (kept as last-resort fallback)
+- Scan Scorecard feature (image-based parsing)
+- Client-side code and UI (no changes needed)
+- All existing course data formats
 
