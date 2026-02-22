@@ -37,7 +37,8 @@ interface WelcomeEmailRequest {
 
 const handler = async (req: Request): Promise<Response> => {
   const origin = req.headers.get("origin") || "";
-  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  const isAllowed = allowedOrigins.includes(origin) || origin.endsWith(".lovable.app");
+  const corsOrigin = isAllowed ? origin : allowedOrigins[0];
   const corsHeaders = {
     "Access-Control-Allow-Origin": corsOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
