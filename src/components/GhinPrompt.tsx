@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import GhinSyncConfirmation from '@/components/GhinSyncConfirmation';
+import { WHATS_NEW_VERSION } from '@/components/WhatsNewDialog';
 
 const DISMISSED_KEY = 'fg_ghin_prompt_dismissed';
 
@@ -30,6 +31,7 @@ const GhinPrompt: React.FC = () => {
     if (authLoading || !profile) return;
     if (profile.ghin_number) return;
     if (localStorage.getItem(DISMISSED_KEY)) return;
+    if (localStorage.getItem('fg_whats_new_seen') !== WHATS_NEW_VERSION) return;
     setShowGhinDialog(true);
   }, [authLoading, profile]);
 
