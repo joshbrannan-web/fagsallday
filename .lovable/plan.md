@@ -1,40 +1,24 @@
 
-## Add "Find App User" Button Next to Saved Players Dropdown
 
-### Overview
+## Fix "No Users Found" Message in UserSearchDialog
 
-Add a "Find App User" button inline with the "Choose from saved players" dropdown that appears on each player slot in Step 2. This gives users two ways to find app users: per-slot (next to the dropdown) and globally (at the bottom button row).
+### Problem
+
+Currently, the "No users found" message appears whenever the search term is 2+ characters long and results are empty -- even before the user has clicked the search button. This is confusing because the user hasn't searched yet.
+
+### Solution
+
+Add a `hasSearched` boolean state that only becomes `true` after the search button is clicked (or Enter is pressed). Show "No users found" only when `hasSearched` is `true` and results are empty. Reset `hasSearched` to `false` when the search term changes.
 
 ### Changes
 
-**Modified file: `src/components/SetupWizard.tsx`**
+**Modified file: `src/components/UserSearchDialog.tsx`**
 
-Update the saved players selector area (around lines 1672-1695) to wrap the existing `Select` dropdown and a new "Find App User" button in a flex row.
+1. Add state: `const [hasSearched, setHasSearched] = useState(false);`
+2. In `handleSearch`, set `setHasSearched(true)` right before/after the API call
+3. In the `onChange` handler for the Input, also call `setHasSearched(false)` so typing a new query clears the stale message
+4. Update the "No users found" condition from:
+   - `results.length === 0 && !isSearching && searchTerm.trim().length >= 2`
+   - to: `results.length === 0 && !isSearching && hasSearched`
+5. Reset `hasSearched` to `false` when the dialog closes (in `onOpenChange` or when `open` changes)
 
-Current layout per player slot:
-```
-[Choose from saved players...          v]
-```
-
-Updated layout per player slot:
-```
-[Choose from saved players...      v] [Search icon]
-```
-
-Specifically:
-1. Wrap lines 1672-1695 in a `div` with `flex gap-2 items-center`
-2. Add a `Button` (variant="outline", size="icon") with a `Search` icon next to the `Select` dropdown
-3. Clicking the button sets `showUserSearch = true` and stores the current slot index in a new state variable `userSearchSlotIndex`
-4. Update `handleAppUserSelected` to check `userSearchSlotIndex` -- if set, fill that specific slot instead of the first empty one; then reset it to `null`
-
-**State addition:**
-- Add `userSearchSlotIndex: number | null` (default `null`)
-
-**Handler update (`handleAppUserSelected`):**
-- If `userSearchSlotIndex !== null`, replace that specific player slot with the selected user
-- If `userSearchSlotIndex === null` (triggered from bottom button), keep existing behavior (find first empty or append)
-- Reset `userSearchSlotIndex` to `null` after handling
-
-### Visibility
-- The per-slot "Find App User" button shows when `user` is logged in (same condition as the bottom button)
-- It appears even if `savedPlayers` is empty (unlike the dropdown which requires saved players to exist)
