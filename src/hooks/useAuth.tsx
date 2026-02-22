@@ -80,11 +80,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
+        // Verify session is still valid server-side
+        const { error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          // Session is stale — clear everything
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          localStorage.removeItem('fg_session_start');
+          setIsLoading(false);
+          return;
+        }
+        setSession(session);
+        setUser(session.user);
         fetchProfile(session.user.id).then((p) => {
           setProfile(p);
           setIsLoading(false);
@@ -145,8 +155,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Always clear local state, even if server call fails
+    setUser(null);
+    setSession(null);
     setProfile(null);
+    localStorage.removeItem('fg_session_start');
+
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Sign out server call failed:', e);
+    }
   };
 
   const updateProfile = async (updates: Partial<Pick<Profile, 'display_name' | 'handicap_index'>>) => {
