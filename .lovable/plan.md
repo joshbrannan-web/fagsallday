@@ -1,25 +1,83 @@
 
 
-## Auto-Sync GHIN Handicap on Sign-In
+## Add GHIN Sync Option to Signup Flow
 
-Currently the GHIN sync only runs when the user manually clicks "Refresh" on the Profile page, or when opening the SetupWizard. This change will add an automatic sync when the user signs in, if they have a linked GHIN number and it hasn't been synced in the last 24 hours.
+Replace the current static "Handicap Index" text field during signup with a choice: sync from USGA/GHIN or enter manually.
 
-### What Will Happen
+### User Experience
 
-After signing in, the app will silently check your GHIN handicap in the background. If it has been more than 24 hours since the last sync, it will automatically pull your latest handicap from USGA and update your profile. You will see a small notification if your handicap changed.
+During account creation, after the "Your Name" field, the user will see a toggle/choice:
+
+1. **"Sync from GHIN"** -- reveals a GHIN number input field. When the account is created, the app will automatically look up their handicap from USGA.
+2. **"Enter Manually"** -- shows the existing handicap index number field (current behavior).
+
+A small label like "Have a GHIN number?" with two buttons/tabs ("Yes, sync it" / "No, enter manually") keeps it simple and non-intimidating.
+
+### How It Works
+
+- If the user enters a GHIN number, the account is created with handicap 0, and the GHIN number is saved to their profile. The existing auto-sync logic (already in `useAuth.tsx`) will immediately sync the handicap on first sign-in.
+- If they choose manual entry, it works exactly as it does today.
 
 ### Technical Details
 
+**File: `src/pages/Auth.tsx`**
+
+1. Add a new state variable `handicapMethod: 'ghin' | 'manual'` (default `'manual'`).
+2. Add a new state variable `ghinNumber: string`.
+3. Replace the current "Handicap Index (optional)" field in the signup section (lines 389-399) with:
+   - A small toggle: "Have a GHIN number?" with two options ("Sync from USGA" / "Enter manually")
+   - If `'ghin'`: show a GHIN number input field
+   - If `'manual'`: show the existing handicap index input
+4. Update `handleSubmit` (around line 188-200): if `handicapMethod === 'ghin'`, pass the GHIN number to `signUp` metadata so it gets saved to the profile.
+
 **File: `src/hooks/useAuth.tsx`**
 
-Add auto-sync logic inside the `onAuthStateChange` listener, specifically on the `SIGNED_IN` event:
+5. Update the `signUp` function to accept an optional `ghinNumber` parameter.
+6. Include `ghin_number` in the `options.data` metadata passed to `supabase.auth.signUp`.
 
-1. After the profile is fetched on `SIGNED_IN`, check if:
-   - `profile.ghin_number` exists
-   - `profile.ghin_last_synced` is either null or older than 24 hours
-2. If both conditions are met, call `supabase.functions.invoke('sync-ghin-handicap', { body: { ghin_number, update_profile: true } })` in the background
-3. On success, update the local profile state with the new `handicap_index` and `ghin_last_synced` values
-4. Show a toast only if the handicap actually changed (e.g., "Handicap updated to 12.3")
-5. Failures are silently ignored (non-blocking) since manual refresh is always available
+**File: `supabase/functions/sync-ghin-handicap/index.ts`** -- No changes needed. The existing `handle_new_user` trigger + auto-sync on sign-in will handle the rest automatically.
 
-This is a single-file change. The edge function already handles everything server-side -- this just triggers it automatically at sign-in.
+**Database trigger `handle_new_user`** -- needs a small update to also read `ghin_number` from `raw_user_meta_data` and save it to the profile, so the auto-sync can pick it up on first login.
+
+### Migration (SQL)
+
+Update the `handle_new_user` function to extract `ghin_number` from signup metadata:
+
+```sql
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  safe_display_name TEXT;
+  safe_handicap NUMERIC;
+  safe_ghin TEXT;
+BEGIN
+  safe_display_name := COALESCE(
+    LEFT(TRIM(NEW.raw_user_meta_data ->> 'display_name'), 100),
+    LEFT(NEW.email, 100)
+  );
+  
+  BEGIN
+    safe_handicap := COALESCE(
+      NULLIF(TRIM(NEW.raw_user_meta_data ->> 'handicap_index'), '')::numeric, 0
+    );
+    IF safe_handicap < -10 OR safe_handicap > 54 THEN
+      safe_handicap := 0;
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    safe_handicap := 0;
+  END;
+
+  safe_ghin := NULLIF(TRIM(NEW.raw_user_meta_data ->> 'ghin_number'), '');
+
+  INSERT INTO public.profiles (id, display_name, handicap_index, ghin_number)
+  VALUES (NEW.id, safe_display_name, safe_handicap, safe_ghin);
+  RETURN NEW;
+END;
+$function$;
+```
+
+This is a 2-file code change + 1 database migration. The auto-sync feature already built into `useAuth.tsx` will handle fetching the handicap from USGA on first sign-in.
