@@ -1,52 +1,64 @@
 
 
-## Fix Course Search Edge Function
+## Fix: BlueGolf CAPTCHA Blocking Causes Fabricated Scorecard Data
 
-Three issues to address: CORS blocking preview domains, trailing dashes in course names, and missing/incorrect location data in results.
+### Root Cause
 
-### 1. CORS Fix
+When Firecrawl scrapes a BlueGolf detail page (e.g., `detailedscorecard.htm`), BlueGolf frequently returns a CAPTCHA challenge instead of the actual scorecard. The AI then receives no real data and invents realistic-looking numbers from its training knowledge. This is why HCP, yardage, and other values do not match the actual BlueGolf scorecard.
 
-**Problem**: `allowedOrigins` on line 4 only includes production domains. The Lovable preview domain is blocked.
+### Solution
 
-**Fix**: Change from a strict allowlist to allowing `*` for the CORS origin (matching the pattern used by other edge functions in the project). This is safe because the function already validates authentication via JWT.
+Two changes to `supabase/functions/search-course/index.ts`:
 
-**File**: `supabase/functions/search-course/index.ts`
-- Line 4: Replace the `allowedOrigins` array approach with `'Access-Control-Allow-Origin': '*'`
-- Remove the origin-checking logic throughout the file (lines 50-55, 134-135, 141)
+#### 1. Detect CAPTCHA / Empty Content and Fail Gracefully
 
-### 2. Course Name Cleanup
+Before sending scraped content to the AI, check if the markdown contains CAPTCHA indicators (e.g., "confirm you are human", "solve a puzzle") or is suspiciously short (under ~1000 chars for a full scorecard page). If detected, return an error telling the user the page was blocked, rather than silently generating fake data.
 
-**Problem**: `extractCourseName()` produces names like `"Pebble Beach Golf Links -"` because the BlueGolf title format is `"Pebble Beach Golf Links - Detailed Scorecard | Course Database"` and the regex only strips from `BlueGolf` or `Scorecard` keywords, leaving a trailing ` -`.
+Add this check after line 384 (after logging the scraped content preview):
 
-**Fix**: In `extractCourseName()` (line 197), add a final cleanup step to strip trailing ` -` or ` |` characters after the existing replacements.
+```
+if (scrapedMarkdown.length < 1000 || 
+    scrapedMarkdown.includes('confirm you are human') || 
+    scrapedMarkdown.includes('solve a puzzle') ||
+    scrapedMarkdown.includes('security check')) {
+  return Response with error: "BlueGolf blocked the request. Please try again in a moment or enter course details manually."
+}
+```
 
-**File**: `supabase/functions/search-course/index.ts`
-- After line 203, add: `.replace(/\s*[-|]+\s*$/, '')`
+#### 2. Add a Retry with Delay
 
-### 3. Location Extraction Improvements
+Before failing, attempt one retry after a short delay (2-3 seconds). CAPTCHA blocks are sometimes transient. Use `waitFor: 5000` on the retry to give the page more time to load.
 
-**Problem**: The regex-based `extractLocationFromResult()` fails on most BlueGolf results because the search snippets rarely contain city/state info. It sometimes picks up table headers like "In, Tot".
+```
+Flow:
+  1. Scrape with waitFor: 2000
+  2. If CAPTCHA detected, wait 3 seconds
+  3. Retry scrape with waitFor: 5000
+  4. If still CAPTCHA, return error to user
+```
 
-**Fix**: Two-part approach:
-1. Improve `extractLocationFromResult()` to exclude known false positives (like "In, Tot", "Out, In") and add the BlueGolf description patterns
-2. In the AI system prompt for `fetchCourseDetails()`, explicitly instruct the model to extract the course location from the page content (BlueGolf pages typically show the address). The AI already returns a `location` field -- the prompt just needs to emphasize extracting it from the page rather than leaving it blank.
-3. When `fetchCourseDetails` is called for a single result, pass the search-result location through so it can be used as a fallback.
+#### 3. Strengthen the AI Prompt to Never Fabricate
 
-**File**: `supabase/functions/search-course/index.ts`
-- Update `extractLocationFromResult()` (lines 176-194): Add a blocklist filter for false positives like "In, Tot", "Out, In", "Show All"
-- Update the AI system prompt (line 379): Change `"location": "City, State"` guidance to emphasize looking for the address/location on the BlueGolf page and to never leave it as empty
-- Update `fetchCourseDetails` signature to accept an optional `location` parameter from search results, used as fallback if AI can't find one
+Update the system prompt (line 402) to add an explicit instruction:
 
-### 4. Pass Location from Search to Fetch
+```
+"CRITICAL: If the page content does not contain an actual scorecard table with 
+numeric hole data, return { "error": "no_scorecard_data" } instead of guessing. 
+Never invent or estimate values."
+```
 
-When a single course is found and we auto-fetch details (line 290-292), pass the extracted location so it can serve as a fallback in the AI parse.
+Then handle this `error` response in the parsing logic and return a user-friendly message.
 
 ### Summary of Changes
 
-All changes are in one file: `supabase/functions/search-course/index.ts`
+All in `supabase/functions/search-course/index.ts`:
 
-1. Simplify CORS to `'*'` (safe because auth is enforced)
-2. Add `.replace(/\s*[-|]+\s*$/, '')` to `extractCourseName`
-3. Add false-positive filter to `extractLocationFromResult`
-4. Update AI prompt to emphasize location extraction
-5. Thread location through `fetchCourseDetails` as fallback
+1. Add CAPTCHA detection after scraping (check content length and keywords)
+2. Add one retry with longer wait time before giving up
+3. Add "never fabricate" instruction to the AI system prompt
+4. Handle AI "no data" response gracefully with a clear user-facing error
+
+### Why This Matters
+
+Without this fix, users receive incorrect scorecard data that looks valid. They may not realize the HCP, yardage, or par values are wrong until they compare against a physical scorecard. Failing explicitly is far better than returning silently wrong data.
+
