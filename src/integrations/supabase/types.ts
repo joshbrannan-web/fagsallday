@@ -38,6 +38,38 @@ export type Database = {
         }
         Relationships: []
       }
+      round_participants: {
+        Row: {
+          created_at: string
+          id: string
+          player_name: string
+          round_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          player_name: string
+          round_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          player_name?: string
+          round_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "round_participants_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "rounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rounds: {
         Row: {
           course_data: Json
@@ -128,6 +160,7 @@ export type Database = {
           created_at: string
           handicap_index: number | null
           id: string
+          linked_user_id: string | null
           name: string
           tee: string | null
           updated_at: string
@@ -137,6 +170,7 @@ export type Database = {
           created_at?: string
           handicap_index?: number | null
           id?: string
+          linked_user_id?: string | null
           name: string
           tee?: string | null
           updated_at?: string
@@ -146,6 +180,7 @@ export type Database = {
           created_at?: string
           handicap_index?: number | null
           id?: string
+          linked_user_id?: string | null
           name?: string
           tee?: string | null
           updated_at?: string
@@ -230,6 +265,13 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      search_users_by_name: {
+        Args: { search_term: string }
+        Returns: {
+          display_name: string
+          id: string
+        }[]
       }
     }
     Enums: {

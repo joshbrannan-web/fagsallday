@@ -29,10 +29,12 @@ import {
   ShieldCheck,
   BadgeCheck,
   Info,
+  UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
@@ -297,7 +299,7 @@ const SetupWizard: React.FC = () => {
 
   const handleSelectSavedPlayerForSlot = (
     idx: number,
-    savedPlayer: { id: string; name: string; handicap_index: number; tee: string },
+    savedPlayer: { id: string; name: string; handicap_index: number; tee: string; linked_user_id?: string | null },
   ) => {
     setPlayers(
       players.map((p, i) =>
@@ -308,13 +310,14 @@ const SetupWizard: React.FC = () => {
               handicapIndex: savedPlayer.handicap_index,
               courseHandicap: calculateCourseHandicap(savedPlayer.handicap_index, 72),
               tee: savedPlayer.tee,
+              linkedUserId: savedPlayer.linked_user_id || undefined,
             }
           : p,
       ),
     );
   };
 
-  const handleSelectSavedPlayer = (savedPlayer: { id: string; name: string; handicap_index: number; tee: string }) => {
+  const handleSelectSavedPlayer = (savedPlayer: { id: string; name: string; handicap_index: number; tee: string; linked_user_id?: string | null }) => {
     // Add to players list if not already at max
     if (players.filter((p) => p.name.trim()).length >= 8) {
       toast.error("Maximum 8 players allowed");
@@ -333,6 +336,7 @@ const SetupWizard: React.FC = () => {
                 handicapIndex: savedPlayer.handicap_index,
                 courseHandicap: calculateCourseHandicap(savedPlayer.handicap_index, 72),
                 tee: savedPlayer.tee,
+                linkedUserId: savedPlayer.linked_user_id || undefined,
               }
             : p,
         ),
@@ -346,6 +350,7 @@ const SetupWizard: React.FC = () => {
           handicapIndex: savedPlayer.handicap_index,
           courseHandicap: calculateCourseHandicap(savedPlayer.handicap_index, 72),
           tee: savedPlayer.tee,
+          linkedUserId: savedPlayer.linked_user_id || undefined,
         },
       ]);
     }
@@ -1672,6 +1677,11 @@ const SetupWizard: React.FC = () => {
                     <p className="text-xs text-muted-foreground">
                       Course Handicap: {calculateCourseHandicap(player.handicapIndex, 72)} strokes
                     </p>
+                  )}
+                  {player.linkedUserId && (
+                    <Badge variant="secondary" className="text-[10px] gap-0.5 w-fit">
+                      <UserCheck className="w-3 h-3" /> Linked User
+                    </Badge>
                   )}
                 </div>
               ))}
