@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
         "react": path.resolve(__dirname, "./node_modules/react"),
         "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
       },
-      dedupe: ["react", "react-dom"],
+      dedupe: ["react", "react-dom", "react/jsx-runtime", "@tanstack/react-query"],
     },
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || 'https://wvmpxjcghlgtitdhozlj.supabase.co'),
@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_SUPABASE_PROJECT_ID': JSON.stringify(env.VITE_SUPABASE_PROJECT_ID || 'wvmpxjcghlgtitdhozlj'),
     },
     optimizeDeps: {
-      include: ["react", "react-dom", "@radix-ui/react-tooltip"],
+      include: ["react", "react-dom", "@radix-ui/react-tooltip", "@tanstack/react-query"],
       force: true,
     },
   };
