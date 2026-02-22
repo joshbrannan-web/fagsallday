@@ -37,7 +37,7 @@ interface GenerateResetLinkRequest {
 
 const handler = async (req: Request): Promise<Response> => {
   const origin = req.headers.get("origin") || "";
-  const isAllowed = allowedOrigins.includes(origin) || origin.endsWith(".lovable.app");
+  const isAllowed = allowedOrigins.includes(origin) || origin.endsWith(".lovable.app") || origin.endsWith(".lovableproject.com");
   const corsOrigin = isAllowed ? origin : allowedOrigins[0];
   const corsHeaders = {
     "Access-Control-Allow-Origin": corsOrigin,
