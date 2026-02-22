@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
+import GhinSyncConfirmation from '@/components/GhinSyncConfirmation';
 
 const DISMISSED_KEY = 'fg_ghin_prompt_dismissed';
 
@@ -21,6 +22,7 @@ const GhinPrompt: React.FC = () => {
   const { profile, updateProfile, isLoading: authLoading } = useAuth();
   const [showGhinDialog, setShowGhinDialog] = useState(false);
   const [showInfoDialog, setShowInfoDialog] = useState(false);
+  const [showSyncConfirmation, setShowSyncConfirmation] = useState(false);
   const [ghinNumber, setGhinNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -56,6 +58,7 @@ const GhinPrompt: React.FC = () => {
 
       toast.success(`GHIN linked! Handicap: ${data.handicap_index}`);
       setShowGhinDialog(false);
+      setShowSyncConfirmation(true);
     } catch {
       toast.error('Failed to link GHIN number');
     } finally {
@@ -122,6 +125,9 @@ const GhinPrompt: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Sync Confirmation Dialog */}
+      <GhinSyncConfirmation open={showSyncConfirmation} onClose={() => setShowSyncConfirmation(false)} />
     </>
   );
 };

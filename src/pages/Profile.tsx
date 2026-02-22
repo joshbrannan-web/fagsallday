@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, User, RefreshCw, CheckCircle2, Unlink } from 'lucid
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
+import GhinSyncConfirmation from '@/components/GhinSyncConfirmation';
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ const Profile: React.FC = () => {
   const [ghinNumber, setGhinNumber] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showSyncConfirmation, setShowSyncConfirmation] = useState(false);
 
   const isGhinLinked = !!profile?.ghin_number;
 
@@ -51,6 +53,7 @@ const Profile: React.FC = () => {
   }
 
   const handleSyncGhin = async (ghinNum?: string) => {
+    const wasLinked = isGhinLinked;
     const numberToSync = ghinNum || ghinNumber;
     if (!numberToSync.trim() || !/^\d{5,9}$/.test(numberToSync.trim())) {
       toast.error('Enter a valid GHIN number (5-9 digits)');
@@ -80,6 +83,9 @@ const Profile: React.FC = () => {
       });
 
       toast.success(`Handicap synced: ${data.handicap_index} (${data.golfer_name})`);
+      if (!wasLinked) {
+        setShowSyncConfirmation(true);
+      }
     } catch (err: any) {
       console.error('GHIN sync error:', err);
       toast.error('Failed to sync from GHIN');
@@ -274,6 +280,8 @@ const Profile: React.FC = () => {
           )}
         </Button>
       </div>
+
+      <GhinSyncConfirmation open={showSyncConfirmation} onClose={() => setShowSyncConfirmation(false)} />
     </div>
   );
 };
