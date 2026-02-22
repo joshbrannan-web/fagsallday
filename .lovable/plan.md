@@ -1,33 +1,68 @@
 
 
-## Fix: Admin Portal CORS - Wrong Domain
+## Fix: Unable to Log Out or Refresh with Expired Session
 
 ### Problem
-The previous CORS fix added support for `*.lovable.app` subdomains, but the preview environment actually uses `*.lovableproject.com` as its origin. The requests are coming from `https://902ceb91-...lovableproject.com`, which does not match `.lovable.app`, so they are still being blocked.
+The user's session was invalidated server-side, but the app still holds a stale token in localStorage. When signing out, `supabase.auth.signOut()` tries to call the server's `/logout` endpoint, which returns a 403 ("Session not found"). The app then gets stuck — it can't log out and can't refresh because it keeps trying to use the dead session.
+
+### Root Cause
+The `signOut` function in `useAuth.tsx` doesn't handle the case where the server rejects the logout. The local auth state (user, session, profile) is never cleared when this happens.
 
 ### Solution
-Update all 6 backend functions to also accept `*.lovableproject.com` origins in addition to `*.lovable.app`.
+Two changes in `src/hooks/useAuth.tsx`:
 
-### Files to Update
-1. `supabase/functions/admin-list-users/index.ts`
-2. `supabase/functions/admin-delete-user/index.ts`
-3. `supabase/functions/admin-reset-password/index.ts`
-4. `supabase/functions/generate-reset-link/index.ts`
-5. `supabase/functions/send-welcome-email/index.ts`
-6. `supabase/functions/parse-scorecard/index.ts`
+1. **Make `signOut` resilient** — Always clear local state (user, session, profile, localStorage) even if the server `/logout` call fails.
+
+2. **Handle stale sessions on app load** — In the initial `getSession()` call, verify the session is still valid by calling `getUser()`. If it returns an error (session expired), clear everything locally so the user sees the sign-in screen instead of a broken state.
 
 ### Technical Details
-In each file, change the origin check from:
 
+**File: `src/hooks/useAuth.tsx`**
+
+**Change 1 — `signOut` function (around line 143):**
 ```typescript
-const isAllowed = allowedOrigins.includes(origin) || origin.endsWith(".lovable.app");
+const signOut = async () => {
+  // Always clear local state, even if server call fails
+  setUser(null);
+  setSession(null);
+  setProfile(null);
+  localStorage.removeItem('fg_session_start');
+  
+  try {
+    await supabase.auth.signOut();
+  } catch (e) {
+    // Server rejection is fine — local state is already cleared
+    console.warn('Sign out server call failed:', e);
+  }
+};
 ```
 
-To:
-
+**Change 2 — Initial session check (around line 87):**
+After `getSession()` returns a session, verify it's still valid with `getUser()`. If the session is stale, sign out locally:
 ```typescript
-const isAllowed = allowedOrigins.includes(origin) || origin.endsWith(".lovable.app") || origin.endsWith(".lovableproject.com");
+supabase.auth.getSession().then(async ({ data: { session } }) => {
+  if (session?.user) {
+    // Verify session is still valid server-side
+    const { error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      // Session is stale — clear everything
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      localStorage.removeItem('fg_session_start');
+      setIsLoading(false);
+      return;
+    }
+    setSession(session);
+    setUser(session.user);
+    fetchProfile(session.user.id).then((p) => {
+      setProfile(p);
+      setIsLoading(false);
+    });
+  } else {
+    setIsLoading(false);
+  }
+});
 ```
 
-This one-line change in each file adds the preview domain pattern while keeping all existing allowed origins intact.
-
+These two changes ensure the app never gets stuck on a dead session — it either recovers gracefully or sends the user to the sign-in screen.
