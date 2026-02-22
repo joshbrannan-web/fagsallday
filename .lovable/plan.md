@@ -1,63 +1,29 @@
 
 
-## Integrate GolfCourseAPI.com as Primary Course Data Source
+## Add Save and Verify Buttons After Scorecard Scan
 
-### What This Does
+### Problem
+After a user scans a scorecard, selects a tee box, and updates the course name/location, they land on the "search" mode view showing course details. This view has no buttons to save the course for later or verify it for the community.
 
-Replaces the unreliable BlueGolf scraping pipeline with GolfCourseAPI.com -- a dedicated golf course API that returns structured scorecard data directly, with no CAPTCHA issues. Your API key has been verified against their documentation.
+### What Changes
 
-### API Key Storage
+**File: `src/components/SetupWizard.tsx`**
 
-Your GolfCourseAPI.com key (`3IB6B2PEFCVNH62LYJ4V4INR6Y`) will be stored as a secure backend secret (`GOLF_COURSE_API_KEY`) so it's never exposed in client code.
+Add a row of action buttons in the search mode view, below the "Course data loaded!" confirmation box (around line 1281). These buttons appear when a `selectedCourse` exists:
 
-### How the New Flow Works
+1. **Save Course for Later** button -- calls `saveCourse(selectedCourse)` to add it to the user's saved courses list. Shows a checkmark if the course is already saved.
 
-1. **Search**: User types a course name -> calls `GET /v1/search?search_query=...` -> returns a list of matching courses with IDs and locations
-2. **Fetch Details**: User selects a course -> calls `GET /v1/courses/{id}` -> returns full scorecard with all tee boxes, par, yardage, handicap index, rating, and slope
-3. **Fallback Chain**: If GolfCourseAPI returns no results, fall back to the verified courses library, then to BlueGolf scraping as a last resort
+2. **Verify for Community** button -- calls `handleVerifyCourse(selectedCourse)` to publish the scorecard data to the verified courses library for all users. Only shows if:
+   - The user is signed in
+   - The course is not already verified (checked via `verifiedCourseNames`)
 
-### Data Mapping
+Both buttons will use the updated course name and location from the input fields (not just the original scanned values), so the course object is rebuilt with the current `courseName` and `courseLocation` before saving/verifying.
 
-The API returns data in this structure per tee box:
-- `tee_name`, `course_rating`, `slope_rating`, `total_yards`, `par_total`
-- `holes[]` with `par`, `yardage`, `handicap` for each hole
+### Technical Details
 
-This maps directly to the app's existing `HoleData` type (`number`, `par`, `yardage`, `handicapIndex`).
-
-### Technical Changes
-
-All changes in `supabase/functions/search-course/index.ts`:
-
-#### 1. Add GolfCourseAPI search function
-- New `searchGolfCourseAPI(query, apiKey)` function
-- Calls `GET https://api.golfcourseapi.com/v1/search?search_query=...`
-- Header: `Authorization: Key <apiKey>`
-- Returns list of courses with their API IDs and locations
-
-#### 2. Add GolfCourseAPI fetch-details function
-- New `fetchFromGolfCourseAPI(courseId, apiKey)` function
-- Calls `GET https://api.golfcourseapi.com/v1/courses/{id}`
-- Extracts the male tee boxes by default (with all hole data)
-- Maps to existing `CourseData` format
-
-#### 3. Update search mode handler
-- Try GolfCourseAPI first for search
-- Convert results to `CourseListItem[]` format (using API course ID as the URL identifier)
-- Fall back to existing Firecrawl/BlueGolf pipeline if API returns no results
-
-#### 4. Update fetch mode handler
-- Detect GolfCourseAPI course IDs (numeric) vs BlueGolf URLs
-- Route to appropriate fetcher
-- Keep existing BlueGolf + verified course fallback chain intact
-
-#### 5. Store API key as secret
-- Add `GOLF_COURSE_API_KEY` as a backend secret
-
-### What Stays the Same
-
-- Verified courses library and fallback logic
-- BlueGolf scraping (kept as last-resort fallback)
-- Scan Scorecard feature (image-based parsing)
-- Client-side code and UI (no changes needed)
-- All existing course data formats
-
+- Before saving or verifying, rebuild the course object with current `courseName`/`courseLocation` values so edits are captured
+- The save button uses `saveCourse()` from the `useApp` context (already available)
+- The verify button uses `handleVerifyCourse()` (already defined at line 413)
+- Add a `courseSaved` local state flag to show visual feedback after saving
+- The verify button is hidden when the course name is already in `verifiedCourseNames`
+- Both buttons sit in a flex row between the "Course data loaded!" box and the "Edit Hole Details" toggle
