@@ -47,6 +47,94 @@ interface CourseListItem {
   url: string;
 }
 
+// ==================== GolfCourseAPI.com Integration ====================
+
+async function searchGolfCourseAPI(query: string, apiKey: string): Promise<CourseListItem[]> {
+  console.log(`[GolfCourseAPI] Searching for: ${query}`);
+  const url = `https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(query)}`;
+  
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Key ${apiKey}` },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error(`[GolfCourseAPI] Search failed: ${response.status}`, text);
+    return [];
+  }
+
+  const data = await response.json();
+  const courses = data.courses || [];
+  console.log(`[GolfCourseAPI] Found ${courses.length} courses`);
+
+  return courses.map((c: any) => ({
+    name: c.club_name || c.course_name || 'Unknown',
+    location: [c.location?.city, c.location?.state].filter(Boolean).join(', ') || 'Location not specified',
+    url: `golfcourseapi:${c.id}`, // Prefix to distinguish from BlueGolf URLs
+  }));
+}
+
+async function fetchFromGolfCourseAPI(courseId: string, apiKey: string): Promise<CourseData | null> {
+  console.log(`[GolfCourseAPI] Fetching course details for ID: ${courseId}`);
+  const url = `https://api.golfcourseapi.com/v1/courses/${courseId}`;
+
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Key ${apiKey}` },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error(`[GolfCourseAPI] Fetch failed: ${response.status}`, text);
+    return null;
+  }
+
+  const data = await response.json();
+  const course = data.course || data;
+  
+  // API uses course.tees.male[] and course.tees.female[] (not course.teeboxes[])
+  const maleTees = course.tees?.male || [];
+  const femaleTees = course.tees?.female || [];
+  const allTees = [...maleTees, ...femaleTees];
+  
+  console.log(`[GolfCourseAPI] Course: ${course.course_name}, male tees: ${maleTees.length}, female tees: ${femaleTees.length}`);
+
+  // Find the best tee box: prefer "Blue" male, then first male tee, then any
+  let selectedTee = maleTees.find((t: any) => t.tee_name?.toLowerCase() === 'blue');
+  if (!selectedTee && maleTees.length > 0) {
+    selectedTee = maleTees[0];
+  }
+  if (!selectedTee && allTees.length > 0) {
+    selectedTee = allTees[0];
+  }
+
+  if (!selectedTee || !selectedTee.holes || selectedTee.holes.length === 0) {
+    console.error('[GolfCourseAPI] No usable tee box found');
+    return null;
+  }
+
+  console.log(`[GolfCourseAPI] Using tee: ${selectedTee.tee_name} (${selectedTee.total_yards} yards)`);
+
+  // Holes don't have hole_number, they're in order by index
+  const holes: HoleData[] = selectedTee.holes.map((h: any, i: number) => ({
+      number: i + 1,
+      par: h.par,
+      yardage: h.yardage,
+      handicapIndex: h.handicap,
+    }));
+
+  const location = [course.location?.city, course.location?.state].filter(Boolean).join(', ') || 'Location not specified';
+
+  return {
+    name: course.course_name || course.club_name || 'Unknown Course',
+    location,
+    holes,
+    totalPar: holes.reduce((sum, h) => sum + h.par, 0),
+    totalYardage: holes.reduce((sum, h) => sum + h.yardage, 0),
+  };
+}
+
+// ==================== Main Handler ====================
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -97,6 +185,7 @@ serve(async (req) => {
 
     const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GOLF_COURSE_API_KEY = Deno.env.get('GOLF_COURSE_API_KEY');
 
     if (!FIRECRAWL_API_KEY) {
       return new Response(
@@ -113,10 +202,51 @@ serve(async (req) => {
     }
 
     if (mode === 'search') {
+      // Try GolfCourseAPI first, fall back to BlueGolf/Firecrawl
+      if (GOLF_COURSE_API_KEY) {
+        try {
+          const apiResults = await searchGolfCourseAPI(courseName, GOLF_COURSE_API_KEY);
+          if (apiResults.length > 0) {
+            // If single result, fetch details directly
+            if (apiResults.length === 1) {
+              const courseId = apiResults[0].url.replace('golfcourseapi:', '');
+              const details = await fetchFromGolfCourseAPI(courseId, GOLF_COURSE_API_KEY);
+              if (details) {
+                return new Response(
+                  JSON.stringify({ success: true, course: details, source: 'golfcourseapi' }),
+                  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
+            }
+            return new Response(
+              JSON.stringify({ success: true, courses: apiResults, source: 'golfcourseapi' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          console.log('[GolfCourseAPI] No results, falling back to BlueGolf');
+        } catch (e) {
+          console.error('[GolfCourseAPI] Search error, falling back:', e);
+        }
+      }
       return await searchCourses(FIRECRAWL_API_KEY, LOVABLE_API_KEY, courseName, location, corsHeaders);
     }
     
     if (mode === 'fetch' && selectedCourseUrl) {
+      // Route to GolfCourseAPI if it's a golfcourseapi: prefixed ID
+      if (selectedCourseUrl.startsWith('golfcourseapi:') && GOLF_COURSE_API_KEY) {
+        const courseId = selectedCourseUrl.replace('golfcourseapi:', '');
+        const details = await fetchFromGolfCourseAPI(courseId, GOLF_COURSE_API_KEY);
+        if (details) {
+          return new Response(
+            JSON.stringify({ success: true, course: details, source: 'golfcourseapi' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to fetch course details from GolfCourseAPI' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return await fetchCourseDetails(FIRECRAWL_API_KEY, LOVABLE_API_KEY, selectedCourseUrl, courseName, corsHeaders);
     }
 
@@ -136,6 +266,8 @@ serve(async (req) => {
     );
   }
 });
+
+// ==================== BlueGolf Helpers (kept as fallback) ====================
 
 // Helper function to normalize BlueGolf URLs to the detailedscorecard.htm format
 function normalizeBlueGolfUrl(url: string): string {
@@ -187,11 +319,9 @@ function extractLocationFromResult(result: { title?: string; description?: strin
     const match = text.match(pattern);
     if (match) {
       const candidate = match[1];
-      // Filter out known false positives
       if (LOCATION_BLOCKLIST.some(blocked => candidate.includes(blocked))) {
         continue;
       }
-      // Filter out very short matches that are likely table headers
       if (candidate.length < 5) {
         continue;
       }
@@ -444,7 +574,6 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
       finalMarkdown = retryMarkdown;
     } else {
       console.error('Retry scrape failed:', retryResponse.status);
-      // Fallback: check verified courses library
       const fallback = await tryVerifiedCourseFallback(courseName);
       if (fallback) {
         console.log('Found verified course fallback for:', courseName);
@@ -643,7 +772,6 @@ async function tryVerifiedCourseFallback(courseName: string): Promise<CourseData
     const row = data[0];
     const cd = row.course_data as any;
     
-    // Return the stored course data directly if it has holes
     if (cd && cd.holes && Array.isArray(cd.holes) && cd.holes.length > 0) {
       return {
         name: cd.name || row.course_name,
@@ -728,14 +856,12 @@ function parseJsonFromContent(content: string): any {
     jsonStr = jsonMatch[1].trim();
   }
   
-  // Try parsing the cleaned string directly first
   try {
     return JSON.parse(jsonStr);
   } catch {
     // Fall through to regex extraction
   }
 
-  // Try extracting an object (most common for course data)
   const objectMatch = jsonStr.match(/\{[\s\S]*\}/);
   if (objectMatch) {
     try {
@@ -743,7 +869,6 @@ function parseJsonFromContent(content: string): any {
     } catch { /* fall through */ }
   }
 
-  // Try extracting an array (for batch extraction results)
   const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
   if (arrayMatch) {
     return JSON.parse(arrayMatch[0]);
