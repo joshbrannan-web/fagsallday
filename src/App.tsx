@@ -39,7 +39,9 @@ import { AppContext, AppState } from './contexts/AppContext';
 import ConnectionStatusBar from './components/ConnectionStatusBar';
 import { toast } from 'sonner';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1 } }
+});
 
 // Round recovery component - must be inside HashRouter for useNavigate
 const RoundRecovery: React.FC<{
