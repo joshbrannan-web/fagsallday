@@ -19,7 +19,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Users, Trophy, ArrowLeft, Trash2, KeyRound, Loader2, Shield } from 'lucide-react';
+import { Users, Trophy, ArrowLeft, Trash2, KeyRound, Loader2, Shield, Mail, Send } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 
 interface AdminUser {
@@ -51,6 +54,10 @@ const Admin = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   useEffect(() => {
     if (!adminLoading && !isAdmin) {
@@ -157,6 +164,27 @@ const Admin = () => {
     setDeleteDialogOpen(true);
   };
 
+  const handleSendBroadcast = async () => {
+    setSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-send-broadcast', {
+        body: { subject: emailSubject, message: emailMessage }
+      });
+      
+      if (error) throw error;
+      
+      toast.success(`Broadcast sent to ${data.sentCount} users`);
+      setEmailSubject('');
+      setEmailMessage('');
+    } catch (err: any) {
+      console.error('Error sending broadcast:', err);
+      toast.error(err.message || 'Failed to send broadcast');
+    } finally {
+      setSendingEmail(false);
+      setSendDialogOpen(false);
+    }
+  };
+
   if (adminLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -224,7 +252,7 @@ const Admin = () => {
 
         {/* Data Tabs */}
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Users
@@ -232,6 +260,10 @@ const Admin = () => {
             <TabsTrigger value="rounds" className="flex items-center gap-2">
               <Trophy className="h-4 w-4" />
               Rounds
+            </TabsTrigger>
+            <TabsTrigger value="email" className="flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              Email
             </TabsTrigger>
           </TabsList>
 
@@ -354,6 +386,83 @@ const Admin = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="email" className="mt-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Compose */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Compose Broadcast</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    This will be sent to {users.length} registered user{users.length !== 1 ? 's' : ''}
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email-subject">Subject</Label>
+                    <Input
+                      id="email-subject"
+                      placeholder="e.g. New Feature: Track Your Bets"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email-message">Message</Label>
+                    <Textarea
+                      id="email-message"
+                      placeholder="Write your message here..."
+                      value={emailMessage}
+                      onChange={(e) => setEmailMessage(e.target.value)}
+                      rows={8}
+                    />
+                  </div>
+                  <Button
+                    className="w-full"
+                    disabled={!emailSubject.trim() || !emailMessage.trim() || sendingEmail}
+                    onClick={() => setSendDialogOpen(true)}
+                  >
+                    {sendingEmail ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    Send to All Users
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Preview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Email Preview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="border border-border rounded-lg overflow-hidden bg-muted/30">
+                    <div className="p-6 bg-background rounded-lg m-4 shadow-sm">
+                      <div className="text-center mb-6">
+                        <h1 className="text-primary font-bold text-2xl">⛳ F&Gs All Day</h1>
+                      </div>
+                      <h2 className="text-foreground font-semibold text-lg mb-4">
+                        {emailSubject || 'Your Subject Here'}
+                      </h2>
+                      <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-wrap">
+                        {emailMessage || 'Your message will appear here...'}
+                      </div>
+                      <div className="text-center mt-6">
+                        <span className="inline-block bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-semibold text-sm">
+                          Open F&Gs All Day
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center py-3">
+                      © 2025 F&Gs All Day
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         </Tabs>
       </main>
 
@@ -375,6 +484,24 @@ const Admin = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Send Broadcast Confirmation Dialog */}
+      <AlertDialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send Broadcast Email</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to send "<strong>{emailSubject}</strong>" to all <strong>{users.length}</strong> registered users? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSendBroadcast}>
+              Send to All
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
