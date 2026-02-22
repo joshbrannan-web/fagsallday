@@ -1,16 +1,26 @@
 
 
-## Configure GHIN Secrets
+## Fix GHIN Sync - API Compatibility
 
-Two secrets need to be added to enable the GHIN handicap sync feature:
+The GHIN sync is failing with a 400 error because the edge function is using an outdated API format. Two changes are needed in `supabase/functions/sync-ghin-handicap/index.ts`:
 
-1. **GHIN_EMAIL** -- The email address (or GHIN number) you use to log into ghin.com or the GHIN mobile app
-2. **GHIN_PASSWORD** -- The password for that same GHIN account
+### Changes
 
-Once these are configured, the edge function will use your account to authenticate with the GHIN API and look up any golfer's handicap by their GHIN number. Your credentials are stored securely as backend secrets and are never exposed to the frontend.
+1. **Fix the login API URL** from `https://api.ghin.com/api/v1/golfer_login.json` to `https://api2.ghin.com/api/v1/golfer_login.json`
 
-### Steps
-1. Add the `GHIN_EMAIL` secret with your GHIN login email/number
-2. Add the `GHIN_PASSWORD` secret with your GHIN password
-3. Verify the sync works by testing from the Profile page
+2. **Add the required `token` field** to the login request body (an arbitrary value required by the GHIN API):
+   ```
+   body: { user: { ... }, token: "123" }
+   ```
+
+3. **Fix the search API URL** from `https://api.ghin.com/api/v1/golfers/search.json` to `https://api2.ghin.com/api/v1/golfers/search.json`
+
+### Technical Details
+
+In `supabase/functions/sync-ghin-handicap/index.ts`:
+- Line ~89: Change login URL to `https://api2.ghin.com/api/v1/golfer_login.json`
+- Line ~92: Add `token: "123"` alongside the `user` object in the request body
+- Line ~108: Change search URL to `https://api2.ghin.com/api/v1/golfers/search.json`
+
+These are the only changes needed. The rest of the function logic (auth, rate limiting, profile update) is correct.
 
