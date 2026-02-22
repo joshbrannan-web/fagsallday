@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag } from 'lucide-react';
+import { Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag, Eye } from 'lucide-react';
 import { calculateAggregatedHolePnL, calculateBanker, calculateFBO } from '../services/gameEngine';
 import { calculateTeamBanker } from '../services/teamBankerEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
@@ -840,6 +840,8 @@ const Scorecard: React.FC = () => {
     });
   })?.number || null;
 
+  const isReadOnly = currentRound?.isShared === true;
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="bg-brand-dark text-primary-foreground p-4 shadow-sm sticky top-0 z-10 flex items-center justify-between">
@@ -847,6 +849,15 @@ const Scorecard: React.FC = () => {
         <h1 className="text-xl font-bold">Scorecard</h1>
         <div className="w-10" />
       </div>
+
+      {isReadOnly && (
+        <div className="bg-accent/50 border-b border-accent px-4 py-2 text-center">
+          <div className="flex items-center justify-center gap-2 text-sm font-medium text-accent-foreground">
+            <Eye className="w-4 h-4" />
+            Viewing {currentRound.ownerName}'s Round — Read Only
+          </div>
+        </div>
+      )}
 
       <div className="p-4 flex justify-center">
         <div className="bg-card p-1 rounded-xl shadow-sm border border-border flex gap-1">
@@ -884,10 +895,12 @@ const Scorecard: React.FC = () => {
                 {activeHoles.map(h => (
                   <th 
                     key={h.number} 
-                    className={`p-2 min-w-[40px] border-r border-border/50 cursor-pointer hover:bg-primary/10 transition-colors ${
-                      h.number === firstIncompleteHole ? 'bg-primary/20 ring-2 ring-primary ring-inset' : ''
+                    className={`p-2 min-w-[40px] border-r border-border/50 ${
+                      isReadOnly ? '' : 'cursor-pointer hover:bg-primary/10 transition-colors'
+                    } ${
+                      !isReadOnly && h.number === firstIncompleteHole ? 'bg-primary/20 ring-2 ring-primary ring-inset' : ''
                     }`}
-                    onClick={() => navigate('/active', { state: { startHole: h.number } })}
+                    onClick={isReadOnly ? undefined : () => navigate('/active', { state: { startHole: h.number } })}
                   >
                     {h.number}
                     <div className="text-[10px] text-muted-foreground font-normal mt-0.5">par {h.par}</div>
@@ -1279,20 +1292,28 @@ const Scorecard: React.FC = () => {
 
       <ScorecardImage ref={scorecardImageRef} currentRound={currentRound} roundTotals={roundTotals} />
 
-      <div className="p-4 bg-card border-t border-border flex gap-3">
-        <Button variant="outline" onClick={() => scorecardImageRef.current?.shareImage()} className="flex-1">
-          <Share2 className="w-4 h-4 mr-2" /> Share Image
-        </Button>
-        {firstIncompleteHole === null ? (
-          <Button onClick={() => navigate('/summary')} className="flex-1">
-            <Flag className="w-4 h-4 mr-2" /> Round Complete
+      {isReadOnly ? (
+        <div className="p-4 bg-card border-t border-border flex gap-3">
+          <Button onClick={() => navigate('/')} className="flex-1">
+            <Home className="w-4 h-4 mr-2" /> Return to Home
           </Button>
-        ) : (
-          <Button onClick={() => navigate('/active', { state: { startHole: firstIncompleteHole } })} className="flex-1">
-            <Play className="w-4 h-4 mr-2" /> Return to Hole
+        </div>
+      ) : (
+        <div className="p-4 bg-card border-t border-border flex gap-3">
+          <Button variant="outline" onClick={() => scorecardImageRef.current?.shareImage()} className="flex-1">
+            <Share2 className="w-4 h-4 mr-2" /> Share Image
           </Button>
-        )}
-      </div>
+          {firstIncompleteHole === null ? (
+            <Button onClick={() => navigate('/summary')} className="flex-1">
+              <Flag className="w-4 h-4 mr-2" /> Round Complete
+            </Button>
+          ) : (
+            <Button onClick={() => navigate('/active', { state: { startHole: firstIncompleteHole } })} className="flex-1">
+              <Play className="w-4 h-4 mr-2" /> Return to Hole
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
