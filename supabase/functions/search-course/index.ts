@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+};
 
 // Simple in-memory rate limiting (per edge function instance)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -45,13 +48,6 @@ interface CourseListItem {
 }
 
 serve(async (req) => {
-  const origin = req.headers.get("origin") || "";
-  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': corsOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-  };
-
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -131,14 +127,12 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in search-course:', error);
-    const origin = req.headers.get("origin") || "";
-    const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
     return new Response(
       JSON.stringify({ 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
       }),
-      { status: 500, headers: { 'Access-Control-Allow-Origin': corsOrigin, 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
@@ -173,6 +167,12 @@ function normalizeBlueGolfUrl(url: string): string {
   return url;
 }
 
+// Known false positives from BlueGolf table headers
+const LOCATION_BLOCKLIST = [
+  'In, Tot', 'Out, In', 'Show All', 'In, To', 'Par, Hcp',
+  'Blue, White', 'Black, Blue', 'Red, Gold',
+];
+
 // Extract location from search result description or title
 function extractLocationFromResult(result: { title?: string; description?: string; url?: string }): string {
   const text = `${result.title || ''} ${result.description || ''}`;
@@ -186,7 +186,16 @@ function extractLocationFromResult(result: { title?: string; description?: strin
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match) {
-      return match[1];
+      const candidate = match[1];
+      // Filter out known false positives
+      if (LOCATION_BLOCKLIST.some(blocked => candidate.includes(blocked))) {
+        continue;
+      }
+      // Filter out very short matches that are likely table headers
+      if (candidate.length < 5) {
+        continue;
+      }
+      return candidate;
     }
   }
   
@@ -200,6 +209,7 @@ function extractCourseName(result: { title?: string; url?: string }): string {
       .replace(/\s*[-|]\s*BlueGolf.*$/i, '')
       .replace(/\s*[-|]\s*Scorecard.*$/i, '')
       .replace(/\s*Detailed\s*Scorecard.*$/i, '')
+      .replace(/\s*[-|]+\s*$/, '')
       .trim();
     
     if (cleanTitle) {
@@ -289,7 +299,7 @@ async function searchCourses(firecrawlKey: string, lovableKey: string, courseNam
 
   if (courses.length === 1 && courses[0].url) {
     console.log('Single course found, fetching details...');
-    return await fetchCourseDetails(firecrawlKey, lovableKey, courses[0].url, courses[0].name, corsHeaders);
+    return await fetchCourseDetails(firecrawlKey, lovableKey, courses[0].url, courses[0].name, corsHeaders, courses[0].location);
   }
 
   return new Response(
@@ -302,7 +312,7 @@ async function searchCourses(firecrawlKey: string, lovableKey: string, courseNam
   );
 }
 
-async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, courseUrl: string, courseName: string, corsHeaders: Record<string, string>): Promise<Response> {
+async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, courseUrl: string, courseName: string, corsHeaders: Record<string, string>, searchLocation?: string): Promise<Response> {
   console.log(`Fetching scorecard details from: ${courseUrl}`);
 
   let formattedUrl = courseUrl.trim();
@@ -367,6 +377,10 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
     );
   }
 
+  const locationHint = searchLocation && searchLocation !== 'Location not specified' 
+    ? `\nNote: From search results, this course may be located in "${searchLocation}". Use this as a fallback if you cannot find the location on the page.`
+    : '';
+
   const systemPrompt = `You are a golf course data parser. Your task is to extract scorecard data from BlueGolf page content.
 
 The content contains a scorecard table with this structure:
@@ -376,7 +390,7 @@ The content contains a scorecard table with this structure:
 Return a JSON object with this EXACT structure:
 {
   "name": "Full Course Name",
-  "location": "City, State",
+  "location": "City, State (e.g. Pebble Beach, CA)",
   "holes": [
     { "number": 1, "par": 4, "yardage": 380, "handicapIndex": 8 },
     { "number": 2, "par": 5, "yardage": 502, "handicapIndex": 6 },
@@ -392,7 +406,8 @@ Guidelines:
 - The "Hcp" or "Handicap" row contains stroke index values
 - IMPORTANT: Parse the ACTUAL numbers from the table, do not make up values
 - If a value is unclear, use reasonable defaults but flag it
-- Ensure all 18 holes are extracted in order`;
+- Ensure all 18 holes are extracted in order
+- IMPORTANT: For the "location" field, look for the course's city and state on the page (often shown in the header, breadcrumb, or address area). The location MUST be a real city and state — never leave it empty or as "Location not specified". If the page shows an address, extract the city and state from it.${locationHint}`;
 
   const userPrompt = `Parse the golf course scorecard from this BlueGolf page content for "${courseName}":
 
@@ -458,10 +473,15 @@ Return ONLY the JSON object with the parsed data.`;
       handicapIndex: hole.handicapIndex || (index + 1)
     }));
 
+    // Use search location as fallback if AI didn't extract one
+    if ((!courseData.location || courseData.location === 'Location not specified') && searchLocation && searchLocation !== 'Location not specified') {
+      courseData.location = searchLocation;
+    }
+
     courseData.totalPar = courseData.holes.reduce((sum, h) => sum + h.par, 0);
     courseData.totalYardage = courseData.holes.reduce((sum, h) => sum + h.yardage, 0);
 
-    console.log(`Parsed course: ${courseData.name}, Par ${courseData.totalPar}, ${courseData.totalYardage} yards`);
+    console.log(`Parsed course: ${courseData.name}, Location: ${courseData.location}, Par ${courseData.totalPar}, ${courseData.totalYardage} yards`);
 
     return new Response(
       JSON.stringify({
