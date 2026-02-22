@@ -1,68 +1,50 @@
 
 
-## Fix: Unable to Log Out or Refresh with Expired Session
+## Feature: Admin Broadcast Email to All Users
 
-### Problem
-The user's session was invalidated server-side, but the app still holds a stale token in localStorage. When signing out, `supabase.auth.signOut()` tries to call the server's `/logout` endpoint, which returns a 403 ("Session not found"). The app then gets stuck — it can't log out and can't refresh because it keeps trying to use the dead session.
+### Overview
+Add the ability for the admin to compose and send a broadcast email to all registered users directly from the Admin panel. This will use the existing Resend integration and admin authentication pattern.
 
-### Root Cause
-The `signOut` function in `useAuth.tsx` doesn't handle the case where the server rejects the logout. The local auth state (user, session, profile) is never cleared when this happens.
+### Changes
 
-### Solution
-Two changes in `src/hooks/useAuth.tsx`:
+#### 1. New Edge Function: `admin-send-broadcast`
+Create `supabase/functions/admin-send-broadcast/index.ts` that:
+- Verifies the caller is an authenticated admin (same pattern as `admin-list-users`)
+- Accepts a `subject` and `htmlBody` (or `message`) in the request body
+- Uses the service role key to list all auth users' emails
+- Sends the email to all users via the existing Resend API key
+- Uses BCC or batch sending to avoid exposing user emails to each other
+- Includes rate limiting (e.g., 5 broadcasts per hour per admin)
+- Includes CORS headers matching the existing pattern (fagsallday.com, lovable.app, lovableproject.com)
 
-1. **Make `signOut` resilient** — Always clear local state (user, session, profile, localStorage) even if the server `/logout` call fails.
-
-2. **Handle stale sessions on app load** — In the initial `getSession()` call, verify the session is still valid by calling `getUser()`. If it returns an error (session expired), clear everything locally so the user sees the sign-in screen instead of a broken state.
+#### 2. Update Admin Page: `src/pages/Admin.tsx`
+- Add a third tab "Email" (with a Mail icon) to the existing Tabs component
+- The tab contains:
+  - A subject text input
+  - A message textarea for the email body
+  - A preview section showing how the email will look (using the same branded template as the welcome email)
+  - A "Send to All Users" button with a confirmation dialog warning how many users will receive it
+- On send, calls `supabase.functions.invoke('admin-send-broadcast', { body: { subject, message } })`
+- Shows success/error toast notifications
 
 ### Technical Details
 
-**File: `src/hooks/useAuth.tsx`**
+**Edge Function (`supabase/functions/admin-send-broadcast/index.ts`):**
+- Auth check: verify JWT, then call `has_role(_user_id, 'admin')` RPC -- same as other admin functions
+- Fetch all user emails: use `adminClient.auth.admin.listUsers()` with service role key
+- Send via Resend using the branded HTML template (matching F&Gs All Day styling from the welcome email)
+- Rate limit: 5 per hour per admin to prevent accidental spam
+- The email "from" address: `F&Gs All Day <noreply@fagsallday.com>` (same as welcome email)
 
-**Change 1 — `signOut` function (around line 143):**
-```typescript
-const signOut = async () => {
-  // Always clear local state, even if server call fails
-  setUser(null);
-  setSession(null);
-  setProfile(null);
-  localStorage.removeItem('fg_session_start');
-  
-  try {
-    await supabase.auth.signOut();
-  } catch (e) {
-    // Server rejection is fine — local state is already cleared
-    console.warn('Sign out server call failed:', e);
-  }
-};
-```
+**Admin Page UI additions:**
+- New tab trigger with Mail icon alongside existing Users and Rounds tabs
+- `TabsList` changes from `grid-cols-2` to `grid-cols-3`
+- Subject input field (required)
+- Message textarea (required, supports multi-line plain text that gets wrapped in the branded HTML template)
+- User count display ("This will be sent to X users")
+- Confirmation AlertDialog before sending
+- Loading state on the send button
 
-**Change 2 — Initial session check (around line 87):**
-After `getSession()` returns a session, verify it's still valid with `getUser()`. If the session is stale, sign out locally:
-```typescript
-supabase.auth.getSession().then(async ({ data: { session } }) => {
-  if (session?.user) {
-    // Verify session is still valid server-side
-    const { error: userError } = await supabase.auth.getUser();
-    if (userError) {
-      // Session is stale — clear everything
-      setSession(null);
-      setUser(null);
-      setProfile(null);
-      localStorage.removeItem('fg_session_start');
-      setIsLoading(false);
-      return;
-    }
-    setSession(session);
-    setUser(session.user);
-    fetchProfile(session.user.id).then((p) => {
-      setProfile(p);
-      setIsLoading(false);
-    });
-  } else {
-    setIsLoading(false);
-  }
-});
-```
+**Config (`supabase/config.toml`):**
+- Add `[functions.admin-send-broadcast]` with `verify_jwt = false` (validation done in code, matching other admin functions)
 
-These two changes ensure the app never gets stuck on a dead session — it either recovers gracefully or sends the user to the sign-in screen.
