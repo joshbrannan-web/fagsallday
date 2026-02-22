@@ -55,6 +55,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return data;
   };
 
+  const autoSyncGhin = async (p: Profile) => {
+    if (!p.ghin_number) return;
+    const SYNC_INTERVAL = 24 * 60 * 60 * 1000;
+    if (p.ghin_last_synced && Date.now() - new Date(p.ghin_last_synced).getTime() < SYNC_INTERVAL) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-ghin-handicap', {
+        body: { ghin_number: p.ghin_number, update_profile: true },
+      });
+      if (error || !data) return;
+      const newIndex = data.handicap_index;
+      if (newIndex != null && newIndex !== p.handicap_index) {
+        setProfile(prev => prev ? { ...prev, handicap_index: newIndex, ghin_last_synced: new Date().toISOString() } : null);
+        toast.success(`Handicap updated to ${newIndex}`);
+      } else {
+        setProfile(prev => prev ? { ...prev, ghin_last_synced: new Date().toISOString() } : null);
+      }
+    } catch {
+      // silently ignore
+    }
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -73,7 +95,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Defer profile fetch with setTimeout to avoid deadlock
         if (session?.user) {
           setTimeout(() => {
-            fetchProfile(session.user.id).then(setProfile);
+            fetchProfile(session.user.id).then((p) => {
+              setProfile(p);
+              if (event === 'SIGNED_IN' && p) {
+                autoSyncGhin(p);
+              }
+            });
           }, 0);
         } else {
           setProfile(null);
