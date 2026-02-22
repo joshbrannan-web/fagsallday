@@ -294,6 +294,31 @@ const SetupWizard: React.FC = () => {
             : p,
         ),
       );
+
+      // Auto-sync GHIN if linked and last sync > 24 hours ago
+      if (profile.ghin_number && user) {
+        const lastSynced = profile.ghin_last_synced ? new Date(profile.ghin_last_synced).getTime() : 0;
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        if (lastSynced < oneDayAgo) {
+          supabase.functions.invoke('sync-ghin-handicap', {
+            body: { ghin_number: profile.ghin_number, update_profile: true },
+          }).then(({ data, error }) => {
+            if (!error && data && !data.error && typeof data.handicap_index === 'number') {
+              setPlayers((prev) =>
+                prev.map((p, i) =>
+                  i === 0
+                    ? {
+                        ...p,
+                        handicapIndex: data.handicap_index,
+                        courseHandicap: calculateCourseHandicap(data.handicap_index, 72),
+                      }
+                    : p,
+                ),
+              );
+            }
+          }).catch(() => {});
+        }
+      }
     }
   }, [profile, user]);
 
