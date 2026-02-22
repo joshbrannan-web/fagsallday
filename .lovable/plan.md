@@ -1,59 +1,24 @@
 
 
-## Fix: Infinite Recursion in RLS Policies (Rounds Not Loading)
+## Show Linked Status in Saved Player Selection
 
-### What Happened
-Josh's past rounds are still safely in the database (4 rounds found). The problem is a circular RLS policy:
+### What Changes
+When selecting from saved players during round setup, show a visual indicator (badge/icon) next to players who are linked to an app user account. This applies to both:
 
-1. The `rounds` table has a policy: "Participants can view rounds they played in" which does `EXISTS (SELECT 1 FROM round_participants WHERE ...)`
-2. The `round_participants` table has a policy: "Round owners can view participants" which does `EXISTS (SELECT 1 FROM rounds WHERE ...)`
-3. Postgres detects this as infinite recursion and returns a 500 error on every query to `rounds`
-
-### Fix
-Replace the problematic RLS policy on `round_participants` ("Round owners can view participants") with one that does NOT reference the `rounds` table. Instead, use a security-definer helper function to check round ownership without triggering RLS recursion.
-
-**Database migration:**
-
-1. Drop the recursive policy on `round_participants`: "Round owners can view participants"
-2. Drop the recursive policy on `round_participants`: "Round owners can insert participants"
-3. Drop the recursive policy on `round_participants`: "Round owners can delete participants"
-4. Create a `SECURITY DEFINER` function `is_round_owner(round_id uuid)` that checks `rounds.user_id` directly (bypasses RLS)
-5. Re-create the three policies using the new function instead of a subquery on `rounds`
-
-No code changes needed -- once the RLS recursion is fixed, the existing `useRounds.tsx` fetch will work and Josh's 4 rounds will appear again.
+1. **The per-slot dropdown** ("Choose from saved players..." Select component) -- lines 1630-1640
+2. **The "Saved Players" dialog** (opened via the UserPlus button) -- lines 1706-1723
 
 ### Technical Details
 
-```sql
--- Helper function (security definer bypasses RLS, breaking the cycle)
-CREATE OR REPLACE FUNCTION public.is_round_owner(_round_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.rounds
-    WHERE id = _round_id AND user_id = auth.uid()
-  );
-$$;
+**1. Per-slot Select dropdown (line 1636-1638)**
+Currently shows: `{sp.name} (HCP: {sp.handicap_index})`
+Change to include a linked indicator: `{sp.name} (HCP: {sp.handicap_index}) [Linked]` or a small UserCheck icon text.
 
--- Drop recursive policies
-DROP POLICY IF EXISTS "Round owners can view participants" ON round_participants;
-DROP POLICY IF EXISTS "Round owners can insert participants" ON round_participants;
-DROP POLICY IF EXISTS "Round owners can delete participants" ON round_participants;
+Since `SelectItem` only supports text content reliably, we will append a text indicator like " - Linked" when `sp.linked_user_id` is set.
 
--- Re-create using the helper function
-CREATE POLICY "Round owners can view participants"
-  ON round_participants FOR SELECT
-  USING (public.is_round_owner(round_id));
+**2. Saved Players dialog (lines 1712-1722)**
+Currently shows name, handicap, and tee. Add a small `UserCheck` icon badge next to the player name when `sp.linked_user_id` is present, matching the style used elsewhere in the app.
 
-CREATE POLICY "Round owners can insert participants"
-  ON round_participants FOR INSERT
-  WITH CHECK (public.is_round_owner(round_id));
-
-CREATE POLICY "Round owners can delete participants"
-  ON round_participants FOR DELETE
-  USING (public.is_round_owner(round_id));
-```
+### Files Modified
+- `src/components/SetupWizard.tsx` -- Two small edits to the saved player display in the dropdown and dialog
 
