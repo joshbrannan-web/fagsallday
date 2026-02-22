@@ -418,6 +418,20 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
 
       if (isCaptcha(retryMarkdown)) {
         console.error('CAPTCHA detected on retry as well');
+        // Fallback: check verified courses library
+        const fallback = await tryVerifiedCourseFallback(courseName);
+        if (fallback) {
+          console.log('Found verified course fallback for:', courseName);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              course: fallback,
+              sourceUrl: formattedUrl,
+              source: 'verified-library-fallback'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
         return new Response(
           JSON.stringify({
             success: false,
@@ -430,6 +444,20 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
       finalMarkdown = retryMarkdown;
     } else {
       console.error('Retry scrape failed:', retryResponse.status);
+      // Fallback: check verified courses library
+      const fallback = await tryVerifiedCourseFallback(courseName);
+      if (fallback) {
+        console.log('Found verified course fallback for:', courseName);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            course: fallback,
+            sourceUrl: formattedUrl,
+            source: 'verified-library-fallback'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
         JSON.stringify({
           success: false,
@@ -594,6 +622,42 @@ Return ONLY the JSON object with the parsed data. If the content does not contai
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+  }
+}
+
+async function tryVerifiedCourseFallback(courseName: string): Promise<CourseData | null> {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (!supabaseUrl || !serviceRoleKey) return null;
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const { data, error } = await adminClient
+      .from('verified_courses')
+      .select('course_name, course_location, course_data, total_par, total_yardage')
+      .ilike('course_name', `%${courseName.trim()}%`)
+      .limit(1);
+
+    if (error || !data || data.length === 0) return null;
+
+    const row = data[0];
+    const cd = row.course_data as any;
+    
+    // Return the stored course data directly if it has holes
+    if (cd && cd.holes && Array.isArray(cd.holes) && cd.holes.length > 0) {
+      return {
+        name: cd.name || row.course_name,
+        location: cd.location || row.course_location,
+        holes: cd.holes,
+        totalPar: row.total_par || cd.totalPar || 0,
+        totalYardage: row.total_yardage || cd.totalYardage || 0,
+      };
+    }
+
+    return null;
+  } catch (e) {
+    console.error('Verified course fallback error:', e);
+    return null;
   }
 }
 
