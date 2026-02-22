@@ -8,6 +8,7 @@ export interface SavedPlayer {
   name: string;
   handicap_index: number;
   tee: string;
+  linked_user_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,7 +45,7 @@ export const useSavedPlayers = () => {
     fetchPlayers();
   }, [fetchPlayers]);
 
-  const addPlayer = async (name: string, handicapIndex: number, tee: string = 'White') => {
+  const addPlayer = async (name: string, handicapIndex: number, tee: string = 'White', linkedUserId?: string | null) => {
     if (!user) {
       return null;
     }
@@ -64,7 +65,8 @@ export const useSavedPlayers = () => {
           user_id: user.id,
           name: name.trim(),
           handicap_index: handicapIndex,
-          tee
+          tee,
+          linked_user_id: linkedUserId || null
         } as any)
         .select()
         .single();
@@ -79,7 +81,7 @@ export const useSavedPlayers = () => {
     }
   };
 
-  const updatePlayer = async (id: string, updates: Partial<Pick<SavedPlayer, 'name' | 'handicap_index' | 'tee'>>) => {
+  const updatePlayer = async (id: string, updates: Partial<Pick<SavedPlayer, 'name' | 'handicap_index' | 'tee' | 'linked_user_id'>>) => {
     if (!user) return false;
 
     try {

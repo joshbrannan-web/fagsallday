@@ -18,6 +18,7 @@ export interface Player {
   handicapIndex: number; // The generic index (e.g., 12.4)
   courseHandicap: number; // Calculated integer strokes for this course
   tee: string;
+  linkedUserId?: string; // Links this player to an app user account
 }
 
 export enum GameType {
@@ -207,6 +208,8 @@ export interface Round {
   status: 'SETUP' | 'ACTIVE' | 'COMPLETE' | 'LOCKED';
   startTime: number;
   isFavorite?: boolean;
+  isShared?: boolean;
+  ownerName?: string;
 }
 
 export interface CalculationResult {

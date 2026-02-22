@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { ArrowLeft, Calendar, MapPin, History, Trash2, PlayCircle, Lock, Star, Search, Plus, TrendingUp, Trophy } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, History, Trash2, PlayCircle, Lock, Star, Search, Plus, TrendingUp, Trophy, Share2 } from 'lucide-react';
 import { calculateRoundTotals, formatMoney } from '../services/gameEngine';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,7 @@ const RoundCard: React.FC<{
   const isActive = round.status === 'ACTIVE';
   const isLocked = round.status === 'LOCKED';
   const isFavorite = round.isFavorite;
+  const isShared = round.isShared;
 
   // Count scored holes
   const totalHoles = round.course?.holes?.length || 18;
@@ -66,9 +67,14 @@ const RoundCard: React.FC<{
                   <PlayCircle className="w-3 h-3" /> LIVE
                 </span>
               )}
-              {isLocked && (
+              {isLocked && !isShared && (
                 <span className="bg-brand-gold/20 text-brand-gold text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                   <Lock className="w-3 h-3" /> LOCKED
+                </span>
+              )}
+              {isShared && (
+                <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Share2 className="w-3 h-3" /> SHARED
                 </span>
               )}
             </h3>
@@ -112,6 +118,9 @@ const RoundCard: React.FC<{
 
         <div className="mt-2 text-xs text-muted-foreground">
           {round.players.map((p: any) => p.name).join(', ')}
+          {isShared && round.ownerName && (
+            <span className="ml-2 text-primary">• by {round.ownerName}</span>
+          )}
         </div>
       </div>
 
@@ -296,8 +305,8 @@ const RoundHistory: React.FC = () => {
                     key={round.id}
                     round={round}
                     onView={handleViewRound}
-                    onDelete={round.status !== 'LOCKED' ? handleDeleteClick : undefined}
-                    onToggleFavorite={handleToggleFavorite}
+                    onDelete={round.status !== 'LOCKED' && !round.isShared ? handleDeleteClick : undefined}
+                    onToggleFavorite={!round.isShared ? handleToggleFavorite : undefined}
                   />
                 ))}
               </div>
@@ -311,7 +320,7 @@ const RoundHistory: React.FC = () => {
                     key={round.id}
                     round={round}
                     onView={handleViewRound}
-                    onToggleFavorite={handleToggleFavorite}
+                    onToggleFavorite={!round.isShared ? handleToggleFavorite : undefined}
                   />
                 ))}
               </div>

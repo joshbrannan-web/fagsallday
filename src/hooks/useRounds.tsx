@@ -19,7 +19,7 @@ interface DbRound {
   updated_at: string;
 }
 
-const dbRoundToRound = (dbRound: DbRound): Round => ({
+const dbRoundToRound = (dbRound: DbRound, isShared = false, ownerName?: string): Round => ({
   id: dbRound.id,
   course: dbRound.course_data as Course,
   players: dbRound.players_data as Player[],
@@ -28,8 +28,39 @@ const dbRoundToRound = (dbRound: DbRound): Round => ({
   gameData: dbRound.game_data || {},
   status: dbRound.status as Round['status'],
   startTime: new Date(dbRound.start_time).getTime(),
-  isFavorite: (dbRound as any).is_favorite || false
+  isFavorite: (dbRound as any).is_favorite || false,
+  isShared,
+  ownerName,
 });
+
+// Insert round participants for linked players
+const insertRoundParticipants = async (roundId: string, players: Player[], ownerId: string) => {
+  const participants: { round_id: string; user_id: string; player_name: string }[] = [];
+  
+  // Add the round owner
+  participants.push({ round_id: roundId, user_id: ownerId, player_name: 'Owner' });
+  
+  // Add linked players (excluding the owner)
+  for (const player of players) {
+    if (player.linkedUserId && player.linkedUserId !== ownerId) {
+      participants.push({
+        round_id: roundId,
+        user_id: player.linkedUserId,
+        player_name: player.name,
+      });
+    }
+  }
+
+  if (participants.length > 0) {
+    const { error } = await supabase
+      .from('round_participants')
+      .upsert(participants as any[], { onConflict: 'round_id,user_id' });
+    
+    if (error) {
+      console.error('Error inserting round participants:', error);
+    }
+  }
+};
 
 export const useRounds = () => {
   const { user } = useAuth();
@@ -47,29 +78,64 @@ export const useRounds = () => {
     }
 
     try {
-      const { data, error } = await supabase
+      // Fetch own rounds
+      const { data: ownData, error: ownError } = await supabase
         .from('rounds')
         .select('*')
         .eq('user_id', user.id)
         .order('start_time', { ascending: false });
 
-      if (error) throw error;
+      if (ownError) throw ownError;
 
-      const fetchedRounds = (data || []).map(dbRoundToRound);
-      setRounds(fetchedRounds);
+      const ownRounds = (ownData || []).map(d => dbRoundToRound(d as DbRound));
 
-      // Preserve manually-loaded round across refetches (e.g. tab switch)
+      // Fetch shared rounds (where user is a participant but not the owner)
+      const { data: participantData, error: partError } = await supabase
+        .from('round_participants')
+        .select('round_id, player_name')
+        .eq('user_id', user.id);
+
+      let sharedRounds: Round[] = [];
+      if (!partError && participantData && participantData.length > 0) {
+        const ownRoundIds = new Set(ownRounds.map(r => r.id));
+        const sharedRoundIds = (participantData as any[])
+          .map(p => p.round_id)
+          .filter(id => !ownRoundIds.has(id));
+
+        if (sharedRoundIds.length > 0) {
+          const { data: sharedData, error: sharedError } = await supabase
+            .from('rounds')
+            .select('*')
+            .in('id', sharedRoundIds)
+            .in('status', ['LOCKED', 'COMPLETE'])
+            .order('start_time', { ascending: false });
+
+          if (!sharedError && sharedData) {
+            // Derive owner name from the round's first player (typically the round creator)
+            sharedRounds = (sharedData as any[]).map(d => {
+              const players = d.players_data as any[];
+              const ownerName = players?.[0]?.name || 'Unknown';
+              return dbRoundToRound(d as DbRound, true, ownerName);
+            });
+          }
+        }
+      }
+
+      const allRounds = [...ownRounds, ...sharedRounds].sort((a, b) => b.startTime - a.startTime);
+      setRounds(allRounds);
+
+      // Preserve manually-loaded round across refetches
       if (loadedRoundIdRef.current) {
-        const loadedRound = fetchedRounds.find(r => r.id === loadedRoundIdRef.current);
+        const loadedRound = allRounds.find(r => r.id === loadedRoundIdRef.current);
         if (loadedRound) {
           setCurrentRound(loadedRound);
         } else {
           loadedRoundIdRef.current = null;
-          const activeRound = fetchedRounds.find(r => r.status === 'ACTIVE');
+          const activeRound = allRounds.find(r => r.status === 'ACTIVE' && !r.isShared);
           setCurrentRound(activeRound || null);
         }
       } else {
-        const activeRound = fetchedRounds.find(r => r.status === 'ACTIVE');
+        const activeRound = allRounds.find(r => r.status === 'ACTIVE' && !r.isShared);
         setCurrentRound(activeRound || null);
       }
     } catch (error) {
@@ -156,7 +222,6 @@ export const useRounds = () => {
         if (error) throw error;
       } catch (error) {
         console.error('Error syncing to server, queuing for later:', error);
-        // Queue for later sync
         if (updates.scores !== undefined) {
           offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: updates.scores } });
         }
@@ -171,7 +236,6 @@ export const useRounds = () => {
         }
       }
     } else {
-      // Offline - queue for sync when back online
       if (updates.scores !== undefined) {
         offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: updates.scores } });
       }
@@ -186,7 +250,7 @@ export const useRounds = () => {
       }
     }
 
-    return true; // Always return success since local update worked
+    return true;
   };
 
   const deleteRound = async (roundId: string) => {
@@ -216,11 +280,18 @@ export const useRounds = () => {
   };
 
   const finishRound = async (roundId: string) => {
+    // Insert participants before finishing
+    if (user) {
+      const round = rounds.find(r => r.id === roundId);
+      if (round) {
+        await insertRoundParticipants(roundId, round.players, user.id);
+      }
+    }
+
     const success = await updateRound(roundId, { status: 'COMPLETE' });
     if (success) {
       loadedRoundIdRef.current = null;
       setCurrentRound(null);
-      // Clear offline cache when round is complete
       offlineStorage.clearCachedRound();
     }
     return success;
@@ -233,11 +304,19 @@ export const useRounds = () => {
 
   const clearLoadedRound = () => {
     loadedRoundIdRef.current = null;
-    const activeRound = rounds.find(r => r.status === 'ACTIVE');
+    const activeRound = rounds.find(r => r.status === 'ACTIVE' && !r.isShared);
     setCurrentRound(activeRound || null);
   };
 
   const lockRound = async (roundId: string) => {
+    // Insert participants before locking
+    if (user) {
+      const round = rounds.find(r => r.id === roundId);
+      if (round) {
+        await insertRoundParticipants(roundId, round.players, user.id);
+      }
+    }
+
     return updateRound(roundId, { status: 'LOCKED' });
   };
 
@@ -253,7 +332,6 @@ export const useRounds = () => {
 
     const newValue = !round.isFavorite;
 
-    // Optimistic update
     setRounds(prev => prev.map(r => r.id === roundId ? { ...r, isFavorite: newValue } : r));
     if (currentRound?.id === roundId) {
       setCurrentRound(prev => prev ? { ...prev, isFavorite: newValue } : null);
@@ -270,7 +348,6 @@ export const useRounds = () => {
       return true;
     } catch (error) {
       console.error('Error toggling favorite:', error);
-      // Revert optimistic update
       setRounds(prev => prev.map(r => r.id === roundId ? { ...r, isFavorite: !newValue } : r));
       if (currentRound?.id === roundId) {
         setCurrentRound(prev => prev ? { ...prev, isFavorite: !newValue } : null);

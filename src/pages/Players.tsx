@@ -5,7 +5,8 @@ import { useSavedPlayers, SavedPlayer } from '@/hooks/useSavedPlayers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Trash2, Edit2, Check, X, Loader2, UserPlus, Users } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Trash2, Edit2, Check, X, Loader2, UserPlus, Users, UserCheck, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -18,6 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import UserSearchDialog from '@/components/UserSearchDialog';
 
 const Players: React.FC = () => {
   const navigate = useNavigate();
@@ -33,6 +35,12 @@ const Players: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [newHandicap, setNewHandicap] = useState('');
   const [newTee, setNewTee] = useState('White');
+
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkingPlayerId, setLinkingPlayerId] = useState<string | null>(null);
+  const [newPlayerLinkUserId, setNewPlayerLinkUserId] = useState<string | null>(null);
+  const [newPlayerLinkName, setNewPlayerLinkName] = useState<string | null>(null);
+  const [showNewPlayerLinkDialog, setShowNewPlayerLinkDialog] = useState(false);
 
   const isLoading = authLoading || playersLoading;
 
@@ -74,17 +82,31 @@ const Players: React.FC = () => {
       return;
     }
 
-    const result = await addPlayer(newName.trim(), parseFloat(newHandicap) || 0, newTee || 'White');
+    const result = await addPlayer(newName.trim(), parseFloat(newHandicap) || 0, newTee || 'White', newPlayerLinkUserId);
     if (result) {
       setShowAddForm(false);
       setNewName('');
       setNewHandicap('');
       setNewTee('White');
+      setNewPlayerLinkUserId(null);
+      setNewPlayerLinkName(null);
     }
   };
 
   const handleDelete = async (id: string) => {
     await deletePlayer(id);
+  };
+
+  const handleLinkUser = (playerId: string) => {
+    setLinkingPlayerId(playerId);
+    setLinkDialogOpen(true);
+  };
+
+  const handleUnlinkUser = async (playerId: string) => {
+    const success = await updatePlayer(playerId, { linked_user_id: null });
+    if (success) {
+      toast.success('User unlinked');
+    }
   };
 
   if (isLoading) {
@@ -140,7 +162,7 @@ const Players: React.FC = () => {
             <div className="flex items-center justify-between">
               <span className="font-semibold text-primary">New Player</span>
               <button
-                onClick={() => setShowAddForm(false)}
+                onClick={() => { setShowAddForm(false); setNewPlayerLinkUserId(null); setNewPlayerLinkName(null); }}
                 className="p-1 hover:bg-muted rounded"
               >
                 <X className="w-4 h-4" />
@@ -179,6 +201,33 @@ const Players: React.FC = () => {
                 placeholder="White"
                 className="mt-1"
               />
+            </div>
+            {/* Link to User */}
+            <div>
+              {newPlayerLinkName ? (
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="gap-1">
+                    <UserCheck className="w-3 h-3" />
+                    Linked to {newPlayerLinkName}
+                  </Badge>
+                  <button
+                    onClick={() => { setNewPlayerLinkUserId(null); setNewPlayerLinkName(null); }}
+                    className="text-xs text-destructive hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowNewPlayerLinkDialog(true)}
+                  className="gap-2"
+                >
+                  <Link2 className="w-3 h-3" />
+                  Link to App User
+                </Button>
+              )}
             </div>
             <Button onClick={handleAddPlayer} className="w-full">
               Save Player
@@ -253,12 +302,36 @@ const Players: React.FC = () => {
               // View Mode
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-lg">{player.name}</div>
+                  <div className="font-semibold text-lg flex items-center gap-2">
+                    {player.name}
+                    {player.linked_user_id && (
+                      <Badge variant="secondary" className="text-[10px] gap-0.5 px-1.5 py-0">
+                        <UserCheck className="w-3 h-3" /> Linked
+                      </Badge>
+                    )}
+                  </div>
                   <div className="text-sm text-muted-foreground">
                     Handicap: {player.handicap_index} • Tee: {player.tee}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  {!player.linked_user_id ? (
+                    <button
+                      onClick={() => handleLinkUser(player.id)}
+                      className="p-2 hover:bg-primary/10 rounded-full transition-colors"
+                      title="Link to app user"
+                    >
+                      <Link2 className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleUnlinkUser(player.id)}
+                      className="p-2 hover:bg-destructive/10 rounded-full transition-colors"
+                      title="Unlink user"
+                    >
+                      <UserCheck className="w-4 h-4 text-primary" />
+                    </button>
+                  )}
                   <button
                     onClick={() => handleStartEdit(player)}
                     className="p-2 hover:bg-muted rounded-full transition-colors"
@@ -295,6 +368,34 @@ const Players: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Link to User Dialog - for existing players */}
+      <UserSearchDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        onSelect={async (selectedUser) => {
+          if (linkingPlayerId) {
+            const success = await updatePlayer(linkingPlayerId, { linked_user_id: selectedUser.id });
+            if (success) {
+              toast.success(`Linked to ${selectedUser.display_name}`);
+            }
+            setLinkingPlayerId(null);
+          }
+        }}
+      />
+
+      {/* Link to User Dialog - for new player form */}
+      <UserSearchDialog
+        open={showNewPlayerLinkDialog}
+        onOpenChange={setShowNewPlayerLinkDialog}
+        onSelect={(selectedUser) => {
+          setNewPlayerLinkUserId(selectedUser.id);
+          setNewPlayerLinkName(selectedUser.display_name);
+          if (!newName.trim()) {
+            setNewName(selectedUser.display_name || '');
+          }
+        }}
+      />
     </div>
   );
 };
