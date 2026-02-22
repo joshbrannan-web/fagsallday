@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { Button } from '@/components/ui/button';
 import OnboardingOverlay from './OnboardingOverlay';
+import GhinPrompt from './GhinPrompt';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +46,7 @@ const Landing: React.FC = () => {
     <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8 bg-background animate-fade-in">
       {/* Onboarding Overlay */}
       {user && <OnboardingOverlay forceOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />}
+      {user && <GhinPrompt />}
       <div className="absolute top-4 right-4">
         {user ? (
           <DropdownMenu>
