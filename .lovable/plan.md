@@ -1,28 +1,25 @@
 
 
-## Fix CORS for GHIN Sync Edge Function
+## Auto-Sync GHIN Handicap on Sign-In
 
-The GHIN sync edge function is working correctly server-side, but the browser is rejecting the response because the CORS `Access-Control-Allow-Origin` header doesn't include the Lovable preview domain.
+Currently the GHIN sync only runs when the user manually clicks "Refresh" on the Profile page, or when opening the SetupWizard. This change will add an automatic sync when the user signs in, if they have a linked GHIN number and it hasn't been synced in the last 24 hours.
 
-### The Problem
+### What Will Happen
 
-The edge function has a hardcoded allowlist of origins:
-- `https://fagsallday.com`
-- `https://www.fagsallday.com`  
-- `https://fagsallday.lovable.app`
-
-But the preview runs on `https://902ceb91-387f-4b92-88e1-503add1c6d7a.lovableproject.com`, which is not in the list.
-
-### The Fix
-
-Update `supabase/functions/sync-ghin-handicap/index.ts` to use a wildcard `Access-Control-Allow-Origin: *` header (consistent with Lovable's recommended CORS pattern for edge functions), or add a pattern match for `.lovableproject.com` domains.
-
-Using `*` is the simplest and recommended approach since the function already validates the JWT for security.
+After signing in, the app will silently check your GHIN handicap in the background. If it has been more than 24 hours since the last sync, it will automatically pull your latest handicap from USGA and update your profile. You will see a small notification if your handicap changed.
 
 ### Technical Details
 
-In `supabase/functions/sync-ghin-handicap/index.ts`:
-- Replace the `ALLOWED_ORIGINS` array and `getCorsHeaders` function with a simple `corsHeaders` object using `'Access-Control-Allow-Origin': '*'`
-- Update all `Response` constructors to use the simplified `corsHeaders`
+**File: `src/hooks/useAuth.tsx`**
 
-This is a one-file change. The function's JWT validation already ensures only authenticated users can call it.
+Add auto-sync logic inside the `onAuthStateChange` listener, specifically on the `SIGNED_IN` event:
+
+1. After the profile is fetched on `SIGNED_IN`, check if:
+   - `profile.ghin_number` exists
+   - `profile.ghin_last_synced` is either null or older than 24 hours
+2. If both conditions are met, call `supabase.functions.invoke('sync-ghin-handicap', { body: { ghin_number, update_profile: true } })` in the background
+3. On success, update the local profile state with the new `handicap_index` and `ghin_last_synced` values
+4. Show a toast only if the handicap actually changed (e.g., "Handicap updated to 12.3")
+5. Failures are silently ignored (non-blocking) since manual refresh is always available
+
+This is a single-file change. The edge function already handles everything server-side -- this just triggers it automatically at sign-in.
