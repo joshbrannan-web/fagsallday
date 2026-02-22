@@ -591,15 +591,25 @@ function parseJsonFromContent(content: string): any {
     jsonStr = jsonMatch[1].trim();
   }
   
-  // Try matching an array first, then an object
+  // Try parsing the cleaned string directly first
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    // Fall through to regex extraction
+  }
+
+  // Try extracting an object (most common for course data)
+  const objectMatch = jsonStr.match(/\{[\s\S]*\}/);
+  if (objectMatch) {
+    try {
+      return JSON.parse(objectMatch[0]);
+    } catch { /* fall through */ }
+  }
+
+  // Try extracting an array (for batch extraction results)
   const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
   if (arrayMatch) {
     return JSON.parse(arrayMatch[0]);
-  }
-
-  const objectMatch = jsonStr.match(/\{[\s\S]*\}/);
-  if (objectMatch) {
-    return JSON.parse(objectMatch[0]);
   }
 
   return JSON.parse(jsonStr);
