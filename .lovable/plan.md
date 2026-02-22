@@ -1,63 +1,41 @@
 
 
-## GHIN Prompt for Existing Users
+## Add GHIN Sync Confirmation Dialog
 
-Add a one-time popup dialog on the Landing page that prompts existing signed-in users to enter their USGA GHIN number if they haven't linked one yet, with an educational follow-up when dismissed.
+After a successful first-time GHIN link -- whether from the GhinPrompt dialog on the Landing page or from the Edit Profile page -- show a confirmation dialog explaining that the sync is one-way.
 
-### Behavior
+### Dialog Content
 
-- When a signed-in user lands on the home screen and their profile has no `ghin_number`, a dialog appears asking them to link their GHIN
-- The dialog has an input field for the GHIN number and a "Link GHIN" button that syncs via the existing `sync-ghin-handicap` edge function
-- A "Dismiss, No GHIN" button:
-  1. Closes the GHIN prompt dialog
-  2. Opens a second informational popup telling the user they can add their GHIN later via Edit Profile
-  3. When the user closes that info popup, `fg_ghin_prompt_dismissed` is set in localStorage so the GHIN prompt never appears again
-- The GHIN prompt does NOT appear if:
-  - The user already has a `ghin_number` in their profile
-  - The user previously dismissed the prompt (localStorage flag set)
-  - The user is not signed in or auth is still loading
+- **Title:** "Great, Your GHIN is Synced!"
+- **Description:** "This is a 1-way sync that will pull your updated Handicap from USGA. It does NOT send data or Round info to USGA."
+- **Button:** "Got It" (closes the dialog)
 
-### Dialog Flow
+### Changes
 
-```text
-+-----------------------------+
-|   Link Your USGA GHIN      |
-|                             |
-|   [GHIN Number Input]      |
-|                             |
-|   [Link GHIN]              |
-|   [Dismiss, No GHIN]       |
-+-----------------------------+
-          |
-     (if dismiss)
-          v
-+-----------------------------+
-|   No Problem!               |
-|                             |
-|   You can always add your   |
-|   GHIN later by going to   |
-|   Edit Profile from the    |
-|   menu.                    |
-|                             |
-|   [Got It]                  |
-+-----------------------------+
-          |
-     (sets localStorage,
-      never shows again)
-```
+**New file: `src/components/GhinSyncConfirmation.tsx`**
+
+A reusable dialog component that accepts `open` and `onClose` props. Displays the confirmation message and a "Got It" button.
+
+**Modified file: `src/components/GhinPrompt.tsx`**
+
+- Add a `showSyncConfirmation` state
+- After a successful GHIN link in `handleLinkGhin`, instead of just closing the dialog, set `showSyncConfirmation = true`
+- Render the `GhinSyncConfirmation` dialog, closing it sets the state back to false
+
+**Modified file: `src/pages/Profile.tsx`**
+
+- Import `GhinSyncConfirmation`
+- Add a `showSyncConfirmation` state
+- In `handleSyncGhin`, only show the confirmation when it is a first-time link (i.e., the profile did not previously have a GHIN number -- check `!isGhinLinked` before the sync call). Refreshing an already-linked GHIN should NOT trigger the dialog.
+- Render the `GhinSyncConfirmation` dialog at the bottom of the component
 
 ### Technical Details
 
-**New file: `src/components/GhinPrompt.tsx`**
+The confirmation dialog is a simple presentational component:
 
-A self-contained component managing two dialogs via internal state:
-- State: `showGhinDialog`, `showInfoDialog`, `ghinNumber`, `isLoading`
-- On mount: checks `profile?.ghin_number` and `localStorage.getItem('fg_ghin_prompt_dismissed')` to decide whether to show
-- **GHIN Dialog**: Input for GHIN number, "Link GHIN" button (calls `sync-ghin-handicap` then `updateProfile`), "Dismiss, No GHIN" button (closes GHIN dialog, opens info dialog)
-- **Info Dialog**: Simple message -- "You can always add your GHIN later by selecting Edit Profile from the menu." with a "Got It" button that sets `localStorage.setItem('fg_ghin_prompt_dismissed', 'true')` and closes
-- Uses existing Dialog, Button, Input, and Label components from the UI library
+```
+GhinSyncConfirmation({ open, onClose })
+  -> Dialog with title, description text, and "Got It" button
+```
 
-**Modified file: `src/components/Landing.tsx`**
-
-- Import and render `<GhinPrompt />` alongside `<OnboardingOverlay />`, only when `user` is truthy
-
+The key distinction in Profile.tsx: the dialog only appears on initial link (when `isGhinLinked` was false before the sync), not on refresh of an already-linked GHIN.
