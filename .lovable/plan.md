@@ -1,84 +1,59 @@
 
 
-## Share Rounds with Other App Users
+## Fix: Infinite Recursion in RLS Policies (Rounds Not Loading)
 
-### Overview
-When a round finishes, all players who are linked to registered app users will automatically see that round in their "Past Rounds" history as a locked, read-only round. This requires:
-1. A way to link players to app user accounts
-2. A new database table tracking round participants
-3. Updating round history to include rounds where the user was a participant
+### What Happened
+Josh's past rounds are still safely in the database (4 rounds found). The problem is a circular RLS policy:
 
-### Database Changes
+1. The `rounds` table has a policy: "Participants can view rounds they played in" which does `EXISTS (SELECT 1 FROM round_participants WHERE ...)`
+2. The `round_participants` table has a policy: "Round owners can view participants" which does `EXISTS (SELECT 1 FROM rounds WHERE ...)`
+3. Postgres detects this as infinite recursion and returns a 500 error on every query to `rounds`
 
-**New table: `round_participants`**
-Tracks which user accounts participated in each round.
+### Fix
+Replace the problematic RLS policy on `round_participants` ("Round owners can view participants") with one that does NOT reference the `rounds` table. Instead, use a security-definer helper function to check round ownership without triggering RLS recursion.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid (PK) | Auto-generated |
-| round_id | uuid (FK) | References rounds.id, cascade delete |
-| user_id | uuid | The participating user's auth ID |
-| player_name | text | Display name at time of round |
-| created_at | timestamptz | Default now() |
-| UNIQUE | | (round_id, user_id) |
+**Database migration:**
 
-RLS policies:
-- SELECT: Users can see rows where `user_id = auth.uid()` OR where they own the round (via a join or subquery)
-- INSERT: Only the round owner can insert participants (checked via rounds table)
-- DELETE: Only the round owner can remove participants
+1. Drop the recursive policy on `round_participants`: "Round owners can view participants"
+2. Drop the recursive policy on `round_participants`: "Round owners can insert participants"
+3. Drop the recursive policy on `round_participants`: "Round owners can delete participants"
+4. Create a `SECURITY DEFINER` function `is_round_owner(round_id uuid)` that checks `rounds.user_id` directly (bypasses RLS)
+5. Re-create the three policies using the new function instead of a subquery on `rounds`
 
-**Add column to `saved_players`:**
-- `linked_user_id` (uuid, nullable) -- links this saved player to an app user account
-
-**New database function: `search_users_by_name`**
-A security-definer function that searches profiles by display_name (case-insensitive partial match), returning only `id` and `display_name` -- never exposing emails or other sensitive data. Limited to 10 results.
-
-### Code Changes
-
-**1. Player Linking UI (`src/components/SetupWizard.tsx` - Step 2)**
-- Add a "Link to App User" button next to each player slot
-- Opens a search dialog where you can type a name and see matching app users
-- When selected, the player's name and handicap auto-fill from the linked user's profile
-- A small badge/icon indicates "linked" players
-
-**2. My Players page (`src/pages/Players.tsx`)**
-- Add a "Link to User" option when adding or editing a player
-- Shows a search input to find app users by display name
-- Linked players show a badge indicating they're connected to a real account
-
-**3. Saved Players hook (`src/hooks/useSavedPlayers.tsx`)**
-- Update the `SavedPlayer` interface to include optional `linked_user_id`
-- Pass `linked_user_id` through add/update operations
-
-**4. Round Participants on Finish (`src/hooks/useRounds.tsx`)**
-- When `finishRound()` or `lockRound()` is called, automatically insert rows into `round_participants` for any player whose `linked_user_id` is set (or whose name matches a saved player with a `linked_user_id`)
-- The round owner is also recorded as a participant
-
-**5. Fetch Shared Rounds (`src/hooks/useRounds.tsx`)**
-- Update `fetchRounds` to also query `round_participants` for rounds where `user_id = auth.uid()` and the round is LOCKED or COMPLETE
-- Merge these "shared rounds" into the rounds list, marked as read-only
-- Add a `isShared` flag to the Round type so the UI can distinguish owned vs shared rounds
-
-**6. Round History UI (`src/components/RoundHistory.tsx`)**
-- Shared rounds appear in the "Completed Rounds" section with a "Shared" badge
-- Shared rounds are view-only (no delete, no unlock, no edit)
-
-**7. Round type update (`src/types.ts`)**
-- Add optional `isShared?: boolean` and `ownerName?: string` to the `Round` interface
+No code changes needed -- once the RLS recursion is fixed, the existing `useRounds.tsx` fetch will work and Josh's 4 rounds will appear again.
 
 ### Technical Details
 
-- The `search_users_by_name` function is a SECURITY DEFINER that only exposes `id` and `display_name` from profiles -- no emails or other PII
-- Round participants are inserted server-side when locking/completing a round; the `linked_user_id` from players_data determines who gets access
-- Shared rounds are fetched via a separate query joining `round_participants` to `rounds`, so existing RLS on the rounds table is supplemented by a new SELECT policy: "Participants can view rounds they played in"
-- The saved_players `linked_user_id` column is nullable so existing players are unaffected
-- Player linking is optional -- manually typed players without a linked account simply won't trigger sharing
+```sql
+-- Helper function (security definer bypasses RLS, breaking the cycle)
+CREATE OR REPLACE FUNCTION public.is_round_owner(_round_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.rounds
+    WHERE id = _round_id AND user_id = auth.uid()
+  );
+$$;
 
-### Implementation Order
-1. Database migration (new table, new column, new function, updated RLS)
-2. Backend: search_users_by_name function
-3. Update types and hooks (useSavedPlayers, useRounds)
-4. Update SetupWizard player step with linking UI
-5. Update Players page with linking UI
-6. Update RoundHistory with shared round display
+-- Drop recursive policies
+DROP POLICY IF EXISTS "Round owners can view participants" ON round_participants;
+DROP POLICY IF EXISTS "Round owners can insert participants" ON round_participants;
+DROP POLICY IF EXISTS "Round owners can delete participants" ON round_participants;
+
+-- Re-create using the helper function
+CREATE POLICY "Round owners can view participants"
+  ON round_participants FOR SELECT
+  USING (public.is_round_owner(round_id));
+
+CREATE POLICY "Round owners can insert participants"
+  ON round_participants FOR INSERT
+  WITH CHECK (public.is_round_owner(round_id));
+
+CREATE POLICY "Round owners can delete participants"
+  ON round_participants FOR DELETE
+  USING (public.is_round_owner(round_id));
+```
 
