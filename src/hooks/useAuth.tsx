@@ -85,11 +85,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(session?.user ?? null);
         
         if (event === 'SIGNED_IN') {
+          const now = String(Date.now());
           if (!localStorage.getItem('fg_session_start')) {
-            localStorage.setItem('fg_session_start', String(Date.now()));
+            localStorage.setItem('fg_session_start', now);
           }
+          localStorage.setItem('fg_last_activity', now);
         } else if (event === 'SIGNED_OUT') {
           localStorage.removeItem('fg_session_start');
+          localStorage.removeItem('fg_last_activity');
         }
         
         // Defer profile fetch with setTimeout to avoid deadlock
@@ -119,6 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(null);
           setProfile(null);
           localStorage.removeItem('fg_session_start');
+          localStorage.removeItem('fg_last_activity');
           setIsLoading(false);
           return;
         }
@@ -133,26 +137,61 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
+    // --- Inactivity tracking ---
+    const INACTIVITY_MAX_AGE = 4 * 60 * 60 * 1000; // 4 hours
+    let lastActivityWrite = Date.now();
+
+    const updateActivity = () => {
+      const now = Date.now();
+      if (now - lastActivityWrite < 60_000) return; // throttle to 60s
+      lastActivityWrite = now;
+      localStorage.setItem('fg_last_activity', String(now));
+    };
+
+    window.addEventListener('pointerdown', updateActivity);
+    window.addEventListener('keydown', updateActivity);
+    window.addEventListener('scroll', updateActivity, true);
+
+    // --- Session expiry checks ---
     const SESSION_MAX_AGE = 24 * 60 * 60 * 1000;
 
     const intervalId = setInterval(() => {
       const sessionStart = localStorage.getItem('fg_session_start');
       if (!sessionStart) return;
 
-      const elapsed = Date.now() - Number(sessionStart);
-      if (elapsed < SESSION_MAX_AGE) return;
-
       const cached = offlineStorage.getCachedRound();
-      if (cached && cached.status === 'ACTIVE') return;
+      const hasActiveRound = cached && cached.status === 'ACTIVE';
 
-      supabase.auth.signOut();
-      localStorage.removeItem('fg_session_start');
-      toast.info('Session expired. Please sign in again to get the latest updates.');
+      // 24-hour wall-clock check
+      const elapsed = Date.now() - Number(sessionStart);
+      if (elapsed >= SESSION_MAX_AGE && !hasActiveRound) {
+        supabase.auth.signOut();
+        localStorage.removeItem('fg_session_start');
+        localStorage.removeItem('fg_last_activity');
+        toast.info('Session expired. Please sign in again to get the latest updates.');
+        return;
+      }
+
+      // 4-hour inactivity check
+      const lastActivity = localStorage.getItem('fg_last_activity');
+      if (lastActivity) {
+        const idle = Date.now() - Number(lastActivity);
+        if (idle >= INACTIVITY_MAX_AGE && !hasActiveRound) {
+          supabase.auth.signOut();
+          localStorage.removeItem('fg_session_start');
+          localStorage.removeItem('fg_last_activity');
+          toast.info('Signed out due to inactivity.');
+          return;
+        }
+      }
     }, 60_000);
 
     return () => {
       subscription.unsubscribe();
       clearInterval(intervalId);
+      window.removeEventListener('pointerdown', updateActivity);
+      window.removeEventListener('keydown', updateActivity);
+      window.removeEventListener('scroll', updateActivity, true);
     };
   }, []);
 
@@ -189,6 +228,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setProfile(null);
     localStorage.removeItem('fg_session_start');
+    localStorage.removeItem('fg_last_activity');
 
     try {
       await supabase.auth.signOut();
