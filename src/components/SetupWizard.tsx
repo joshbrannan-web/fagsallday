@@ -1215,7 +1215,6 @@ const SetupWizard: React.FC = () => {
                   value={courseName}
                   onChange={(e) => {
                     setCourseName(e.target.value);
-                    setSelectedCourse(null);
                   }}
                   placeholder="e.g., Pine Valley Golf Club"
                   className="mt-1"
