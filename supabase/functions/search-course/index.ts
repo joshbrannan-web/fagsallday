@@ -525,63 +525,70 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
   let finalMarkdown = scrapedMarkdown;
 
   if (isCaptcha(scrapedMarkdown)) {
-    console.log('CAPTCHA detected on first attempt, retrying after delay...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    const retryResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${firecrawlKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: formattedUrl,
-        formats: ['markdown'],
-        onlyMainContent: false,
-        waitFor: 5000,
-      }),
-    });
-
-    if (retryResponse.ok) {
-      const retryData = await retryResponse.json();
-      const retryMarkdown = retryData.data?.markdown || retryData.markdown || '';
-      console.log('Retry scraped content length:', retryMarkdown.length);
-
-      if (isCaptcha(retryMarkdown)) {
-        console.error('CAPTCHA detected on retry as well');
-        // Fallback chain: GolfCourseAPI -> verified courses -> error
-        const apiFallback = await tryGolfCourseAPIFallback(courseName, GOLF_COURSE_API_KEY);
-        if (apiFallback) {
-          return new Response(
-            JSON.stringify({ success: true, course: apiFallback, source: 'golfcourseapi-fallback' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+    console.log('CAPTCHA detected on Firecrawl scrape, trying direct fetch...');
+    
+    // Try direct fetch first (BlueGolf may only block Firecrawl proxy IPs)
+    let directSuccess = false;
+    try {
+      const directResponse = await fetch(formattedUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+        },
+      });
+      
+      if (directResponse.ok) {
+        const htmlContent = await directResponse.text();
+        console.log('Direct fetch content length:', htmlContent.length);
+        
+        if (htmlContent.length > 2000 && !isCaptcha(htmlContent)) {
+          console.log('Direct fetch succeeded, using HTML content');
+          finalMarkdown = htmlContent;
+          directSuccess = true;
+        } else {
+          console.log('Direct fetch returned CAPTCHA or insufficient content');
         }
-        const fallback = await tryVerifiedCourseFallback(courseName);
-        if (fallback) {
-          console.log('Found verified course fallback for:', courseName);
-          return new Response(
-            JSON.stringify({
-              success: true,
-              course: fallback,
-              sourceUrl: formattedUrl,
-              source: 'verified-library-fallback'
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'BlueGolf blocked the request with a security check. Please try again in a moment or enter course details manually.',
-            sourceUrl: formattedUrl
-          }),
-          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      } else {
+        console.log('Direct fetch failed:', directResponse.status);
       }
-      finalMarkdown = retryMarkdown;
-    } else {
-      console.error('Retry scrape failed:', retryResponse.status);
+    } catch (e) {
+      console.error('Direct fetch error:', e);
+    }
+
+    if (!directSuccess) {
+      // Try Firecrawl retry with longer wait
+      console.log('Retrying Firecrawl scrape after delay...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      const retryResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${firecrawlKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: formattedUrl,
+          formats: ['markdown'],
+          onlyMainContent: false,
+          waitFor: 5000,
+        }),
+      });
+
+      if (retryResponse.ok) {
+        const retryData = await retryResponse.json();
+        const retryMarkdown = retryData.data?.markdown || retryData.markdown || '';
+        console.log('Retry scraped content length:', retryMarkdown.length);
+
+        if (!isCaptcha(retryMarkdown)) {
+          finalMarkdown = retryMarkdown;
+        }
+      }
+    }
+
+    // If still blocked, try fallback chain
+    if (!directSuccess && isCaptcha(finalMarkdown)) {
+      console.error('All scraping attempts blocked by CAPTCHA');
       const apiFallback = await tryGolfCourseAPIFallback(courseName, GOLF_COURSE_API_KEY);
       if (apiFallback) {
         return new Response(
@@ -605,7 +612,7 @@ async function fetchCourseDetails(firecrawlKey: string, lovableKey: string, cour
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'BlueGolf blocked the request. Please try again in a moment or enter course details manually.',
+          error: 'BlueGolf blocked the request with a security check. Please try again in a moment or enter course details manually.',
           sourceUrl: formattedUrl
         }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
