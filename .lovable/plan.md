@@ -1,24 +1,44 @@
 
 
-## Fix "No Users Found" Message in UserSearchDialog
+## Fix: "Save for Later" Disappearing When Editing Course Name
 
 ### Problem
 
-Currently, the "No users found" message appears whenever the search term is 2+ characters long and results are empty -- even before the user has clicked the search button. This is confusing because the user hasn't searched yet.
+After scanning a scorecard, the "Save for Later" and "Verify for Community" buttons disappear when you edit the course name. This happens because the course name input's `onChange` handler (line 1218) calls `setSelectedCourse(null)`, and the buttons are conditionally rendered only when `selectedCourse` is not null (line 1336).
+
+### Root Cause
+
+In `src/components/SetupWizard.tsx`, line 1216-1218:
+```typescript
+onChange={(e) => {
+  setCourseName(e.target.value);
+  setSelectedCourse(null);  // <-- This clears the course data
+}}
+```
+
+The `setSelectedCourse(null)` call was originally intended to reset the course data when a user manually types a new course name (before searching). However, it also fires after a scan, when the user just wants to rename the course -- wiping out the loaded scorecard data and hiding the action buttons.
 
 ### Solution
 
-Add a `hasSearched` boolean state that only becomes `true` after the search button is clicked (or Enter is pressed). Show "No users found" only when `hasSearched` is `true` and results are empty. Reset `hasSearched` to `false` when the search term changes.
+Remove the `setSelectedCourse(null)` call from the course name input's `onChange` handler. The course name is already a separate state variable (`courseName`) from the selected course data, so editing the name doesn't need to invalidate the loaded hole data.
 
 ### Changes
 
-**Modified file: `src/components/UserSearchDialog.tsx`**
+**Modified file: `src/components/SetupWizard.tsx`**
 
-1. Add state: `const [hasSearched, setHasSearched] = useState(false);`
-2. In `handleSearch`, set `setHasSearched(true)` right before/after the API call
-3. In the `onChange` handler for the Input, also call `setHasSearched(false)` so typing a new query clears the stale message
-4. Update the "No users found" condition from:
-   - `results.length === 0 && !isSearching && searchTerm.trim().length >= 2`
-   - to: `results.length === 0 && !isSearching && hasSearched`
-5. Reset `hasSearched` to `false` when the dialog closes (in `onOpenChange` or when `open` changes)
+Update line 1216-1219 from:
+```typescript
+onChange={(e) => {
+  setCourseName(e.target.value);
+  setSelectedCourse(null);
+}}
+```
+to:
+```typescript
+onChange={(e) => {
+  setCourseName(e.target.value);
+}}
+```
+
+This is a one-line removal. After the change, editing the course name will preserve the loaded scorecard data and keep the "Save for Later" / "Verify for Community" buttons visible.
 
