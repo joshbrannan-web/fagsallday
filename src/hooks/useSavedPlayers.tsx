@@ -27,10 +27,7 @@ export const useSavedPlayers = () => {
 
     try {
       const { data, error } = await supabase
-        .from('saved_players')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('name');
+        .rpc('get_saved_players_with_profiles', { p_user_id: user.id } as any);
 
       if (error) throw error;
       setSavedPlayers(data || []);

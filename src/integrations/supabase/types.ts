@@ -265,6 +265,19 @@ export type Database = {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      get_saved_players_with_profiles: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          handicap_index: number
+          id: string
+          linked_user_id: string
+          name: string
+          tee: string
+          updated_at: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
