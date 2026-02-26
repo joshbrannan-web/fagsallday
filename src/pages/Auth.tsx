@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Flag, Loader2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -47,6 +48,10 @@ const Auth: React.FC = () => {
   const [displayName, setDisplayName] = useState('');
   const [handicapIndex, setHandicapIndex] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [handicapMethod, setHandicapMethod] = useState<'ghin' | 'manual'>('ghin');
+  const [ghinNumber, setGhinNumber] = useState('');
+  const [ghinSyncing, setGhinSyncing] = useState(false);
+  const [showManualInfoDialog, setShowManualInfoDialog] = useState(false);
 
   // Listen for PASSWORD_RECOVERY event
   useEffect(() => {
@@ -185,7 +190,34 @@ const Auth: React.FC = () => {
           navigate('/');
         }
       } else {
-        const hcap = parseFloat(handicapIndex) || 0;
+        let hcap = parseFloat(handicapIndex) || 0;
+        let syncedGhin = false;
+
+        // If GHIN method selected with a number, validate first
+        if (handicapMethod === 'ghin' && ghinNumber.trim()) {
+          setGhinSyncing(true);
+          try {
+            const { data: ghinData, error: ghinError } = await supabase.functions.invoke('sync-ghin-handicap', {
+              body: { ghin_number: ghinNumber.trim(), update_profile: false }
+            });
+            if (ghinError || ghinData?.error) {
+              toast.error(ghinData?.error || ghinError?.message || 'Failed to verify GHIN number');
+              setGhinSyncing(false);
+              setIsSubmitting(false);
+              return;
+            }
+            hcap = ghinData.handicap_index;
+            syncedGhin = true;
+          } catch {
+            toast.error('Failed to verify GHIN number. Please try again.');
+            setGhinSyncing(false);
+            setIsSubmitting(false);
+            return;
+          } finally {
+            setGhinSyncing(false);
+          }
+        }
+
         const { error } = await signUp(email, password, displayName.trim(), hcap);
         if (error) {
           if (error.message.includes('already registered')) {
@@ -194,9 +226,37 @@ const Auth: React.FC = () => {
             toast.error(error.message);
           }
         } else {
-          // Send welcome email with credentials
+          // Update profile with GHIN data if linked
+          if (syncedGhin) {
+            // We need the user session to update profile — the edge function can do it
+            // Re-call with update_profile after signup
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session) {
+                await supabase.functions.invoke('sync-ghin-handicap', {
+                  body: { ghin_number: ghinNumber.trim(), update_profile: true }
+                });
+              }
+            } catch {
+              // Non-critical, profile will have handicap from signup metadata
+            }
+          }
+
+          // Suppress GHIN prompt for all new signups
+          localStorage.setItem('fg_ghin_prompt_dismissed', 'true');
+
+          // Send welcome email
           await sendWelcomeEmail(email, displayName.trim());
-          toast.success('Account created! Check your email for your login details.');
+
+          if (syncedGhin) {
+            toast.success('Account created with GHIN linked! Check your email.');
+          } else {
+            toast.success('Account created! Check your email for your login details.');
+            // Show info dialog for manual entry users
+            if (handicapMethod === 'manual') {
+              setShowManualInfoDialog(true);
+            }
+          }
           navigate('/');
         }
       }
@@ -387,15 +447,52 @@ const Auth: React.FC = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="handicap">Handicap Index (optional)</Label>
-                    <Input
-                      id="handicap"
-                      type="number"
-                      step="0.1"
-                      placeholder="e.g. 12.4"
-                      value={handicapIndex}
-                      onChange={(e) => setHandicapIndex(e.target.value)}
-                    />
+                    <Label className="text-sm font-medium">Handicap</Label>
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setHandicapMethod('ghin')}
+                        className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                          handicapMethod === 'ghin'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        Link GHIN
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHandicapMethod('manual')}
+                        className={`text-xs px-3 py-1.5 rounded-full transition-colors ${
+                          handicapMethod === 'manual'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        Enter manually
+                      </button>
+                    </div>
+
+                    {handicapMethod === 'ghin' ? (
+                      <Input
+                        id="ghinNumber"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="\d{5,9}"
+                        placeholder="GHIN # (e.g. 1234567)"
+                        value={ghinNumber}
+                        onChange={(e) => setGhinNumber(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                      />
+                    ) : (
+                      <Input
+                        id="handicap"
+                        type="number"
+                        step="0.1"
+                        placeholder="e.g. 12.4 (optional)"
+                        value={handicapIndex}
+                        onChange={(e) => setHandicapIndex(e.target.value)}
+                      />
+                    )}
                   </div>
                 </>
               )}
@@ -404,10 +501,13 @@ const Auth: React.FC = () => {
                 type="submit"
                 className="w-full"
                 size="lg"
-                disabled={isSubmitting}
+                disabled={isSubmitting || ghinSyncing}
               >
-                {isSubmitting ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                {isSubmitting || ghinSyncing ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {ghinSyncing ? 'Verifying GHIN...' : ''}
+                  </span>
                 ) : mode === 'signin' ? (
                   'Sign In'
                 ) : (
@@ -444,6 +544,21 @@ const Auth: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Info dialog for manual handicap entry */}
+      <Dialog open={showManualInfoDialog} onOpenChange={setShowManualInfoDialog}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>No Problem!</DialogTitle>
+            <DialogDescription>
+              You can always link your GHIN later by selecting <strong>Edit Profile</strong> from the menu.
+            </DialogDescription>
+          </DialogHeader>
+          <Button onClick={() => setShowManualInfoDialog(false)} className="w-full">
+            Got It
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
