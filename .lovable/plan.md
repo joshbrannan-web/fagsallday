@@ -1,57 +1,37 @@
 
 
-## Sync Linked Players' Handicaps from Profiles
+## Integrate GHIN Link into Signup Form
 
-### Problem
+### Overview
 
-When a user updates their GHIN handicap, that change does **not** propagate to other users who have them as a linked player. The `saved_players` table stores a static snapshot of `handicap_index` — the `linked_user_id` reference exists but is never used to refresh the handicap.
-
-### Solution
-
-When fetching saved players in `useSavedPlayers.tsx`, join linked players against the `profiles` table to get the latest `handicap_index` and `display_name`. This way, every time the saved players list loads (round setup, My Players page), linked players automatically reflect the current handicap from the linked user's profile.
+Replace the standalone handicap field on the signup form with a toggle between "Link GHIN" (default) and "Enter Manually." Users who choose manual entry and dismiss will see an info dialog telling them they can add GHIN later via Edit Profile — and `fg_ghin_prompt_dismissed` is set so the post-login GHIN popup is suppressed. Existing users without a linked GHIN still see the popup as before.
 
 ### Changes
 
-**1. Create a database function** to fetch saved players with live profile data for linked players:
+**Modified file: `src/pages/Auth.tsx`**
 
-```sql
-CREATE OR REPLACE FUNCTION public.get_saved_players_with_profiles(p_user_id uuid)
-RETURNS TABLE (
-  id uuid, user_id uuid, name text, handicap_index numeric, 
-  tee text, linked_user_id uuid, created_at timestamptz, updated_at timestamptz
-)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public'
-AS $$
-  SELECT 
-    sp.id, sp.user_id,
-    COALESCE(p.display_name, sp.name) AS name,
-    COALESCE(p.handicap_index, sp.handicap_index) AS handicap_index,
-    sp.tee, sp.linked_user_id, sp.created_at, sp.updated_at
-  FROM public.saved_players sp
-  LEFT JOIN public.profiles p ON sp.linked_user_id = p.id
-  WHERE sp.user_id = p_user_id
-  ORDER BY COALESCE(p.display_name, sp.name);
-$$;
-```
+1. **Add state variables**: `handicapMethod` (`'ghin' | 'manual'`, default `'ghin'`), `ghinNumber` (string), `ghinSyncing` (boolean).
 
-This replaces static `handicap_index` with the linked user's live value when a `linked_user_id` exists, falling back to the stored value for unlinked players. It also keeps the display name in sync.
+2. **Replace the handicap input section** in signup mode with a toggle UI:
+   - Two small text buttons: "I have a GHIN" / "Enter manually"
+   - When "I have a GHIN" is selected: show a GHIN number input (5-9 digits)
+   - When "Enter manually" is selected: show the existing handicap index number input
 
-**2. Update `src/hooks/useSavedPlayers.tsx`**
+3. **Update `handleSubmit`** for signup:
+   - If `handicapMethod === 'ghin'` and `ghinNumber` is provided:
+     - Call `sync-ghin-handicap` edge function to validate and fetch handicap
+     - On failure: show error toast, stop submission
+     - On success: use returned `handicap_index` for signup, then update profile with `ghin_number`, `handicap_index`, `ghin_last_synced`
+   - If `handicapMethod === 'manual'`: use manually entered value (current behavior)
 
-Replace the `fetchPlayers` query from:
-```typescript
-const { data, error } = await supabase
-  .from('saved_players')
-  .select('*')
-  .eq('user_id', user.id)
-  .order('name');
-```
+4. **After successful signup**:
+   - If GHIN was linked: set `localStorage.setItem('fg_ghin_prompt_dismissed', 'true')` — suppresses the GHIN Prompt popup
+   - If manual entry: set `localStorage.setItem('fg_ghin_prompt_dismissed', 'true')` — also suppresses the popup, **and** show the info dialog telling the user they can link GHIN later via **Edit Profile**
 
-To call the new database function:
-```typescript
-const { data, error } = await supabase
-  .rpc('get_saved_players_with_profiles', { p_user_id: user.id });
-```
+5. **Info dialog** (inline in Auth.tsx or reuse a simple Dialog):
+   - Title: "No Problem!"
+   - Body: "You can always link your GHIN later by selecting **Edit Profile** from the menu."
+   - Single "Got It" button to dismiss
 
-No other code changes needed — the return shape is identical, so the Players page, Setup Wizard, and all downstream consumers work without modification.
+**No changes to `src/components/GhinPrompt.tsx`** — existing users who haven't linked or dismissed still see the popup. New users who went through signup will have `fg_ghin_prompt_dismissed` set, so the popup is skipped.
 
