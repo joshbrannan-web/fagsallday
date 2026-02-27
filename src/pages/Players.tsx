@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useSavedPlayers, SavedPlayer } from '@/hooks/useSavedPlayers';
@@ -103,8 +104,15 @@ const Players: React.FC = () => {
   };
 
   const handleUnlinkUser = async (playerId: string) => {
+    const player = savedPlayers.find(p => p.id === playerId);
+    const oldLinkedId = player?.linked_user_id;
+    
     const success = await updatePlayer(playerId, { linked_user_id: null });
     if (success) {
+      // Remove reciprocal link on the other side
+      if (oldLinkedId) {
+        await supabase.rpc('unlink_players_bidirectional', { p_linked_user_id: oldLinkedId } as any);
+      }
       toast.success('User unlinked');
     }
   };
@@ -377,6 +385,8 @@ const Players: React.FC = () => {
           if (linkingPlayerId) {
             const success = await updatePlayer(linkingPlayerId, { linked_user_id: selectedUser.id });
             if (success) {
+              // Create reciprocal link
+              await supabase.rpc('link_players_bidirectional', { p_linked_user_id: selectedUser.id } as any);
               toast.success(`Linked to ${selectedUser.display_name}`);
             }
             setLinkingPlayerId(null);

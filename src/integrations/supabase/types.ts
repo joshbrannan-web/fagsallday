@@ -286,12 +286,20 @@ export type Database = {
         Returns: boolean
       }
       is_round_owner: { Args: { _round_id: string }; Returns: boolean }
+      link_players_bidirectional: {
+        Args: { p_linked_user_id: string }
+        Returns: undefined
+      }
       search_users_by_name: {
         Args: { search_term: string }
         Returns: {
           display_name: string
           id: string
         }[]
+      }
+      unlink_players_bidirectional: {
+        Args: { p_linked_user_id: string }
+        Returns: undefined
       }
     }
     Enums: {
