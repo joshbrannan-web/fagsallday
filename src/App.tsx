@@ -60,6 +60,7 @@ const RoundRecovery: React.FC<{
 
   useEffect(() => {
     if (isLoading || recoveryChecked.current || currentRound) return;
+    if (!isAuthenticated) return;
     recoveryChecked.current = true;
 
     const cached = offlineStorage.getCachedRound();
