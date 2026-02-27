@@ -228,6 +228,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setProfile(null);
     offlineStorage.clearCachedRound();
+    localStorage.removeItem('fg_current_round');
+    localStorage.removeItem('fg_history');
+    localStorage.removeItem('fg_saved_courses');
     localStorage.removeItem('fg_session_start');
     localStorage.removeItem('fg_last_activity');
 
