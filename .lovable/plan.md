@@ -1,37 +1,88 @@
 
 
-## Integrate GHIN Link into Signup Form
+## Bidirectional Player Linking
 
-### Overview
-
-Replace the standalone handicap field on the signup form with a toggle between "Link GHIN" (default) and "Enter Manually." Users who choose manual entry and dismiss will see an info dialog telling them they can add GHIN later via Edit Profile — and `fg_ghin_prompt_dismissed` is set so the post-login GHIN popup is suppressed. Existing users without a linked GHIN still see the popup as before.
+### Problem
+Currently, linking is one-directional. When User A links User B as a saved player, User B has no corresponding entry for User A. Both users should automatically see each other as linked.
 
 ### Changes
 
-**Modified file: `src/pages/Auth.tsx`**
+**1. Create a database function `link_players_bidirectional`** (migration)
 
-1. **Add state variables**: `handicapMethod` (`'ghin' | 'manual'`, default `'ghin'`), `ghinNumber` (string), `ghinSyncing` (boolean).
+A new `SECURITY DEFINER` function that:
+- Takes the target `linked_user_id` as input
+- Creates a reciprocal `saved_player` entry for the linked user (User B gets User A added to their saved players, linked back to User A)
+- Uses `INSERT ... ON CONFLICT DO UPDATE` to handle cases where User B already has User A as a saved player (just sets the `linked_user_id`)
+- Pulls the calling user's `display_name` and `handicap_index` from `profiles` to populate the reciprocal entry
 
-2. **Replace the handicap input section** in signup mode with a toggle UI:
-   - Two small text buttons: "I have a GHIN" / "Enter manually"
-   - When "I have a GHIN" is selected: show a GHIN number input (5-9 digits)
-   - When "Enter manually" is selected: show the existing handicap index number input
+```sql
+CREATE OR REPLACE FUNCTION public.link_players_bidirectional(
+  p_linked_user_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  caller_name TEXT;
+  caller_handicap NUMERIC;
+BEGIN
+  -- Get the calling user's profile info
+  SELECT display_name, COALESCE(handicap_index, 0)
+  INTO caller_name, caller_handicap
+  FROM public.profiles
+  WHERE id = auth.uid();
 
-3. **Update `handleSubmit`** for signup:
-   - If `handicapMethod === 'ghin'` and `ghinNumber` is provided:
-     - Call `sync-ghin-handicap` edge function to validate and fetch handicap
-     - On failure: show error toast, stop submission
-     - On success: use returned `handicap_index` for signup, then update profile with `ghin_number`, `handicap_index`, `ghin_last_synced`
-   - If `handicapMethod === 'manual'`: use manually entered value (current behavior)
+  -- Create reciprocal entry: the linked user gets the caller as a saved player
+  INSERT INTO public.saved_players (user_id, name, handicap_index, tee, linked_user_id)
+  VALUES (p_linked_user_id, COALESCE(caller_name, 'Unknown'), caller_handicap, 'White', auth.uid())
+  ON CONFLICT ON CONSTRAINT saved_players_user_linked_unique
+  DO UPDATE SET linked_user_id = auth.uid();
+END;
+$$;
+```
 
-4. **After successful signup**:
-   - If GHIN was linked: set `localStorage.setItem('fg_ghin_prompt_dismissed', 'true')` — suppresses the GHIN Prompt popup
-   - If manual entry: set `localStorage.setItem('fg_ghin_prompt_dismissed', 'true')` — also suppresses the popup, **and** show the info dialog telling the user they can link GHIN later via **Edit Profile**
+**2. Add a unique constraint on `saved_players`** (same migration)
 
-5. **Info dialog** (inline in Auth.tsx or reuse a simple Dialog):
-   - Title: "No Problem!"
-   - Body: "You can always link your GHIN later by selecting **Edit Profile** from the menu."
-   - Single "Got It" button to dismiss
+Add a unique constraint on `(user_id, linked_user_id)` to support the `ON CONFLICT` upsert and prevent duplicate linked entries:
+```sql
+ALTER TABLE public.saved_players 
+ADD CONSTRAINT saved_players_user_linked_unique UNIQUE (user_id, linked_user_id);
+```
 
-**No changes to `src/components/GhinPrompt.tsx`** — existing users who haven't linked or dismissed still see the popup. New users who went through signup will have `fg_ghin_prompt_dismissed` set, so the popup is skipped.
+Also add a unique partial index on `(user_id, lower(name))` where `linked_user_id IS NULL` to prevent duplicate unlinked players by name (optional safeguard).
+
+**3. Create an `unlink_players_bidirectional` function** (same migration)
+
+When User A unlinks User B, remove the `linked_user_id` from User B's corresponding saved player entry (or delete it):
+```sql
+CREATE OR REPLACE FUNCTION public.unlink_players_bidirectional(
+  p_linked_user_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  -- Remove the reciprocal link (set linked_user_id to null on the other side)
+  UPDATE public.saved_players
+  SET linked_user_id = NULL
+  WHERE user_id = p_linked_user_id AND linked_user_id = auth.uid();
+END;
+$$;
+```
+
+**4. Update `src/hooks/useSavedPlayers.tsx`**
+
+- In `addPlayer`: after inserting with a `linkedUserId`, call `supabase.rpc('link_players_bidirectional', { p_linked_user_id: linkedUserId })`
+- In `updatePlayer`: when `linked_user_id` is being set to a new value, call `link_players_bidirectional`; when set to `null`, call `unlink_players_bidirectional` with the old `linked_user_id`
+
+**5. Update `src/pages/Players.tsx`**
+
+- In `handleUnlinkUser`: call `supabase.rpc('unlink_players_bidirectional', { p_linked_user_id: oldLinkedId })` before or after clearing the local link
+- In the link dialog `onSelect`: after updating the player's `linked_user_id`, call `link_players_bidirectional`
+
+No UI changes needed — both users will see the "Linked" badge because both now have reciprocal `saved_player` entries with `linked_user_id` set.
 
