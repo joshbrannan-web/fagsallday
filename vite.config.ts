@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
         "react": path.resolve(__dirname, "./node_modules/react"),
         "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
       },
-      dedupe: ["react", "react-dom", "react/jsx-runtime", "@tanstack/react-query"],
+      dedupe: ["react", "react-dom", "react/jsx-runtime", "@tanstack/react-query", "react-router-dom"],
     },
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || 'https://wvmpxjcghlgtitdhozlj.supabase.co'),
