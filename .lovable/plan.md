@@ -1,19 +1,26 @@
 
 
-## Bug: Stale Round Recovery After Logout
+## Confirmation: Plan Is Safe for Mid-Round Sign-Out
 
-### Root Cause
-When a user signs out, the offline cached round (`fg_offline_round` in localStorage) is never cleared. On the next page load, `RoundRecovery` finds this stale cached round, treats the user as unauthenticated, sets it as the local current round, and auto-navigates to `/active`.
+### Why no data is lost
 
-### Fix
+For **authenticated users** (the only users who can sign out):
+- The active round is persisted in the database with `status = 'ACTIVE'`
+- Clearing `fg_current_round` and `fg_offline_round` from localStorage only removes **local caches**
+- On sign-back-in, `useRounds.fetchRounds()` queries the database, finds the `ACTIVE` round, and restores it as `currentRound` automatically
 
-**1. Clear offline cache on sign-out** (`src/hooks/useAuth.tsx`)
+The localStorage keys are just acceleration/offline caches — the database is the source of truth.
 
-In the `signOut` function, add `offlineStorage.clearCachedRound()` alongside the existing localStorage cleanup. This is the primary fix — when a user intentionally signs out, their cached round should not persist.
+### Updated plan (unchanged from before)
 
-**2. Guard `RoundRecovery` against unauthenticated users** (`src/App.tsx`)
+**1. Clear all local round caches on sign-out** (`src/hooks/useAuth.tsx` → `signOut`)
 
-Add an early return in the `RoundRecovery` useEffect: if `!isAuthenticated` and `authLoading` is false, skip recovery entirely. Unauthenticated users returning to the app shouldn't auto-resume rounds from a previous authenticated session. This acts as a safety net in case the cache wasn't properly cleared.
+Add these lines alongside existing cleanup:
+- `localStorage.removeItem('fg_current_round')`
+- `localStorage.removeItem('fg_history')`
+- `localStorage.removeItem('fg_saved_courses')`
 
-Both changes are small — one line added to `signOut`, one guard condition added to the recovery effect.
+(`offlineStorage.clearCachedRound()` was already added in the last edit.)
+
+No other changes needed — the existing database fetch on login handles round restoration.
 
