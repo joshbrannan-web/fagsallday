@@ -1,26 +1,31 @@
 
 
-## Confirmation: Plan Is Safe for Mid-Round Sign-Out
+## Auto-Logout on New Deployment
 
-### Why no data is lost
+### Approach
 
-For **authenticated users** (the only users who can sign out):
-- The active round is persisted in the database with `status = 'ACTIVE'`
-- Clearing `fg_current_round` and `fg_offline_round` from localStorage only removes **local caches**
-- On sign-back-in, `useRounds.fetchRounds()` queries the database, finds the `ACTIVE` round, and restores it as `currentRound` automatically
+Use a **build hash** embedded at build time. On app load, compare the stored hash in localStorage against the current one. If they differ, a new version was deployed — sign the user out (unless they have an active round).
 
-The localStorage keys are just acceleration/offline caches — the database is the source of truth.
+### Implementation
 
-### Updated plan (unchanged from before)
+**1. Inject build timestamp via Vite** (`vite.config.ts`)
 
-**1. Clear all local round caches on sign-out** (`src/hooks/useAuth.tsx` → `signOut`)
+Add a `define` entry: `'__APP_BUILD_HASH__': JSON.stringify(Date.now().toString())`. This creates a unique value per build/publish.
 
-Add these lines alongside existing cleanup:
-- `localStorage.removeItem('fg_current_round')`
-- `localStorage.removeItem('fg_history')`
-- `localStorage.removeItem('fg_saved_courses')`
+**2. Create version check hook** (`src/hooks/useVersionCheck.ts`)
 
-(`offlineStorage.clearCachedRound()` was already added in the last edit.)
+- On mount, read `fg_build_hash` from localStorage and compare to `__APP_BUILD_HASH__`
+- If they match (or no stored hash yet), store the current hash and return
+- If they differ:
+  - Check `offlineStorage.getCachedRound()` — if an ACTIVE round exists, skip logout (store hash so it doesn't re-trigger)
+  - Otherwise, call `supabase.auth.signOut()`, clear all `fg_*` localStorage keys, and show a toast: "App updated — please sign in again"
+- Always update the stored hash after the check
 
-No other changes needed — the existing database fetch on login handles round restoration.
+**3. Wire it up** (`src/App.tsx`)
+
+Call `useVersionCheck()` near the top of the App component, before auth-dependent rendering. This runs once on mount.
+
+### Why this works
+
+Every publish produces a new build with a new `Date.now()` value baked in. Existing sessions in the browser still have the old hash. On next page load (refresh, revisit), the mismatch triggers a logout. Active rounds are protected by the cache check.
 
