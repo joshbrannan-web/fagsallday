@@ -38,6 +38,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppContext, AppState } from './contexts/AppContext';
 import ConnectionStatusBar from './components/ConnectionStatusBar';
 import { toast } from 'sonner';
+import { useVersionCheck } from '@/hooks/useVersionCheck';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1 } }
@@ -507,18 +508,21 @@ const AppContent: React.FC = () => {
   );
 };
 
-const App: React.FC = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <HashRouter>
-          <AppContent />
-        </HashRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+const App: React.FC = () => {
+  useVersionCheck();
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <HashRouter>
+            <AppContent />
+          </HashRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
