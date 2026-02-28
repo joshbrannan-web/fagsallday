@@ -20,6 +20,7 @@ export interface AppState {
   toggleFavorite: (courseId: string) => void;
   isFavorite: (courseId: string) => boolean;
   clearLoadedRound: () => void;
+  changeGames: (newGames: GameSettings[], initialGameData?: Record<string, any>) => void;
   updateRoundCourse: (courseName: string, courseLocation: string) => void;
   lockRound: () => void;
   unlockRound: () => void;
