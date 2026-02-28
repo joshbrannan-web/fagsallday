@@ -307,6 +307,7 @@ export const useRounds = () => {
 
       if (error) throw error;
 
+      loadedRoundIdRef.current = null;
       setRounds(prev => prev.filter(r => r.id !== roundId));
       if (currentRound?.id === roundId) {
         setCurrentRound(null);

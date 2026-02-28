@@ -171,7 +171,6 @@ const RoundSummary: React.FC = () => {
   const handleDeleteRound = async () => {
     if (!window.confirm('Delete this round? This cannot be undone.')) return;
     await deleteRound(currentRound.id);
-    clearLoadedRound();
     navigate('/');
   };
 
