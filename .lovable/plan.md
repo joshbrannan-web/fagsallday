@@ -1,33 +1,28 @@
 
 
-## Fix Rounding & Formatting Bugs in Green Fee Split + Settlement
+## Assessment: No Code Bug — Example Error
 
-### Bug 1: Settlement amounts show unformatted floats
-**File**: `src/components/RoundSummary.tsx` (line 316)
+The code is correct. The `calculateSettlement` function already filters out `$0` transactions at line 2033 (`if (payment > 0)`). Zero-amount players are also excluded because the function only processes creditors (`amount > 0`) and debtors (`amount < 0`).
 
-`$${t.amount}` → `$${t.amount.toFixed(2)}`
+The "$0" payment I showed in my previous example was a mistake in my written illustration — not a reflection of what the code actually produces.
 
-This prevents outputs like `$66.66666666666667`.
+### One minor hardening fix
 
-### Bug 2: `formatMoney` doesn't round to 2 decimal places
-**File**: `src/services/gameEngine.ts` (line 1891)
+There is a floating-point edge case: after subtracting amounts, a near-zero residual like `0.0000000001` could slip through the `> 0` check and appear as `$0.00` in the output. Fix: round the payment before checking.
 
-Change `Math.abs(amount)` to `Math.abs(amount).toFixed(2)` but strip trailing `.00` for clean whole-dollar display. E.g., `+$45` stays clean, `+$66.67` shows correctly.
+**File**: `src/services/gameEngine.ts`, line 2032
 
-Updated logic:
+Change:
+```typescript
+const payment = Math.min(debtors[i].amount, creditors[j].amount);
 ```
-const abs = Math.abs(amount);
-const formatted = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
-return `${prefix}$${formatted}`;
+To:
+```typescript
+const payment = Math.round(Math.min(debtors[i].amount, creditors[j].amount) * 100) / 100;
 ```
 
-### Bug 3: Penny drift in green fee payer credit
-**File**: `src/components/GreenFeeSplitDialog.tsx` (line 60)
-
-Change `adjustments[payerId] = perPerson * selectedPlayerIds.size` to compute the payer credit as `amount - perPerson` (total paid minus their own share). This ensures the sum of all adjustments is exactly zero regardless of rounding.
+This rounds each transaction to the nearest cent, eliminating any floating-point dust.
 
 ### Files modified
-- `src/components/RoundSummary.tsx`
-- `src/services/gameEngine.ts`
-- `src/components/GreenFeeSplitDialog.tsx`
+- `src/services/gameEngine.ts` — one line change in `calculateSettlement`
 
