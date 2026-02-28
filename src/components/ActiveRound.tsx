@@ -45,6 +45,7 @@ const ActiveRound: React.FC = () => {
   const [isBottomBarMinimized, setIsBottomBarMinimized] = useState(true);
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
   const [showHolePicker, setShowHolePicker] = useState(false);
+  const [declinedPresses, setDeclinedPresses] = useState<Set<string>>(new Set());
   
   const isOnline = useOnlineStatus();
   const { isActive: wakeLockActive } = useWakeLock(true);
@@ -58,6 +59,11 @@ const ActiveRound: React.FC = () => {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
+
+  // Reset declined presses when hole changes
+  useEffect(() => {
+    setDeclinedPresses(new Set());
+  }, [activeHole]);
 
   // All hooks must be called before any early returns!
   // State for Bloody Banker activation dialog
@@ -1491,69 +1497,117 @@ const ActiveRound: React.FC = () => {
                       <div className="flex flex-wrap gap-2">
                         {/* Segment Press Button (F9 or B9) */}
                         {pm.segmentDormie && (() => {
+                          const segKey = `${fboGame.id}-${pm.dormiePlayerId}-${pm.opponentId}-${segment}`;
                           const isPressed = getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, segment);
-                          return (
-                            <button
-                              onClick={() => isPressed 
-                                ? handleFBOUnpress(fboGame.id, pm.dormiePlayerId, segment, pm.opponentId)
-                                : handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId)
-                              }
-                              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-                                isPressed 
-                                  ? 'bg-success text-success-foreground hover:bg-success/80' 
-                                  : 'bg-amber-500 text-white hover:bg-amber-600'
-                              }`}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                {isPressed && <Check className="w-4 h-4" />}
-                                {isPressed ? 'Pressed' : 'Press'} {segment === 'front' ? 'F9' : 'B9'}
-                              </div>
+                          const isDeclined = declinedPresses.has(segKey);
+                          
+                          if (isDeclined) return (
+                            <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-medium text-center bg-muted text-muted-foreground">
+                              Declined {segment === 'front' ? 'F9' : 'B9'}
+                            </span>
+                          );
+                          if (isPressed) return (
+                            <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold text-center bg-success text-success-foreground">
+                              <span className="flex items-center justify-center gap-1"><Check className="w-4 h-4" /> Pressed {segment === 'front' ? 'F9' : 'B9'}</span>
                               <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
-                            </button>
+                            </span>
+                          );
+                          return (
+                            <div className="flex gap-1 flex-1 min-w-[100px]">
+                              <button
+                                onClick={() => handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId)}
+                                className="flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-amber-500 text-white hover:bg-amber-600"
+                              >
+                                Press {segment === 'front' ? 'F9' : 'B9'}
+                                <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
+                              </button>
+                              <button
+                                onClick={() => setDeclinedPresses(prev => new Set(prev).add(segKey))}
+                                className="px-3 py-2 rounded-lg text-xs font-medium transition-colors border border-border text-muted-foreground hover:bg-muted"
+                              >
+                                Decline
+                              </button>
+                            </div>
                           );
                         })()}
                         
                         {/* Overall Press Button (only on back 9) */}
                         {pm.overallDormie && (() => {
+                          const ovrKey = `${fboGame.id}-${pm.dormiePlayerId}-${pm.opponentId}-overall`;
                           const isPressed = getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, 'overall');
-                          return (
-                            <button
-                              onClick={() => isPressed 
-                                ? handleFBOUnpress(fboGame.id, pm.dormiePlayerId, 'overall', pm.opponentId)
-                                : handleFBOPress(fboGame.id, pm.dormiePlayerId, 'overall', 1, pm.opponentId)
-                              }
-                              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-                                isPressed 
-                                  ? 'bg-success text-success-foreground hover:bg-success/80' 
-                                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                              }`}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                {isPressed && <Check className="w-4 h-4" />}
-                                {isPressed ? 'Pressed' : 'Press'} Overall
-                              </div>
+                          const isDeclined = declinedPresses.has(ovrKey);
+                          
+                          if (isDeclined) return (
+                            <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-medium text-center bg-muted text-muted-foreground">
+                              Declined Overall
+                            </span>
+                          );
+                          if (isPressed) return (
+                            <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold text-center bg-success text-success-foreground">
+                              <span className="flex items-center justify-center gap-1"><Check className="w-4 h-4" /> Pressed Overall</span>
                               <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
-                            </button>
+                            </span>
+                          );
+                          return (
+                            <div className="flex gap-1 flex-1 min-w-[100px]">
+                              <button
+                                onClick={() => handleFBOPress(fboGame.id, pm.dormiePlayerId, 'overall', 1, pm.opponentId)}
+                                className="flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-primary text-primary-foreground hover:bg-primary/90"
+                              >
+                                Press Overall
+                                <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue}</span>
+                              </button>
+                              <button
+                                onClick={() => setDeclinedPresses(prev => new Set(prev).add(ovrKey))}
+                                className="px-3 py-2 rounded-lg text-xs font-medium transition-colors border border-border text-muted-foreground hover:bg-muted"
+                              >
+                                Decline
+                              </button>
+                            </div>
                           );
                         })()}
                         
-                        {/* Press Both Button (convenience) - only show if neither is pressed */}
-                        {pm.segmentDormie && pm.overallDormie && 
-                         !getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, segment) &&
-                         !getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, 'overall') && (
-                          <button
-                            onClick={() => {
-                              handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId);
-                              setTimeout(() => {
-                                handleFBOPress(fboGame.id, pm.dormiePlayerId, 'overall', 1, pm.opponentId);
-                              }, 50);
-                            }}
-                            className="flex-1 min-w-[100px] px-3 py-2 bg-gradient-to-r from-amber-500 to-primary text-white rounded-lg text-sm font-bold hover:opacity-90 transition-opacity"
-                          >
-                            Press Both
-                            <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue * 2}</span>
-                          </button>
-                        )}
+                        {/* Press Both / Decline All (convenience) */}
+                        {pm.segmentDormie && pm.overallDormie && (() => {
+                          const segKey = `${fboGame.id}-${pm.dormiePlayerId}-${pm.opponentId}-${segment}`;
+                          const ovrKey = `${fboGame.id}-${pm.dormiePlayerId}-${pm.opponentId}-overall`;
+                          const segPressed = getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, segment);
+                          const ovrPressed = getH2HPressExists(fboGame.id, pm.dormiePlayerId, pm.opponentId, 'overall');
+                          const segDeclined = declinedPresses.has(segKey);
+                          const ovrDeclined = declinedPresses.has(ovrKey);
+                          
+                          if (segPressed || ovrPressed || segDeclined || ovrDeclined) return null;
+                          
+                          return (
+                            <div className="flex gap-1 flex-1 min-w-[100px]">
+                              <button
+                                onClick={() => {
+                                  handleFBOPress(fboGame.id, pm.dormiePlayerId, segment, 1, pm.opponentId);
+                                  setTimeout(() => {
+                                    handleFBOPress(fboGame.id, pm.dormiePlayerId, 'overall', 1, pm.opponentId);
+                                  }, 50);
+                                }}
+                                className="flex-1 px-3 py-2 bg-gradient-to-r from-amber-500 to-primary text-white rounded-lg text-sm font-bold hover:opacity-90 transition-opacity"
+                              >
+                                Press Both
+                                <span className="block text-xs font-normal opacity-80">${pm.matchup.unitValue * 2}</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDeclinedPresses(prev => {
+                                    const next = new Set(prev);
+                                    next.add(segKey);
+                                    next.add(ovrKey);
+                                    return next;
+                                  });
+                                }}
+                                className="px-3 py-2 rounded-lg text-xs font-medium transition-colors border border-border text-muted-foreground hover:bg-muted"
+                              >
+                                Decline All
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}
@@ -1629,70 +1683,117 @@ const ActiveRound: React.FC = () => {
                       <div className="flex flex-wrap gap-2">
                         {/* Back 9 Press Button */}
                         {canPressBack && (() => {
+                          const segKey = `${fboGame.id}-${player.id}-${segment}`;
                           const isPressed = getPoolPressExists(fboGame.id, player.id, segment);
-                          return (
-                            <button
-                              onClick={() => isPressed
-                                ? handleFBOUnpress(fboGame.id, player.id, segment)
-                                : handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel)
-                              }
-                              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-                                isPressed 
-                                  ? 'bg-success text-success-foreground hover:bg-success/80' 
-                                  : 'bg-amber-500 text-white hover:bg-amber-600'
-                              }`}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                {isPressed && <Check className="w-4 h-4" />}
-                                {isPressed ? 'Pressed' : backPressLabel} {activeHole <= 9 ? 'F9' : 'B9'}
-                              </div>
+                          const isDeclined = declinedPresses.has(segKey);
+                          
+                          if (isDeclined) return (
+                            <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-medium text-center bg-muted text-muted-foreground">
+                              Declined {activeHole <= 9 ? 'F9' : 'B9'}
+                            </span>
+                          );
+                          if (isPressed) return (
+                            <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold text-center bg-success text-success-foreground">
+                              <span className="flex items-center justify-center gap-1"><Check className="w-4 h-4" /> Pressed {activeHole <= 9 ? 'F9' : 'B9'}</span>
                               <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
-                            </button>
+                            </span>
+                          );
+                          return (
+                            <div className="flex gap-1 flex-1 min-w-[100px]">
+                              <button
+                                onClick={() => handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel)}
+                                className="flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-amber-500 text-white hover:bg-amber-600"
+                              >
+                                {backPressLabel} {activeHole <= 9 ? 'F9' : 'B9'}
+                                <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                              </button>
+                              <button
+                                onClick={() => setDeclinedPresses(prev => new Set(prev).add(segKey))}
+                                className="px-3 py-2 rounded-lg text-xs font-medium transition-colors border border-border text-muted-foreground hover:bg-muted"
+                              >
+                                Decline
+                              </button>
+                            </div>
                           );
                         })()}
                         
                         {/* Overall Press Button (only on back 9) */}
                         {canPressOverall && (() => {
+                          const ovrKey = `${fboGame.id}-${player.id}-overall`;
                           const isPressed = getPoolPressExists(fboGame.id, player.id, 'overall');
-                          return (
-                            <button
-                              onClick={() => isPressed
-                                ? handleFBOUnpress(fboGame.id, player.id, 'overall')
-                                : handleFBOPress(fboGame.id, player.id, 'overall', overallElig!.eligibility.pressLevel)
-                              }
-                              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-                                isPressed 
-                                  ? 'bg-success text-success-foreground hover:bg-success/80' 
-                                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                              }`}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                {isPressed && <Check className="w-4 h-4" />}
-                                {isPressed ? 'Pressed' : overallPressLabel} Overall
-                              </div>
+                          const isDeclined = declinedPresses.has(ovrKey);
+                          
+                          if (isDeclined) return (
+                            <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-medium text-center bg-muted text-muted-foreground">
+                              Declined Overall
+                            </span>
+                          );
+                          if (isPressed) return (
+                            <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold text-center bg-success text-success-foreground">
+                              <span className="flex items-center justify-center gap-1"><Check className="w-4 h-4" /> Pressed Overall</span>
                               <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
-                            </button>
+                            </span>
+                          );
+                          return (
+                            <div className="flex gap-1 flex-1 min-w-[100px]">
+                              <button
+                                onClick={() => handleFBOPress(fboGame.id, player.id, 'overall', overallElig!.eligibility.pressLevel)}
+                                className="flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-primary text-primary-foreground hover:bg-primary/90"
+                              >
+                                {overallPressLabel} Overall
+                                <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                              </button>
+                              <button
+                                onClick={() => setDeclinedPresses(prev => new Set(prev).add(ovrKey))}
+                                className="px-3 py-2 rounded-lg text-xs font-medium transition-colors border border-border text-muted-foreground hover:bg-muted"
+                              >
+                                Decline
+                              </button>
+                            </div>
                           );
                         })()}
                         
-                        {/* Press Both Button (convenience) - only show if neither is pressed */}
-                        {canPressBack && canPressOverall && 
-                         !getPoolPressExists(fboGame.id, player.id, segment) &&
-                         !getPoolPressExists(fboGame.id, player.id, 'overall') && (
-                          <button
-                            onClick={() => {
-                              handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel);
-                              // Small delay to ensure both presses are recorded separately
-                              setTimeout(() => {
-                                handleFBOPress(fboGame.id, player.id, 'overall', overallElig!.eligibility.pressLevel);
-                              }, 50);
-                            }}
-                            className="flex-1 min-w-[100px] px-3 py-2 bg-gradient-to-r from-amber-500 to-primary text-white rounded-lg text-sm font-bold hover:opacity-90 transition-opacity"
-                          >
-                            Press Both
-                            <span className="block text-xs font-normal opacity-80">${fboGame.unitStake * 2}</span>
-                          </button>
-                        )}
+                        {/* Press Both / Decline All (convenience) */}
+                        {canPressBack && canPressOverall && (() => {
+                          const segKey = `${fboGame.id}-${player.id}-${segment}`;
+                          const ovrKey = `${fboGame.id}-${player.id}-overall`;
+                          const segPressed = getPoolPressExists(fboGame.id, player.id, segment);
+                          const ovrPressed = getPoolPressExists(fboGame.id, player.id, 'overall');
+                          const segDeclined = declinedPresses.has(segKey);
+                          const ovrDeclined = declinedPresses.has(ovrKey);
+                          
+                          if (segPressed || ovrPressed || segDeclined || ovrDeclined) return null;
+                          
+                          return (
+                            <div className="flex gap-1 flex-1 min-w-[100px]">
+                              <button
+                                onClick={() => {
+                                  handleFBOPress(fboGame.id, player.id, segment, backElig!.eligibility.pressLevel);
+                                  setTimeout(() => {
+                                    handleFBOPress(fboGame.id, player.id, 'overall', overallElig!.eligibility.pressLevel);
+                                  }, 50);
+                                }}
+                                className="flex-1 px-3 py-2 bg-gradient-to-r from-amber-500 to-primary text-white rounded-lg text-sm font-bold hover:opacity-90 transition-opacity"
+                              >
+                                Press Both
+                                <span className="block text-xs font-normal opacity-80">${fboGame.unitStake * 2}</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDeclinedPresses(prev => {
+                                    const next = new Set(prev);
+                                    next.add(segKey);
+                                    next.add(ovrKey);
+                                    return next;
+                                  });
+                                }}
+                                className="px-3 py-2 rounded-lg text-xs font-medium transition-colors border border-border text-muted-foreground hover:bg-muted"
+                              >
+                                Decline All
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </div>
                       
                       {/* Status info */}
