@@ -1,36 +1,26 @@
 
 
-## Plan: Add "Change Games" Button on Round Summary (Early Round Only)
+## Plan: Show Team Banker per-hole P&L on Scorecard
 
-### Condition
-Show a "Change Games" button only when the round is `ACTIVE` and hole 2 is not yet complete (i.e., at most hole 1 has scores entered). This means fewer than 2 holes have all players scored.
+The Scorecard's P&L row (the money line under each player's scores) is driven by `calculateAggregatedHolePnL` in `src/services/gameEngine.ts`. This function aggregates per-hole results from Banker, Skins, Nassau, Wolf, etc. — but **Team Banker is missing** from it. The `calculateTeamBanker` engine already produces `holeResults` with per-hole breakdowns, so this is a one-block addition.
 
-### Changes
+### Change
 
-**1. Add `changeGames` function to AppContext and App.tsx**
+**File: `src/services/gameEngine.ts`** — Add Team Banker processing block inside `calculateAggregatedHolePnL` (after the existing Nine Points block, around line 1870):
 
-- **`src/contexts/AppContext.tsx`**: Add `changeGames: (newGames: GameSettings[], initialGameData?: Record<string, any>) => void` to the `AppState` interface.
-- **`src/App.tsx`**: Implement `changeGames` — it replaces `games`, resets `scores` to `{}`, resets `gameData` to `initialGameData || {}`, keeps `course` and `players` intact. Persists via `updateRound` (authenticated) or `setLocalCurrentRound` (local).
+```typescript
+// Process Team Banker games
+round.games
+  .filter((g) => g.type === GameType.TEAM_BANKER)
+  .forEach((game) => {
+    const result = calculateTeamBanker(round, game);
+    if (result.holeResults?.[holeNumber]) {
+      Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
+        holePnL[holeNumber][playerId] += amount;
+      });
+    }
+  });
+```
 
-**2. Add "Change Games" button to RoundSummary**
-
-- **`src/components/RoundSummary.tsx`**:
-  - Compute `completedHoleCount` — number of holes where all players have a score > 0.
-  - Show the button when `currentRound.status === 'ACTIVE' && completedHoleCount < 2`.
-  - On click, navigate to `/setup` with state `{ changeGamesMode: true, existingCourse: currentRound.course, existingPlayers: currentRound.players }`.
-  - Import `RefreshCw` icon from lucide-react for the button.
-
-**3. Handle "Change Games" mode in SetupWizard**
-
-- **`src/components/SetupWizard.tsx`**:
-  - Read `location.state` for `changeGamesMode`, `existingCourse`, `existingPlayers`.
-  - When `changeGamesMode` is true, skip directly to step 3 (game selection), pre-populate `selectedCourse`/`holes` and `players` from the passed state.
-  - On "Start Round" (step 4 / final confirmation), instead of calling `startNewRound`, call `changeGames(selectedGames, initialGameData)` and navigate to `/active`.
-  - The `changeGames` call resets scores and gameData while keeping the same round ID, course, and players.
-
-### Files to modify
-- `src/contexts/AppContext.tsx` — add `changeGames` to interface
-- `src/App.tsx` — implement `changeGames`
-- `src/components/RoundSummary.tsx` — add button with condition
-- `src/components/SetupWizard.tsx` — handle change-games flow
+This follows the exact same pattern used for Skins, Wolf, Nine Points, and Stockton 6's. No other files need changes — the Scorecard already reads from `calculateAggregatedHolePnL` for the P&L row, and the `GameRoundTotals` component for Team Banker is already rendered.
 
