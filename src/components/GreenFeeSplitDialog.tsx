@@ -57,7 +57,7 @@ const GreenFeeSplitDialog: React.FC<GreenFeeSplitDialogProps> = ({
       adjustments[id] = -perPerson;
     });
     // Payer is owed the total of others' shares (positive = they're owed)
-    adjustments[payerId] = perPerson * selectedPlayerIds.size;
+    adjustments[payerId] = amount - perPerson;
     onConfirm(adjustments, payer!.name, amount, splitCount);
     onOpenChange(false);
   };

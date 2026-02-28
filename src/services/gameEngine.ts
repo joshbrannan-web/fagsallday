@@ -1888,7 +1888,9 @@ export const getScoreLabel = (gross: number, par: number): string => {
 export const formatMoney = (amount: number): string => {
   if (amount === 0) return "$0";
   const prefix = amount > 0 ? "+" : "-";
-  return `${prefix}$${Math.abs(amount)}`;
+  const abs = Math.abs(amount);
+  const formatted = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
+  return `${prefix}$${formatted}`;
 };
 
 // Calculate P&L for a specific Bloody Banker game up to a given hole
