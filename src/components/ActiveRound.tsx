@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle, Grid3X3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle, Grid3X3, Share2, Loader2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
@@ -18,6 +18,7 @@ import {
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { offlineStorage } from '@/services/offlineStorage';
+import { supabase } from '@/integrations/supabase/client';
 import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
 import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, calculateFBOMatchupHoleWinner, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, getFBOMatchupDormieStatus, getFBOMatchupOverallDormieStatus, calculatePerGameTotals } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
@@ -46,6 +47,7 @@ const ActiveRound: React.FC = () => {
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
   const [showHolePicker, setShowHolePicker] = useState(false);
   const [declinedPresses, setDeclinedPresses] = useState<Set<string>>(new Set());
+  const [isGeneratingLinks, setIsGeneratingLinks] = useState(false);
   
   const isOnline = useOnlineStatus();
   const { isActive: wakeLockActive } = useWakeLock(true);
@@ -466,6 +468,33 @@ const ActiveRound: React.FC = () => {
 
   // handleFboDotToggle removed - FBO dots are now auto-calculated based on net scores
 
+  const handleShareRoundLink = async () => {
+    if (!currentRound) return;
+    setIsGeneratingLinks(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-round-links', {
+        body: { round_id: currentRound.id }
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || 'Failed to generate links');
+        return;
+      }
+      const shareText = data.shareText as string;
+      if (navigator.share) {
+        await navigator.share({ title: 'Round Link', text: shareText });
+      } else {
+        await navigator.clipboard.writeText(shareText);
+        toast.success('Round links copied to clipboard!');
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        toast.error('Failed to share round links');
+      }
+    } finally {
+      setIsGeneratingLinks(false);
+    }
+  };
+
   // FBO Press handler (supports double/triple press and overall segment, and H2H mode with opponentId)
   const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back' | 'overall', pressLevel: number = 1, opponentId?: string) => {
     const fboGame = currentRound.games.find(g => g.id === gameId);
@@ -644,6 +673,21 @@ const ActiveRound: React.FC = () => {
           <div className="absolute left-0 flex items-center gap-1">
             <button className="p-2" onClick={() => setShowHomeConfirm(true)}><Home className="w-5 h-5" /></button>
             <button className="p-2" onClick={() => navigate('/summary')}><Menu className="w-5 h-5" /></button>
+          </div>
+          <div className="absolute right-0 flex items-center gap-1">
+            {currentRound.players.length >= 2 && (
+              <button
+                className="p-2"
+                onClick={handleShareRoundLink}
+                disabled={isGeneratingLinks}
+              >
+                {isGeneratingLinks ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Share2 className="w-5 h-5" />
+                )}
+              </button>
+            )}
           </div>
           <Popover open={showHolePicker} onOpenChange={setShowHolePicker}>
             <PopoverTrigger asChild>

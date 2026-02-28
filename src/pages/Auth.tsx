@@ -28,24 +28,28 @@ const Auth: React.FC = () => {
   
   // Initialize mode synchronously from URL to prevent race condition with redirect
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>(() => {
-    // Check for reset mode first (highest priority for password reset flow)
     if (hashModeIsReset || queryModeIsReset) return 'reset';
-    
-    // Check for signup/forgot mode from hash params or query params
     const hashMode = searchParams.get('mode');
     const queryMode = urlParams.get('mode');
-    
     if (hashMode === 'signup' || queryMode === 'signup') return 'signup';
     if (hashMode === 'forgot' || queryMode === 'forgot') return 'forgot';
-    
     return 'signin';
   });
+
+  // Read round invite params from URL and persist to localStorage
+  const inviteRoundId = searchParams.get('round_id') || urlParams.get('round_id');
+  const invitePlayerName = searchParams.get('player_name') || urlParams.get('player_name');
+
+  useEffect(() => {
+    if (inviteRoundId) localStorage.setItem('fg_invite_round_id', inviteRoundId);
+    if (invitePlayerName) localStorage.setItem('fg_invite_player_name', invitePlayerName);
+  }, [inviteRoundId, invitePlayerName]);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(invitePlayerName ? decodeURIComponent(invitePlayerName) : '');
   const [handicapIndex, setHandicapIndex] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [handicapMethod, setHandicapMethod] = useState<'ghin' | 'manual'>('ghin');
