@@ -275,11 +275,11 @@ const RoundSummary: React.FC = () => {
     });
 
     const results = sortedPlayers.map((p) => 
-      `${p.name}: ${formatMoney(finalAmounts[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
+      `${p.name}: ${formatMoney(displayAmounts[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
     ).join('\n');
 
     let gameBreakdown = '';
-    if (currentRound.games.length > 1) {
+    if (currentRound.games.length >= 1) {
       const perGameResults = calculatePerGameTotals(currentRound);
       
       gameBreakdown = '\n\n--- Games Breakdown ---';
@@ -301,7 +301,7 @@ const RoundSummary: React.FC = () => {
     // Green fee section
     let greenFeeText = '';
     if (greenFee) {
-      const perPerson = (greenFee.totalAmount / greenFee.splitCount).toFixed(2);
+      const perPerson = (Math.round((greenFee.totalAmount / greenFee.splitCount) * 100) / 100).toFixed(2);
       greenFeeText = `\n\n--- Green Fees ---\n  ${greenFee.payerName} paid $${greenFee.totalAmount.toFixed(2)} (split ${greenFee.splitCount} ways)\n  Each player: $${perPerson}`;
     }
 
