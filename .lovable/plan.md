@@ -1,39 +1,46 @@
 
 
-## Add "Decline" Button to FBO Press UI
+## Green Fee Split on Share
 
-Currently each press option is a single toggle button (Press / Pressed). The plan is to split each into two side-by-side buttons: **Press** and **Decline**.
-
-### Behavior
-
-- **Press**: Works exactly as today — activates the press bet.
-- **Decline**: Dismisses the press prompt for that player/segment for the current hole. The card disappears (or that row disappears) so it stops nagging the user. Stored in component state (not persisted) so it reappears if the user navigates away and comes back — keeping it lightweight.
-- Once pressed or declined, the button pair is replaced with either the green "Pressed" indicator or a muted "Declined" label.
-- "Press Both" remains as a convenience shortcut. A "Decline All" button will also be added next to it when both segments are available.
+When the user taps "Share" on the Round Summary, show a dialog asking if they want to include a green fee split. If yes, collect who paid, how much, and which players to split against. Fold the result into the settlement calculation.
 
 ### Implementation
 
-**1. Add declined state tracking** (`src/components/ActiveRound.tsx`)
+**1. Create `GreenFeeSplitDialog` component** (`src/components/GreenFeeSplitDialog.tsx`)
 
-Add a `useState<Set<string>>` called `declinedPresses`. Keys will be composite strings like `${gameId}-${playerId}-${segment}` (pool mode) or `${gameId}-${dormiePlayerId}-${opponentId}-${segment}` (H2H mode).
+- Dialog with steps:
+  - Step 1: "Include Green Fee Split?" — Yes / No buttons. No closes dialog and calls `onSkip()` (proceeds with normal share).
+  - Step 2: Select the payer from a list of round players (radio/button group).
+  - Step 3: Enter total amount paid (number input).
+  - Step 4: Select which other players to split against (checkboxes, payer excluded from list, all checked by default).
+  - Step 5: Show summary — e.g. "Each player owes Brandon $50" — with Confirm button.
+- On confirm, calls `onConfirm(adjustments)` where adjustments is `Record<string, number>` — the per-player green fee debt (positive = owes money to payer, payer gets negative = is owed).
+- Calculation: `perPerson = totalAmount / (selectedPlayers.length + 1)`. Each selected player owes `perPerson` to the payer. The payer is owed `perPerson * selectedPlayers.length`.
 
-**2. Update H2H press buttons** (lines ~1491-1556)
+**2. Update `RoundSummary.tsx`**
 
-For each segment button, replace the single toggle button with a two-button row:
-- Left button: "Press F9/B9/Overall" (amber/primary, same as today)
-- Right button: "Decline" (outline/muted style)
-- If declined, show a muted "Declined F9" label instead of both buttons
-- If pressed, show the green "Pressed F9" label (same as today)
-- Update "Press Both" to also have a "Decline All" sibling
+- Import `GreenFeeSplitDialog`.
+- Add state: `showGreenFeeDialog: boolean` (default false).
+- Change `handleShare` button's `onClick` to `() => setShowGreenFeeDialog(true)` instead of calling `handleShare` directly.
+- Add `handleGreenFeeConfirm(greenFeeAdjustments: Record<string, number>)`:
+  - Merge green fee adjustments into `displayAmounts` to produce `finalAmounts`: for each player, `finalAmounts[id] = (displayAmounts[id] || 0) + greenFeeAdjustments[id]`.
+  - Pass `finalAmounts` to the share text generation and `calculateSettlement` (extract current share logic into a helper that accepts amounts).
+  - Call the share/clipboard logic with the updated text that includes a "Green Fees" line in the breakdown.
+- Add `handleGreenFeeSkip()`: calls existing `handleShare` as-is.
+- Render `<GreenFeeSplitDialog>` with `open={showGreenFeeDialog}`, `players={currentRound.players}`, `onSkip`, `onConfirm`, `onClose`.
 
-**3. Update All Together (pool) press buttons** (lines ~1629-1696)
+**3. Share text format update**
 
-Same pattern: split each single button into Press + Decline pair.
+When green fee split is included, append a section before the settlement:
+```
+--- Green Fees ---
+  Brandon paid $200 (split 4 ways)
+  Each player: $50
+```
 
-**4. Reset declined state on hole change**
+The settlement section uses the merged amounts (game P&L + green fee debts) so the "Who Pays Who" reflects everything in one set of transactions.
 
-Add a `useEffect` that clears `declinedPresses` when `activeHole` changes, so the prompt reappears on the next hole if still eligible.
-
-### Files modified
-- `src/components/ActiveRound.tsx` — all changes in one file
+### Files
+- `src/components/GreenFeeSplitDialog.tsx` — new
+- `src/components/RoundSummary.tsx` — modified
 
