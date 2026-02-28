@@ -2029,7 +2029,7 @@ export const calculateSettlement = (
 
   let i = 0, j = 0;
   while (i < debtors.length && j < creditors.length) {
-    const payment = Math.min(debtors[i].amount, creditors[j].amount);
+    const payment = Math.round(Math.min(debtors[i].amount, creditors[j].amount) * 100) / 100;
     if (payment > 0) {
       transactions.push({
         from: debtors[i].name,
