@@ -1,46 +1,33 @@
 
 
-## Green Fee Split on Share
+## Fix Rounding & Formatting Bugs in Green Fee Split + Settlement
 
-When the user taps "Share" on the Round Summary, show a dialog asking if they want to include a green fee split. If yes, collect who paid, how much, and which players to split against. Fold the result into the settlement calculation.
+### Bug 1: Settlement amounts show unformatted floats
+**File**: `src/components/RoundSummary.tsx` (line 316)
 
-### Implementation
+`$${t.amount}` → `$${t.amount.toFixed(2)}`
 
-**1. Create `GreenFeeSplitDialog` component** (`src/components/GreenFeeSplitDialog.tsx`)
+This prevents outputs like `$66.66666666666667`.
 
-- Dialog with steps:
-  - Step 1: "Include Green Fee Split?" — Yes / No buttons. No closes dialog and calls `onSkip()` (proceeds with normal share).
-  - Step 2: Select the payer from a list of round players (radio/button group).
-  - Step 3: Enter total amount paid (number input).
-  - Step 4: Select which other players to split against (checkboxes, payer excluded from list, all checked by default).
-  - Step 5: Show summary — e.g. "Each player owes Brandon $50" — with Confirm button.
-- On confirm, calls `onConfirm(adjustments)` where adjustments is `Record<string, number>` — the per-player green fee debt (positive = owes money to payer, payer gets negative = is owed).
-- Calculation: `perPerson = totalAmount / (selectedPlayers.length + 1)`. Each selected player owes `perPerson` to the payer. The payer is owed `perPerson * selectedPlayers.length`.
+### Bug 2: `formatMoney` doesn't round to 2 decimal places
+**File**: `src/services/gameEngine.ts` (line 1891)
 
-**2. Update `RoundSummary.tsx`**
+Change `Math.abs(amount)` to `Math.abs(amount).toFixed(2)` but strip trailing `.00` for clean whole-dollar display. E.g., `+$45` stays clean, `+$66.67` shows correctly.
 
-- Import `GreenFeeSplitDialog`.
-- Add state: `showGreenFeeDialog: boolean` (default false).
-- Change `handleShare` button's `onClick` to `() => setShowGreenFeeDialog(true)` instead of calling `handleShare` directly.
-- Add `handleGreenFeeConfirm(greenFeeAdjustments: Record<string, number>)`:
-  - Merge green fee adjustments into `displayAmounts` to produce `finalAmounts`: for each player, `finalAmounts[id] = (displayAmounts[id] || 0) + greenFeeAdjustments[id]`.
-  - Pass `finalAmounts` to the share text generation and `calculateSettlement` (extract current share logic into a helper that accepts amounts).
-  - Call the share/clipboard logic with the updated text that includes a "Green Fees" line in the breakdown.
-- Add `handleGreenFeeSkip()`: calls existing `handleShare` as-is.
-- Render `<GreenFeeSplitDialog>` with `open={showGreenFeeDialog}`, `players={currentRound.players}`, `onSkip`, `onConfirm`, `onClose`.
-
-**3. Share text format update**
-
-When green fee split is included, append a section before the settlement:
+Updated logic:
 ```
---- Green Fees ---
-  Brandon paid $200 (split 4 ways)
-  Each player: $50
+const abs = Math.abs(amount);
+const formatted = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
+return `${prefix}$${formatted}`;
 ```
 
-The settlement section uses the merged amounts (game P&L + green fee debts) so the "Who Pays Who" reflects everything in one set of transactions.
+### Bug 3: Penny drift in green fee payer credit
+**File**: `src/components/GreenFeeSplitDialog.tsx` (line 60)
 
-### Files
-- `src/components/GreenFeeSplitDialog.tsx` — new
-- `src/components/RoundSummary.tsx` — modified
+Change `adjustments[payerId] = perPerson * selectedPlayerIds.size` to compute the payer credit as `amount - perPerson` (total paid minus their own share). This ensures the sum of all adjustments is exactly zero regardless of rounding.
+
+### Files modified
+- `src/components/RoundSummary.tsx`
+- `src/services/gameEngine.ts`
+- `src/components/GreenFeeSplitDialog.tsx`
 
