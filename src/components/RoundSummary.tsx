@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
+import GreenFeeSplitDialog from './GreenFeeSplitDialog';
 
 const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>): string[] => {
   const details: string[] = [];
@@ -111,6 +112,7 @@ const RoundSummary: React.FC = () => {
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const scorecardImageRef = useRef<ScorecardImageHandle>(null);
+  const [showGreenFeeDialog, setShowGreenFeeDialog] = useState(false);
   
   // Course editing state
   const [editingCourse, setEditingCourse] = useState(false);
@@ -248,7 +250,7 @@ const RoundSummary: React.FC = () => {
     navigate('/');
   };
 
-  const handleShare = async () => {
+  const buildShareText = (greenFee?: { adjustments: Record<string, number>; payerName: string; totalAmount: number; splitCount: number }) => {
     const roundDate = new Date(currentRound.startTime).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -266,8 +268,14 @@ const RoundSummary: React.FC = () => {
       return total;
     };
 
+    // Merge green fee adjustments into display amounts for settlement
+    const finalAmounts: Record<string, number> = {};
+    sortedPlayers.forEach(p => {
+      finalAmounts[p.id] = (displayAmounts[p.id] || 0) + (greenFee?.adjustments[p.id] || 0);
+    });
+
     const results = sortedPlayers.map((p) => 
-      `${p.name}: ${formatMoney(displayAmounts[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
+      `${p.name}: ${formatMoney(finalAmounts[p.id] || 0)} (${getPlayerTotalScore(p.id)} strokes)`
     ).join('\n');
 
     let gameBreakdown = '';
@@ -290,11 +298,18 @@ const RoundSummary: React.FC = () => {
       });
     }
 
-    // Settlement plan
+    // Green fee section
+    let greenFeeText = '';
+    if (greenFee) {
+      const perPerson = (greenFee.totalAmount / greenFee.splitCount).toFixed(2);
+      greenFeeText = `\n\n--- Green Fees ---\n  ${greenFee.payerName} paid $${greenFee.totalAmount.toFixed(2)} (split ${greenFee.splitCount} ways)\n  Each player: $${perPerson}`;
+    }
+
+    // Settlement plan using final (merged) amounts
     let settlementText = '';
     const playerAmounts = sortedPlayers.map(p => ({
       name: p.name,
-      amount: displayAmounts[p.id] || 0
+      amount: finalAmounts[p.id] || 0
     }));
     const transactions = calculateSettlement(playerAmounts);
     if (transactions.length > 0) {
@@ -302,14 +317,24 @@ const RoundSummary: React.FC = () => {
       settlementText = `\n\n--- Who Pays Who ---\n${lines}`;
     }
 
-    const text = `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}${settlementText}`;
+    return `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}${greenFeeText}${settlementText}`;
+  };
 
+  const doShare = async (text: string) => {
     if (navigator.share) {
       await navigator.share({ title: 'Golf Round Results', text });
     } else {
       await navigator.clipboard.writeText(text);
       toast.success('Results copied to clipboard!');
     }
+  };
+
+  const handleShare = async () => {
+    await doShare(buildShareText());
+  };
+
+  const handleGreenFeeConfirm = async (adjustments: Record<string, number>, payerName: string, totalAmount: number, splitCount: number) => {
+    await doShare(buildShareText({ adjustments, payerName, totalAmount, splitCount }));
   };
 
   return (
@@ -466,7 +491,7 @@ const RoundSummary: React.FC = () => {
 
       <div className="p-4 bg-card border-t border-border space-y-3">
         <div className="flex gap-3">
-          <Button variant="outline" onClick={handleShare} className="flex-1">
+          <Button variant="outline" onClick={() => setShowGreenFeeDialog(true)} className="flex-1">
             <Share2 className="w-4 h-4 mr-2" /> Share
           </Button>
           <Button variant="outline" onClick={() => scorecardImageRef.current?.shareImage()} className="flex-1">
@@ -517,6 +542,14 @@ const RoundSummary: React.FC = () => {
           </Button>
         )}
       </div>
+
+      <GreenFeeSplitDialog
+        open={showGreenFeeDialog}
+        onOpenChange={setShowGreenFeeDialog}
+        players={currentRound.players}
+        onSkip={handleShare}
+        onConfirm={handleGreenFeeConfirm}
+      />
     </div>
   );
 };
