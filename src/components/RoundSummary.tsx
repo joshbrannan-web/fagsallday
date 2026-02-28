@@ -313,7 +313,7 @@ const RoundSummary: React.FC = () => {
     }));
     const transactions = calculateSettlement(playerAmounts);
     if (transactions.length > 0) {
-      const lines = transactions.map(t => `  ${t.from} pays ${t.to} $${t.amount}`).join('\n');
+      const lines = transactions.map(t => `  ${t.from} pays ${t.to} $${t.amount.toFixed(2)}`).join('\n');
       settlementText = `\n\n--- Who Pays Who ---\n${lines}`;
     }
 
