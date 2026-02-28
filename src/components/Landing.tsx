@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroIllustration from './HeroIllustration';
 import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2, HelpCircle, Eye } from 'lucide-react';
@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import OnboardingOverlay from './OnboardingOverlay';
 import GhinPrompt from './GhinPrompt';
 import WhatsNewDialog from './WhatsNewDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +30,60 @@ const Landing: React.FC = () => {
   React.useEffect(() => {
     clearLoadedRound();
   }, []);
+
+  // Post-signup claim flow: auto-link invited players
+  useEffect(() => {
+    if (!user) return;
+    const roundId = localStorage.getItem('fg_invite_round_id');
+    const playerName = localStorage.getItem('fg_invite_player_name');
+    if (!roundId || !playerName) return;
+
+    // Clear immediately to prevent re-runs
+    localStorage.removeItem('fg_invite_round_id');
+    localStorage.removeItem('fg_invite_player_name');
+
+    const claimInvite = async () => {
+      try {
+        // Find unclaimed pending link
+        const { data: pending, error: fetchErr } = await supabase
+          .from('pending_round_links' as any)
+          .select('id, owner_user_id')
+          .eq('round_id', roundId)
+          .eq('player_name', decodeURIComponent(playerName))
+          .is('claimed_by', null)
+          .limit(1)
+          .single();
+
+        if (fetchErr || !pending) return;
+
+        // Claim it
+        await supabase
+          .from('pending_round_links' as any)
+          .update({ claimed_by: user.id })
+          .eq('id', (pending as any).id);
+
+        // Auto-link with round owner
+        const ownerUserId = (pending as any).owner_user_id;
+        if (ownerUserId && ownerUserId !== user.id) {
+          await supabase.rpc('link_players_bidirectional', { p_linked_user_id: ownerUserId });
+        }
+
+        // Insert as round participant
+        await supabase.from('round_participants').insert({
+          round_id: roundId,
+          user_id: user.id,
+          player_name: decodeURIComponent(playerName),
+        });
+
+        toast.success('You\'ve been linked to the round!');
+        navigate('/scorecard');
+      } catch (err) {
+        console.error('Failed to claim invite:', err);
+      }
+    };
+
+    claimInvite();
+  }, [user]);
 
   const isLoading = appLoading || authLoading;
 

@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      pending_round_links: {
+        Row: {
+          claimed_by: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          owner_user_id: string
+          player_name: string
+          round_id: string
+        }
+        Insert: {
+          claimed_by?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          owner_user_id: string
+          player_name: string
+          round_id: string
+        }
+        Update: {
+          claimed_by?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          owner_user_id?: string
+          player_name?: string
+          round_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_round_links_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "rounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
