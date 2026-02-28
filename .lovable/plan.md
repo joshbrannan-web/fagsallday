@@ -1,31 +1,36 @@
 
 
-## Plan: Update Share Text Headers and Add Total Payouts Section
+## Plan: Add "Change Games" Button on Round Summary (Early Round Only)
 
-Two changes to `buildShareText` in `src/components/RoundSummary.tsx`:
+### Condition
+Show a "Change Games" button only when the round is `ACTIVE` and hole 2 is not yet complete (i.e., at most hole 1 has scores entered). This means fewer than 2 holes have all players scored.
 
-### 1. Add "--- Game $$ Payouts ---" header before player results (line 320)
-Change the return template to insert the new header before the results block.
+### Changes
 
-### 2. Add "--- Total Payouts ---" section before "Who Pays Who" (lines 308-318)
-After the green fee section and before settlement, insert a new section showing each player's net position (game P&L + green fee adjustments) using `finalAmounts`.
+**1. Add `changeGames` function to AppContext and App.tsx**
 
-### Updated return (line 320):
-```typescript
-return `🏌️ ${currentRound.course.name} - ${roundDate}\n\n--- Game $$ Payouts ---\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}${greenFeeText}${totalPayoutsText}${settlementText}`;
-```
+- **`src/contexts/AppContext.tsx`**: Add `changeGames: (newGames: GameSettings[], initialGameData?: Record<string, any>) => void` to the `AppState` interface.
+- **`src/App.tsx`**: Implement `changeGames` — it replaces `games`, resets `scores` to `{}`, resets `gameData` to `initialGameData || {}`, keeps `course` and `players` intact. Persists via `updateRound` (authenticated) or `setLocalCurrentRound` (local).
 
-### New "Total Payouts" block (after line 306):
-Only shown when green fees are included (otherwise the game payouts already tell the full story):
-```typescript
-let totalPayoutsText = '';
-if (greenFee) {
-  const totalLines = sortedPlayers.map(p => 
-    `${p.name} net: ${formatMoney(finalAmounts[p.id] || 0)}`
-  ).join('\n');
-  totalPayoutsText = `\n\n--- Total Payouts ---\n${totalLines}`;
-}
-```
+**2. Add "Change Games" button to RoundSummary**
 
-**File**: `src/components/RoundSummary.tsx` — lines 308-320
+- **`src/components/RoundSummary.tsx`**:
+  - Compute `completedHoleCount` — number of holes where all players have a score > 0.
+  - Show the button when `currentRound.status === 'ACTIVE' && completedHoleCount < 2`.
+  - On click, navigate to `/setup` with state `{ changeGamesMode: true, existingCourse: currentRound.course, existingPlayers: currentRound.players }`.
+  - Import `RefreshCw` icon from lucide-react for the button.
+
+**3. Handle "Change Games" mode in SetupWizard**
+
+- **`src/components/SetupWizard.tsx`**:
+  - Read `location.state` for `changeGamesMode`, `existingCourse`, `existingPlayers`.
+  - When `changeGamesMode` is true, skip directly to step 3 (game selection), pre-populate `selectedCourse`/`holes` and `players` from the passed state.
+  - On "Start Round" (step 4 / final confirmation), instead of calling `startNewRound`, call `changeGames(selectedGames, initialGameData)` and navigate to `/active`.
+  - The `changeGames` call resets scores and gameData while keeping the same round ID, course, and players.
+
+### Files to modify
+- `src/contexts/AppContext.tsx` — add `changeGames` to interface
+- `src/App.tsx` — implement `changeGames`
+- `src/components/RoundSummary.tsx` — add button with condition
+- `src/components/SetupWizard.tsx` — handle change-games flow
 
