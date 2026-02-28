@@ -1868,6 +1868,18 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
           });
         }
       });
+
+    // Process Team Banker games
+    round.games
+      .filter((g) => g.type === GameType.TEAM_BANKER)
+      .forEach((game) => {
+        const result = calculateTeamBanker(round, game);
+        if (result.holeResults?.[holeNumber]) {
+          Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
+            holePnL[holeNumber][playerId] += amount;
+          });
+        }
+      });
   });
 
   return holePnL;
