@@ -305,6 +305,15 @@ const RoundSummary: React.FC = () => {
       greenFeeText = `\n\n--- Green Fees ---\n  ${greenFee.payerName} paid $${greenFee.totalAmount.toFixed(2)} (split ${greenFee.splitCount} ways)\n  Each player: $${perPerson}`;
     }
 
+    // Total payouts (only when green fees are included)
+    let totalPayoutsText = '';
+    if (greenFee) {
+      const totalLines = sortedPlayers.map(p => 
+        `${p.name} net: ${formatMoney(finalAmounts[p.id] || 0)}`
+      ).join('\n');
+      totalPayoutsText = `\n\n--- Total Payouts ---\n${totalLines}`;
+    }
+
     // Settlement plan using final (merged) amounts
     let settlementText = '';
     const playerAmounts = sortedPlayers.map(p => ({
@@ -317,7 +326,7 @@ const RoundSummary: React.FC = () => {
       settlementText = `\n\n--- Who Pays Who ---\n${lines}`;
     }
 
-    return `🏌️ ${currentRound.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}${greenFeeText}${settlementText}`;
+    return `🏌️ ${currentRound.course.name} - ${roundDate}\n\n--- Game $$ Payouts ---\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}${greenFeeText}${totalPayoutsText}${settlementText}`;
   };
 
   const doShare = async (text: string) => {
