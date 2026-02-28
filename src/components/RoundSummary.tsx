@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { formatMoney, calculatePerGameTotals, calculateSettlement } from '../services/gameEngine';
-import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image, Trash2, ArrowLeft } from 'lucide-react';
+import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image, Trash2, ArrowLeft, RefreshCw } from 'lucide-react';
 import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -150,6 +150,12 @@ const RoundSummary: React.FC = () => {
   const isLocked = currentRound.status === 'LOCKED';
   const isComplete = currentRound.status === 'COMPLETE';
   const canEdit = isComplete && !isLocked;
+
+  // Count holes where all players have a score > 0
+  const completedHoleCount = Object.keys(currentRound.scores || {}).filter(holeNum => 
+    currentRound.players.every(p => (currentRound.scores[Number(holeNum)]?.[p.id] || 0) > 0)
+  ).length;
+  const canChangeGames = currentRound.status === 'ACTIVE' && completedHoleCount < 2;
 
   const allHolesComplete = (() => {
     for (let hole = 1; hole <= 18; hole++) {
@@ -535,6 +541,11 @@ const RoundSummary: React.FC = () => {
             }} className="w-full">
               <ArrowLeft className="w-4 h-4 mr-2" /> Return to Hole
             </Button>
+            {canChangeGames && (
+              <Button variant="outline" onClick={() => navigate('/setup', { state: { changeGamesMode: true, existingCourse: currentRound.course, existingPlayers: currentRound.players } })} className="w-full">
+                <RefreshCw className="w-4 h-4 mr-2" /> Change Games
+              </Button>
+            )}
             <Button variant="destructive" onClick={handleDeleteRound} className="w-full">
               <Trash2 className="w-4 h-4 mr-2" /> Delete Round
             </Button>

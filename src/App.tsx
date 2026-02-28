@@ -413,6 +413,16 @@ const AppContent: React.FC = () => {
     return false;
   };
 
+  const changeGames = async (newGames: GameSettings[], initialGameData?: Record<string, any>) => {
+    if (!currentRound) return;
+    const updates = { games: newGames, scores: {} as Record<number, Record<string, number>>, gameData: initialGameData || {} };
+    if (isAuthenticated) {
+      await updateRound(currentRound.id, updates);
+    } else {
+      setLocalCurrentRound(prev => prev ? { ...prev, ...updates } : null);
+    }
+  };
+
   const updateRoundCourse = async (courseName: string, courseLocation: string) => {
     if (!currentRound) return;
     const updatedCourse = { ...currentRound.course, name: courseName, location: courseLocation };
@@ -456,6 +466,7 @@ const AppContent: React.FC = () => {
     updateScore,
     updateGameData,
     updateGameDataBatch,
+    changeGames,
     finishRound,
     loadPastRound,
     deleteRound,

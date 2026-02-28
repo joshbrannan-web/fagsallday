@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useApp } from "../contexts/AppContext";
 import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from "../types";
 import { calculateCourseHandicap } from "../services/gameEngine";
@@ -221,13 +221,16 @@ const getTeeColorClass = (color: string): string => {
 
 const SetupWizard: React.FC = () => {
   const navigate = useNavigate();
-  const { startNewRound, savedCourses, favoriteCourses, nonFavoriteCourses, saveCourse, updateCourse, deleteCourse, toggleFavorite, isFavorite, roundHistory, deleteRound } = useApp();
+  const location = useLocation();
+  const locationState = location.state as { changeGamesMode?: boolean; existingCourse?: Course; existingPlayers?: Player[] } | null;
+  const changeGamesMode = locationState?.changeGamesMode || false;
+  const { startNewRound, changeGames, savedCourses, favoriteCourses, nonFavoriteCourses, saveCourse, updateCourse, deleteCourse, toggleFavorite, isFavorite, roundHistory, deleteRound } = useApp();
   const { user, profile } = useAuth();
   const { savedPlayers, addPlayer: addSavedPlayer } = useSavedPlayers();
   const { searchVerifiedCourses, verifyCourse, checkIfVerified, isVerifying } = useVerifiedCourses();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(changeGamesMode ? 3 : 1);
   const [courseMode, setCourseMode] = useState<CourseFinderMode>("select");
   const [isLoading, setIsLoading] = useState(false);
   const [showSavedPlayers, setShowSavedPlayers] = useState(false);
@@ -237,8 +240,8 @@ const SetupWizard: React.FC = () => {
   // Step 1: Course
   const [courseName, setCourseName] = useState("");
   const [courseLocation, setCourseLocation] = useState("");
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [holes, setHoles] = useState<Hole[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(locationState?.existingCourse || null);
+  const [holes, setHoles] = useState<Hole[]>(locationState?.existingCourse?.holes || []);
   const [editingHoles, setEditingHoles] = useState(false);
   const [holesModified, setHolesModified] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -254,12 +257,14 @@ const SetupWizard: React.FC = () => {
   const [selectedTeeBox, setSelectedTeeBox] = useState<string>("");
 
   // Step 2: Players
-  const [players, setPlayers] = useState<Player[]>([
-    { id: "1", name: "", handicapIndex: NaN, courseHandicap: 0, tee: "White" },
-    { id: "2", name: "", handicapIndex: NaN, courseHandicap: 0, tee: "White" },
-    { id: "3", name: "", handicapIndex: NaN, courseHandicap: 0, tee: "White" },
-    { id: "4", name: "", handicapIndex: NaN, courseHandicap: 0, tee: "White" },
-  ]);
+  const [players, setPlayers] = useState<Player[]>(
+    locationState?.existingPlayers || [
+      { id: "1", name: "", handicapIndex: NaN, courseHandicap: 0, tee: "White" },
+      { id: "2", name: "", handicapIndex: NaN, courseHandicap: 0, tee: "White" },
+      { id: "3", name: "", handicapIndex: NaN, courseHandicap: 0, tee: "White" },
+      { id: "4", name: "", handicapIndex: NaN, courseHandicap: 0, tee: "White" },
+    ]
+  );
 
   // Step 3: Games
   const [selectedGames, setSelectedGames] = useState<GameSettings[]>([]);
@@ -835,6 +840,13 @@ const SetupWizard: React.FC = () => {
       return;
     }
 
+    if (changeGamesMode) {
+      changeGames(selectedGames, initialGameData);
+      toast.success("Games updated! Starting fresh from hole 1.");
+      navigate("/active");
+      return;
+    }
+
     const course: Course = selectedCourse || {
       id: Date.now().toString(),
       name: courseName,
@@ -882,7 +894,9 @@ const SetupWizard: React.FC = () => {
       <div className="bg-card p-4 shadow-sm sticky top-0 z-10 flex items-center gap-3 border-b border-border">
         <button
           onClick={() => {
-            if (step === 1 && courseMode === "tee-select") {
+            if (changeGamesMode && step === 3) {
+              navigate('/summary');
+            } else if (step === 1 && courseMode === "tee-select") {
               setCourseMode("camera");
               fileInputRef.current?.click();
             } else if (step === 1 && courseMode !== "select") {

@@ -230,7 +230,7 @@ export const useRounds = () => {
     }
   };
 
-  const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course'>>) => {
+  const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>) => {
     if (!user) return false;
 
     // 1. ALWAYS update local state immediately (optimistic update)
@@ -253,6 +253,7 @@ export const useRounds = () => {
         if (updates.gameData !== undefined) dbUpdates.game_data = updates.gameData;
         if (updates.status !== undefined) dbUpdates.status = updates.status;
         if (updates.course !== undefined) dbUpdates.course_data = updates.course;
+        if (updates.games !== undefined) dbUpdates.games_data = updates.games;
 
         const { error } = await supabase
           .from('rounds')
