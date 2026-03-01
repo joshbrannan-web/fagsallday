@@ -13,6 +13,10 @@ import Admin from './pages/Admin';
 import AdminRoundView from './pages/AdminRoundView';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
+import TournamentList from './pages/TournamentList';
+import TournamentDashboard from './pages/TournamentDashboard';
+import TournamentRoundSetup from './pages/TournamentRoundSetup';
+import TournamentRoundView from './pages/TournamentRoundView';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -513,6 +517,11 @@ const AppContent: React.FC = () => {
         <Route path="/profile" element={<Profile />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/admin/round/:roundId" element={<AdminRoundView />} />
+        <Route path="/tournament" element={<TournamentList />} />
+        <Route path="/tournament/join" element={<TournamentList />} />
+        <Route path="/tournament/:id" element={<TournamentDashboard />} />
+        <Route path="/tournament/:id/setup-round" element={<TournamentRoundSetup />} />
+        <Route path="/tournament/:id/round/:roundId" element={<TournamentRoundView />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppContext.Provider>
