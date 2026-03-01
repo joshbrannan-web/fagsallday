@@ -110,7 +110,7 @@ export const useTournament = (tournamentId?: string) => {
     return () => { supabase.removeChannel(channel); };
   }, [tournamentId, fetchTournament]);
 
-  const createTournament = async (name: string, scoringMode: 'stroke_play' | 'points', maxPlayers: number) => {
+  const createTournament = async (name: string, scoringMode: 'stroke_play' | 'points', maxPlayers: number, settings?: Record<string, any>) => {
     if (!user) return null;
     const { data, error } = await supabase
       .from('tournaments')
@@ -119,6 +119,7 @@ export const useTournament = (tournamentId?: string) => {
         name,
         scoring_mode: scoringMode,
         max_players: maxPlayers,
+        ...(settings ? { settings } : {}),
       })
       .select()
       .single();
@@ -255,6 +256,21 @@ export const useTournament = (tournamentId?: string) => {
     fetchTournament();
   };
 
+  const addPlayers = async (playerRows: { tournament_id: string; user_id: string | null; player_name: string; handicap_index: number; role: 'super_user' | 'scorekeeper' | 'player' }[]) => {
+    if (playerRows.length === 0) return;
+    const { error } = await supabase.from('tournament_players').insert(playerRows);
+    if (error) toast.error('Failed to add players');
+  };
+
+  const regenerateJoinCode = async () => {
+    if (!tournamentId) return;
+    const { data } = await supabase.rpc('generate_join_code');
+    if (data) {
+      await supabase.from('tournaments').update({ join_code: data }).eq('id', tournamentId);
+      fetchTournament();
+    }
+  };
+
   const isCreator = tournament?.creator_id === user?.id;
 
   return {
@@ -275,6 +291,8 @@ export const useTournament = (tournamentId?: string) => {
     updateRoundStatus,
     setScorekeeper,
     removePlayer,
+    addPlayers,
+    regenerateJoinCode,
     fetchTournament,
   };
 };
