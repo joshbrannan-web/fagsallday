@@ -1,76 +1,77 @@
 
 
-## Plan: Tournament Wizard UX Improvements
+## Plan: Fix Duplicate Players, Add Course Selection to Step 1, Restructure Step 3, Add Scorekeeper Links
 
-### Changes Overview
+### Bug Fix: Duplicate player in Add Round
 
-Four modifications to `src/pages/CreateTournamentWizard.tsx`:
+In `CreateTournamentWizard.tsx` `handleCreate`, the creator is added as `super_user` inside `createTournament` (line 132 of `useTournament.tsx`), then all wizard players are inserted again via `addPlayers` (line 306). If the creator is in the wizard player list, they get added twice.
 
-### 1. End Date Calendar defaults to Start Date month
-- Pass `defaultMonth={startDate}` to the end date `Calendar` component
-- Also set `disabled` to prevent selecting dates before start date
-- Lines ~341-343
+**Fix in `CreateTournamentWizard.tsx`**: Filter out the creator's `user_id` from `playerRows` before calling `addPlayers`, since `createTournament` already inserts them as `super_user`.
 
-### 2. Filter already-assigned players from other teams
-- In the team builder (lines 468-483), when rendering player badges for a team, only show players who are either already in *this* team OR not assigned to *any* team
-- Compute `assignedPlayerIds` (set of all player IDs in other teams) and filter accordingly
+---
 
-### 3. Round-by-Round Configuration (replaces current Step 3)
-This is a significant restructure. Instead of selecting games at the tournament level, the wizard allows per-round configuration:
+### Step 1: Add per-round course selection after dates
 
-- Step 3 becomes **"Rounds & Games"**
-- Show tabs/accordion for each round (1 through `numRounds`)
-- For each round, organizer configures:
-  - **Matchup format**: 1v1, 2v2, 4v4, or FFA (Free For All)
-  - **Blind teams toggle**: if on, matchups are across groups not physically together
-  - **Player groupings**: assign players into match groups based on format
-  - **Games**: select scoring formats (same 7 game types) that apply to this round
-  - Per-game config (handicap %, modified stableford values) same as current
+After the user picks start/end dates, show a section for each round (1 through `numRounds`) where they select a course. Reuse the same course selection patterns from `SetupWizard.tsx`:
+- Search verified library (`searchVerifiedCourses`)
+- Search web via `search-course` edge function
+- Select from saved courses
+- Scan scorecard image
 
-- Data model update in `TournamentSettings`:
-  ```text
-  settings.games → removed (replaced by per-round)
-  settings.rounds_config: [{
-    round_number: number,
-    matchup_format: '1v1' | '2v2' | '4v4' | 'ffa',
-    blind_teams: boolean,
-    matchups: [{ group_name: string, playerIds: string[] }],
-    games: TournamentGameConfig[]
-  }]
-  ```
+**State**: Add `roundCourses: (Course | null)[]` state array sized to `numRounds`. Each round gets a mini course-finder inline (search input + results + saved course badges). Store selected courses so Step 3 can reference them.
 
-- Initialize `rounds_config` array with `numRounds` entries when entering Step 3
-- Auto-populate default leaderboard from the union of all round games
+**Validation**: Step 1 requires name + at least round 1 has a course selected.
 
-- Update `handleCreate` to store `rounds_config` instead of `games` in settings
-- Update leaderboard metric options to derive from all unique game types across rounds
+**Files**: 
+- `CreateTournamentWizard.tsx` — add course selection UI per round in Step 1, import `searchCourse`, `fetchCourseDetails`, `courseDataToCourse` from `@/lib/api/courseSearch`, `useVerifiedCourses`, and `useSavedCourses`
 
-### 4. Leaderboard: Scope first, then filtered Metrics
-- Reorder the leaderboard config UI: Scope dropdown appears first (full width or left column)
-- When scope is "Individual", metric dropdown only shows individual game types + daily_points + money_won
-- When scope is "Team", metric dropdown only shows team game types + daily_points + money_won
-- Filter `metricOptions` based on `lb.scope` using `GAME_TYPE_INFO[type].isTeam`
+---
 
-### Files to Modify
-- `src/pages/CreateTournamentWizard.tsx` — all 4 changes
-- `src/services/tournamentScoringEngine.ts` — update `TournamentSettings` type to include `rounds_config`
+### Step 3: Restructure to match non-tournament SetupWizard game selection
 
-### Types addition in scoring engine:
-```typescript
-export interface RoundConfig {
-  round_number: number;
-  matchup_format: '1v1' | '2v2' | '4v4' | 'ffa';
-  blind_teams: boolean;
-  matchups: { group_name: string; playerIds: string[] }[];
-  games: TournamentGameConfig[];
-}
+Step 3 currently has tournament-specific game types (Stableford, Stroke Play, etc.). Replace with the actual game library from `SetupWizard.tsx` (Banker, Skins, Nassau, FBO, Wolf, etc.). Each round accordion should:
+- Show the course name (from Step 1) in the header
+- Allow selecting games from `GAME_LIBRARY` (same list as `SetupWizard`)
+- Configure matchup format (1v1, 2v2, 4v4, FFA) and blind teams toggle
+- Allow assigning players to matchups/tee times within the round
 
-// Update TournamentSettings:
-export interface TournamentSettings {
-  // ... existing fields
-  games: TournamentGameConfig[];        // keep for backward compat
-  rounds_config?: RoundConfig[];        // new per-round config
-  leaderboards: LeaderboardConfig[];
-}
-```
+**Data model update**: `RoundConfig.games` should store the same `GameSettings` format used by regular rounds, not `TournamentGameConfig`. Update `tournamentScoringEngine.ts` types accordingly. Keep `TournamentGameConfig` for backward compat but `RoundConfig` uses `GameSettings[]`.
+
+**Files**:
+- `CreateTournamentWizard.tsx` — import `GAME_LIBRARY` items, render game cards per round
+- `tournamentScoringEngine.ts` — update `RoundConfig` type
+
+---
+
+### Scorekeeper links per round
+
+When the super user starts a round from `TournamentRoundView.tsx`:
+- Before starting, show a "Tee Times" setup where the super user assigns players to groups and picks one scorekeeper per group
+- On "Start Round", generate shareable links for each scorekeeper (similar to `generate-round-links` edge function pattern)
+- Each scorekeeper link grants them `scorekeeper_id` access on that specific `tournament_round`
+
+**Implementation**:
+- Create new edge function `supabase/functions/generate-tournament-round-links/index.ts` that:
+  - Takes `round_id` and `tee_times: [{scorekeeper_user_id, player_ids}]`
+  - For each scorekeeper with a `user_id`, generates a magic link redirecting to `/tournament/:id/round/:roundId`
+  - Returns shareable text with links
+- Update `TournamentRoundView.tsx`:
+  - When status is `SETUP`, show tee time configuration UI (group players, pick scorekeeper per group)
+  - Store tee times in `tournament_rounds.teams_data` jsonb
+  - "Start Round & Generate Links" button calls the edge function and shows share sheet
+- Update `useTournament.tsx`: add `updateRoundTeeTimes` method
+
+**Files**:
+- `supabase/functions/generate-tournament-round-links/index.ts` — new edge function
+- `src/pages/TournamentRoundView.tsx` — tee time setup + link generation UI
+- `src/hooks/useTournament.tsx` — helper methods
+
+---
+
+### Summary of files to modify/create:
+1. **`src/pages/CreateTournamentWizard.tsx`** — fix duplicate player bug, add course selection to Step 1, restructure Step 3 game selection
+2. **`src/services/tournamentScoringEngine.ts`** — update RoundConfig types
+3. **`src/pages/TournamentRoundView.tsx`** — tee time setup with scorekeeper selection + link generation
+4. **`src/hooks/useTournament.tsx`** — fix duplicate player, add tee time helpers
+5. **`supabase/functions/generate-tournament-round-links/index.ts`** — new edge function for scorekeeper links
 
