@@ -1,10 +1,21 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTournament } from '@/hooks/useTournament';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Trophy, Users, Share2, Copy, Loader2, Crown, Plus, Play, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Share2, Copy, Loader2, Crown, Plus, Play, CheckCircle, Lock, Unlock, Trash2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 const TournamentDashboard: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +29,9 @@ const TournamentDashboard: React.FC = () => {
     myRole,
     updateTournamentStatus,
     removePlayer,
+    deleteTournament,
+    lockTournament,
+    unlockTournament,
   } = useTournament(id);
 
   if (isLoading) {
@@ -43,6 +57,19 @@ const TournamentDashboard: React.FC = () => {
     toast.success('Join link copied!');
   };
 
+  const handleDelete = async () => {
+    const success = await deleteTournament(tournament.id);
+    if (success) navigate('/tournament');
+  };
+
+  const handleLock = () => {
+    if (window.confirm('Lock this tournament? This marks it as complete and prevents further changes.')) {
+      lockTournament();
+    }
+  };
+
+  const isLocked = tournament.status === 'COMPLETE';
+
   // Calculate leaderboard
   const leaderboard = players
     .filter(p => p.role !== 'super_user' || players.length <= 1)
@@ -52,7 +79,6 @@ const TournamentDashboard: React.FC = () => {
       rounds.forEach(round => {
         const pts = (round.points_data as any)?.[player.id];
         if (typeof pts === 'number') totalPoints += pts;
-        // Sum strokes from scores
         const scores = round.scores as Record<string, Record<string, number>>;
         Object.values(scores).forEach(holeScores => {
           const s = holeScores[player.id];
@@ -81,7 +107,10 @@ const TournamentDashboard: React.FC = () => {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-foreground truncate">{tournament.name}</h1>
+          <h1 className="text-xl font-bold text-foreground truncate flex items-center gap-1.5">
+            {tournament.name}
+            {isLocked && <Lock className="w-4 h-4 text-muted-foreground" />}
+          </h1>
           <p className={`text-sm capitalize ${statusColor[tournament.status]}`}>
             {tournament.status.toLowerCase()} • {tournament.scoring_mode.replace('_', ' ')}
           </p>
@@ -105,9 +134,9 @@ const TournamentDashboard: React.FC = () => {
         </Button>
       </div>
 
-      {/* Super User Controls */}
+      {/* Creator Controls */}
       {isCreator && (
-        <div className="flex gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4">
           {tournament.status === 'SETUP' && (
             <Button size="sm" onClick={() => updateTournamentStatus('ACTIVE')} className="gap-1">
               <Play className="w-4 h-4" />
@@ -120,12 +149,43 @@ const TournamentDashboard: React.FC = () => {
                 <Plus className="w-4 h-4" />
                 Add Round
               </Button>
-              <Button size="sm" variant="outline" onClick={() => updateTournamentStatus('COMPLETE')} className="gap-1">
-                <CheckCircle className="w-4 h-4" />
-                Complete
+              <Button size="sm" variant="outline" onClick={handleLock} className="gap-1">
+                <Lock className="w-4 h-4" />
+                Lock
               </Button>
             </>
           )}
+          {isLocked && (
+            <Button size="sm" variant="outline" onClick={() => unlockTournament()} className="gap-1">
+              <Unlock className="w-4 h-4" />
+              Unlock
+            </Button>
+          )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="ghost" className="gap-1 text-destructive hover:text-destructive">
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Tournament</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete "{tournament.name}" and all its rounds and players. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleDelete}
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
 
@@ -219,7 +279,7 @@ const TournamentDashboard: React.FC = () => {
                   </p>
                   <p className="text-xs text-muted-foreground">HCP: {p.handicap_index}</p>
                 </div>
-                {isCreator && p.role !== 'super_user' && (
+                {isCreator && p.role !== 'super_user' && !isLocked && (
                   <Button
                     variant="ghost"
                     size="sm"
