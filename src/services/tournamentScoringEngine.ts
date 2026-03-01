@@ -58,6 +58,14 @@ export interface TeamConfig {
   playerIds: string[];
 }
 
+export interface RoundConfig {
+  round_number: number;
+  matchup_format: '1v1' | '2v2' | '4v4' | 'ffa';
+  blind_teams: boolean;
+  matchups: { group_name: string; playerIds: string[] }[];
+  games: TournamentGameConfig[];
+}
+
 export interface TournamentSettings {
   description?: string;
   num_rounds: number;
@@ -66,6 +74,7 @@ export interface TournamentSettings {
   teams_enabled: boolean;
   teams?: TeamConfig[];
   games: TournamentGameConfig[];
+  rounds_config?: RoundConfig[];
   leaderboards: LeaderboardConfig[];
 }
 

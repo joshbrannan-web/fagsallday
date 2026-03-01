@@ -13,6 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import {
@@ -28,6 +29,7 @@ import {
   type TeamConfig,
   type TournamentSettings,
   type ModifiedStablefordValues,
+  type RoundConfig,
 } from '@/services/tournamentScoringEngine';
 import { cn } from '@/lib/utils';
 
@@ -49,8 +51,15 @@ const TEAM_COLORS = [
 const STEPS = [
   { label: 'Basic Info', icon: Trophy },
   { label: 'Players', icon: Users },
-  { label: 'Games', icon: Target },
+  { label: 'Rounds & Games', icon: Target },
   { label: 'Leaderboards', icon: BarChart3 },
+];
+
+const MATCHUP_FORMATS = [
+  { value: '1v1' as const, label: '1 vs 1' },
+  { value: '2v2' as const, label: '2 vs 2' },
+  { value: '4v4' as const, label: '4 vs 4' },
+  { value: 'ffa' as const, label: 'Free For All' },
 ];
 
 // ════════════════════════════════════════════════
@@ -80,24 +89,47 @@ const CreateTournamentWizard: React.FC = () => {
   const [searchResults, setSearchResults] = useState<{ id: string; display_name: string }[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Step 3 state
-  const [selectedGames, setSelectedGames] = useState<TournamentGameConfig[]>([]);
+  // Step 3 state — per-round config
+  const [roundsConfig, setRoundsConfig] = useState<RoundConfig[]>([]);
 
   // Step 4 state
   const [leaderboards, setLeaderboards] = useState<LeaderboardConfig[]>([]);
 
-  // Auto-populate default leaderboard when games change
+  // Initialize rounds_config when entering Step 3
   useEffect(() => {
-    if (step === 3 && leaderboards.length === 0 && selectedGames.length > 0) {
-      const first = selectedGames[0];
-      const info = GAME_TYPE_INFO[first.type];
-      setLeaderboards([{
-        name: info.isTeam ? 'Team Standings' : 'Individual Standings',
-        metric: first.type,
-        scope: info.isTeam ? 'team' : 'individual',
-        sort: info.defaultSort,
-        show_rounds_breakdown: true,
-      }]);
+    if (step === 2) {
+      setRoundsConfig(prev => {
+        // Preserve existing config, add/remove rounds as needed
+        const updated: RoundConfig[] = [];
+        for (let i = 0; i < numRounds; i++) {
+          updated.push(prev[i] || {
+            round_number: i + 1,
+            matchup_format: 'ffa',
+            blind_teams: false,
+            matchups: [],
+            games: [],
+          });
+        }
+        return updated;
+      });
+    }
+  }, [step, numRounds]);
+
+  // Auto-populate default leaderboard when entering Step 4
+  useEffect(() => {
+    if (step === 3 && leaderboards.length === 0) {
+      const allGames = roundsConfig.flatMap(r => r.games);
+      if (allGames.length > 0) {
+        const first = allGames[0];
+        const info = GAME_TYPE_INFO[first.type];
+        setLeaderboards([{
+          name: info.isTeam ? 'Team Standings' : 'Individual Standings',
+          metric: first.type,
+          scope: info.isTeam ? 'team' : 'individual',
+          sort: info.defaultSort,
+          show_rounds_breakdown: true,
+        }]);
+      }
     }
   }, [step]);
 
@@ -144,16 +176,21 @@ const CreateTournamentWizard: React.FC = () => {
     setTeams(prev => prev.map((t, i) => ({
       ...t,
       playerIds: i === teamIdx
-        ? (t.playerIds.includes(playerId) ? t.playerIds : [...t.playerIds, playerId])
+        ? (t.playerIds.includes(playerId) ? t.playerIds.filter(id => id !== playerId) : [...t.playerIds, playerId])
         : t.playerIds.filter(id => id !== playerId),
     })));
   };
 
-  // ── Games toggle ──
-  const toggleGame = (type: TournamentGameType) => {
-    setSelectedGames(prev => {
-      const exists = prev.find(g => g.type === type);
-      if (exists) return prev.filter(g => g.type !== type);
+  // ── Round config helpers ──
+  const updateRoundConfig = (roundIdx: number, updates: Partial<RoundConfig>) => {
+    setRoundsConfig(prev => prev.map((r, i) => i === roundIdx ? { ...r, ...updates } : r));
+  };
+
+  const toggleRoundGame = (roundIdx: number, type: TournamentGameType) => {
+    setRoundsConfig(prev => prev.map((r, i) => {
+      if (i !== roundIdx) return r;
+      const exists = r.games.find(g => g.type === type);
+      if (exists) return { ...r, games: r.games.filter(g => g.type !== type) };
       const info = GAME_TYPE_INFO[type];
       const config: TournamentGameConfig = {
         type,
@@ -163,33 +200,42 @@ const CreateTournamentWizard: React.FC = () => {
           stableford_values: type === 'modified_stableford' ? { ...DEFAULT_MODIFIED_STABLEFORD } : undefined,
         },
       };
-      return [...prev, config];
-    });
+      return { ...r, games: [...r.games, config] };
+    }));
   };
 
-  const updateGameConfig = (type: TournamentGameType, key: string, value: any) => {
-    setSelectedGames(prev => prev.map(g =>
-      g.type === type ? { ...g, config: { ...g.config, [key]: value } } : g
-    ));
+  const updateRoundGameConfig = (roundIdx: number, type: TournamentGameType, key: string, value: any) => {
+    setRoundsConfig(prev => prev.map((r, i) => {
+      if (i !== roundIdx) return r;
+      return { ...r, games: r.games.map(g => g.type === type ? { ...g, config: { ...g.config, [key]: value } } : g) };
+    }));
   };
 
-  const updateStablefordValue = (type: TournamentGameType, field: keyof ModifiedStablefordValues, value: number) => {
-    setSelectedGames(prev => prev.map(g => {
-      if (g.type !== type) return g;
-      const sv = g.config.stableford_values || { ...DEFAULT_MODIFIED_STABLEFORD };
-      return { ...g, config: { ...g.config, stableford_values: { ...sv, [field]: value } } };
+  const updateRoundStablefordValue = (roundIdx: number, type: TournamentGameType, field: keyof ModifiedStablefordValues, value: number) => {
+    setRoundsConfig(prev => prev.map((r, i) => {
+      if (i !== roundIdx) return r;
+      return {
+        ...r,
+        games: r.games.map(g => {
+          if (g.type !== type) return g;
+          const sv = g.config.stableford_values || { ...DEFAULT_MODIFIED_STABLEFORD };
+          return { ...g, config: { ...g.config, stableford_values: { ...sv, [field]: value } } };
+        }),
+      };
     }));
   };
 
   // ── Leaderboards ──
+  const allUniqueGameTypes = Array.from(new Set(roundsConfig.flatMap(r => r.games.map(g => g.type))));
+
   const addLeaderboard = () => {
     if (leaderboards.length >= 5) return;
-    const game = selectedGames[0];
+    const firstType = allUniqueGameTypes[0];
     setLeaderboards(prev => [...prev, {
       name: `Leaderboard ${prev.length + 1}`,
-      metric: game?.type || 'stroke_gross',
+      metric: firstType || 'stroke_gross',
       scope: 'individual',
-      sort: game ? GAME_TYPE_INFO[game.type].defaultSort : 'asc',
+      sort: firstType ? GAME_TYPE_INFO[firstType].defaultSort : 'asc',
       show_rounds_breakdown: true,
     }]);
   };
@@ -200,14 +246,27 @@ const CreateTournamentWizard: React.FC = () => {
     setLeaderboards(prev => prev.map((lb, i) => i === idx ? { ...lb, ...updates } : lb));
   };
 
-
+  // ── Filtered metric options based on scope ──
+  const getMetricOptions = (scope: 'individual' | 'team') => {
+    const filtered = allUniqueGameTypes
+      .filter(type => {
+        const info = GAME_TYPE_INFO[type];
+        return scope === 'team' ? info.isTeam : !info.isTeam;
+      })
+      .map(type => ({ value: type, label: GAME_TYPE_INFO[type].name }));
+    return [
+      ...filtered,
+      { value: 'daily_points', label: 'Daily Points' },
+      { value: 'money_won', label: 'Money Won' },
+    ];
+  };
 
   // ── Validation ──
   const canAdvance = (): boolean => {
     switch (step) {
       case 0: return name.trim().length > 0;
       case 1: return players.length >= 2 && (!teamsEnabled || teams.length >= 2);
-      case 2: return selectedGames.length > 0;
+      case 2: return roundsConfig.every(r => r.games.length > 0);
       case 3: return leaderboards.length > 0;
       default: return false;
     }
@@ -217,6 +276,11 @@ const CreateTournamentWizard: React.FC = () => {
   const handleCreate = async () => {
     setIsSubmitting(true);
     try {
+      // Flatten all games for backward compat
+      const allGames = Array.from(
+        new Map(roundsConfig.flatMap(r => r.games).map(g => [g.type, g])).values()
+      );
+
       const settings: TournamentSettings = {
         description: description || undefined,
         num_rounds: numRounds,
@@ -224,14 +288,14 @@ const CreateTournamentWizard: React.FC = () => {
         end_date: endDate?.toISOString(),
         teams_enabled: teamsEnabled,
         teams: teamsEnabled ? teams : undefined,
-        games: selectedGames,
+        games: allGames,
+        rounds_config: roundsConfig,
         leaderboards,
       };
 
       const t = await createTournament(name.trim(), 'points', players.length, settings);
       if (!t) { setIsSubmitting(false); return; }
 
-      // Batch insert players
       const playerRows = players.map(p => ({
         tournament_id: t.id,
         user_id: p.user_id || null,
@@ -247,13 +311,6 @@ const CreateTournamentWizard: React.FC = () => {
       setIsSubmitting(false);
     }
   };
-
-  // ── Metric options for leaderboard dropdown ──
-  const metricOptions = [
-    ...selectedGames.map(g => ({ value: g.type, label: GAME_TYPE_INFO[g.type].name })),
-    { value: 'daily_points', label: 'Daily Points' },
-    { value: 'money_won', label: 'Money Won' },
-  ];
 
   // ════════════════════════════════════════════════
   // RENDER
@@ -339,7 +396,15 @@ const CreateTournamentWizard: React.FC = () => {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus className="p-3 pointer-events-auto" />
+                    <Calendar
+                      mode="single"
+                      selected={endDate}
+                      onSelect={setEndDate}
+                      defaultMonth={startDate}
+                      disabled={startDate ? (date) => date < startDate : undefined}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -452,37 +517,51 @@ const CreateTournamentWizard: React.FC = () => {
 
               {teamsEnabled && (
                 <div className="space-y-3 pt-2 border-t">
-                  {teams.map((team, i) => (
-                    <div key={i} className="bg-secondary/50 rounded-lg p-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
-                        <Input
-                          value={team.name}
-                          onChange={e => updateTeamName(i, e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeTeam(i)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                  {teams.map((team, i) => {
+                    // Compute players assigned to OTHER teams
+                    const assignedToOtherTeams = new Set(
+                      teams.flatMap((t, ti) => ti !== i ? t.playerIds : [])
+                    );
+                    // Only show players in this team OR unassigned
+                    const availablePlayers = players.filter(
+                      p => team.playerIds.includes(p.id) || !assignedToOtherTeams.has(p.id)
+                    );
+
+                    return (
+                      <div key={i} className="bg-secondary/50 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
+                          <Input
+                            value={team.name}
+                            onChange={e => updateTeamName(i, e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeTeam(i)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {availablePlayers.map(p => {
+                            const inThisTeam = team.playerIds.includes(p.id);
+                            return (
+                              <Badge
+                                key={p.id}
+                                variant={inThisTeam ? 'default' : 'outline'}
+                                className="cursor-pointer text-xs"
+                                onClick={() => assignPlayerToTeam(p.id, i)}
+                              >
+                                {inThisTeam && <Check className="w-3 h-3 mr-1" />}
+                                {p.name}
+                              </Badge>
+                            );
+                          })}
+                          {availablePlayers.length === 0 && (
+                            <span className="text-xs text-muted-foreground italic">All players assigned to other teams</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-1">
-                        {players.map(p => {
-                          const inThisTeam = team.playerIds.includes(p.id);
-                          return (
-                            <Badge
-                              key={p.id}
-                              variant={inThisTeam ? 'default' : 'outline'}
-                              className="cursor-pointer text-xs"
-                              onClick={() => assignPlayerToTeam(p.id, i)}
-                            >
-                              {inThisTeam && <Check className="w-3 h-3 mr-1" />}
-                              {p.name}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <Button variant="outline" size="sm" className="w-full gap-1" onClick={addTeam}>
                     <Plus className="w-4 h-4" /> Add Team
                   </Button>
@@ -492,121 +571,167 @@ const CreateTournamentWizard: React.FC = () => {
           </div>
         )}
 
-        {/* ═══ Step 3: Games ═══ */}
+        {/* ═══ Step 3: Rounds & Games ═══ */}
         {step === 2 && (
           <div className="space-y-5 animate-fade-in">
             <p className="text-sm text-muted-foreground">
-              Select one or more scoring formats. {!teamsEnabled && 'Enable teams in Step 2 to unlock team games.'}
+              Configure each round's matchup format and scoring games.
+              {!teamsEnabled && ' Enable teams in Step 2 to unlock team games.'}
             </p>
 
-            {/* Individual games */}
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Individual</h3>
-              <div className="space-y-2">
-                {(Object.entries(GAME_TYPE_INFO) as [TournamentGameType, typeof GAME_TYPE_INFO[TournamentGameType]][])
-                  .filter(([, info]) => !info.isTeam)
-                  .map(([type, info]) => {
-                    const selected = !!selectedGames.find(g => g.type === type);
-                    const game = selectedGames.find(g => g.type === type);
-                    return (
-                      <div key={type}>
-                        <button
-                          onClick={() => toggleGame(type)}
-                          className={cn(
-                            'w-full text-left border rounded-xl p-3 transition-all',
-                            selected ? 'border-primary bg-accent/30 ring-1 ring-primary' : 'bg-card hover:bg-accent/10'
-                          )}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="font-medium text-sm text-foreground">{info.name}</span>
-                              <p className="text-xs text-muted-foreground mt-0.5">{info.description}</p>
-                            </div>
-                            {selected && <Check className="w-5 h-5 text-primary shrink-0" />}
-                          </div>
-                        </button>
-                        {/* Config for net games */}
-                        {selected && type === 'stroke_net' && game && (
-                          <div className="ml-4 mt-2 flex items-center gap-2">
-                            <label className="text-xs text-muted-foreground">Handicap %</label>
-                            <Input
-                              type="number"
-                              value={game.config.handicap_pct ?? 100}
-                              onChange={e => updateGameConfig(type, 'handicap_pct', parseInt(e.target.value) || 100)}
-                              className="w-20 h-7 text-xs text-center"
-                              min={0} max={100}
-                            />
-                          </div>
-                        )}
-                        {/* Config for modified stableford */}
-                        {selected && type === 'modified_stableford' && game && (
-                          <div className="ml-4 mt-2 space-y-1">
-                            {(['eagle', 'birdie', 'par', 'bogey', 'double_bogey'] as const).map(field => (
-                              <div key={field} className="flex items-center gap-2">
-                                <label className="text-xs text-muted-foreground capitalize w-24">{field.replace('_', ' ')}</label>
-                                <Input
-                                  type="number"
-                                  value={game.config.stableford_values?.[field] ?? DEFAULT_MODIFIED_STABLEFORD[field]}
-                                  onChange={e => updateStablefordValue(type, field, parseInt(e.target.value) || 0)}
-                                  className="w-20 h-7 text-xs text-center"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        )}
+            <Accordion type="multiple" defaultValue={roundsConfig.map((_, i) => `round-${i}`)}>
+              {roundsConfig.map((rc, ri) => (
+                <AccordionItem key={ri} value={`round-${ri}`}>
+                  <AccordionTrigger className="text-sm font-semibold">
+                    <div className="flex items-center gap-2">
+                      Round {ri + 1}
+                      {rc.games.length > 0 && (
+                        <Badge variant="secondary" className="text-[10px]">{rc.games.length} game{rc.games.length !== 1 ? 's' : ''}</Badge>
+                      )}
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-2">
+                    {/* Matchup format */}
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Matchup Format</label>
+                      <div className="grid grid-cols-4 gap-2 mt-1">
+                        {MATCHUP_FORMATS.map(mf => (
+                          <button
+                            key={mf.value}
+                            onClick={() => updateRoundConfig(ri, { matchup_format: mf.value })}
+                            className={cn(
+                              'text-xs border rounded-lg py-2 px-1 transition-all text-center',
+                              rc.matchup_format === mf.value
+                                ? 'border-primary bg-accent/30 ring-1 ring-primary text-foreground'
+                                : 'bg-card hover:bg-accent/10 text-muted-foreground'
+                            )}
+                          >
+                            {mf.label}
+                          </button>
+                        ))}
                       </div>
-                    );
-                  })}
-              </div>
-            </div>
+                    </div>
 
-            {/* Team games */}
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Team</h3>
-              <div className="space-y-2">
-                {(Object.entries(GAME_TYPE_INFO) as [TournamentGameType, typeof GAME_TYPE_INFO[TournamentGameType]][])
-                  .filter(([, info]) => info.isTeam)
-                  .map(([type, info]) => {
-                    const disabled = !teamsEnabled;
-                    const selected = !!selectedGames.find(g => g.type === type);
-                    const game = selectedGames.find(g => g.type === type);
-                    return (
-                      <div key={type}>
-                        <button
-                          onClick={() => !disabled && toggleGame(type)}
-                          disabled={disabled}
-                          className={cn(
-                            'w-full text-left border rounded-xl p-3 transition-all',
-                            disabled && 'opacity-50 cursor-not-allowed',
-                            selected ? 'border-primary bg-accent/30 ring-1 ring-primary' : 'bg-card hover:bg-accent/10'
-                          )}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="font-medium text-sm text-foreground">{info.name}</span>
-                              <p className="text-xs text-muted-foreground mt-0.5">{info.description}</p>
-                            </div>
-                            {selected && <Check className="w-5 h-5 text-primary shrink-0" />}
-                          </div>
-                        </button>
-                        {/* Config for team net games */}
-                        {selected && (type === 'team_stroke_net' || type === 'team_best_ball') && game && (
-                          <div className="ml-4 mt-2 flex items-center gap-2">
-                            <label className="text-xs text-muted-foreground">Handicap %</label>
-                            <Input
-                              type="number"
-                              value={game.config.handicap_pct ?? 100}
-                              onChange={e => updateGameConfig(type, 'handicap_pct', parseInt(e.target.value) || 100)}
-                              className="w-20 h-7 text-xs text-center"
-                              min={0} max={100}
-                            />
-                          </div>
-                        )}
+                    {/* Blind teams toggle */}
+                    <div className="flex items-center justify-between bg-secondary/30 rounded-lg p-3">
+                      <div>
+                        <span className="text-xs font-medium text-foreground">Blind Teams</span>
+                        <p className="text-[10px] text-muted-foreground">Matchups can be across groups not playing together</p>
                       </div>
-                    );
-                  })}
-              </div>
-            </div>
+                      <Switch
+                        checked={rc.blind_teams}
+                        onCheckedChange={v => updateRoundConfig(ri, { blind_teams: v })}
+                      />
+                    </div>
+
+                    {/* Games selection */}
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Individual Games</label>
+                      <div className="space-y-1.5 mt-1">
+                        {(Object.entries(GAME_TYPE_INFO) as [TournamentGameType, typeof GAME_TYPE_INFO[TournamentGameType]][])
+                          .filter(([, info]) => !info.isTeam)
+                          .map(([type, info]) => {
+                            const selected = !!rc.games.find(g => g.type === type);
+                            const game = rc.games.find(g => g.type === type);
+                            return (
+                              <div key={type}>
+                                <button
+                                  onClick={() => toggleRoundGame(ri, type)}
+                                  className={cn(
+                                    'w-full text-left border rounded-xl p-3 transition-all',
+                                    selected ? 'border-primary bg-accent/30 ring-1 ring-primary' : 'bg-card hover:bg-accent/10'
+                                  )}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <span className="font-medium text-sm text-foreground">{info.name}</span>
+                                      <p className="text-xs text-muted-foreground mt-0.5">{info.description}</p>
+                                    </div>
+                                    {selected && <Check className="w-5 h-5 text-primary shrink-0" />}
+                                  </div>
+                                </button>
+                                {selected && type === 'stroke_net' && game && (
+                                  <div className="ml-4 mt-2 flex items-center gap-2">
+                                    <label className="text-xs text-muted-foreground">Handicap %</label>
+                                    <Input
+                                      type="number"
+                                      value={game.config.handicap_pct ?? 100}
+                                      onChange={e => updateRoundGameConfig(ri, type, 'handicap_pct', parseInt(e.target.value) || 100)}
+                                      className="w-20 h-7 text-xs text-center"
+                                      min={0} max={100}
+                                    />
+                                  </div>
+                                )}
+                                {selected && type === 'modified_stableford' && game && (
+                                  <div className="ml-4 mt-2 space-y-1">
+                                    {(['eagle', 'birdie', 'par', 'bogey', 'double_bogey'] as const).map(field => (
+                                      <div key={field} className="flex items-center gap-2">
+                                        <label className="text-xs text-muted-foreground capitalize w-24">{field.replace('_', ' ')}</label>
+                                        <Input
+                                          type="number"
+                                          value={game.config.stableford_values?.[field] ?? DEFAULT_MODIFIED_STABLEFORD[field]}
+                                          onChange={e => updateRoundStablefordValue(ri, type, field, parseInt(e.target.value) || 0)}
+                                          className="w-20 h-7 text-xs text-center"
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Team Games</label>
+                      <div className="space-y-1.5 mt-1">
+                        {(Object.entries(GAME_TYPE_INFO) as [TournamentGameType, typeof GAME_TYPE_INFO[TournamentGameType]][])
+                          .filter(([, info]) => info.isTeam)
+                          .map(([type, info]) => {
+                            const disabled = !teamsEnabled;
+                            const selected = !!rc.games.find(g => g.type === type);
+                            const game = rc.games.find(g => g.type === type);
+                            return (
+                              <div key={type}>
+                                <button
+                                  onClick={() => !disabled && toggleRoundGame(ri, type)}
+                                  disabled={disabled}
+                                  className={cn(
+                                    'w-full text-left border rounded-xl p-3 transition-all',
+                                    disabled && 'opacity-50 cursor-not-allowed',
+                                    selected ? 'border-primary bg-accent/30 ring-1 ring-primary' : 'bg-card hover:bg-accent/10'
+                                  )}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <span className="font-medium text-sm text-foreground">{info.name}</span>
+                                      <p className="text-xs text-muted-foreground mt-0.5">{info.description}</p>
+                                    </div>
+                                    {selected && <Check className="w-5 h-5 text-primary shrink-0" />}
+                                  </div>
+                                </button>
+                                {selected && (type === 'team_stroke_net' || type === 'team_best_ball') && game && (
+                                  <div className="ml-4 mt-2 flex items-center gap-2">
+                                    <label className="text-xs text-muted-foreground">Handicap %</label>
+                                    <Input
+                                      type="number"
+                                      value={game.config.handicap_pct ?? 100}
+                                      onChange={e => updateRoundGameConfig(ri, type, 'handicap_pct', parseInt(e.target.value) || 100)}
+                                      className="w-20 h-7 text-xs text-center"
+                                      min={0} max={100}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           </div>
         )}
 
@@ -617,36 +742,60 @@ const CreateTournamentWizard: React.FC = () => {
               Configure up to 5 leaderboards. The first is the default view.
             </p>
 
-            {leaderboards.map((lb, i) => (
-              <div key={i} className="bg-card border rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {i === 0 && <Badge variant="secondary" className="text-[10px]">Default</Badge>}
-                    <span className="text-xs text-muted-foreground">Leaderboard {i + 1}</span>
+            {leaderboards.map((lb, i) => {
+              const metricOptions = getMetricOptions(lb.scope);
+              // If current metric is not valid for the new scope, reset it
+              const isMetricValid = metricOptions.some(o => o.value === lb.metric);
+
+              return (
+                <div key={i} className="bg-card border rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {i === 0 && <Badge variant="secondary" className="text-[10px]">Default</Badge>}
+                      <span className="text-xs text-muted-foreground">Leaderboard {i + 1}</span>
+                    </div>
+                    {leaderboards.length > 1 && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeLeaderboard(i)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
-                  {leaderboards.length > 1 && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeLeaderboard(i)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  )}
-                </div>
 
-                <Input
-                  value={lb.name}
-                  onChange={e => updateLeaderboard(i, { name: e.target.value })}
-                  placeholder="Leaderboard name"
-                  className="text-sm"
-                />
+                  <Input
+                    value={lb.name}
+                    onChange={e => updateLeaderboard(i, { name: e.target.value })}
+                    placeholder="Leaderboard name"
+                    className="text-sm"
+                  />
 
-                <div className="grid grid-cols-2 gap-2">
+                  {/* Scope FIRST */}
+                  <div>
+                    <label className="text-xs text-muted-foreground">Scope</label>
+                    <Select value={lb.scope} onValueChange={v => {
+                      const newScope = v as 'individual' | 'team';
+                      const newMetricOptions = getMetricOptions(newScope);
+                      const metricStillValid = newMetricOptions.some(o => o.value === lb.metric);
+                      updateLeaderboard(i, {
+                        scope: newScope,
+                        metric: metricStillValid ? lb.metric : (newMetricOptions[0]?.value || 'stroke_gross'),
+                      });
+                    }}>
+                      <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual" className="text-xs">Individual</SelectItem>
+                        <SelectItem value="team" className="text-xs">Team</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Metric filtered by scope */}
                   <div>
                     <label className="text-xs text-muted-foreground">Metric</label>
-                    <Select value={lb.metric} onValueChange={v => {
+                    <Select value={isMetricValid ? lb.metric : metricOptions[0]?.value} onValueChange={v => {
                       const gameInfo = GAME_TYPE_INFO[v as TournamentGameType];
                       updateLeaderboard(i, {
                         metric: v,
                         sort: gameInfo?.defaultSort || lb.sort,
-                        scope: gameInfo?.isTeam ? 'team' : lb.scope,
                       });
                     }}>
                       <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
@@ -657,39 +806,29 @@ const CreateTournamentWizard: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Scope</label>
-                    <Select value={lb.scope} onValueChange={v => updateLeaderboard(i, { scope: v as 'individual' | 'team' })}>
-                      <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="individual" className="text-xs">Individual</SelectItem>
-                        <SelectItem value="team" className="text-xs">Team</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground">Sort</label>
-                    <Select value={lb.sort} onValueChange={v => updateLeaderboard(i, { sort: v as 'asc' | 'desc' })}>
-                      <SelectTrigger className="text-xs h-8 w-32"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="asc" className="text-xs">Low → High</SelectItem>
-                        <SelectItem value="desc" className="text-xs">High → Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground">Per-round</label>
-                    <Switch
-                      checked={lb.show_rounds_breakdown}
-                      onCheckedChange={v => updateLeaderboard(i, { show_rounds_breakdown: v })}
-                    />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground">Sort</label>
+                      <Select value={lb.sort} onValueChange={v => updateLeaderboard(i, { sort: v as 'asc' | 'desc' })}>
+                        <SelectTrigger className="text-xs h-8 w-32"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="asc" className="text-xs">Low → High</SelectItem>
+                          <SelectItem value="desc" className="text-xs">High → Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground">Per-round</label>
+                      <Switch
+                        checked={lb.show_rounds_breakdown}
+                        onCheckedChange={v => updateLeaderboard(i, { show_rounds_breakdown: v })}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {leaderboards.length < 5 && (
               <Button variant="outline" className="w-full gap-1" onClick={addLeaderboard}>
