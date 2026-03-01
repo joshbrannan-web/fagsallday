@@ -33,6 +33,13 @@ const TournamentList: React.FC = () => {
   const [joinCode, setJoinCode] = useState(searchParams.get('code') || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Auth guard
+  React.useEffect(() => {
+    if (!user) {
+      navigate('/auth');
+    }
+  }, [user, navigate]);
+
   // Auto-join if code in URL
   React.useEffect(() => {
     const code = searchParams.get('code');
@@ -42,7 +49,6 @@ const TournamentList: React.FC = () => {
   }, [user]);
 
   if (!user) {
-    navigate('/auth');
     return null;
   }
 
