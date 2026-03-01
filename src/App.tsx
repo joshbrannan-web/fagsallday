@@ -17,6 +17,7 @@ import TournamentList from './pages/TournamentList';
 import TournamentDashboard from './pages/TournamentDashboard';
 import TournamentRoundSetup from './pages/TournamentRoundSetup';
 import TournamentRoundView from './pages/TournamentRoundView';
+import CreateTournamentWizard from './pages/CreateTournamentWizard';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -518,6 +519,7 @@ const AppContent: React.FC = () => {
         <Route path="/admin" element={<Admin />} />
         <Route path="/admin/round/:roundId" element={<AdminRoundView />} />
         <Route path="/tournament" element={<TournamentList />} />
+        <Route path="/tournament/create" element={<CreateTournamentWizard />} />
         <Route path="/tournament/join" element={<TournamentList />} />
         <Route path="/tournament/:id" element={<TournamentDashboard />} />
         <Route path="/tournament/:id/setup-round" element={<TournamentRoundSetup />} />

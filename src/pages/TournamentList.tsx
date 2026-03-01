@@ -5,20 +5,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Trophy, Plus, ArrowLeft, Users, Loader2 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 const TournamentList: React.FC = () => {
   const navigate = useNavigate();
@@ -26,10 +12,6 @@ const TournamentList: React.FC = () => {
   const { user } = useAuth();
   const { tournaments, isLoading, createTournament, joinTournament } = useTournament();
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [name, setName] = useState('');
-  const [scoringMode, setScoringMode] = useState<'stroke_play' | 'points'>('points');
-  const [maxPlayers, setMaxPlayers] = useState('20');
   const [joinCode, setJoinCode] = useState(searchParams.get('code') || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -51,17 +33,6 @@ const TournamentList: React.FC = () => {
   if (!user) {
     return null;
   }
-
-  const handleCreate = async () => {
-    if (!name.trim()) return;
-    setIsSubmitting(true);
-    const t = await createTournament(name.trim(), scoringMode, parseInt(maxPlayers) || 20);
-    setIsSubmitting(false);
-    if (t) {
-      setShowCreate(false);
-      navigate(`/tournament/${t.id}`);
-    }
-  };
 
   const handleJoin = async (code?: string) => {
     const c = code || joinCode.trim();
@@ -108,52 +79,10 @@ const TournamentList: React.FC = () => {
       </div>
 
       {/* Create Tournament */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogTrigger asChild>
-          <Button className="w-full mb-6 gap-2" size="lg">
-            <Plus className="w-5 h-5" />
-            Create Tournament
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Tournament</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div>
-              <label className="text-sm font-medium text-foreground">Tournament Name</label>
-              <Input
-                placeholder="e.g. Annual Buddies Trip"
-                value={name}
-                onChange={e => setName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-foreground">Scoring Mode</label>
-              <Select value={scoringMode} onValueChange={v => setScoringMode(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="points">Points-Based</SelectItem>
-                  <SelectItem value="stroke_play">Stroke Play</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-foreground">Max Players</label>
-              <Input
-                type="number"
-                value={maxPlayers}
-                onChange={e => setMaxPlayers(e.target.value)}
-                min={2}
-                max={200}
-              />
-            </div>
-            <Button onClick={handleCreate} disabled={!name.trim() || isSubmitting} className="w-full">
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <Button className="w-full mb-6 gap-2" size="lg" onClick={() => navigate('/tournament/create')}>
+        <Plus className="w-5 h-5" />
+        Create Tournament
+      </Button>
 
       {/* Tournament List */}
       {tournaments.length === 0 ? (
