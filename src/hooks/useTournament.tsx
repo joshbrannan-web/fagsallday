@@ -256,6 +256,31 @@ export const useTournament = (tournamentId?: string) => {
     fetchTournament();
   };
 
+  const deleteTournament = async (id: string) => {
+    // Delete players and rounds first (no cascade in RLS)
+    await supabase.from('tournament_rounds').delete().eq('tournament_id', id);
+    await supabase.from('tournament_players').delete().eq('tournament_id', id);
+    const { error } = await supabase.from('tournaments').delete().eq('id', id);
+    if (error) { toast.error('Failed to delete tournament'); return false; }
+    setTournaments(prev => prev.filter(t => t.id !== id));
+    toast.success('Tournament deleted');
+    return true;
+  };
+
+  const lockTournament = async () => {
+    if (!tournamentId) return;
+    await supabase.from('tournaments').update({ status: 'COMPLETE' }).eq('id', tournamentId);
+    fetchTournament();
+    toast.success('Tournament locked');
+  };
+
+  const unlockTournament = async () => {
+    if (!tournamentId) return;
+    await supabase.from('tournaments').update({ status: 'ACTIVE' }).eq('id', tournamentId);
+    fetchTournament();
+    toast.success('Tournament unlocked');
+  };
+
   const addPlayers = async (playerRows: { tournament_id: string; user_id: string | null; player_name: string; handicap_index: number; role: 'super_user' | 'scorekeeper' | 'player' }[]) => {
     if (playerRows.length === 0) return;
     const { error } = await supabase.from('tournament_players').insert(playerRows);
@@ -294,5 +319,8 @@ export const useTournament = (tournamentId?: string) => {
     addPlayers,
     regenerateJoinCode,
     fetchTournament,
+    deleteTournament,
+    lockTournament,
+    unlockTournament,
   };
 };
