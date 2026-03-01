@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTournament } from '@/hooks/useTournament';
 import { useSavedPlayers } from '@/hooks/useSavedPlayers';
+import { useSavedCourses } from '@/hooks/useSavedCourses';
+import { useVerifiedCourses, VerifiedCourseResult } from '@/hooks/useVerifiedCourses';
+import { searchCourse, fetchCourseDetails, courseDataToCourse } from '@/lib/api/courseSearch';
 import { supabase } from '@/integrations/supabase/client';
+import { Course } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,6 +23,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, ArrowRight, CalendarIcon, Plus, Minus, Trash2,
   Trophy, Users, Target, BarChart3, Loader2, Search, X, Check,
+  MapPin, Globe, BadgeCheck,
 } from 'lucide-react';
 import {
   GAME_TYPE_INFO,
@@ -30,6 +35,7 @@ import {
   type TournamentSettings,
   type ModifiedStablefordValues,
   type RoundConfig,
+  type RoundCourseData,
 } from '@/services/tournamentScoringEngine';
 import { cn } from '@/lib/utils';
 
@@ -70,6 +76,8 @@ const CreateTournamentWizard: React.FC = () => {
   const { user } = useAuth();
   const { createTournament, addPlayers } = useTournament();
   const { savedPlayers } = useSavedPlayers();
+  const { savedCourses, favoriteCourses, nonFavoriteCourses } = useSavedCourses();
+  const { searchVerifiedCourses } = useVerifiedCourses();
 
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,6 +88,13 @@ const CreateTournamentWizard: React.FC = () => {
   const [numRounds, setNumRounds] = useState(1);
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+  // Per-round course selection
+  const [roundCourses, setRoundCourses] = useState<(Course | null)[]>([null]);
+  const [courseSearchQueries, setCourseSearchQueries] = useState<string[]>(['']);
+  const [courseSearchResults, setCourseSearchResults] = useState<Record<number, VerifiedCourseResult[]>>({});
+  const [webSearchResults, setWebSearchResults] = useState<Record<number, { name: string; location: string; url: string }[]>>({});
+  const [courseSearchLoading, setCourseSearchLoading] = useState<Record<number, boolean>>({});
+  const [courseFetchLoading, setCourseFetchLoading] = useState<Record<number, boolean>>({});
 
   // Step 2 state
   const [players, setPlayers] = useState<WizardPlayer[]>([]);
@@ -95,15 +110,34 @@ const CreateTournamentWizard: React.FC = () => {
   // Step 4 state
   const [leaderboards, setLeaderboards] = useState<LeaderboardConfig[]>([]);
 
+  // Sync roundCourses array size with numRounds
+  useEffect(() => {
+    setRoundCourses(prev => {
+      const updated = [...prev];
+      while (updated.length < numRounds) updated.push(null);
+      return updated.slice(0, numRounds);
+    });
+    setCourseSearchQueries(prev => {
+      const updated = [...prev];
+      while (updated.length < numRounds) updated.push('');
+      return updated.slice(0, numRounds);
+    });
+  }, [numRounds]);
+
   // Initialize rounds_config when entering Step 3
   useEffect(() => {
     if (step === 2) {
       setRoundsConfig(prev => {
-        // Preserve existing config, add/remove rounds as needed
         const updated: RoundConfig[] = [];
         for (let i = 0; i < numRounds; i++) {
-          updated.push(prev[i] || {
+          const existing = prev[i];
+          const course = roundCourses[i];
+          updated.push(existing ? {
+            ...existing,
+            course: course ? { id: course.id, name: course.name, location: course.location, holes: course.holes } : existing.course,
+          } : {
             round_number: i + 1,
+            course: course ? { id: course.id, name: course.name, location: course.location, holes: course.holes } : undefined,
             matchup_format: 'ffa',
             blind_teams: false,
             matchups: [],
@@ -113,7 +147,7 @@ const CreateTournamentWizard: React.FC = () => {
         return updated;
       });
     }
-  }, [step, numRounds]);
+  }, [step, numRounds, roundCourses]);
 
   // Auto-populate default leaderboard when entering Step 4
   useEffect(() => {
@@ -139,6 +173,76 @@ const CreateTournamentWizard: React.FC = () => {
   }, [user, navigate]);
 
   if (!user) return null;
+
+  // ── Course search for a round ──
+  const handleCourseSearch = async (roundIdx: number, query: string) => {
+    setCourseSearchQueries(prev => prev.map((q, i) => i === roundIdx ? query : q));
+    if (query.length < 2) {
+      setCourseSearchResults(prev => ({ ...prev, [roundIdx]: [] }));
+      setWebSearchResults(prev => ({ ...prev, [roundIdx]: [] }));
+      return;
+    }
+    setCourseSearchLoading(prev => ({ ...prev, [roundIdx]: true }));
+    try {
+      // Search verified library
+      const verified = await searchVerifiedCourses(query);
+      setCourseSearchResults(prev => ({ ...prev, [roundIdx]: verified }));
+
+      // Also search web
+      const webResult = await searchCourse(query);
+      if (webResult.success && webResult.courses) {
+        setWebSearchResults(prev => ({ ...prev, [roundIdx]: webResult.courses! }));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCourseSearchLoading(prev => ({ ...prev, [roundIdx]: false }));
+    }
+  };
+
+  const selectVerifiedCourse = (roundIdx: number, vc: VerifiedCourseResult) => {
+    const course: Course = {
+      id: vc.id,
+      name: vc.course_name,
+      location: vc.course_location,
+      holes: vc.course_data.holes || [],
+    };
+    setRoundCourses(prev => prev.map((c, i) => i === roundIdx ? course : c));
+    setCourseSearchQueries(prev => prev.map((q, i) => i === roundIdx ? '' : q));
+    setCourseSearchResults(prev => ({ ...prev, [roundIdx]: [] }));
+    setWebSearchResults(prev => ({ ...prev, [roundIdx]: [] }));
+  };
+
+  const selectWebCourse = async (roundIdx: number, result: { name: string; location: string; url: string }) => {
+    setCourseFetchLoading(prev => ({ ...prev, [roundIdx]: true }));
+    try {
+      const details = await fetchCourseDetails(result.url, result.name);
+      if (details.success && details.course) {
+        const course = courseDataToCourse(details.course);
+        if (course) {
+          setRoundCourses(prev => prev.map((c, i) => i === roundIdx ? course : c));
+          setCourseSearchQueries(prev => prev.map((q, i) => i === roundIdx ? '' : q));
+          setCourseSearchResults(prev => ({ ...prev, [roundIdx]: [] }));
+          setWebSearchResults(prev => ({ ...prev, [roundIdx]: [] }));
+          toast.success(`Loaded ${course.name}`);
+        }
+      } else {
+        toast.error('Could not load course details');
+      }
+    } catch {
+      toast.error('Failed to fetch course');
+    } finally {
+      setCourseFetchLoading(prev => ({ ...prev, [roundIdx]: false }));
+    }
+  };
+
+  const selectSavedCourse = (roundIdx: number, course: Course) => {
+    setRoundCourses(prev => prev.map((c, i) => i === roundIdx ? course : c));
+  };
+
+  const clearRoundCourse = (roundIdx: number) => {
+    setRoundCourses(prev => prev.map((c, i) => i === roundIdx ? null : c));
+  };
 
   // ── Search users ──
   const handleSearch = async (term: string) => {
@@ -296,14 +400,35 @@ const CreateTournamentWizard: React.FC = () => {
       const t = await createTournament(name.trim(), 'points', players.length, settings);
       if (!t) { setIsSubmitting(false); return; }
 
-      const playerRows = players.map(p => ({
-        tournament_id: t.id,
-        user_id: p.user_id || null,
-        player_name: p.name,
-        handicap_index: p.handicap_index,
-        role: 'player' as const,
-      }));
-      await addPlayers(playerRows);
+      // Filter out the creator to prevent duplicate (createTournament already adds them as super_user)
+      const playerRows = players
+        .filter(p => p.user_id !== user.id)
+        .map(p => ({
+          tournament_id: t.id,
+          user_id: p.user_id || null,
+          player_name: p.name,
+          handicap_index: p.handicap_index,
+          role: 'player' as const,
+        }));
+      if (playerRows.length > 0) {
+        await addPlayers(playerRows);
+      }
+
+      // Create rounds with course data
+      for (const rc of roundsConfig) {
+        const courseData = rc.course ? {
+          name: rc.course.name,
+          location: rc.course.location,
+          holes: rc.course.holes,
+        } : {};
+        await supabase.from('tournament_rounds').insert([{
+          tournament_id: t.id,
+          round_number: rc.round_number,
+          course_data: courseData as any,
+          games_data: rc.games as any,
+          status: 'SETUP' as const,
+        }]);
+      }
 
       navigate(`/tournament/${t.id}`);
     } catch {
@@ -408,6 +533,115 @@ const CreateTournamentWizard: React.FC = () => {
                   </PopoverContent>
                 </Popover>
               </div>
+            </div>
+
+            {/* Per-round course selection */}
+            <div className="space-y-4 pt-2">
+              <label className="text-sm font-medium text-foreground">Course per Round</label>
+              {Array.from({ length: numRounds }, (_, ri) => (
+                <div key={ri} className="bg-card border rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-foreground">Round {ri + 1}</span>
+                    {roundCourses[ri] && (
+                      <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => clearRoundCourse(ri)}>
+                        <X className="w-3 h-3" /> Clear
+                      </Button>
+                    )}
+                  </div>
+
+                  {roundCourses[ri] ? (
+                    <div className="flex items-center gap-2 bg-accent/20 rounded-lg p-3">
+                      <MapPin className="w-4 h-4 text-primary shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{roundCourses[ri]!.name}</p>
+                        {roundCourses[ri]!.location && (
+                          <p className="text-xs text-muted-foreground truncate">{roundCourses[ri]!.location}</p>
+                        )}
+                      </div>
+                      <Check className="w-4 h-4 text-primary shrink-0" />
+                    </div>
+                  ) : (
+                    <>
+                      {/* Search input */}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search courses..."
+                          value={courseSearchQueries[ri] || ''}
+                          onChange={e => handleCourseSearch(ri, e.target.value)}
+                          className="pl-9"
+                        />
+                        {courseSearchLoading[ri] && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+                      </div>
+
+                      {/* Verified results */}
+                      {(courseSearchResults[ri] || []).length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase text-muted-foreground">Verified Courses</span>
+                          {courseSearchResults[ri].map(vc => (
+                            <button
+                              key={vc.id}
+                              className="w-full text-left border rounded-lg p-2.5 hover:bg-accent/50 transition-colors"
+                              onClick={() => selectVerifiedCourse(ri, vc)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <BadgeCheck className="w-4 h-4 text-green-500 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-foreground truncate">{vc.course_name}</p>
+                                  <p className="text-xs text-muted-foreground">{vc.course_location} • Par {vc.total_par}</p>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Web results */}
+                      {(webSearchResults[ri] || []).length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase text-muted-foreground">Web Results</span>
+                          {webSearchResults[ri].map((wr, wi) => (
+                            <button
+                              key={wi}
+                              className="w-full text-left border rounded-lg p-2.5 hover:bg-accent/50 transition-colors"
+                              onClick={() => selectWebCourse(ri, wr)}
+                              disabled={!!courseFetchLoading[ri]}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Globe className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-foreground truncate">{wr.name}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{wr.location}</p>
+                                </div>
+                                {courseFetchLoading[ri] && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Saved courses quick-select */}
+                      {savedCourses.length > 0 && !courseSearchQueries[ri] && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase text-muted-foreground">Saved Courses</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {savedCourses.slice(0, 8).map(sc => (
+                              <Badge
+                                key={sc.id}
+                                variant="outline"
+                                className="cursor-pointer hover:bg-accent/50 text-foreground text-xs"
+                                onClick={() => selectSavedCourse(ri, sc)}
+                              >
+                                <MapPin className="w-3 h-3 mr-1" /> {sc.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -518,11 +752,9 @@ const CreateTournamentWizard: React.FC = () => {
               {teamsEnabled && (
                 <div className="space-y-3 pt-2 border-t">
                   {teams.map((team, i) => {
-                    // Compute players assigned to OTHER teams
                     const assignedToOtherTeams = new Set(
                       teams.flatMap((t, ti) => ti !== i ? t.playerIds : [])
                     );
-                    // Only show players in this team OR unassigned
                     const availablePlayers = players.filter(
                       p => team.playerIds.includes(p.id) || !assignedToOtherTeams.has(p.id)
                     );
@@ -585,6 +817,9 @@ const CreateTournamentWizard: React.FC = () => {
                   <AccordionTrigger className="text-sm font-semibold">
                     <div className="flex items-center gap-2">
                       Round {ri + 1}
+                      {rc.course?.name && (
+                        <span className="text-xs font-normal text-muted-foreground">— {rc.course.name}</span>
+                      )}
                       {rc.games.length > 0 && (
                         <Badge variant="secondary" className="text-[10px]">{rc.games.length} game{rc.games.length !== 1 ? 's' : ''}</Badge>
                       )}
@@ -744,7 +979,6 @@ const CreateTournamentWizard: React.FC = () => {
 
             {leaderboards.map((lb, i) => {
               const metricOptions = getMetricOptions(lb.scope);
-              // If current metric is not valid for the new scope, reset it
               const isMetricValid = metricOptions.some(o => o.value === lb.metric);
 
               return (

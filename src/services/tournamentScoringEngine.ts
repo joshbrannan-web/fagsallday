@@ -58,8 +58,16 @@ export interface TeamConfig {
   playerIds: string[];
 }
 
+export interface RoundCourseData {
+  id?: string;
+  name: string;
+  location?: string;
+  holes?: any[];
+}
+
 export interface RoundConfig {
   round_number: number;
+  course?: RoundCourseData;
   matchup_format: '1v1' | '2v2' | '4v4' | 'ffa';
   blind_teams: boolean;
   matchups: { group_name: string; playerIds: string[] }[];
@@ -80,8 +88,6 @@ export interface TournamentSettings {
 
 /**
  * Calculate the number of handicap strokes a player receives on a specific hole.
- * Uses the standard golf allocation: if courseHandicap >= holeIndex, player gets 1 stroke.
- * If courseHandicap >= holeIndex + 18, player gets 2 strokes, etc.
  */
 export function handicapStrokesOnHole(courseHandicap: number, holeHandicapIndex: number): number {
   if (courseHandicap <= 0) return 0;
@@ -96,9 +102,6 @@ export function handicapStrokesOnHole(courseHandicap: number, holeHandicapIndex:
 
 /**
  * Standard Stableford points for a hole.
- * gross: player's actual strokes on the hole
- * par: hole par
- * handicapStrokes: strokes received on this hole (0, 1, 2, etc.)
  */
 export function calculateStablefordPoints(
   gross: number,
@@ -106,13 +109,13 @@ export function calculateStablefordPoints(
   handicapStrokes: number = 0
 ): number {
   const net = gross - handicapStrokes;
-  const diff = net - par; // negative = under par
-  if (diff <= -3) return 5; // albatross or better
-  if (diff === -2) return 4; // eagle
-  if (diff === -1) return 3; // birdie
-  if (diff === 0) return 2;  // par
-  if (diff === 1) return 1;  // bogey
-  return 0; // double bogey or worse
+  const diff = net - par;
+  if (diff <= -3) return 5;
+  if (diff === -2) return 4;
+  if (diff === -1) return 3;
+  if (diff === 0) return 2;
+  if (diff === 1) return 1;
+  return 0;
 }
 
 /**
@@ -126,11 +129,11 @@ export function calculateModifiedStablefordPoints(
 ): number {
   const net = gross - handicapStrokes;
   const diff = net - par;
-  if (diff <= -2) return values.eagle; // eagle or better
+  if (diff <= -2) return values.eagle;
   if (diff === -1) return values.birdie;
   if (diff === 0) return values.par;
   if (diff === 1) return values.bogey;
-  return values.double_bogey; // double bogey or worse
+  return values.double_bogey;
 }
 
 /**
