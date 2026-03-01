@@ -240,139 +240,6 @@ export type Database = {
           },
         ]
       }
-      tournament_players: {
-        Row: {
-          created_at: string
-          handicap_index: number
-          id: string
-          player_name: string
-          role: Database["public"]["Enums"]["tournament_player_role"]
-          tournament_id: string
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          handicap_index?: number
-          id?: string
-          player_name: string
-          role?: Database["public"]["Enums"]["tournament_player_role"]
-          tournament_id: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          handicap_index?: number
-          id?: string
-          player_name?: string
-          role?: Database["public"]["Enums"]["tournament_player_role"]
-          tournament_id?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tournament_players_tournament_id_fkey"
-            columns: ["tournament_id"]
-            isOneToOne: false
-            referencedRelation: "tournaments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tournament_rounds: {
-        Row: {
-          course_data: Json
-          created_at: string
-          games_data: Json
-          id: string
-          points_data: Json
-          round_number: number
-          scorekeeper_id: string | null
-          scores: Json
-          start_time: string | null
-          status: Database["public"]["Enums"]["tournament_round_status"]
-          teams_data: Json
-          tournament_id: string
-          updated_at: string
-        }
-        Insert: {
-          course_data?: Json
-          created_at?: string
-          games_data?: Json
-          id?: string
-          points_data?: Json
-          round_number: number
-          scorekeeper_id?: string | null
-          scores?: Json
-          start_time?: string | null
-          status?: Database["public"]["Enums"]["tournament_round_status"]
-          teams_data?: Json
-          tournament_id: string
-          updated_at?: string
-        }
-        Update: {
-          course_data?: Json
-          created_at?: string
-          games_data?: Json
-          id?: string
-          points_data?: Json
-          round_number?: number
-          scorekeeper_id?: string | null
-          scores?: Json
-          start_time?: string | null
-          status?: Database["public"]["Enums"]["tournament_round_status"]
-          teams_data?: Json
-          tournament_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tournament_rounds_tournament_id_fkey"
-            columns: ["tournament_id"]
-            isOneToOne: false
-            referencedRelation: "tournaments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tournaments: {
-        Row: {
-          created_at: string
-          creator_id: string
-          id: string
-          join_code: string
-          max_players: number
-          name: string
-          scoring_mode: Database["public"]["Enums"]["tournament_scoring_mode"]
-          settings: Json
-          status: Database["public"]["Enums"]["tournament_status"]
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          creator_id: string
-          id?: string
-          join_code?: string
-          max_players?: number
-          name: string
-          scoring_mode?: Database["public"]["Enums"]["tournament_scoring_mode"]
-          settings?: Json
-          status?: Database["public"]["Enums"]["tournament_status"]
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          creator_id?: string
-          id?: string
-          join_code?: string
-          max_players?: number
-          name?: string
-          scoring_mode?: Database["public"]["Enums"]["tournament_scoring_mode"]
-          settings?: Json
-          status?: Database["public"]["Enums"]["tournament_status"]
-          updated_at?: string
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           created_at: string
@@ -436,7 +303,6 @@ export type Database = {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
-      generate_join_code: { Args: never; Returns: string }
       get_saved_players_with_profiles: {
         Args: { p_user_id: string }
         Returns: {
@@ -458,15 +324,6 @@ export type Database = {
         Returns: boolean
       }
       is_round_owner: { Args: { _round_id: string }; Returns: boolean }
-      is_round_scorekeeper: { Args: { _round_id: string }; Returns: boolean }
-      is_tournament_creator: {
-        Args: { _tournament_id: string }
-        Returns: boolean
-      }
-      is_tournament_participant: {
-        Args: { _tournament_id: string }
-        Returns: boolean
-      }
       link_players_bidirectional: {
         Args: { p_linked_user_id: string }
         Returns: undefined
@@ -485,10 +342,6 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
-      tournament_player_role: "super_user" | "scorekeeper" | "player"
-      tournament_round_status: "SETUP" | "ACTIVE" | "COMPLETE"
-      tournament_scoring_mode: "stroke_play" | "points"
-      tournament_status: "SETUP" | "ACTIVE" | "COMPLETE"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -617,10 +470,6 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
-      tournament_player_role: ["super_user", "scorekeeper", "player"],
-      tournament_round_status: ["SETUP", "ACTIVE", "COMPLETE"],
-      tournament_scoring_mode: ["stroke_play", "points"],
-      tournament_status: ["SETUP", "ACTIVE", "COMPLETE"],
     },
   },
 } as const

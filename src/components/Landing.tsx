@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroIllustration from './HeroIllustration';
-import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2, HelpCircle, Eye, Trophy } from 'lucide-react';
+import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2, HelpCircle, Eye } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
@@ -215,14 +215,6 @@ const Landing: React.FC = () => {
               >
                 <Play className="w-5 h-5 fill-current" />
                 Start New Round
-              </button>
-
-              <button
-                onClick={() => navigate('/tournament')}
-                className="w-full bg-brand-rust text-white font-bold py-3 px-6 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
-              >
-                <Trophy className="w-5 h-5" />
-                Tournament Mode
               </button>
 
               <button
