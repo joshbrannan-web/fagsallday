@@ -1,49 +1,21 @@
 
-## Bug: Double-delete required for mid-round deletion
 
-### Root Cause
+## Tournament Mode Routing
 
-When `handleDeleteRound` runs in `RoundSummary.tsx`, it calls two functions sequentially:
+Yes, using a sub-route is the right approach. Since this is a single-page app using HashRouter, the tournament routes will be:
 
-1. `deleteRound(roundId)` — removes the round from the `rounds` array via `setRounds(prev => prev.filter(...))` and sets `currentRound` to `null`
-2. `clearLoadedRound()` — resets `loadedRoundIdRef` then searches `rounds` for an active round and sets it as `currentRound`
+- `fagsallday.com/#/tournament` — Tournament list / join
+- `fagsallday.com/#/tournament/:id` — Dashboard & leaderboard
+- `fagsallday.com/#/tournament/:id/round/:roundId` — Scorecard
+- `fagsallday.com/#/tournament/:id/setup-round` — Super user round setup
 
-The problem is that `clearLoadedRound` reads the **stale** `rounds` state (React hasn't re-rendered yet after `deleteRound`'s `setRounds` call). It finds the just-deleted round still present with status `ACTIVE`, and re-assigns it as `currentRound`. This resurrects the round in the UI, requiring the user to delete it a second time.
+This keeps tournament mode as part of the same app (shared auth, shared components like course search and scorecard) while being a distinct section. The join link shared with players would look like:
 
-### Fix
-
-**File: `src/hooks/useRounds.tsx`** — Update `deleteRound` to also clear `loadedRoundIdRef`:
-
-```typescript
-const deleteRound = async (roundId: string) => {
-    if (!user) return false;
-    try {
-      const { error } = await supabase
-        .from('rounds')
-        .delete()
-        .eq('id', roundId)
-        .eq('user_id', user.id);
-      if (error) throw error;
-
-      loadedRoundIdRef.current = null;  // <-- ADD THIS LINE
-      setRounds(prev => prev.filter(r => r.id !== roundId));
-      if (currentRound?.id === roundId) {
-        setCurrentRound(null);
-      }
-      toast.success('Round deleted');
-      return true;
-    } catch (error) { ... }
-};
+```text
+fagsallday.com/#/tournament/join?code=ABC123
 ```
 
-**File: `src/components/RoundSummary.tsx`** — Remove the redundant `clearLoadedRound()` call that causes the race condition:
+No separate deployment or subdomain needed — it all lives within the existing app and routes.
 
-```typescript
-const handleDeleteRound = async () => {
-    if (!window.confirm('Delete this round? This cannot be undone.')) return;
-    await deleteRound(currentRound.id);
-    navigate('/');
-};
-```
+The plan in `.lovable/plan.md` already reflects this structure. Ready to proceed with implementation when you approve.
 
-This ensures the round is fully removed in one operation without `clearLoadedRound` accidentally restoring it from stale state.
