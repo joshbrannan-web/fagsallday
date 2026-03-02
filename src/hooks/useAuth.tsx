@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, createContext, useContext, ReactNode, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { offlineStorage } from '@/services/offlineStorage';
@@ -40,6 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const initialValidationDone = useRef(false);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -77,12 +78,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const clearSessionState = () => {
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+    localStorage.removeItem('fg_session_start');
+    localStorage.removeItem('fg_last_activity');
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      (event, newSession) => {
+        // CRITICAL: Skip INITIAL_SESSION events — we validate server-side below.
+        // This prevents the app from rendering as "logged in" with a stale cached token.
+        if (event === 'INITIAL_SESSION') {
+          return;
+        }
+
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
         
         if (event === 'SIGNED_IN') {
           const now = String(Date.now());
@@ -90,52 +105,80 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             localStorage.setItem('fg_session_start', now);
           }
           localStorage.setItem('fg_last_activity', now);
+          
+          if (newSession?.user) {
+            setTimeout(() => {
+              fetchProfile(newSession.user.id).then((p) => {
+                setProfile(p);
+                if (p) autoSyncGhin(p);
+              });
+            }, 0);
+          }
         } else if (event === 'SIGNED_OUT') {
-          localStorage.removeItem('fg_session_start');
-          localStorage.removeItem('fg_last_activity');
-        }
-        
-        // Defer profile fetch with setTimeout to avoid deadlock
-        if (session?.user) {
+          clearSessionState();
+        } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
+          // Profile already loaded, just update session/user
           setTimeout(() => {
-            fetchProfile(session.user.id).then((p) => {
-              setProfile(p);
-              if (event === 'SIGNED_IN' && p) {
-                autoSyncGhin(p);
-              }
-            });
+            fetchProfile(newSession.user.id).then(setProfile);
           }, 0);
-        } else {
-          setProfile(null);
         }
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
+    // THEN validate the existing session server-side (single source of truth on first load)
+    supabase.auth.getSession().then(async ({ data: { session: cachedSession } }) => {
+      if (cachedSession?.user) {
         // Verify session is still valid server-side
-        const { error: userError } = await supabase.auth.getUser();
-        if (userError) {
-          // Session is stale — clear everything
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          localStorage.removeItem('fg_session_start');
-          localStorage.removeItem('fg_last_activity');
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData?.user) {
+          // Session is stale — clear EVERYTHING including the localStorage token
+          console.warn('Stale session detected on load, clearing auth state');
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            // signOut may fail if token is already invalid, that's fine
+          }
+          clearSessionState();
           setIsLoading(false);
+          initialValidationDone.current = true;
           return;
         }
-        setSession(session);
-        setUser(session.user);
-        fetchProfile(session.user.id).then((p) => {
+        // Session is valid — set state
+        setSession(cachedSession);
+        setUser(cachedSession.user);
+        fetchProfile(cachedSession.user.id).then((p) => {
           setProfile(p);
           setIsLoading(false);
+          initialValidationDone.current = true;
         });
       } else {
         setIsLoading(false);
+        initialValidationDone.current = true;
       }
     });
+
+    // --- Periodic session health check (every 30 minutes) ---
+    const SESSION_HEALTH_INTERVAL = 30 * 60 * 1000;
+    const healthCheckId = setInterval(async () => {
+      // Only check if we think we're logged in and the tab is visible
+      if (!document.hidden && initialValidationDone.current) {
+        const currentSession = await supabase.auth.getSession();
+        if (currentSession.data.session) {
+          const { error } = await supabase.auth.getUser();
+          if (error) {
+            const cached = offlineStorage.getCachedRound();
+            const hasActiveRound = cached && cached.status === 'ACTIVE';
+            if (hasActiveRound) {
+              toast.warning('Session expired — your scores are saved locally. Please sign in to sync.', { duration: 10000 });
+            } else {
+              try { await supabase.auth.signOut(); } catch {}
+              clearSessionState();
+              toast.info('Session expired. Please sign in again.');
+            }
+          }
+        }
+      }
+    }, SESSION_HEALTH_INTERVAL);
 
     // --- Inactivity tracking ---
     const INACTIVITY_MAX_AGE = 4 * 60 * 60 * 1000; // 4 hours
@@ -166,8 +209,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const elapsed = Date.now() - Number(sessionStart);
       if (elapsed >= SESSION_MAX_AGE && !hasActiveRound) {
         supabase.auth.signOut();
-        localStorage.removeItem('fg_session_start');
-        localStorage.removeItem('fg_last_activity');
+        clearSessionState();
         toast.info('Session expired. Please sign in again to get the latest updates.');
         return;
       }
@@ -178,8 +220,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const idle = Date.now() - Number(lastActivity);
         if (idle >= INACTIVITY_MAX_AGE && !hasActiveRound) {
           supabase.auth.signOut();
-          localStorage.removeItem('fg_session_start');
-          localStorage.removeItem('fg_last_activity');
+          clearSessionState();
           toast.info('Signed out due to inactivity.');
           return;
         }
@@ -189,6 +230,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription.unsubscribe();
       clearInterval(intervalId);
+      clearInterval(healthCheckId);
       window.removeEventListener('pointerdown', updateActivity);
       window.removeEventListener('keydown', updateActivity);
       window.removeEventListener('scroll', updateActivity, true);

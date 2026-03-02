@@ -230,6 +230,21 @@ export const useRounds = () => {
     }
   };
 
+  const queueUpdatesForSync = (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>) => {
+    if (updates.scores !== undefined) {
+      offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: updates.scores } });
+    }
+    if (updates.gameData !== undefined) {
+      offlineStorage.addToSyncQueue({ roundId, type: 'gameData', data: { game_data: updates.gameData } });
+    }
+    if (updates.status !== undefined) {
+      offlineStorage.addToSyncQueue({ roundId, type: 'status', data: { status: updates.status } });
+    }
+    if (updates.course !== undefined) {
+      offlineStorage.addToSyncQueue({ roundId, type: 'course', data: { course_data: updates.course } });
+    }
+  };
+
   const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>) => {
     if (!user) return false;
 
@@ -262,34 +277,25 @@ export const useRounds = () => {
           .eq('user_id', user.id);
 
         if (error) throw error;
-      } catch (error) {
-        console.error('Error syncing to server, queuing for later:', error);
-        if (updates.scores !== undefined) {
-          offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: updates.scores } });
+      } catch (error: any) {
+        // Detect auth errors vs network errors
+        const isAuthError = error?.code === 'PGRST301' ||
+          error?.message?.includes('JWT') ||
+          error?.message?.includes('token') ||
+          error?.status === 401 ||
+          error?.status === 403;
+
+        if (isAuthError) {
+          toast.warning('Session expired — your scores are saved locally. Please sign in to sync.', { duration: 10000 });
+        } else {
+          console.error('Error syncing to server, queuing for later:', error);
         }
-        if (updates.gameData !== undefined) {
-          offlineStorage.addToSyncQueue({ roundId, type: 'gameData', data: { game_data: updates.gameData } });
-        }
-        if (updates.status !== undefined) {
-          offlineStorage.addToSyncQueue({ roundId, type: 'status', data: { status: updates.status } });
-        }
-        if (updates.course !== undefined) {
-          offlineStorage.addToSyncQueue({ roundId, type: 'course', data: { course_data: updates.course } });
-        }
+
+        // Queue for offline sync regardless (data is preserved locally)
+        queueUpdatesForSync(roundId, updates);
       }
     } else {
-      if (updates.scores !== undefined) {
-        offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: updates.scores } });
-      }
-      if (updates.gameData !== undefined) {
-        offlineStorage.addToSyncQueue({ roundId, type: 'gameData', data: { game_data: updates.gameData } });
-      }
-      if (updates.status !== undefined) {
-        offlineStorage.addToSyncQueue({ roundId, type: 'status', data: { status: updates.status } });
-      }
-      if (updates.course !== undefined) {
-        offlineStorage.addToSyncQueue({ roundId, type: 'course', data: { course_data: updates.course } });
-      }
+      queueUpdatesForSync(roundId, updates);
     }
 
     return true;
