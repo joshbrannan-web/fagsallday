@@ -7,6 +7,8 @@ import { Slider } from '@/components/ui/slider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, Info } from 'lucide-react';
 import type { TournamentGameType } from '@/types/tournament';
+import CoursePicker from '@/components/CoursePicker';
+import type { Course } from '@/types';
 
 const GAME_TYPES: { value: TournamentGameType; label: string }[] = [
   { value: 'match_play_individual', label: 'Individual Match Play (1v1)' },
@@ -81,6 +83,14 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber }) => {
           <Label>Date</Label>
           <Input type="date" value={data.roundDate} onChange={e => update('roundDate', e.target.value)} />
         </div>
+      </div>
+
+      <div>
+        <Label>Course</Label>
+        <CoursePicker
+          selectedCourse={data.courseData as Course | null}
+          onCourseSelected={(course) => update('courseData', course)}
+        />
       </div>
 
       <div>
