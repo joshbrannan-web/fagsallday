@@ -279,6 +279,41 @@ const Profile: React.FC = () => {
             'Save Changes'
           )}
         </Button>
+
+        {/* Temporary: Grant Tournament Admin */}
+        <div className="border border-dashed border-border rounded-lg p-4 space-y-2">
+          <p className="text-xs text-muted-foreground">One-time setup tool (remove after use)</p>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={async () => {
+              try {
+                const { data: existing } = await supabase
+                  .from('tournament_admins')
+                  .select('id')
+                  .eq('user_id', user.id)
+                  .maybeSingle();
+
+                if (existing) {
+                  toast.info('You are already a Tournament Admin');
+                  return;
+                }
+
+                const { error } = await supabase
+                  .from('tournament_admins')
+                  .insert({ user_id: user.id, granted_by: user.id });
+
+                if (error) throw error;
+                toast.success('Tournament Admin status granted successfully');
+              } catch (err: any) {
+                console.error('Grant tournament admin error:', err);
+                toast.error(err.message || 'Failed to grant Tournament Admin');
+              }
+            }}
+          >
+            Grant Tournament Admin
+          </Button>
+        </div>
       </div>
 
       <GhinSyncConfirmation open={showSyncConfirmation} onClose={() => setShowSyncConfirmation(false)} />
