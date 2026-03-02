@@ -1,31 +1,48 @@
 
 
-## Enhance WizardStepPlayers with My Players List + Search
+## CoursePicker Component + Tournament Round Integration
 
-### Problem
-Currently the wizard only searches app users via `search_users_by_name` RPC. It does not show the user's saved players ("My Players") list, making it tedious to add known playing partners.
+### New File: `src/components/CoursePicker.tsx`
 
-### Plan
+A self-contained course search and selection component that provides:
 
-**File: `src/components/tournament-admin/WizardStepPlayers.tsx`**
+1. **Search input** for course name + optional location
+2. **Saved courses** section — fetches from `saved_courses` table via existing `useSavedCourses` hook from AppContext
+3. **Verified community courses** — searches `verified_courses` table via `useVerifiedCourses` hook
+4. **External search** — calls `searchCourse()` and `fetchCourseDetails()` from `@/lib/api/courseSearch`
+5. **Scorecard scan** — camera upload calling `parse-scorecard` edge function, with tee box selection
+6. **Course loaded confirmation** — shows par/yardage summary when a course is selected
+7. **Pre-populated state** — accepts an optional `initialCourse` prop; when provided, shows the course name with a "Change" button to re-enter search mode
 
-Rewrite to include two sections above the added-players list:
+**Props interface:**
+```typescript
+interface CoursePickerProps {
+  selectedCourse: Course | null;
+  onCourseSelected: (course: Course) => void;
+}
+```
 
-1. **My Players section** — Use `useSavedPlayers` hook to fetch the user's saved players on mount. Display them as a scrollable list of compact cards (name + handicap). Each card has an "Add" button (disabled if already added). Clicking adds them with their saved handicap and optionally their `linked_user_id` as `userId`. Filter this list by the search term when one is entered.
+The component manages its own internal state (search mode, results, loading) but calls `onCourseSelected` when a course is chosen, passing the full `Course` object with all 18 holes.
 
-2. **Search App Users section** — Keep the existing `search_users_by_name` RPC search, but show results in a separate "App Users" group below filtered My Players. Include the "Add manually" fallback when no results found.
+This does NOT modify SetupWizard.tsx — the existing code continues to use its own inline course selection logic unchanged.
 
-**Layout:**
-- Single search input at top (searches both My Players locally and app users via RPC)
-- Below search: two groups in a dropdown/panel when search is active:
-  - "My Players" — locally filtered saved players matching the search term
-  - "App Users" — results from RPC (excluding already-added players and those in My Players results to avoid duplicates)
-- When search is empty: show full My Players list as selectable cards
-- Added players list below (unchanged — name, handicap, team dropdown, remove)
+### Modified File: `src/components/tournament-admin/RoundConfigCard.tsx`
 
-**Key details:**
-- Import `useSavedPlayers` from `@/hooks/useSavedPlayers`
-- When adding a saved player, use their `handicap_index` as the default `handicapIndex` and their `linked_user_id` as `userId`
-- Deduplicate: hide players from search results if they're already in the tournament player list
-- Keep the "Add manually" option when no results found in either source
+Add a `CoursePicker` between the round name/date row and the notes textarea. Wire `onCourseSelected` to update `data.courseData` with the full course object via the existing `update('courseData', course)` pattern. When `data.courseData` is already set, pass it as `selectedCourse` so it shows the pre-populated state.
+
+### Data Flow
+
+When a course is selected in the CoursePicker:
+- The full `Course` object (id, name, location, holes[18] with number/par/yardage/handicapIndex) is stored in `RoundConfigData.courseData`
+- On wizard publish, this flows into `tournament_rounds.course_data` via the existing `createTournament` function in `useTournaments.ts`
+- When editing an existing round, the `courseData` from the database pre-populates the picker
+
+### Files Created
+- `src/components/CoursePicker.tsx`
+
+### Files Modified
+- `src/components/tournament-admin/RoundConfigCard.tsx` — add CoursePicker import and usage
+
+### Files NOT Modified
+- `src/components/SetupWizard.tsx` — unchanged, continues working as before
 
