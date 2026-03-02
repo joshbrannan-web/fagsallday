@@ -141,10 +141,17 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else await fetchAll();
   };
 
+  const updateTournament = async (updates: { name?: string; description?: string | null; start_date?: string | null; end_date?: string | null; status?: string }) => {
+    if (!tournamentId) return;
+    const { error } = await supabase.from('tournaments').update(updates).eq('id', tournamentId);
+    if (error) toast.error('Failed to update tournament');
+    else { toast.success('Tournament updated'); await fetchAll(); }
+  };
+
   return {
     tournament, teams, players, rounds, games, scoreboards, groups, isLoading,
     refetch: fetchAll,
-    updateTeam, updatePlayer, addPlayer, removePlayer,
+    updateTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
     startRound, completeRound, updateRound, updateGame,
     addScoreboard, updateScoreboard, deleteScoreboard,
     addTeam, deleteTeam,
