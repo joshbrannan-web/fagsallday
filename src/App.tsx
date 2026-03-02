@@ -13,6 +13,12 @@ import Admin from './pages/Admin';
 import AdminRoundView from './pages/AdminRoundView';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
+import TournamentAdmin from './pages/TournamentAdmin';
+import TournamentAdminDashboard from './pages/TournamentAdminDashboard';
+import TournamentAdminScorecard from './pages/TournamentAdminScorecard';
+import TournamentAdminScoreboards from './pages/TournamentAdminScoreboards';
+import TournamentComingSoon from './pages/TournamentComingSoon';
+import CreateTournamentWizard from './components/tournament-admin/CreateTournamentWizard';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -513,6 +519,12 @@ const AppContent: React.FC = () => {
         <Route path="/profile" element={<Profile />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/admin/round/:roundId" element={<AdminRoundView />} />
+        <Route path="/tournament-admin" element={<TournamentAdmin />} />
+        <Route path="/tournament-admin/create" element={<CreateTournamentWizard />} />
+        <Route path="/tournament-admin/:tournamentId" element={<TournamentAdminDashboard />} />
+        <Route path="/tournament-admin/:tournamentId/scoreboards" element={<TournamentAdminScoreboards />} />
+        <Route path="/tournament-admin/:tournamentId/round/:roundId/group/:groupId" element={<TournamentAdminScorecard />} />
+        <Route path="/tournament" element={<TournamentComingSoon />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppContext.Provider>

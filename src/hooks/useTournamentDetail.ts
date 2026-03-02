@@ -1,0 +1,152 @@
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
+import { toast } from 'sonner';
+
+export const useTournamentDetail = (tournamentId: string | undefined) => {
+  const { user } = useAuth();
+  const [tournament, setTournament] = useState<any>(null);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [rounds, setRounds] = useState<any[]>([]);
+  const [games, setGames] = useState<any[]>([]);
+  const [scoreboards, setScoreboards] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchAll = useCallback(async () => {
+    if (!tournamentId || !user) { setIsLoading(false); return; }
+    setIsLoading(true);
+    try {
+      const [tRes, teamsRes, playersRes, roundsRes, sbRes] = await Promise.all([
+        supabase.from('tournaments').select('*').eq('id', tournamentId).single(),
+        supabase.from('tournament_teams').select('*').eq('tournament_id', tournamentId).order('display_order'),
+        supabase.from('tournament_players').select('*').eq('tournament_id', tournamentId).order('display_name'),
+        supabase.from('tournament_rounds').select('*').eq('tournament_id', tournamentId).order('round_number'),
+        supabase.from('tournament_scoreboards').select('*').eq('tournament_id', tournamentId).order('display_order'),
+      ]);
+      setTournament(tRes.data);
+      setTeams(teamsRes.data || []);
+      setPlayers(playersRes.data || []);
+      setRounds(roundsRes.data || []);
+      setScoreboards(sbRes.data || []);
+
+      // Fetch games for each round
+      const roundIds = (roundsRes.data || []).map((r: any) => r.id);
+      if (roundIds.length > 0) {
+        const { data: gamesData } = await supabase
+          .from('tournament_games')
+          .select('*')
+          .in('tournament_round_id', roundIds);
+        setGames(gamesData || []);
+      }
+
+      // Fetch groups for all rounds
+      if (roundIds.length > 0) {
+        const { data: groupsData } = await supabase
+          .from('tournament_groups')
+          .select('*')
+          .in('tournament_round_id', roundIds)
+          .order('group_number');
+        setGroups(groupsData || []);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load tournament details');
+    }
+    setIsLoading(false);
+  }, [tournamentId, user]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const updateTeam = async (teamId: string, updates: { name?: string; color?: string }) => {
+    const { error } = await supabase.from('tournament_teams').update(updates).eq('id', teamId);
+    if (error) toast.error('Failed to update team');
+    else await fetchAll();
+  };
+
+  const updatePlayer = async (playerId: string, updates: { handicap_override?: number | null; team_id?: string; display_name?: string }) => {
+    const { error } = await supabase.from('tournament_players').update(updates).eq('id', playerId);
+    if (error) toast.error('Failed to update player');
+    else await fetchAll();
+  };
+
+  const addPlayer = async (data: { display_name: string; handicap_index: number; team_id: string; user_id?: string }) => {
+    const { error } = await supabase.from('tournament_players').insert({ ...data, tournament_id: tournamentId });
+    if (error) toast.error('Failed to add player');
+    else await fetchAll();
+  };
+
+  const removePlayer = async (playerId: string) => {
+    const { error } = await supabase.from('tournament_players').delete().eq('id', playerId);
+    if (error) toast.error('Failed to remove player');
+    else await fetchAll();
+  };
+
+  const startRound = async (roundId: string) => {
+    const { error } = await supabase.from('tournament_rounds').update({ status: 'active' }).eq('id', roundId);
+    if (error) toast.error('Failed to start round');
+    else { toast.success('Round started'); await fetchAll(); }
+  };
+
+  const completeRound = async (roundId: string) => {
+    const { error } = await supabase.from('tournament_rounds').update({ status: 'completed' }).eq('id', roundId);
+    if (error) toast.error('Failed to complete round');
+    else { toast.success('Round completed'); await fetchAll(); }
+  };
+
+  const updateRound = async (roundId: string, updates: any) => {
+    const { error } = await supabase.from('tournament_rounds').update(updates).eq('id', roundId);
+    if (error) toast.error('Failed to update round');
+    else await fetchAll();
+  };
+
+  const updateGame = async (gameId: string, updates: any) => {
+    const { error } = await supabase.from('tournament_games').update(updates).eq('id', gameId);
+    if (error) toast.error('Failed to update game');
+    else await fetchAll();
+  };
+
+  const addScoreboard = async (data: { name: string; scoreboard_type: string; sort_metric: string; sort_direction?: string; show_round_breakdown?: boolean }) => {
+    const maxOrder = scoreboards.length > 0 ? Math.max(...scoreboards.map((s: any) => s.display_order || 0)) + 1 : 0;
+    const { error } = await supabase.from('tournament_scoreboards').insert({ ...data, tournament_id: tournamentId, display_order: maxOrder });
+    if (error) toast.error('Failed to add scoreboard');
+    else await fetchAll();
+  };
+
+  const updateScoreboard = async (id: string, updates: any) => {
+    const { error } = await supabase.from('tournament_scoreboards').update(updates).eq('id', id);
+    if (error) toast.error('Failed to update scoreboard');
+    else await fetchAll();
+  };
+
+  const deleteScoreboard = async (id: string) => {
+    const { error } = await supabase.from('tournament_scoreboards').delete().eq('id', id);
+    if (error) toast.error('Failed to delete scoreboard');
+    else await fetchAll();
+  };
+
+  const addTeam = async (data: { name: string; color: string }) => {
+    const maxOrder = teams.length > 0 ? Math.max(...teams.map((t: any) => t.display_order || 0)) + 1 : 0;
+    const { error } = await supabase.from('tournament_teams').insert({ ...data, tournament_id: tournamentId, display_order: maxOrder });
+    if (error) toast.error('Failed to add team');
+    else await fetchAll();
+  };
+
+  const deleteTeam = async (teamId: string) => {
+    const teamPlayers = players.filter((p: any) => p.team_id === teamId);
+    if (teamPlayers.length > 0) { toast.error('Remove all players from team first'); return; }
+    const { error } = await supabase.from('tournament_teams').delete().eq('id', teamId);
+    if (error) toast.error('Failed to delete team');
+    else await fetchAll();
+  };
+
+  return {
+    tournament, teams, players, rounds, games, scoreboards, groups, isLoading,
+    refetch: fetchAll,
+    updateTeam, updatePlayer, addPlayer, removePlayer,
+    startRound, completeRound, updateRound, updateGame,
+    addScoreboard, updateScoreboard, deleteScoreboard,
+    addTeam, deleteTeam,
+  };
+};
