@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroIllustration from './HeroIllustration';
-import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2, HelpCircle, Eye } from 'lucide-react';
+import { Play, History, Flag, User, LogOut, Loader2, Users, Shield, Edit2, HelpCircle, Eye, Trophy } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { Button } from '@/components/ui/button';
 import OnboardingOverlay from './OnboardingOverlay';
 import GhinPrompt from './GhinPrompt';
@@ -24,6 +25,7 @@ const Landing: React.FC = () => {
   const { currentRound, clearLoadedRound, isLoading: appLoading, roundHistory, loadPastRound } = useApp();
   const { user, profile, signOut, isLoading: authLoading } = useAuth();
   const { isAdmin } = useAdminAuth();
+  const { isTournamentAdmin } = useTournamentAdmin();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Clear any manually-loaded past round when returning to home
@@ -130,6 +132,12 @@ const Landing: React.FC = () => {
                 <Users className="w-4 h-4 mr-2" />
                 My Players
               </DropdownMenuItem>
+              {isTournamentAdmin && (
+                <DropdownMenuItem onClick={() => navigate('/tournament-admin')}>
+                  <Trophy className="w-4 h-4 mr-2" />
+                  Tournament Admin
+                </DropdownMenuItem>
+              )}
               {isAdmin && (
                 <DropdownMenuItem onClick={() => navigate('/admin')}>
                   <Shield className="w-4 h-4 mr-2" />
@@ -223,6 +231,14 @@ const Landing: React.FC = () => {
               >
                 <History className="w-5 h-5" />
                 View Past Rounds
+              </button>
+
+              <button
+                onClick={() => navigate('/tournament')}
+                className="w-full bg-card text-[hsl(var(--brand-gold))] border-2 border-[hsl(var(--brand-gold))]/20 font-bold py-3 px-6 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
+              >
+                <Trophy className="w-5 h-5" />
+                Tournament
               </button>
             </>
           ) : (
