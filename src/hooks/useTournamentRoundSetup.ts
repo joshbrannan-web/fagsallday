@@ -223,7 +223,12 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
           players_data: players as any,
           games_data: sideGames as any,
           scores: {},
-          game_data: {},
+          game_data: {
+            _tournament_meta: {
+              tournamentName: tournament.name,
+              roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
+            },
+          } as any,
           status: 'ACTIVE',
         })
         .select('id')
@@ -269,6 +274,17 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         .single();
 
       if (groupError || !newGroup) throw groupError;
+
+      // Update game_data with the tournament group ID
+      await supabase.from('rounds').update({
+        game_data: {
+          _tournament_meta: {
+            tournamentName: tournament.name,
+            roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
+            tournamentGroupId: newGroup.id,
+          },
+        } as any,
+      }).eq('id', newRound.id);
 
       // Create group players
       const gpInserts = selectedPlayers.map(tp => ({
