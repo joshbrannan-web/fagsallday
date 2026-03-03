@@ -1,28 +1,59 @@
 
 
-# Fix Audit Items #22, #23, #38
+# Fix Audit Items #28, #46, #67, #68
 
-## Item #22 — PlayerListAdmin handicap override badge styling
+## Item #28 — Scoreboard reordering
 
-**Current state:** Line 92 uses `bg-[hsl(var(--brand-gold))]/10 text-[hsl(var(--brand-gold))] border-[hsl(var(--brand-gold))]/30` and text says "Override".
+**Problem:** ScoreboardManager has no drag-to-reorder or manual reorder UI. Scoreboards get auto-assigned `display_order` on creation but cannot be rearranged.
 
-**Fix:** Change badge classes to `bg-amber-500/20 text-amber-400 border border-amber-500/30` and text to "HCP Override".
-
-**File:** `src/components/tournament-admin/PlayerListAdmin.tsx` (line 92-94)
-
-## Item #23 — TeamListAdmin player reassignment
-
-**Current state:** Already has a Select dropdown per player (line 50) that calls `onUpdatePlayer(p.id, { team_id: v })`. The flow is complete — selecting a new team calls the parent's update handler which writes to Supabase, and React re-renders the list since players are filtered by `team_id` per team card.
-
-**Status:** Working as-is. The Select dropdown shows team options with color dots. No changes needed — the flow is end-to-end complete.
-
-## Item #38 — Step 5 team assignment locking
-
-**Current state:** `TournamentTeamAssigner` shows player names in read-only cards grouped by team. No dropdowns exist (good). But no lock icon on the current user's row.
-
-**Fix:** Pass `currentUserId` to `TournamentTeamAssigner`. In the player card, if `p.user_id === currentUserId`, show a Lock icon + "You" badge. This requires the `TournamentPlayer` interface in TournamentTeamAssigner to include `user_id`.
+**Fix:** Add up/down arrow buttons to each scoreboard card in `ScoreboardManager.tsx`. Clicking moves the scoreboard one position and calls `onUpdate` for both swapped items. Add an `onReorder` prop (or reuse `onUpdate`) to persist the new `display_order` values.
 
 **Files:**
-- `src/components/tournament/TournamentTeamAssigner.tsx` — add `currentUserId` prop, add `user_id` to interface, render Lock icon
-- `src/components/tournament/TournamentBuildRoundWizard.tsx` — pass `currentUserId` to TournamentTeamAssigner
+- `src/components/tournament-admin/ScoreboardManager.tsx` — add ChevronUp/ChevronDown buttons to each card, implement swap logic that calls `onUpdate` for both affected scoreboards with their new `display_order` values
+
+## Items #46, #67, #68 — Wire GameSelector into both SetupWizard and TournamentBuildRoundWizard
+
+**Problem:** `GameSelector.tsx` exists (570 lines, full config UI for all 11 game types including FBO matchups, handicap modes, Wolf tee order, multipliers) but is imported by nothing. Both `SetupWizard.tsx` and `TournamentBuildRoundWizard.tsx` Step 6 have their own inline implementations with varying levels of completeness.
+
+**Fix — SetupWizard (item #67):**
+Replace the inline game selection block in `SetupWizard.tsx` (the `GAME_LIBRARY.map(...)` block in step 3, ~lines 1725-2400+) with:
+```tsx
+<GameSelector
+  players={players}
+  selectedGames={selectedGames}
+  onGamesChange={setSelectedGames}
+/>
+```
+Remove the now-unused inline `handleToggleGame`, `handleUpdateGameStake`, `handleUpdateGameConfig`, `updateGameConfigDeep` functions (keep other SetupWizard logic intact).
+
+**Fix — TournamentBuildRoundWizard Step 6 (item #46):**
+Replace `renderStep6()` body (lines 223-307) with GameSelector. The tournament wizard's players are in a different format (`TournamentPlayer[]` with `display_name` vs `Player[]` with `name`), so map them to the `Player` shape before passing:
+```tsx
+const mappedPlayers: Player[] = setup.selectedPlayers.map(p => ({
+  id: p.id,
+  name: p.display_name,
+  handicapIndex: p.handicap_index ?? undefined,
+}));
+
+return (
+  <div className="space-y-4">
+    <h2 className="text-xl font-bold">Add Side Games?</h2>
+    <p className="text-sm text-muted-foreground">
+      Optional — add betting games alongside the tournament.
+    </p>
+    <GameSelector
+      players={mappedPlayers}
+      selectedGames={sideGames}
+      onGamesChange={setup.setSideGames}
+    />
+  </div>
+);
+```
+Remove the inline `toggleGame`, `updateStake` functions from renderStep6.
+
+**Item #68** is resolved automatically — GameSelector will have two importers after these changes.
+
+**Files:**
+- `src/components/SetupWizard.tsx` — replace inline game selection with `<GameSelector>`, remove duplicate handler functions
+- `src/components/tournament/TournamentBuildRoundWizard.tsx` — replace `renderStep6` body with `<GameSelector>`, add player mapping
 
