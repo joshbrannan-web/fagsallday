@@ -1,38 +1,45 @@
 
 
-## Tournament Admin: Full Edit & Delete
+## Problem
 
-### Current State
-The dashboard already supports editing basic info (name, description, dates, status), rounds (inline RoundConfigCard), players (handicap overrides, team reassignment, add/remove), and teams (rename, recolor, add/delete). What's missing is **delete** and **add/remove rounds**.
+The `search_users_by_name` RPC only returns `id` and `display_name` — it does NOT return `handicap_index`. So when players are added via the "App Users" search path (as opposed to "My Players"), their handicap is hardcoded to `0`.
 
-### Database Migration
+Evidence from the database: Austyn Whittenburg, Brandon Rodman, and Dallin Demke all have `handicap_index: 0` in `tournament_players` despite having real handicaps (13.5, 6.3, 6.4) in their `profiles`. These were added via the app user search which doesn't pull handicap data.
 
-Add a DELETE RLS policy on `tournaments`:
+Players added from "My Players" (saved_players) work correctly because `useSavedPlayers` joins with `profiles` to get the current handicap.
+
+### Two places this happens
+
+1. **WizardStepPlayers.tsx line 126**: When adding from "App Users" search results, hardcodes handicap to `0`
+2. **PlayerListAdmin.tsx line 49**: `handleAdd` also hardcodes `handicap_index: 0` when adding from search
+
+### Fix
+
+**Database function: `search_users_by_name`** — Update the RPC to also return `handicap_index` from profiles, so both the wizard and admin player list can use the real value.
+
 ```sql
-CREATE POLICY "Tournament creator can delete their tournaments"
-ON public.tournaments FOR DELETE
-USING (created_by = auth.uid() AND is_tournament_admin());
+CREATE OR REPLACE FUNCTION public.search_users_by_name(search_term text)
+RETURNS TABLE(id uuid, display_name text, handicap_index numeric)
+...
+  SELECT p.id, p.display_name, COALESCE(p.handicap_index, 0) AS handicap_index
+  FROM public.profiles p
+  WHERE p.display_name ILIKE '%' || search_term || '%'
+  AND p.id != auth.uid()
+  LIMIT 10;
 ```
 
-All child tables already have `ON DELETE CASCADE` from `tournaments`, so deleting the tournament row automatically removes teams, players, rounds, games, groups, scores, results, scoreboards, and members.
+**WizardStepPlayers.tsx** — Use the returned handicap when adding from app user results:
+- Line 126: Change `addPlayer(r.display_name || 'Unknown', 0, r.id)` → `addPlayer(r.display_name || 'Unknown', r.handicap_index ?? 0, r.id)`
 
-### Hook: `src/hooks/useTournamentDetail.ts`
+**PlayerListAdmin.tsx** — Use the returned handicap when adding:
+- Update `doSearch` results type to include `handicap_index`
+- Line 49: Change `handicap_index: 0` → `handicap_index: r.handicap_index ?? 0` (pass handicap through `handleAdd`)
 
-Add three functions:
-- **`deleteTournament()`** — deletes the tournament row (cascade handles children), returns success boolean
-- **`addRound(roundNumber)`** — inserts a new `tournament_rounds` row + default `tournament_games` row, refetches
-- **`deleteRound(roundId)`** — deletes a round (cascade removes its game, groups, scores, results), refetches
-
-### UI: `src/pages/TournamentAdminDashboard.tsx`
-
-1. **Delete Tournament** — Add a red "Delete Tournament" button at the bottom of the Edit Tournament sheet. Clicking it opens an `AlertDialog` requiring confirmation. On confirm, calls `deleteTournament()` and navigates to `/tournament-admin`.
-
-2. **Add Round** — Add an "Add Round" button below the rounds list in the Rounds tab. Calls `addRound(rounds.length + 1)`.
-
-3. **Delete Round** — Add a trash icon button on each round card (next to the edit pencil). Clicking opens an AlertDialog confirmation, then calls `deleteRound(roundId)`.
+**Existing tournament data fix** — Run an UPDATE to backfill the 3 affected players in the current tournament from their profiles.
 
 ### Files Modified
-- Database migration — add DELETE policy on `tournaments`
-- `src/hooks/useTournamentDetail.ts` — add `deleteTournament`, `addRound`, `deleteRound`
-- `src/pages/TournamentAdminDashboard.tsx` — add delete tournament button + confirmation, add/delete round UI
+- Database migration — update `search_users_by_name` return type
+- `src/components/tournament-admin/WizardStepPlayers.tsx` — use handicap from search results
+- `src/components/tournament-admin/PlayerListAdmin.tsx` — use handicap from search results
+- Data update — backfill existing tournament players with correct handicaps
 
