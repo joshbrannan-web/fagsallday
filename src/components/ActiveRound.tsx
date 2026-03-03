@@ -28,6 +28,7 @@ import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRela
 import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
 import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses, getSixesMode, getStretchStartHole, SixesMode } from '../services/sixesEngine';
 import { TeamBankerTeamSetup } from './teamBanker';
+import TournamentGameOverlay from './tournament/TournamentGameOverlay';
 import { isTeamBankerStretchStartHole, getTeamBankerTeamAssignment, getTeamBankerStretchForHole, getTeamBankerMode, getTeamBankerStretchStartHole as getTBStretchStartHole, getTeamBankerAllStretches } from '../services/teamBankerEngine';
 
 const ActiveRound: React.FC = () => {
@@ -2401,6 +2402,20 @@ const ActiveRound: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Tournament Game Overlay */}
+      {(location.state as any)?.tournamentGroupId && (
+        <div className="px-3 pb-3">
+          <TournamentGameOverlay
+            tournamentGroupId={(location.state as any).tournamentGroupId}
+            tournamentName={(location.state as any)?.tournamentName}
+            roundName={(location.state as any)?.tournamentRoundName}
+            playerMapping={(location.state as any)?.playerMapping}
+            teamMatchup={(location.state as any)?.teamMatchup}
+            activeHole={activeHole}
+          />
+        </div>
+      )}
 
       {/* Bloody Banker Activation Dialog */}
       <AlertDialog open={!!showBloodyActivateDialog} onOpenChange={(open) => { if (!open) setShowBloodyActivateDialog(null); }}>
