@@ -89,8 +89,8 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
               {team && <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: team.color }} />}
               <span className="flex-1 text-sm font-medium truncate">{p.display_name}</span>
               {p.handicap_override !== null && (
-                <Badge variant="outline" className="text-[10px] bg-[hsl(var(--brand-gold))]/10 text-[hsl(var(--brand-gold))] border-[hsl(var(--brand-gold))]/30">
-                  Override
+                <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  HCP Override
                 </Badge>
               )}
               {editingId === p.id ? (
