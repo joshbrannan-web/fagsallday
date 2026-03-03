@@ -1,4 +1,4 @@
-import React from "react";
+import type { FC } from "react";
 import { Player, GameSettings, GameType, GameLibraryItem } from "../types";
 import { GAME_LIBRARY, GAME_DETAILS } from "@/lib/gameLibrary";
 import { Info, Check } from "lucide-react";
@@ -16,7 +16,7 @@ interface GameSelectorProps {
   onGamesChange: (games: GameSettings[]) => void;
 }
 
-const GameSelector: React.FC<GameSelectorProps> = ({ players, selectedGames, onGamesChange }) => {
+const GameSelector = ({ players, selectedGames, onGamesChange }: GameSelectorProps) => {
   const handleToggleGame = (game: GameLibraryItem) => {
     const exists = selectedGames.find((g) => g.type === game.type);
     if (exists) {
