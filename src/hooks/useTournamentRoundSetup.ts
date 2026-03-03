@@ -224,9 +224,12 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
           games_data: sideGames as any,
           scores: {},
           game_data: {
-            _tournament_meta: {
+            _TOURNAMENT_META: {
+              tournamentId: tournament.id,
               tournamentName: tournament.name,
+              roundNumber: selectedRound.round_number,
               roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
+              displayName: `${tournament.name} — Round ${selectedRound.round_number}`,
             },
           } as any,
           status: 'ACTIVE',
@@ -278,10 +281,13 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       // Update game_data with the tournament group ID
       await supabase.from('rounds').update({
         game_data: {
-          _tournament_meta: {
+          _TOURNAMENT_META: {
+            tournamentId: tournament.id,
             tournamentName: tournament.name,
+            roundNumber: selectedRound.round_number,
             roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
             tournamentGroupId: newGroup.id,
+            displayName: `${tournament.name} — Round ${selectedRound.round_number}`,
           },
         } as any,
       }).eq('id', newRound.id);
