@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournamentDetail } from '@/hooks/useTournamentDetail';
-import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X } from 'lucide-react';
+import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -12,6 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import PlayerListAdmin from '@/components/tournament-admin/PlayerListAdmin';
 import TeamListAdmin from '@/components/tournament-admin/TeamListAdmin';
 import RoundConfigCard, { RoundConfigData, defaultRoundConfig } from '@/components/tournament-admin/RoundConfigCard';
@@ -59,11 +63,14 @@ const TournamentAdminDashboard: React.FC = () => {
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const {
     tournament, teams, players, rounds, games, scoreboards, groups, isLoading,
-    updateTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
-    startRound, completeRound, updateRound, updateGame,
+    updateTournament, deleteTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
+    startRound, completeRound, updateRound, updateGame, addRound, deleteRound,
     addScoreboard, updateScoreboard, deleteScoreboard,
     addTeam, deleteTeam,
   } = useTournamentDetail(tournamentId);
+
+  const [deletingTournament, setDeletingTournament] = useState(false);
+  const [roundToDelete, setRoundToDelete] = useState<string | null>(null);
 
   /* ── edit basic info state ── */
   const [editOpen, setEditOpen] = useState(false);
@@ -224,6 +231,38 @@ const TournamentAdminDashboard: React.FC = () => {
               </Select>
             </div>
             <Button className="w-full" onClick={saveBasicInfo}><Save className="w-4 h-4 mr-2" /> Save Changes</Button>
+
+            <div className="border-t border-destructive/20 pt-4 mt-4">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-full" disabled={deletingTournament}>
+                    <Trash2 className="w-4 h-4 mr-2" /> Delete Tournament
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Tournament?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete "{tournament.name}" and all its rounds, scores, teams, and players. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={async () => {
+                        setDeletingTournament(true);
+                        const success = await deleteTournament();
+                        if (success) navigate('/tournament-admin');
+                        setDeletingTournament(false);
+                      }}
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
@@ -347,6 +386,30 @@ const TournamentAdminDashboard: React.FC = () => {
                         <Button size="sm" variant="ghost" onClick={() => startEditRound(r.id)}>
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
+                        <AlertDialog open={roundToDelete === r.id} onOpenChange={open => !open && setRoundToDelete(null)}>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setRoundToDelete(r.id)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete {r.name || `Round ${r.round_number}`}?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete this round and all its groups, scores, and results.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={async () => { await deleteRound(r.id); setRoundToDelete(null); }}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                     {r.round_date && <p className="text-xs text-muted-foreground">{format(new Date(r.round_date), 'MMM d, yyyy')}</p>}
@@ -362,6 +425,9 @@ const TournamentAdminDashboard: React.FC = () => {
               </Card>
             );
           })}
+          <Button variant="outline" className="w-full" onClick={() => addRound(rounds.length + 1)}>
+            <Plus className="w-4 h-4 mr-2" /> Add Round
+          </Button>
         </TabsContent>
 
         <TabsContent value="players" className="mt-4">
