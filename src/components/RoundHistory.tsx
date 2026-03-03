@@ -24,6 +24,7 @@ const RoundCard: React.FC<{
   onToggleFavorite?: (e: React.MouseEvent, id: string) => void;
 }> = ({ round, onView, onDelete, onToggleFavorite }) => {
   const totals = calculateRoundTotals(round);
+  const tournamentMeta = (round.gameData as any)?._TOURNAMENT_META;
   let maxWin = -Infinity;
   let winnerName = '';
   Object.entries(totals).forEach(([pid, amount]) => {
@@ -61,7 +62,12 @@ const RoundCard: React.FC<{
         <div className="flex justify-between items-start mb-2 pr-12">
           <div>
             <h3 className="font-bold text-lg flex items-center gap-2">
-              {round.course.name}
+              {tournamentMeta?.displayName || round.course.name}
+              {tournamentMeta && (
+                <span className="bg-brand-gold/20 text-brand-gold text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Trophy className="w-3 h-3" /> TOURNAMENT
+                </span>
+              )}
               {isActive && (
                 <span className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                   <PlayCircle className="w-3 h-3" /> LIVE
@@ -78,6 +84,9 @@ const RoundCard: React.FC<{
                 </span>
               )}
             </h3>
+            {tournamentMeta && (
+              <div className="text-xs text-muted-foreground mt-0.5">{round.course.name}</div>
+            )}
             <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
               <MapPin className="w-3 h-3" /> {round.course.location || 'Unknown location'}
             </div>
@@ -191,7 +200,8 @@ const RoundHistory: React.FC = () => {
     return roundHistory.filter(r =>
       r.course.name.toLowerCase().includes(q) ||
       r.course.location?.toLowerCase().includes(q) ||
-      r.players.some((p: any) => p.name.toLowerCase().includes(q))
+      r.players.some((p: any) => p.name.toLowerCase().includes(q)) ||
+      (r.gameData as any)?._TOURNAMENT_META?.displayName?.toLowerCase().includes(q)
     );
   }, [roundHistory, searchQuery]);
 
