@@ -901,6 +901,7 @@ export type Database = {
         Args: { search_term: string }
         Returns: {
           display_name: string
+          handicap_index: number
           id: string
         }[]
       }

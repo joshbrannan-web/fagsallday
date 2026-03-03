@@ -22,7 +22,7 @@ interface Props {
 
 const WizardStepPlayers: React.FC<Props> = ({ players, teams, onChange }) => {
   const [search, setSearch] = useState('');
-  const [searchResults, setSearchResults] = useState<{ id: string; display_name: string }[]>([]);
+  const [searchResults, setSearchResults] = useState<{ id: string; display_name: string; handicap_index?: number }[]>([]);
   const [searching, setSearching] = useState(false);
   const { savedPlayers, isLoading: loadingSaved } = useSavedPlayers();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -123,7 +123,7 @@ const WizardStepPlayers: React.FC<Props> = ({ players, teams, onChange }) => {
                   <button
                     key={r.id}
                     className="w-full flex items-center justify-between px-3 py-2 hover:bg-accent text-sm"
-                    onClick={() => addPlayer(r.display_name || 'Unknown', 0, r.id)}
+                    onClick={() => addPlayer(r.display_name || 'Unknown', r.handicap_index ?? 0, r.id)}
                   >
                     <span>{r.display_name}</span>
                     <UserPlus className="w-4 h-4 text-primary" />
