@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Edit2, Trash2, Plus } from 'lucide-react';
+import { Edit2, Trash2, Plus, ChevronUp, ChevronDown } from 'lucide-react';
 
 const SB_TYPES = [
   { value: 'team_points', label: 'Team Points' },
@@ -58,15 +58,38 @@ const ScoreboardManager: React.FC<Props> = ({ scoreboards, onAdd, onUpdate, onDe
     setEditing(null);
   };
 
+  const sorted = [...scoreboards].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+
+  const handleSwap = async (idx: number, direction: 'up' | 'down') => {
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[targetIdx];
+    const aOrder = a.display_order ?? idx;
+    const bOrder = b.display_order ?? targetIdx;
+    await onUpdate(a.id, { display_order: bOrder });
+    await onUpdate(b.id, { display_order: aOrder });
+  };
+
   return (
     <div className="space-y-3">
-      {scoreboards.map((sb: any) => (
+      {sorted.map((sb: any, idx: number) => (
         <Card key={sb.id} className="p-3 flex items-center justify-between">
-          <div>
-            <p className="font-medium text-sm">{sb.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {SB_TYPES.find(t => t.value === sb.scoreboard_type)?.label} • {sb.sort_direction === 'desc' ? 'High → Low' : 'Low → High'}
-            </p>
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col">
+              <Button variant="ghost" size="icon" className="h-5 w-5" disabled={idx === 0} onClick={() => handleSwap(idx, 'up')}>
+                <ChevronUp className="w-3.5 h-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-5 w-5" disabled={idx === sorted.length - 1} onClick={() => handleSwap(idx, 'down')}>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <div>
+              <p className="font-medium text-sm">{sb.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {SB_TYPES.find(t => t.value === sb.scoreboard_type)?.label} • {sb.sort_direction === 'desc' ? 'High → Low' : 'Low → High'}
+              </p>
+            </div>
           </div>
           <div className="flex gap-1">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(sb)}>

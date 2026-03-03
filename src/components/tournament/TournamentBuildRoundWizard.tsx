@@ -13,9 +13,10 @@ import TournamentRoundCard, { GAME_TYPE_LABELS } from './TournamentRoundCard';
 import TournamentRulesCallout from './TournamentRulesCallout';
 import TournamentPlayerSelector from './TournamentPlayerSelector';
 import TournamentTeamAssigner from './TournamentTeamAssigner';
+import GameSelector from '@/components/GameSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { GAME_LIBRARY, GAME_DETAILS } from '@/lib/gameLibrary';
-import { GameSettings, GameType } from '@/types';
+import { Player, GameSettings, GameType } from '@/types';
 
 const TOTAL_STEPS = 7;
 
@@ -221,30 +222,13 @@ const TournamentBuildRoundWizard: React.FC = () => {
   );
 
   const renderStep6 = () => {
-    const playerCount = setup.requiredPlayerCount;
-    const availableGames = GAME_LIBRARY.filter(
-      g => playerCount >= g.minPlayers && playerCount <= g.maxPlayers
-    );
-
-    const toggleGame = (game: typeof GAME_LIBRARY[0]) => {
-      const existing = sideGames.find(g => g.type === game.type);
-      if (existing) {
-        setup.setSideGames(sideGames.filter(g => g.type !== game.type));
-      } else {
-        const newGame: GameSettings = {
-          id: `${game.type}_${Date.now()}`,
-          type: game.type,
-          name: game.name,
-          unitStake: game.defaultUnitStake,
-          config: { ...game.config },
-        };
-        setup.setSideGames([...sideGames, newGame]);
-      }
-    };
-
-    const updateStake = (gameType: GameType, stake: number) => {
-      setup.setSideGames(sideGames.map(g => g.type === gameType ? { ...g, unitStake: stake } : g));
-    };
+    const mappedPlayers: Player[] = setup.selectedPlayers.map(p => ({
+      id: p.id,
+      name: p.display_name,
+      handicapIndex: p.handicap_index ?? 0,
+      courseHandicap: 0,
+      tee: '',
+    }));
 
     return (
       <div className="space-y-4">
@@ -252,56 +236,11 @@ const TournamentBuildRoundWizard: React.FC = () => {
         <p className="text-sm text-muted-foreground">
           Optional — add betting games alongside the tournament. These won't affect the leaderboard.
         </p>
-        <div className="space-y-3">
-          {availableGames.map(game => {
-            const isActive = sideGames.some(g => g.type === game.type);
-            const activeGame = sideGames.find(g => g.type === game.type);
-            const details = GAME_DETAILS[game.type];
-            return (
-              <div key={game.type} className={`rounded-xl border p-3 transition-colors ${isActive ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-xl">{game.icon}</span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm">{game.name}</span>
-                        {details && (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button className="text-muted-foreground hover:text-foreground">
-                                <Info className="w-3.5 h-3.5" />
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="text-xs space-y-2 max-w-xs">
-                              <p><strong>How it works:</strong> {details.howItWorks}</p>
-                              <p><strong>Ideal for:</strong> {details.idealPlayers}</p>
-                              <p><strong>Example:</strong> {details.examplePayout}</p>
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">{game.description}</p>
-                    </div>
-                  </div>
-                  <Switch checked={isActive} onCheckedChange={() => toggleGame(game)} />
-                </div>
-                {isActive && activeGame && (
-                  <div className="mt-3 flex items-center gap-2 pl-8">
-                    <span className="text-xs text-muted-foreground">$/unit:</span>
-                    <Input
-                      type="number"
-                      value={activeGame.unitStake}
-                      onChange={e => updateStake(game.type, parseFloat(e.target.value) || 1)}
-                      className="w-20 h-7 text-xs text-center"
-                      min={1}
-                      step={1}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <GameSelector
+          players={mappedPlayers}
+          selectedGames={sideGames}
+          onGamesChange={setup.setSideGames}
+        />
       </div>
     );
   };
