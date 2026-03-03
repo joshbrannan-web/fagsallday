@@ -29,6 +29,7 @@ import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
 import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses, getSixesMode, getStretchStartHole, SixesMode } from '../services/sixesEngine';
 import { TeamBankerTeamSetup } from './teamBanker';
 import TournamentGameOverlay from './tournament/TournamentGameOverlay';
+import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
 import { isTeamBankerStretchStartHole, getTeamBankerTeamAssignment, getTeamBankerStretchForHole, getTeamBankerMode, getTeamBankerStretchStartHole as getTBStretchStartHole, getTeamBankerAllStretches } from '../services/teamBankerEngine';
 
 const ActiveRound: React.FC = () => {
@@ -36,6 +37,18 @@ const ActiveRound: React.FC = () => {
   const location = useLocation();
   const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals, isLoading } = useApp();
   
+  // Tournament mode state
+  const tournamentState = (location.state as any) || {};
+  const tournamentGroupId = tournamentState.tournamentGroupId as string | undefined;
+  const tournamentPlayerMapping = tournamentState.playerMapping as Record<string, string> | undefined;
+  const tournamentOverlay = useTournamentOverlay(
+    tournamentGroupId,
+    tournamentState.tournamentName,
+    tournamentState.tournamentRoundName,
+    tournamentPlayerMapping,
+    tournamentState.teamMatchup,
+  );
+
   // Initialize active hole from navigation state if available
   const [activeHole, setActiveHole] = useState(() => {
     const state = location.state as { startHole?: number } | null;
@@ -312,6 +325,19 @@ const ActiveRound: React.FC = () => {
       scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [activeHole]);
+
+  // Tournament mode: sync scores to tournament_hole_scores whenever scores change
+  useEffect(() => {
+    if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound) return;
+    const holeScores = currentRound.scores[activeHole];
+    if (!holeScores) return;
+    currentRound.players.forEach(player => {
+      const score = holeScores[player.id];
+      if (typeof score === 'number' && score > 0) {
+        tournamentOverlay.syncScore(activeHole, player.id, score);
+      }
+    });
+  }, [currentRound?.scores, activeHole, tournamentGroupId, tournamentPlayerMapping]);
 
   if (!currentRound) {
     if (isLoading) {

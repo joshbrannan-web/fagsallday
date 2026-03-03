@@ -4,6 +4,9 @@ import { ArrowLeft, ArrowRight, Trophy, Loader2, AlertTriangle, Info } from 'luc
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useTournamentRoundSetup } from '@/hooks/useTournamentRoundSetup';
 import TournamentRoundCard, { GAME_TYPE_LABELS } from './TournamentRoundCard';
@@ -11,6 +14,8 @@ import TournamentRulesCallout from './TournamentRulesCallout';
 import TournamentPlayerSelector from './TournamentPlayerSelector';
 import TournamentTeamAssigner from './TournamentTeamAssigner';
 import { useAuth } from '@/hooks/useAuth';
+import { GAME_LIBRARY, GAME_DETAILS } from '@/lib/gameLibrary';
+import { GameSettings, GameType } from '@/types';
 
 const TOTAL_STEPS = 7;
 
@@ -214,23 +219,91 @@ const TournamentBuildRoundWizard: React.FC = () => {
     </div>
   );
 
-  const renderStep6 = () => (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold">Add Side Games?</h2>
-      <p className="text-sm text-muted-foreground">
-        Optional — add betting games alongside the tournament. These won't affect the leaderboard.
-      </p>
-      <div className="flex gap-2">
-        <Button variant={sideGames.length === 0 ? 'default' : 'outline'} onClick={() => setup.setSideGames([])}>
-          No Side Games
-        </Button>
+  const renderStep6 = () => {
+    const playerCount = setup.requiredPlayerCount;
+    const availableGames = GAME_LIBRARY.filter(
+      g => playerCount >= g.minPlayers && playerCount <= g.maxPlayers
+    );
+
+    const toggleGame = (game: typeof GAME_LIBRARY[0]) => {
+      const existing = sideGames.find(g => g.type === game.type);
+      if (existing) {
+        setup.setSideGames(sideGames.filter(g => g.type !== game.type));
+      } else {
+        const newGame: GameSettings = {
+          id: `${game.type}_${Date.now()}`,
+          type: game.type,
+          name: game.name,
+          unitStake: game.defaultUnitStake,
+          config: { ...game.config },
+        };
+        setup.setSideGames([...sideGames, newGame]);
+      }
+    };
+
+    const updateStake = (gameType: GameType, stake: number) => {
+      setup.setSideGames(sideGames.map(g => g.type === gameType ? { ...g, unitStake: stake } : g));
+    };
+
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold">Add Side Games?</h2>
+        <p className="text-sm text-muted-foreground">
+          Optional — add betting games alongside the tournament. These won't affect the leaderboard.
+        </p>
+        <div className="space-y-3">
+          {availableGames.map(game => {
+            const isActive = sideGames.some(g => g.type === game.type);
+            const activeGame = sideGames.find(g => g.type === game.type);
+            const details = GAME_DETAILS[game.type];
+            return (
+              <div key={game.type} className={`rounded-xl border p-3 transition-colors ${isActive ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-xl">{game.icon}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{game.name}</span>
+                        {details && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="text-muted-foreground hover:text-foreground">
+                                <Info className="w-3.5 h-3.5" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="text-xs space-y-2 max-w-xs">
+                              <p><strong>How it works:</strong> {details.howItWorks}</p>
+                              <p><strong>Ideal for:</strong> {details.idealPlayers}</p>
+                              <p><strong>Example:</strong> {details.examplePayout}</p>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{game.description}</p>
+                    </div>
+                  </div>
+                  <Switch checked={isActive} onCheckedChange={() => toggleGame(game)} />
+                </div>
+                {isActive && activeGame && (
+                  <div className="mt-3 flex items-center gap-2 pl-8">
+                    <span className="text-xs text-muted-foreground">$/unit:</span>
+                    <Input
+                      type="number"
+                      value={activeGame.unitStake}
+                      onChange={e => updateStake(game.type, parseFloat(e.target.value) || 1)}
+                      className="w-20 h-7 text-xs text-center"
+                      min={1}
+                      step={1}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
-      {/* TODO: Integrate existing game selection UI from SetupWizard */}
-      <p className="text-xs text-muted-foreground text-center pt-4">
-        Full side game selection coming in a future update. For now, start without side games and add them from the round menu.
-      </p>
-    </div>
-  );
+    );
+  };
 
   const sideGames = setup.sideGames;
 
