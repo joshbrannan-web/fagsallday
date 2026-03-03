@@ -1,60 +1,44 @@
 
 
-# Fix Plan: 3 FAIL Items + 3 PARTIAL Items
+# Fix #40: Extract GameSelector Component
 
-## ❌ #48 — syncScore never called (CRITICAL)
+## Problem
+Tournament wizard Step 6 has a simplified game selection UI (just Switch toggles + basic Input stakes) instead of the full-featured game selection from SetupWizard (which includes FBO player selection, handicap mode radio groups, Wolf tee order, Banker multipliers, Skins carryovers, Team Banker rotation, head-to-head matchups, etc.).
 
-**Problem:** `useTournamentOverlay` exposes `syncScore` but `ActiveRound.tsx` never calls it when scores change.
+## Plan
 
-**Fix:** In `ActiveRound.tsx`, extract tournament state from `location.state`, get `syncScore` from `useTournamentOverlay`, and call it after every `updateScore` call. There are 3 call sites: voice command (~line 405), `handleScoreChange` (~line 425), and `handleScoreClick` (~line 434). Add a wrapper or `useEffect` that watches `currentRound.scores` and syncs changed scores. A `useEffect` approach is cleanest — whenever `currentRound.scores[activeHole]` changes, iterate players and call `syncScore` for each with a score.
+### 1. Create `src/components/GameSelector.tsx`
 
-Alternatively, create a simple callback `onScoreChange(hole, playerId, score)` that calls `syncScore` alongside `updateScore`. Add it to the 3 existing call sites.
-
-## ❌ #40 — Step 6 Side Games is placeholder
-
-**Problem:** `GAME_LIBRARY` is defined inside `SetupWizard.tsx` (lines 64-175) and not exported.
-
-**Fix:**
-1. Extract `GAME_LIBRARY` and `GAME_DETAILS` arrays from `SetupWizard.tsx` into a new shared file `src/lib/gameLibrary.ts` 
-2. Import from that file in both `SetupWizard.tsx` and `TournamentBuildRoundWizard.tsx`
-3. Replace the Step 6 placeholder in `TournamentBuildRoundWizard.tsx` with a game selection UI: show game cards, allow toggling games on/off, configure stakes — replicating the SetupWizard game step logic. Filter games by player count (use `requiredPlayerCount` from the wizard).
-
-## ❌ #42 — Round name not stored
-
-**Problem:** The `rounds` table has no `name` column and the tournament round insert doesn't store identifying metadata.
-
-**Fix:** Store tournament metadata in the `game_data` JSON field (which already exists as a JSONB column) during round creation in `useTournamentRoundSetup.ts`:
+A standalone component that receives:
 ```ts
-game_data: {
-  _tournament_meta: {
-    tournamentName: tournament.name,
-    roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
-    tournamentGroupId: newGroup.id
-  }
+interface GameSelectorProps {
+  players: Player[];
+  selectedGames: GameSettings[];
+  onGamesChange: (games: GameSettings[]) => void;
 }
 ```
-This avoids modifying the `rounds` table schema. Display this name in round history if present.
 
-## ⚠️ #22 — Verify amber Override badge
+Extract the full game selection rendering from SetupWizard lines 1725-2444 into this component. Include the three handler functions (`handleToggleGame`, `handleUpdateGameStake`, `handleUpdateGameConfig`) as internal logic that calls `onGamesChange`. The component renders the complete game cards with all configuration panels (FBO players + presses + head-to-head matchups, Skins carryovers, handicap mode radio groups, Wolf tee order, Banker/Bloody Banker/Team Banker multipliers + rotation mode + 2nd ball tiebreaker).
 
-**Action:** Read `PlayerListAdmin.tsx` to verify styling. If missing, add amber badge.
+### 2. Update `src/components/SetupWizard.tsx`
 
-## ⚠️ #23 — Verify team reassignment
+Replace the inline game selection rendering (lines 1725-2444) with:
+```tsx
+<GameSelector
+  players={players.filter(p => p.name.trim())}
+  selectedGames={selectedGames}
+  onGamesChange={setSelectedGames}
+/>
+```
 
-**Action:** Read `TeamListAdmin.tsx` to verify move-player-between-teams logic works.
+Remove the three handler functions (`handleToggleGame`, `handleUpdateGameStake`, `handleUpdateGameConfig`) since they move into GameSelector.
 
-## ⚠️ #38 — Step 5 team locking
+### 3. Update `src/components/tournament/TournamentBuildRoundWizard.tsx`
 
-**Current:** Entire component is read-only. **Acceptable as-is** since teams are fixed by Super User. No change needed — this is by design.
+Replace the current `renderStep6()` implementation (lines 222-306) with the GameSelector component. Map tournament players to the `Player` type and wire `onGamesChange` to `setup.setSideGames`.
 
-## Files to Create
-- `src/lib/gameLibrary.ts` — extracted GAME_LIBRARY + GAME_DETAILS
-
-## Files to Modify
-- `src/components/SetupWizard.tsx` — import GAME_LIBRARY/GAME_DETAILS from shared file instead of inline
-- `src/components/tournament/TournamentBuildRoundWizard.tsx` — replace Step 6 placeholder with real game selection UI
-- `src/components/ActiveRound.tsx` — call `syncScore` when scores change (tournament mode)
-- `src/hooks/useTournamentRoundSetup.ts` — store tournament metadata in `game_data`
-
-## No database changes needed
+### Files
+- **Create:** `src/components/GameSelector.tsx`
+- **Modify:** `src/components/SetupWizard.tsx` (replace inline game UI with GameSelector)
+- **Modify:** `src/components/tournament/TournamentBuildRoundWizard.tsx` (replace Step 6 with GameSelector)
 
