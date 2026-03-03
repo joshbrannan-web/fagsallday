@@ -1,44 +1,28 @@
 
 
-# Fix #42: Store Tournament Metadata in Round `game_data`
+# Fix Audit Items #22, #23, #38
 
-## Problem
-When `startRound()` creates a round, it stores metadata under `_tournament_meta` (lowercase) but with incomplete fields. The round history has no way to identify tournament rounds or display a tournament-specific label.
+## Item #22 — PlayerListAdmin handicap override badge styling
 
-## Changes
+**Current state:** Line 92 uses `bg-[hsl(var(--brand-gold))]/10 text-[hsl(var(--brand-gold))] border-[hsl(var(--brand-gold))]/30` and text says "Override".
 
-### 1. `src/hooks/useTournamentRoundSetup.ts` — Enrich metadata key
+**Fix:** Change badge classes to `bg-amber-500/20 text-amber-400 border border-amber-500/30` and text to "HCP Override".
 
-Change the key from `_tournament_meta` to `_TOURNAMENT_META` (uppercase, consistent with other meta keys like `_META_PRESSES`, `_META_TEAM_A`) and add the missing fields.
+**File:** `src/components/tournament-admin/PlayerListAdmin.tsx` (line 92-94)
 
-**Initial insert (line 226-231)** — replace with:
-```js
-game_data: {
-  _TOURNAMENT_META: {
-    tournamentId: tournament.id,
-    tournamentName: tournament.name,
-    roundNumber: selectedRound.round_number,
-    roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
-    displayName: `${tournament.name} — Round ${selectedRound.round_number}`,
-  },
-}
-```
+## Item #23 — TeamListAdmin player reassignment
 
-**Post-group update (lines 279-287)** — same structure plus `tournamentGroupId: newGroup.id`.
+**Current state:** Already has a Select dropdown per player (line 50) that calls `onUpdatePlayer(p.id, { team_id: v })`. The flow is complete — selecting a new team calls the parent's update handler which writes to Supabase, and React re-renders the list since players are filtered by `team_id` per team card.
 
-### 2. `src/components/RoundHistory.tsx` — Show tournament label + trophy
+**Status:** Working as-is. The Select dropdown shows team options with color dots. No changes needed — the flow is end-to-end complete.
 
-In the `RoundCard` component, extract tournament meta from `round.gameData?._TOURNAMENT_META`. If it exists:
+## Item #38 — Step 5 team assignment locking
 
-- Replace the round title (`round.course.name`) with `meta.displayName` as the primary heading
-- Show course name as a secondary line below it (smaller text)
-- Add a 🏆 `Trophy` icon badge (already imported in the file) next to the title, styled like the existing LIVE/LOCKED/SHARED badges
+**Current state:** `TournamentTeamAssigner` shows player names in read-only cards grouped by team. No dropdowns exist (good). But no lock icon on the current user's row.
 
-Also update the search filter (line 191-195) to include `_TOURNAMENT_META.displayName` so tournament rounds are searchable by tournament name.
+**Fix:** Pass `currentUserId` to `TournamentTeamAssigner`. In the player card, if `p.user_id === currentUserId`, show a Lock icon + "You" badge. This requires the `TournamentPlayer` interface in TournamentTeamAssigner to include `user_id`.
 
-### Files
-- **Modify:** `src/hooks/useTournamentRoundSetup.ts` (2 spots: initial insert + post-group update)
-- **Modify:** `src/components/RoundHistory.tsx` (RoundCard title rendering + search filter)
-
-No new tables, columns, or migrations required.
+**Files:**
+- `src/components/tournament/TournamentTeamAssigner.tsx` — add `currentUserId` prop, add `user_id` to interface, render Lock icon
+- `src/components/tournament/TournamentBuildRoundWizard.tsx` — pass `currentUserId` to TournamentTeamAssigner
 
