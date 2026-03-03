@@ -215,6 +215,7 @@ const TournamentBuildRoundWizard: React.FC = () => {
         players={setup.selectedPlayers}
         teams={setup.teams}
         teamAssignments={setup.teamAssignments}
+        currentUserId={user?.id}
       />
     </div>
   );
