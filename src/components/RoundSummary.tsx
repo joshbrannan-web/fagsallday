@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { formatMoney, calculatePerGameTotals, calculateSettlement } from '../services/gameEngine';
 import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image, Trash2, ArrowLeft, RefreshCw } from 'lucide-react';
@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
 import GreenFeeSplitDialog from './GreenFeeSplitDialog';
+import TournamentRoundSummary from './tournament/TournamentRoundSummary';
+import { supabase } from '@/integrations/supabase/client';
 
 const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>): string[] => {
   const details: string[] = [];
@@ -107,6 +109,9 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
 
 const RoundSummary: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const tournamentState = (location.state as any) || {};
+  const tournamentGroupId = tournamentState?.tournamentGroupId;
   const { currentRound, roundTotals, finishRound, updateGameDataBatch, updateRoundCourse, lockRound, unlockRound, deleteRound, clearLoadedRound } = useApp();
   const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, number>>({});
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
@@ -248,6 +253,15 @@ const RoundSummary: React.FC = () => {
     
     if (hasAdjustments) {
       await updateGameDataBatch('_META', 0, { _FINAL_ADJUSTMENTS: adjustedAmounts });
+    }
+    
+    // Submit tournament group if applicable
+    if (tournamentGroupId) {
+      await supabase.from('tournament_groups').update({
+        status: 'submitted',
+        submitted_at: new Date().toISOString(),
+      }).eq('id', tournamentGroupId);
+      toast.success('Round submitted to tournament! 🏆');
     }
     
     await finishRound();
@@ -502,6 +516,19 @@ const RoundSummary: React.FC = () => {
       </div>
 
       <ScorecardImage ref={scorecardImageRef} currentRound={currentRound} roundTotals={displayAmounts} />
+
+      {/* Tournament Round Summary */}
+      {tournamentGroupId && (
+        <div className="px-4 pt-4">
+          <TournamentRoundSummary
+            tournamentGroupId={tournamentGroupId}
+            tournamentName={tournamentState?.tournamentName}
+            roundName={tournamentState?.tournamentRoundName}
+            playerMapping={tournamentState?.playerMapping}
+            teamMatchup={tournamentState?.teamMatchup}
+          />
+        </div>
+      )}
 
       <div className="p-4 bg-card border-t border-border space-y-3">
         <div className="flex gap-3">
