@@ -18,7 +18,7 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [search, setSearch] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<{ id: string; display_name: string; handicap_index?: number }[]>([]);
   const [showSearch, setShowSearch] = useState(false);
 
   const getTeam = (teamId: string) => teams.find((t: any) => t.id === teamId);
@@ -44,9 +44,9 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
     setSearchResults(data || []);
   };
 
-  const handleAdd = async (name: string, userId?: string) => {
+  const handleAdd = async (name: string, handicap: number = 0, userId?: string) => {
     if (!teams[0]) { toast.error('Create a team first'); return; }
-    await onAddPlayer({ display_name: name, handicap_index: 0, team_id: teams[0].id, user_id: userId });
+    await onAddPlayer({ display_name: name, handicap_index: handicap, team_id: teams[0].id, user_id: userId });
     setSearch('');
     setSearchResults([]);
     setShowSearch(false);
@@ -68,7 +68,7 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
           {searchResults.length > 0 && (
             <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
               {searchResults.map(r => (
-                <button key={r.id} className="w-full flex items-center justify-between px-3 py-2 hover:bg-accent text-sm" onClick={() => handleAdd(r.display_name, r.id)}>
+                <button key={r.id} className="w-full flex items-center justify-between px-3 py-2 hover:bg-accent text-sm" onClick={() => handleAdd(r.display_name, r.handicap_index ?? 0, r.id)}>
                   <span>{r.display_name}</span>
                   <UserPlus className="w-4 h-4 text-primary" />
                 </button>
