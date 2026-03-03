@@ -148,11 +148,45 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else { toast.success('Tournament updated'); await fetchAll(); }
   };
 
+  const deleteTournament = async (): Promise<boolean> => {
+    if (!tournamentId) return false;
+    const { error } = await supabase.from('tournaments').delete().eq('id', tournamentId);
+    if (error) { toast.error('Failed to delete tournament'); return false; }
+    toast.success('Tournament deleted');
+    return true;
+  };
+
+  const addRound = async (roundNumber: number) => {
+    if (!tournamentId) return;
+    const { data: roundData, error: roundErr } = await supabase.from('tournament_rounds').insert({
+      tournament_id: tournamentId,
+      round_number: roundNumber,
+      course_data: {},
+      status: 'pending',
+    }).select().single();
+    if (roundErr || !roundData) { toast.error('Failed to add round'); return; }
+    // Insert default game for this round
+    const { error: gameErr } = await supabase.from('tournament_games').insert({
+      tournament_round_id: roundData.id,
+      game_type: 'match_play_best_ball',
+    });
+    if (gameErr) toast.error('Round added but failed to create default game config');
+    else toast.success('Round added');
+    await fetchAll();
+  };
+
+  const deleteRound = async (roundId: string) => {
+    const { error } = await supabase.from('tournament_rounds').delete().eq('id', roundId);
+    if (error) { toast.error('Failed to delete round'); return; }
+    toast.success('Round deleted');
+    await fetchAll();
+  };
+
   return {
     tournament, teams, players, rounds, games, scoreboards, groups, isLoading,
     refetch: fetchAll,
-    updateTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
-    startRound, completeRound, updateRound, updateGame,
+    updateTournament, deleteTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
+    startRound, completeRound, updateRound, updateGame, addRound, deleteRound,
     addScoreboard, updateScoreboard, deleteScoreboard,
     addTeam, deleteTeam,
   };
