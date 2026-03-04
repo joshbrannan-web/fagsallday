@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle, Grid3X3, Share2, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle, Grid3X3, Share2, Loader2, Trophy } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
@@ -28,7 +28,7 @@ import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRela
 import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
 import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses, getSixesMode, getStretchStartHole, SixesMode } from '../services/sixesEngine';
 import { TeamBankerTeamSetup } from './teamBanker';
-import TournamentGameOverlay from './tournament/TournamentGameOverlay';
+import TournamentTabPanel from './tournament/TournamentTabPanel';
 import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
 import { isTeamBankerStretchStartHole, getTeamBankerTeamAssignment, getTeamBankerStretchForHole, getTeamBankerMode, getTeamBankerStretchStartHole as getTBStretchStartHole, getTeamBankerAllStretches } from '../services/teamBankerEngine';
 
@@ -61,6 +61,7 @@ const ActiveRound: React.FC = () => {
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
   const [showHolePicker, setShowHolePicker] = useState(false);
   const [declinedPresses, setDeclinedPresses] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'betting' | 'tournament'>('betting');
   const [isGeneratingLinks, setIsGeneratingLinks] = useState(false);
   
   const isOnline = useOnlineStatus();
@@ -1000,8 +1001,37 @@ const ActiveRound: React.FC = () => {
         );
       })()}
 
+      {/* Tournament Toggle Tabs */}
+      {!stockton6NeedsSetup && !sixesNeedsSetup && !teamBankerNeedsSetup && tournamentGroupId && (
+        <div className="sticky top-0 z-20 bg-background px-4 pt-2 pb-1">
+          <div className="flex rounded-lg bg-muted p-1">
+            <button
+              onClick={() => setActiveTab('betting')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-all ${
+                activeTab === 'betting'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              💰 Betting
+            </button>
+            <button
+              onClick={() => setActiveTab('tournament')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-all ${
+                activeTab === 'tournament'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Trophy className="w-4 h-4" style={activeTab !== 'tournament' ? { color: 'hsl(var(--brand-gold))' } : undefined} />
+              Tournament
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Scoring Area - Hidden when team setup is needed */}
-      {!stockton6NeedsSetup && !sixesNeedsSetup && !teamBankerNeedsSetup && (
+      {!stockton6NeedsSetup && !sixesNeedsSetup && !teamBankerNeedsSetup && activeTab === 'betting' && (
       <div 
         ref={scrollContainerRef}
         className={`flex-1 overflow-y-auto p-4 space-y-4 ${
@@ -2429,16 +2459,30 @@ const ActiveRound: React.FC = () => {
         )}
       </div>
 
-      {/* Tournament Game Overlay */}
-      {(location.state as any)?.tournamentGroupId && (
-        <div className="px-3 pb-3">
-          <TournamentGameOverlay
-            tournamentGroupId={(location.state as any).tournamentGroupId}
-            tournamentName={(location.state as any)?.tournamentName}
-            roundName={(location.state as any)?.tournamentRoundName}
-            playerMapping={(location.state as any)?.playerMapping}
-            teamMatchup={(location.state as any)?.teamMatchup}
-            activeHole={activeHole}
+      {/* Tournament Tab Panel */}
+      {!stockton6NeedsSetup && !sixesNeedsSetup && !teamBankerNeedsSetup && tournamentGroupId && activeTab === 'tournament' && (
+        <div
+          ref={scrollContainerRef}
+          className={`flex-1 overflow-y-auto p-4 space-y-4 ${
+            isBottomBarMinimized ? 'pb-16' : 'pb-48'
+          }`}
+        >
+          <TournamentTabPanel
+            tournamentName={tournamentOverlay.tournamentName}
+            roundName={tournamentOverlay.roundName}
+            teamMatchup={tournamentOverlay.teamMatchup}
+            teams={tournamentOverlay.teams}
+            teamTotals={tournamentOverlay.teamTotals}
+            holesPlayed={tournamentOverlay.holesPlayed}
+            matchState={tournamentOverlay.matchState}
+            holeResults={tournamentOverlay.holeResults}
+            courseHoles={tournamentOverlay.courseHoles}
+            tournamentGame={tournamentOverlay.tournamentGame}
+            tournamentPlayers={tournamentOverlay.tournamentPlayers}
+            teamAssignments={tournamentOverlay.teamAssignments}
+            allHoleScores={tournamentOverlay.allHoleScores}
+            segmentTotals={tournamentOverlay.segmentTotals}
+            newlyCompletedHole={tournamentOverlay.newlyCompletedHole}
           />
         </div>
       )}
