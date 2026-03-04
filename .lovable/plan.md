@@ -1,73 +1,29 @@
 
 
-# Plan: Tournament Round Delete on Round Summary Page
+# Plan: Fix Tournament Round Delete — tournamentGroupId Not Found
 
-## Approach
+## Root Cause
 
-Instead of adding a delete button to the ActiveRound header, modify the existing `handleDeleteRound` in `RoundSummary.tsx` to also clean up tournament data when the round is a tournament round. The delete button already exists on the summary page for non-tournament active rounds — just need to ensure it also appears for tournament rounds and handles the tournament cleanup.
+The `tournamentGroupId` in `RoundSummary.tsx` is sourced exclusively from `location.state` (line 118), which is only populated when navigating from the ActiveRound component. If the user reaches the Round Summary via any other path (e.g., loading from history, page refresh), `location.state` is empty and `tournamentGroupId` is `undefined`. This causes `handleDeleteRound` to skip the tournament cleanup and attempt to delete the round directly, which fails with a foreign key constraint error because `tournament_groups` still references the round.
 
-## Changes
+The tournament group ID is already stored inside the round's `gameData` at `_TOURNAMENT_META.tournamentGroupId` — the code just needs to use it as a fallback.
 
-### 1. `src/components/RoundSummary.tsx`
+## Fix
 
-- **Show the Delete button for tournament rounds too**: Currently the Delete Round button is inside `!allHolesComplete && currentRound.status === 'ACTIVE'` block. Tournament rounds should also show delete here (the button already renders for active rounds regardless of tournament status — just need to verify it's not hidden).
-- **Update `handleDeleteRound`**: When `tournamentGroupId` is present, replace the `window.confirm` with an `AlertDialog` showing the custom message: *"If you delete this round, all round info fed to tournament will be lost. Are you sure you want to delete?"*
-- Before deleting the round, delete tournament child records: `tournament_group_players`, `tournament_hole_scores`, `tournament_hole_results` for the group, then delete the `tournament_groups` row itself.
-- Then call `deleteRound(currentRound.id)` and navigate home as usual.
-- Add `AlertDialog` imports and state (`showDeleteConfirm`) to manage the dialog.
+### `src/components/RoundSummary.tsx` (line 118)
 
-### 2. Database Migration
+Change the `tournamentGroupId` derivation to also check the round's embedded metadata:
 
-Add DELETE RLS policies so group members can delete their own tournament group data:
-
-```sql
--- tournament_groups
-CREATE POLICY "Group members can delete their groups"
-ON public.tournament_groups FOR DELETE TO authenticated
-USING (EXISTS (
-  SELECT 1 FROM tournament_group_players tgp
-  JOIN tournament_players tp ON tp.id = tgp.tournament_player_id
-  WHERE tgp.tournament_group_id = tournament_groups.id
-  AND tp.user_id = auth.uid()
-));
-
--- tournament_group_players
-CREATE POLICY "Group members can delete group players"
-ON public.tournament_group_players FOR DELETE TO authenticated
-USING (EXISTS (
-  SELECT 1 FROM tournament_group_players tgp2
-  JOIN tournament_players tp ON tp.id = tgp2.tournament_player_id
-  WHERE tgp2.tournament_group_id = tournament_group_players.tournament_group_id
-  AND tp.user_id = auth.uid()
-));
-
--- tournament_hole_scores
-CREATE POLICY "Group members can delete hole scores"
-ON public.tournament_hole_scores FOR DELETE TO authenticated
-USING (EXISTS (
-  SELECT 1 FROM tournament_group_players tgp
-  JOIN tournament_players tp ON tp.id = tgp.tournament_player_id
-  WHERE tgp.tournament_group_id = tournament_hole_scores.tournament_group_id
-  AND tp.user_id = auth.uid()
-));
-
--- tournament_hole_results
-CREATE POLICY "Group members can delete hole results"
-ON public.tournament_hole_results FOR DELETE TO authenticated
-USING (EXISTS (
-  SELECT 1 FROM tournament_group_players tgp
-  JOIN tournament_players tp ON tp.id = tgp.tournament_player_id
-  WHERE tgp.tournament_group_id = tournament_hole_results.tournament_group_id
-  AND tp.user_id = auth.uid()
-));
+```typescript
+const tournamentGroupId = tournamentState?.tournamentGroupId 
+  || currentRound?.gameData?.['_TOURNAMENT_META']?.tournamentGroupId;
 ```
 
-## Summary
+This single-line change ensures the delete flow always finds the tournament group ID regardless of how the user navigated to the summary page. No other files or database changes needed.
 
 | Resource | Change |
 |---|---|
-| `src/components/RoundSummary.tsx` | Replace `window.confirm` with `AlertDialog` for tournament rounds; add tournament data cleanup before round deletion |
-| Database migration | Add DELETE RLS policies on 4 tournament tables for group members |
+| `src/components/RoundSummary.tsx` | Fallback `tournamentGroupId` from `currentRound.gameData._TOURNAMENT_META` |
 
-1 file modified, 1 database migration, 0 new files.
+1 line changed, 0 new files, 0 database changes.
 
