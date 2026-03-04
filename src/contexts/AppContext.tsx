@@ -27,6 +27,7 @@ export interface AppState {
   toggleRoundFavorite: (roundId: string) => void;
   roundTotals: { [playerId: string]: number };
   isLoading: boolean;
+  refetchRounds: () => Promise<void>;
 }
 
 export const AppContext = createContext<AppState | undefined>(undefined);

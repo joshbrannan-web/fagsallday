@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { GameSettings, Course, Player } from '@/types';
+import { useApp } from '@/contexts/AppContext';
 
 interface TournamentData {
   id: string;
@@ -75,6 +76,7 @@ const SCRAMBLE_TYPES = ['scramble_2', 'scramble_4'];
 export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { refetchRounds } = useApp();
 
   const [tournament, setTournament] = useState<TournamentData | null>(null);
   const [teams, setTeams] = useState<TournamentTeam[]>([]);
@@ -305,6 +307,9 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         acc[(i + 1).toString()] = tp.id;
         return acc;
       }, {} as Record<string, string>);
+
+      // Refetch rounds so useRounds picks up the new ACTIVE round before navigating
+      await refetchRounds();
 
       toast.success('Round started! 🏌️');
       navigate('/active', {
