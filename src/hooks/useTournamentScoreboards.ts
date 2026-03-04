@@ -108,14 +108,32 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
       .channel(`scoreboards-${tournamentId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_hole_scores' }, (payload) => {
         const row = payload.new as any;
-        if (row && allGroupIds.includes(row.tournament_group_id)) {
+        if (payload.eventType === 'DELETE') {
           fetchScoresAndResults(allGroupIds);
+          return;
+        }
+        if (row && allGroupIds.includes(row.tournament_group_id)) {
+          setHoleScores(prev => {
+            const idx = prev.findIndex((s: any) => s.id === row.id);
+            if (idx >= 0) { const next = [...prev]; next[idx] = row; return next; }
+            return [...prev, row];
+          });
+          setLastUpdated(new Date());
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_hole_results' }, (payload) => {
         const row = payload.new as any;
-        if (row && allGroupIds.includes(row.tournament_group_id)) {
+        if (payload.eventType === 'DELETE') {
           fetchScoresAndResults(allGroupIds);
+          return;
+        }
+        if (row && allGroupIds.includes(row.tournament_group_id)) {
+          setHoleResults(prev => {
+            const idx = prev.findIndex((r: any) => r.id === row.id);
+            if (idx >= 0) { const next = [...prev]; next[idx] = row; return next; }
+            return [...prev, row];
+          });
+          setLastUpdated(new Date());
           if (!isInitialLoad.current) {
             setNewHoleResult(row);
             setTimeout(() => setNewHoleResult(null), 4500);

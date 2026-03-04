@@ -124,20 +124,101 @@ const TournamentGroupScorecard: React.FC = () => {
           <h2 className="text-lg font-bold">
             {round.name || `Round ${round.round_number}`} — Group {group.group_number}
           </h2>
-          {teamA && teamB && (
-            <div className="flex items-center justify-center gap-3 text-sm">
-              <span className="flex items-center gap-1">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: teamA.color }} />
-                <span className="font-bold" style={{ color: teamA.color }}>{teamTotals[teamA.id] || 0}</span>
-              </span>
-              <span className="text-muted-foreground">—</span>
-              <span className="flex items-center gap-1">
-                <span className="font-bold" style={{ color: teamB.color }}>{teamTotals[teamB.id] || 0}</span>
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: teamB.color }} />
-              </span>
-            </div>
-          )}
         </div>
+
+        {/* Match Status Bar */}
+        {teamA && teamB && (() => {
+          const totalA = teamTotals[teamA.id] || 0;
+          const totalB = teamTotals[teamB.id] || 0;
+          const holesPlayed = results.length;
+          const pointsPerHole = game?.default_points_per_hole || 1;
+          const totalPointsAvailable = 18 * pointsPerHole;
+          const pointsUsed = totalA + totalB;
+          const remaining = Math.max(0, totalPointsAvailable - pointsUsed);
+          const isMatchComplete = group.status === 'submitted' || holesPlayed >= 18 ||
+            (totalA > totalB && (totalA - totalB) > remaining) ||
+            (totalB > totalA && (totalB - totalA) > remaining);
+          const isDormie = !isMatchComplete && remaining > 0 &&
+            Math.abs(totalA - totalB) === remaining;
+
+          let statusLine = '';
+          const winnerName = totalA > totalB ? teamA.name : teamB.name;
+          if (isMatchComplete) {
+            statusLine = totalA === totalB
+              ? `Match Halved ${totalA} — ${totalB}`
+              : `${winnerName} wins ${Math.max(totalA, totalB)} — ${Math.min(totalA, totalB)}`;
+          } else if (isDormie) {
+            statusLine = `Dormie • ${remaining} pts left`;
+          } else if (totalA === totalB) {
+            statusLine = `All Square • Thru ${holesPlayed} • ${remaining} pts left`;
+          } else {
+            statusLine = `${winnerName} leads • Thru ${holesPlayed} • ${remaining} pts left`;
+          }
+
+          return (
+            <div className="space-y-2">
+              <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: teamA.color }} />
+                    <span className={`font-semibold text-sm ${totalA >= totalB ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {teamA.name}
+                    </span>
+                  </div>
+                  <div className="text-3xl font-bold text-foreground font-mono">
+                    {totalA}
+                    <span className="text-muted-foreground text-lg"> — </span>
+                    {totalB}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-semibold text-sm ${totalB >= totalA ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {teamB.name}
+                    </span>
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: teamB.color }} />
+                  </div>
+                </div>
+                <p className={`text-xs text-center ${isMatchComplete ? 'text-[hsl(var(--brand-gold))] font-bold' : 'text-muted-foreground'}`}>
+                  {statusLine}
+                </p>
+              </div>
+
+              {isMatchComplete && (
+                <div className="rounded-xl border p-3 text-center text-sm font-bold"
+                  style={{
+                    backgroundColor: 'hsl(45 93% 47% / 0.15)',
+                    borderColor: 'hsl(45 93% 47% / 0.4)',
+                    color: 'hsl(45 93% 47%)',
+                  }}
+                >
+                  Match Complete 🏆{' '}
+                  {totalA === totalB
+                    ? `Match Halved ${totalA} — ${totalB}`
+                    : `${winnerName} wins ${Math.max(totalA, totalB)}pts to ${Math.min(totalA, totalB)}pts`}
+                </div>
+              )}
+
+              {/* Hole result dots */}
+              <div className="flex items-center justify-center gap-1 flex-wrap">
+                {courseHoles.map((h: any) => {
+                  const res = results.find((r: any) => r.hole_number === h.number);
+                  if (!res) return <span key={h.number} className="w-3 h-3 rounded-full bg-muted border border-border" />;
+                  const tp = res.team_points as Record<string, number>;
+                  const aPts = Number(tp?.[teamA.id] || 0);
+                  const bPts = Number(tp?.[teamB.id] || 0);
+                  const color = aPts > bPts ? teamA.color : bPts > aPts ? teamB.color : undefined;
+                  return (
+                    <span
+                      key={h.number}
+                      className="w-3 h-3 rounded-full border border-border"
+                      style={{ backgroundColor: color || 'hsl(var(--muted))' }}
+                      title={`Hole ${h.number}`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Scorecard table */}
         <Card className="overflow-hidden">

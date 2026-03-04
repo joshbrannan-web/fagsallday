@@ -84,6 +84,23 @@ const TournamentScoreboards: React.FC = () => {
   const highestActiveRound = rounds.filter((r: any) => r.status === 'active' || r.status === 'completed')
     .sort((a: any, b: any) => b.round_number - a.round_number)[0];
 
+  // Completion banner: compute winner
+  const completionBanner = (() => {
+    if (!isComplete || teams.length < 2) return null;
+    const totals: Record<string, number> = {};
+    teams.forEach((t: any) => { totals[t.id] = 0; });
+    holeResults.forEach((hr: any) => {
+      const tp = hr.team_points as Record<string, number>;
+      if (tp) Object.entries(tp).forEach(([tid, pts]) => { totals[tid] = (totals[tid] || 0) + Number(pts); });
+    });
+    const [t1, t2] = teams;
+    const p1 = totals[t1.id] || 0;
+    const p2 = totals[t2.id] || 0;
+    if (p1 === p2) return `🏆 Tournament Complete — Tied ${p1} — ${p2}`;
+    const winner = p1 > p2 ? t1 : t2;
+    return `🏆 ${winner.name} wins ${Math.max(p1, p2)} — ${Math.min(p1, p2)}`;
+  })();
+
   const scoreboardData = {
     teams, rounds, players, groups, groupPlayers,
     holeResults, holeScores, games,
@@ -104,9 +121,9 @@ const TournamentScoreboards: React.FC = () => {
       )}
 
       {/* Completed banner */}
-      {isComplete && (
+      {isComplete && completionBanner && (
         <div className="bg-[hsl(var(--brand-gold))]/20 border-b border-[hsl(var(--brand-gold))]/40 px-4 py-2 text-center">
-          <span className="text-sm font-bold">🏆 Tournament Complete</span>
+          <span className="text-sm font-bold">{completionBanner}</span>
         </div>
       )}
 
@@ -144,14 +161,14 @@ const TournamentScoreboards: React.FC = () => {
             </div>
           )}
 
-          {highestActiveRound && (
-            <p className="text-sm text-muted-foreground">
-              Round {highestActiveRound.round_number} of {tournament.num_rounds}
-              {(tournament.start_date || tournament.end_date) && ' • '}
-              {tournament.start_date && new Date(tournament.start_date).toLocaleDateString()}
-              {tournament.end_date && ` — ${new Date(tournament.end_date).toLocaleDateString()}`}
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground">
+            {highestActiveRound
+              ? `Round ${highestActiveRound.round_number} of ${tournament.num_rounds}`
+              : `Round 0 of ${tournament.num_rounds} — Not started`}
+            {(tournament.start_date || tournament.end_date) && ' • '}
+            {tournament.start_date && new Date(tournament.start_date).toLocaleDateString()}
+            {tournament.end_date && ` — ${new Date(tournament.end_date).toLocaleDateString()}`}
+          </p>
         </div>
 
         {/* Scoreboard selector */}

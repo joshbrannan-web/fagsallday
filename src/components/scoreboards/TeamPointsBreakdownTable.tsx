@@ -126,7 +126,7 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
                         pB > pA ? 'bg-destructive/20 text-destructive' :
                         'bg-muted text-muted-foreground'
                       }`}>
-                        {pA > pB ? '✓' : pB > pA ? '✓' : '½'}
+                        {resultLabel}
                       </span>
                     </div>
                   </button>
