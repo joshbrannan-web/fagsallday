@@ -190,18 +190,24 @@ const RoundSummary: React.FC = () => {
   };
 
   const handleConfirmTournamentDelete = async () => {
+    setShowDeleteConfirm(false);
     try {
-      // Delete tournament child records first, then the group
-      await supabase.from('tournament_hole_results').delete().eq('tournament_group_id', tournamentGroupId);
-      await supabase.from('tournament_hole_scores').delete().eq('tournament_group_id', tournamentGroupId);
-      await supabase.from('tournament_group_players').delete().eq('tournament_group_id', tournamentGroupId);
-      await supabase.from('tournament_groups').delete().eq('id', tournamentGroupId);
+      const { error: e1 } = await supabase.from('tournament_hole_results').delete().eq('tournament_group_id', tournamentGroupId);
+      if (e1) throw e1;
+      const { error: e2 } = await supabase.from('tournament_hole_scores').delete().eq('tournament_group_id', tournamentGroupId);
+      if (e2) throw e2;
+      const { error: e3 } = await supabase.from('tournament_group_players').delete().eq('tournament_group_id', tournamentGroupId);
+      if (e3) throw e3;
+      const { error: e4 } = await supabase.from('tournament_groups').delete().eq('id', tournamentGroupId);
+      if (e4) throw e4;
+
+      await deleteRound(currentRound.id);
+      toast.success('Tournament round deleted');
+      navigate('/');
     } catch (err) {
-      console.error('Error cleaning up tournament data:', err);
+      console.error('Error deleting tournament round:', err);
+      toast.error('Failed to delete round');
     }
-    await deleteRound(currentRound.id);
-    toast.success('Tournament round deleted');
-    navigate('/');
   };
 
   const displayAmounts = Object.keys(adjustedAmounts).length > 0 ? adjustedAmounts : roundTotals;
