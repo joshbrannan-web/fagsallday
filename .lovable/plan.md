@@ -1,29 +1,27 @@
 
 
-# Plan: Fix Tournament Round Delete — tournamentGroupId Not Found
+# Plan: Fix Deleted Round Reappearing After Delete
 
 ## Root Cause
 
-The `tournamentGroupId` in `RoundSummary.tsx` is sourced exclusively from `location.state` (line 118), which is only populated when navigating from the ActiveRound component. If the user reaches the Round Summary via any other path (e.g., loading from history, page refresh), `location.state` is empty and `tournamentGroupId` is `undefined`. This causes `handleDeleteRound` to skip the tournament cleanup and attempt to delete the round directly, which fails with a foreign key constraint error because `tournament_groups` still references the round.
+`deleteRound` in `src/hooks/useRounds.tsx` (line 304-329) clears the database record and in-memory state (`setCurrentRound(null)`, removes from `rounds` array), but does NOT call `offlineStorage.clearCachedRound()`. 
 
-The tournament group ID is already stored inside the round's `gameData` at `_TOURNAMENT_META.tournamentGroupId` — the code just needs to use it as a fallback.
+When the user navigates to `/`, the `RoundRecovery` component in `App.tsx` calls `offlineStorage.getCachedRound()`, finds the stale cached round with status `ACTIVE`, and immediately resumes it — making it appear as if the delete never happened.
 
 ## Fix
 
-### `src/components/RoundSummary.tsx` (line 118)
+### `src/hooks/useRounds.tsx` — line 316
 
-Change the `tournamentGroupId` derivation to also check the round's embedded metadata:
+After `loadedRoundIdRef.current = null;`, add `offlineStorage.clearCachedRound();` inside the `deleteRound` function. This is a one-line addition.
 
 ```typescript
-const tournamentGroupId = tournamentState?.tournamentGroupId 
-  || currentRound?.gameData?.['_TOURNAMENT_META']?.tournamentGroupId;
+loadedRoundIdRef.current = null;
+offlineStorage.clearCachedRound();  // <-- add this line
 ```
 
-This single-line change ensures the delete flow always finds the tournament group ID regardless of how the user navigated to the summary page. No other files or database changes needed.
-
-| Resource | Change |
+| File | Change |
 |---|---|
-| `src/components/RoundSummary.tsx` | Fallback `tournamentGroupId` from `currentRound.gameData._TOURNAMENT_META` |
+| `src/hooks/useRounds.tsx` | Add `offlineStorage.clearCachedRound()` in `deleteRound` after clearing the loaded round ref |
 
-1 line changed, 0 new files, 0 database changes.
+1 line added, 0 new files, 0 database changes.
 
