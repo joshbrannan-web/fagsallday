@@ -37,6 +37,8 @@ export interface RoundConfigData {
   secondBallTiebreaker: boolean;
   sixesConfig: { rules: string; formatNotes: string }[];
   holePointOverrides: number[];
+  sixesFormat: 'match_play' | 'sum_of_strokes';
+  sixesSegmentPoints: [number, number, number];
 }
 
 export const defaultRoundConfig = (num: number): RoundConfigData => ({
@@ -58,6 +60,8 @@ export const defaultRoundConfig = (num: number): RoundConfigData => ({
     { rules: '', formatNotes: '' },
   ],
   holePointOverrides: Array(18).fill(1),
+  sixesFormat: 'match_play',
+  sixesSegmentPoints: [1, 1, 1],
 });
 
 interface Props {
@@ -175,6 +179,39 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber }) => {
 
           {data.gameType === 'tournament_sixes' && (
             <div className="space-y-3">
+              <div>
+                <Label>Sixes Format</Label>
+                <Select value={data.sixesFormat} onValueChange={v => update('sixesFormat', v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="match_play">Match Play (per hole)</SelectItem>
+                    <SelectItem value="sum_of_strokes">Sum of Strokes (per segment)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {data.sixesFormat === 'sum_of_strokes' && (
+                <div className="grid grid-cols-3 gap-2">
+                  {['Holes 1–6', 'Holes 7–12', 'Holes 13–18'].map((lbl, i) => (
+                    <div key={i}>
+                      <Label className="text-xs">{lbl} pts</Label>
+                      <Input
+                        type="number"
+                        value={data.sixesSegmentPoints[i]}
+                        onChange={e => {
+                          const next = [...data.sixesSegmentPoints] as [number, number, number];
+                          next[i] = parseFloat(e.target.value) || 1;
+                          update('sixesSegmentPoints', next);
+                        }}
+                        min={0.5}
+                        step={0.5}
+                        className="h-8"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {['Holes 1–6', 'Holes 7–12', 'Holes 13–18'].map((label, i) => (
                 <div key={i} className="bg-card rounded-lg p-3 space-y-2 border border-border">
                   <p className="text-sm font-medium">{label}</p>

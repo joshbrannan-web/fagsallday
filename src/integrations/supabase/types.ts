@@ -288,6 +288,8 @@ export type Database = {
           rules_text: string | null
           second_ball_tiebreaker: boolean | null
           sixes_config: Json | null
+          sixes_format: string | null
+          sixes_segment_points: Json | null
           tournament_round_id: string
           use_handicaps: boolean | null
         }
@@ -302,6 +304,8 @@ export type Database = {
           rules_text?: string | null
           second_ball_tiebreaker?: boolean | null
           sixes_config?: Json | null
+          sixes_format?: string | null
+          sixes_segment_points?: Json | null
           tournament_round_id: string
           use_handicaps?: boolean | null
         }
@@ -316,6 +320,8 @@ export type Database = {
           rules_text?: string | null
           second_ball_tiebreaker?: boolean | null
           sixes_config?: Json | null
+          sixes_format?: string | null
+          sixes_segment_points?: Json | null
           tournament_round_id?: string
           use_handicaps?: boolean | null
         }
