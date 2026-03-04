@@ -1,76 +1,107 @@
 
 
-# Plan: Live Scorecard Enhancements (Piece 5)
+# Plan: Fix All Critical Failures & Feature Gaps
 
-This is a large feature with 7 new components, updates to the overlay hook, and a toggle system in ActiveRound. The existing tournament overlay at the bottom of ActiveRound (lines 2432-2444) gets replaced by the new tabbed system inserted between the hole card and game panels.
+11 FAIL + 7 PARTIAL items across 5 files. Grouped by file for efficient implementation.
 
-## Architecture
+---
+
+## 1. `src/hooks/useTournamentOverlay.ts` — Realtime + Animation Fix
+
+**Fixes: #59, #67, #68**
+
+**Realtime (#67, #68):** Add a Supabase realtime subscription to `tournament_hole_scores` and `tournament_hole_results` filtered by `tournament_group_id`. On any `INSERT` or `UPDATE` event, re-fetch scores and results, re-run the engine, and update state. This ensures all group members see live updates.
 
 ```text
-ActiveRound.tsx
-├── Top bar (hole nav) ── unchanged
-├── [NEW] Toggle tabs (Betting | Tournament) ── only when tournamentGroupId present
-├── Main scoring area ── wrapped in Betting tab visibility
-│   └── all existing game panels ── zero changes
-├── [NEW] Tournament tab content ── <TournamentTabPanel>
-│   ├── TournamentMatchStatusBar (Section A)
-│   ├── TournamentHoleTracker or TournamentSegmentTracker (Section B)
-│   ├── TournamentPlayerSummary (Section C)
-│   ├── TournamentPointsAnimation (banner)
-│   └── Full Scorecard button → opens TournamentFullScorecard (Sheet)
-└── Bottom bar (minimizable P&L) ── unchanged
+useEffect(() => {
+  if (!tournamentGroupId) return;
+  const channel = supabase.channel(`overlay-${tournamentGroupId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_hole_scores', filter: `tournament_group_id=eq.${tournamentGroupId}` }, () => reload())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_hole_results', filter: `tournament_group_id=eq.${tournamentGroupId}` }, () => reload())
+    .subscribe();
+  return () => { supabase.removeChannel(channel); };
+}, [tournamentGroupId]);
 ```
 
-## New Files (7 components)
+Extract the data-loading logic from the existing `useEffect` into a `reload()` callback so both initial load and realtime events share it.
 
-### 1. `src/components/tournament/TournamentTabPanel.tsx`
-Container for all tournament tab content. Props: overlay state from `useTournamentOverlay`, players, courseHoles, game config, activeHole. Stacks Sections A+B+C vertically with a "Full Scorecard" button at bottom.
+**Animation filter (#59):** Change line 246 from `hr.resultLabel && hr.pointsValue > 0` to `hr.resultLabel && hr.resultLabel !== ''`. This ensures halved holes with `no_points` rule (pointsValue=0) still trigger the animation banner.
 
-### 2. `src/components/tournament/TournamentMatchStatusBar.tsx`
-Prominent status card. Shows tournament name, team names with color dots, large point totals (text-3xl font-bold), status line with lead/thru/remaining. Handles all states: leading, tied, dormie, complete. For sum-of-strokes sixes, defers to segment display.
+---
 
-### 3. `src/components/tournament/TournamentHoleTracker.tsx`
-Reverse-chronological list of completed hole results. Each row: hole number, par, team score comparison, result with color dot. Max 9 visible before scroll. Empty state placeholder. Only shows holes where ALL required scores are entered.
+## 2. `src/components/tournament/TournamentHoleTracker.tsx` — Score Comparison + No-Points Label
 
-### 4. `src/components/tournament/TournamentPlayerSummary.tsx`
-Compact table: Player | Team | Gross | Net | Pts. Running totals from engine output. Sorted by team then gross ascending. Uses `holeResults` from overlay to compute per-player aggregates.
+**Fixes: #17, #20**
 
-### 5. `src/components/tournament/TournamentSegmentTracker.tsx`
-Only for `tournament_sixes` + `sum_of_strokes`. Three segment cards showing running stroke totals, progress bars, and points available per segment from `sixesSegmentPoints`. Active segment has green left border, completed gets gold, not started is muted.
+**Team score comparison (#17):** Add a middle column between hole info and result. Use `grossScores`/`netScores` from `holeResults` to compute per-team best net (for match play/best ball), sum (for gross best ball), or team score (for scramble). Display as `"USA 3 / EUR 4"`.
 
-### 6. `src/components/tournament/TournamentFullScorecard.tsx`
-Bottom sheet (using existing `Sheet` component). Horizontal-scrolling 18-hole grid with frozen player/team columns. Shows gross scores, net in parentheses if handicaps on, colored dots for hole results. Tournament result row + team totals row at bottom. Gross Best Ball highlights contributing scores.
+**No-points label (#20):** Change the `isNoPoints` display from `"No pts"` to `"½ No pts"`.
 
-### 7. `src/components/tournament/TournamentPointsAnimation.tsx`
-Slide-down banner + count-up animation. Tracks `previousHoleCount` via ref. When new hole result appears, shows 2-second banner with team color tint. Win: "🔵 USA wins hole N +Xpt". Halved: "Hole N halved". Uses `transition-all duration-300` + `setTimeout` for auto-dismiss.
+---
 
-## Modified Files
+## 3. `src/components/tournament/TournamentFullScorecard.tsx` — Column Alignment + Points Row + Halved Display + Header
 
-### `src/hooks/useTournamentOverlay.ts`
-- Expose additional state needed by new components: `tournamentGame`, `tournamentPlayers`, `teamAssignments`, `courseHoles`, `allHoleScores`
-- Add `previousHoleCount` ref + `newlyCompletedHole` state for animation trigger
-- Add computed `segmentTotals` for sum-of-strokes display (running stroke sums per team per segment, holes complete count)
-- Return type expands to include these new fields
+**Fixes: #40, #46, #49, #50, #52, #53**
 
-### `src/components/ActiveRound.tsx`
-- Add `activeTab` state (`'betting' | 'tournament'`), default `'betting'`
-- Add toggle tab bar between the top bar (line ~844) and the main scoring area (line ~1004), only when `tournamentGroupId` is present. Sticky positioning.
-- Wrap existing main scoring area content in `{activeTab === 'betting' && ...}` — zero changes to the content itself
-- Add `{activeTab === 'tournament' && <TournamentTabPanel ... />}` in the same scroll container
-- Remove the old `TournamentGameOverlay` at lines 2432-2444 (replaced by new tab system)
-- Toggle bar styling: segmented control matching existing app patterns, active tab `bg-primary text-primary-foreground`, inactive `bg-muted text-muted-foreground`, trophy icon uses `hsl(var(--brand-gold))`
+**Header (#40):** Change `SheetTitle` from "Full Scorecard" to show `tournamentName — roundName` and pass those as new props.
 
-## Edge Cases Handled
-- No tournament: toggle bar doesn't render, all existing behavior unchanged
-- Incomplete hole: not shown in tracker until all required scores entered
-- Scramble/alternate shot: shared scores shown per team, not individual
-- Match complete before 18: status bar shows win result in gold, remaining holes show "—"
-- Zero scores: shows "0 — 0 • Thru 0" with empty tracker placeholder
-- Sixes match play mode: renders identically to best ball (no segment UI)
+**Result row alignment (#49):** Split the result row iteration into `frontNine.map(...)` + OUT td + `backNine.map(...)` + IN td + TOT td, matching the header column structure exactly.
 
-## Styling
-- All components use existing design system (bg-card, text-foreground, etc.)
-- Team colors from `tournament_teams.color` applied via inline `style` for dots/accents
-- Full scorecard grid: sticky left columns with `left-0 z-10 bg-card`, hole columns `min-w-[44px]`, `font-mono text-sm`
-- Animation banner: `bg-primary/20 border-primary/40` for wins, `bg-muted/40` for halved, 2000ms duration
+**Points row (#50):** Add a new `<tr>` below the result row showing numeric points per hole (`pointsValue`), with OUT/IN/TOT summing team points.
+
+**Halved indicator (#46):** When a hole is halved (`aPts === bPts && aPts > 0`), render `"½"` text instead of a gray dot.
+
+**Scramble/Alternate Shot (#52):** Detect game types `scramble_*` or `alternate_shot_*`. For those, show a small "T" superscript next to scores indicating team score.
+
+**Gross Best Ball contributing scores (#53):** For `match_play_gross_best_ball`, compare each player's gross against the best N scores used. Bold contributing scores, mute non-contributing ones.
+
+---
+
+## 4. `src/components/tournament/TournamentMatchStatusBar.tsx` — Match Complete Banner + Count-Up
+
+**Fixes: #58, #61**
+
+**Match complete banner (#61):** When `matchState?.isComplete`, render an additional gold banner below the status card: `"Match Complete 🏆 [Team] wins [X]pts to [Y]pts"` (or "Match Halved"). Style: `bg-yellow-500/20 border-yellow-500/40 text-yellow-600`.
+
+**Count-up animation (#58):** Wrap the points numbers in a `<span>` with CSS `transition: all 0.3s` and use a key based on the points value to trigger re-render animation via `animate-scale-in`.
+
+---
+
+## 5. `src/components/tournament/TournamentHoleTracker.tsx` — Unplayed Holes After Match Complete
+
+**Fix: #62**
+
+When `matchState?.isComplete`, append remaining unplayed holes (those without results) to the tracker as muted "—" rows, showing "Hole N • Par X • —" to indicate they weren't played.
+
+---
+
+## 6. `src/components/tournament/TournamentPlayerSummary.tsx` — Points Accumulation Fix
+
+**Fix: #28 (PARTIAL)**
+
+The current code assumes `playerPoints` is cumulative by taking the last value. Instead, sum `playerPoints[playerId]` across all hole results: `ptsTotal += pp`.
+
+---
+
+## 7. Minor Partials (low priority, bundled in)
+
+- **#7**: Add `style={{ fontVariantCaps: 'small-caps' }}` to the tournament name text in `TournamentMatchStatusBar`
+- **#12**: Remove `[Team] leads •` prefix from dormie line to match spec: `"Dormie • [N] pts left"`
+- **#21**: No code change needed — engine already guarantees results only when all scores present
+- **#27/#28**: Net total fix already covered above
+
+---
+
+## Files Modified (summary)
+
+| File | Changes |
+|------|---------|
+| `useTournamentOverlay.ts` | Add realtime subscription, fix animation filter |
+| `TournamentHoleTracker.tsx` | Add team score column, fix no-points label, add unplayed holes for complete matches |
+| `TournamentFullScorecard.tsx` | Fix column alignment, add points row, halved text, header info, scramble/GBB formatting |
+| `TournamentMatchStatusBar.tsx` | Add match complete banner, count-up animation, small-caps, dormie text |
+| `TournamentPlayerSummary.tsx` | Fix points accumulation to sum instead of last-value |
+| `TournamentTabPanel.tsx` | Pass `matchState` + `tournamentName`/`roundName` to scorecard |
+
+No new files. No database changes.
 
