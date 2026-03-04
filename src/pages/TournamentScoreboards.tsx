@@ -4,17 +4,31 @@ import { ArrowLeft, Trophy, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { useTournamentScoreboards } from '@/hooks/useTournamentScoreboards';
-import TournamentScoreboardTabs from '@/components/tournament/TournamentScoreboardTabs';
+import ScoreboardSelector from '@/components/scoreboards/ScoreboardSelector';
+import ScoreboardRenderer from '@/components/scoreboards/ScoreboardRenderer';
+import TournamentLiveToast from '@/components/scoreboards/TournamentLiveToast';
 
 const TournamentScoreboards: React.FC = () => {
   const { joinCode } = useParams<{ joinCode: string }>();
   const navigate = useNavigate();
+  const { user, isLoading: authLoading } = useAuth();
   const [tournament, setTournament] = useState<any>(null);
   const [tournamentId, setTournamentId] = useState<string | undefined>();
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [autoJoined, setAutoJoined] = useState(false);
 
+  // Auth guard
   useEffect(() => {
-    if (!joinCode) return;
+    if (!authLoading && !user) {
+      navigate(`/auth?returnTo=${encodeURIComponent(`/tournament/${joinCode}/scoreboards`)}`);
+    }
+  }, [authLoading, user, joinCode, navigate]);
+
+  // Fetch tournament by join code
+  useEffect(() => {
+    if (!joinCode || !user) return;
     supabase
       .from('tournaments')
       .select('*')
@@ -26,11 +40,38 @@ const TournamentScoreboards: React.FC = () => {
           setTournamentId(data.id);
         }
       });
-  }, [joinCode]);
+  }, [joinCode, user]);
 
-  const { scoreboards, teams, isLoading, isLive } = useTournamentScoreboards(tournamentId);
+  // Auto-join
+  useEffect(() => {
+    if (!tournamentId || !user || autoJoined) return;
+    setAutoJoined(true);
+    supabase
+      .from('tournament_members')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) {
+          supabase.from('tournament_members').insert({ tournament_id: tournamentId, user_id: user.id });
+        }
+      });
+  }, [tournamentId, user, autoJoined]);
 
-  if (!tournament) {
+  const {
+    scoreboards, teams, rounds, players, groups, groupPlayers,
+    holeResults, holeScores, games, isLoading, isLive, newHoleResult,
+  } = useTournamentScoreboards(tournamentId);
+
+  // Default selected scoreboard
+  useEffect(() => {
+    if (scoreboards.length > 0 && !selectedId) {
+      setSelectedId(scoreboards[0].id);
+    }
+  }, [scoreboards, selectedId]);
+
+  if (authLoading || !tournament) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -38,33 +79,57 @@ const TournamentScoreboards: React.FC = () => {
     );
   }
 
+  const selectedScoreboard = scoreboards.find((s: any) => s.id === selectedId);
+  const isComplete = tournament.status === 'completed';
+  const highestActiveRound = rounds.filter((r: any) => r.status === 'active' || r.status === 'completed')
+    .sort((a: any, b: any) => b.round_number - a.round_number)[0];
+
+  const scoreboardData = {
+    teams, rounds, players, groups, groupPlayers,
+    holeResults, holeScores, games,
+    tournamentStatus: tournament.status,
+  };
+
   return (
     <div className="min-h-screen bg-background animate-fade-in">
+      {/* Live toast */}
+      {isLive && !isComplete && (
+        <TournamentLiveToast
+          newHoleResult={newHoleResult}
+          teams={teams}
+          players={players}
+          groupPlayers={groupPlayers}
+          holeResults={holeResults}
+        />
+      )}
+
+      {/* Completed banner */}
+      {isComplete && (
+        <div className="bg-[hsl(var(--brand-gold))]/20 border-b border-[hsl(var(--brand-gold))]/40 px-4 py-2 text-center">
+          <span className="text-sm font-bold">🏆 Tournament Complete</span>
+        </div>
+      )}
+
       <div className="p-4">
         <Button variant="ghost" size="sm" onClick={() => navigate('/tournament')}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
       </div>
 
-      <div className="px-4 pb-8 space-y-6">
+      <div className="px-4 pb-8 space-y-4">
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2">
             <Trophy className="w-6 h-6 text-[hsl(var(--brand-gold))]" />
             <h1 className="text-2xl font-bold">{tournament.name}</h1>
-            {isLive && (
+            {isLive && !isComplete && (
               <Badge className="bg-success text-success-foreground gap-1">
-                <span className="w-2 h-2 rounded-full bg-success-foreground animate-pulse-subtle" />
+                <span className="w-2 h-2 rounded-full bg-success-foreground animate-pulse" />
                 Live
               </Badge>
             )}
           </div>
-          {(tournament.start_date || tournament.end_date) && (
-            <p className="text-sm text-muted-foreground">
-              {tournament.start_date && new Date(tournament.start_date).toLocaleDateString()}
-              {tournament.end_date && ` — ${new Date(tournament.end_date).toLocaleDateString()}`}
-            </p>
-          )}
+
           {teams.length > 0 && (
             <div className="flex items-center justify-center gap-3 text-sm">
               {teams.map((t: any, i: number) => (
@@ -78,14 +143,41 @@ const TournamentScoreboards: React.FC = () => {
               ))}
             </div>
           )}
+
+          {highestActiveRound && (
+            <p className="text-sm text-muted-foreground">
+              Round {highestActiveRound.round_number} of {tournament.num_rounds}
+              {(tournament.start_date || tournament.end_date) && ' • '}
+              {tournament.start_date && new Date(tournament.start_date).toLocaleDateString()}
+              {tournament.end_date && ` — ${new Date(tournament.end_date).toLocaleDateString()}`}
+            </p>
+          )}
         </div>
 
-        {/* Scoreboards */}
+        {/* Scoreboard selector */}
+        <ScoreboardSelector
+          scoreboards={scoreboards}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
+
+        {/* Content */}
         {isLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-        ) : (
-          <TournamentScoreboardTabs scoreboards={scoreboards} />
-        )}
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : selectedScoreboard ? (
+          <ScoreboardRenderer
+            scoreboard={selectedScoreboard}
+            data={scoreboardData}
+            joinCode={joinCode || ''}
+          />
+        ) : scoreboards.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <Trophy className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>No scoreboards configured yet.</p>
+          </div>
+        ) : null}
       </div>
     </div>
   );
