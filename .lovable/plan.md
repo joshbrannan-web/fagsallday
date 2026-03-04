@@ -1,45 +1,73 @@
 
-# Plan: Fix Tournament Round Not Loading After Setup
 
-## Root Cause
+# Plan: Tournament Round Delete on Round Summary Page
 
-When a player completes the tournament round setup wizard and clicks "Start Round", the `startRound` function in `useTournamentRoundSetup.ts` creates the round directly via `supabase.from('rounds').insert(...)`, then navigates to `/active`. However, the `ActiveRound` component gets `currentRound` from the `AppContext` → `useRounds` hook, which maintains its own internal state. Since `useRounds` never learns about the newly inserted round (no refetch is triggered, and `fetchRounds` only re-runs when `user` changes), `currentRound` remains `null`, and the user sees "No Active Round."
+## Approach
 
-This works for the tournament creator only if they happen to have a timing coincidence or if some other state change triggers a refetch. For a second player, it consistently fails.
+Instead of adding a delete button to the ActiveRound header, modify the existing `handleDeleteRound` in `RoundSummary.tsx` to also clean up tournament data when the round is a tournament round. The delete button already exists on the summary page for non-tournament active rounds — just need to ensure it also appears for tournament rounds and handles the tournament cleanup.
 
-## Fix
+## Changes
 
-Two changes:
+### 1. `src/components/RoundSummary.tsx`
 
-### 1. Expose `refetch` from `useRounds` through `AppContext`
+- **Show the Delete button for tournament rounds too**: Currently the Delete Round button is inside `!allHolesComplete && currentRound.status === 'ACTIVE'` block. Tournament rounds should also show delete here (the button already renders for active rounds regardless of tournament status — just need to verify it's not hidden).
+- **Update `handleDeleteRound`**: When `tournamentGroupId` is present, replace the `window.confirm` with an `AlertDialog` showing the custom message: *"If you delete this round, all round info fed to tournament will be lost. Are you sure you want to delete?"*
+- Before deleting the round, delete tournament child records: `tournament_group_players`, `tournament_hole_scores`, `tournament_hole_results` for the group, then delete the `tournament_groups` row itself.
+- Then call `deleteRound(currentRound.id)` and navigate home as usual.
+- Add `AlertDialog` imports and state (`showDeleteConfirm`) to manage the dialog.
 
-Add `refetchRounds` to the `AppState` interface in `src/contexts/AppContext.tsx` and wire it up in `src/App.tsx` from the `useRounds` hook's existing `refetch` return value.
+### 2. Database Migration
 
-**`src/contexts/AppContext.tsx`**: Add `refetchRounds: () => Promise<void>` to the `AppState` interface and provide a no-op default.
+Add DELETE RLS policies so group members can delete their own tournament group data:
 
-**`src/App.tsx`**: Pass `refetch` from `useRounds()` (already returned as `refetch: fetchRounds`) into the `AppContext.Provider` value as `refetchRounds`.
+```sql
+-- tournament_groups
+CREATE POLICY "Group members can delete their groups"
+ON public.tournament_groups FOR DELETE TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM tournament_group_players tgp
+  JOIN tournament_players tp ON tp.id = tgp.tournament_player_id
+  WHERE tgp.tournament_group_id = tournament_groups.id
+  AND tp.user_id = auth.uid()
+));
 
-### 2. Call `refetchRounds` before navigating in `startRound`
+-- tournament_group_players
+CREATE POLICY "Group members can delete group players"
+ON public.tournament_group_players FOR DELETE TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM tournament_group_players tgp2
+  JOIN tournament_players tp ON tp.id = tgp2.tournament_player_id
+  WHERE tgp2.tournament_group_id = tournament_group_players.tournament_group_id
+  AND tp.user_id = auth.uid()
+));
 
-**`src/hooks/useTournamentRoundSetup.ts`**: 
-- Import `useApp` from `AppContext`
-- After all DB inserts are complete (round, group, group_players, game_data update), call `await refetchRounds()` 
-- This ensures `useRounds` picks up the new ACTIVE round and sets `currentRound` before the navigation to `/active` happens
-- Then navigate as before
+-- tournament_hole_scores
+CREATE POLICY "Group members can delete hole scores"
+ON public.tournament_hole_scores FOR DELETE TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM tournament_group_players tgp
+  JOIN tournament_players tp ON tp.id = tgp.tournament_player_id
+  WHERE tgp.tournament_group_id = tournament_hole_scores.tournament_group_id
+  AND tp.user_id = auth.uid()
+));
 
-### 3. Add a fallback in `ActiveRound` for race conditions
+-- tournament_hole_results
+CREATE POLICY "Group members can delete hole results"
+ON public.tournament_hole_results FOR DELETE TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM tournament_group_players tgp
+  JOIN tournament_players tp ON tp.id = tgp.tournament_player_id
+  WHERE tgp.tournament_group_id = tournament_hole_results.tournament_group_id
+  AND tp.user_id = auth.uid()
+));
+```
 
-**`src/components/ActiveRound.tsx`** (lines 343-365): When `currentRound` is null, `isLoading` is false, AND `location.state?.tournamentGroupId` exists, show the loading spinner and trigger a refetch instead of immediately showing "No Active Round." This handles edge cases where the refetch hasn't completed before navigation.
+## Summary
 
-- Add a `useEffect` that detects this state (no currentRound, not loading, but has tournament state) and calls `refetchRounds()` with a short timeout fallback.
+| Resource | Change |
+|---|---|
+| `src/components/RoundSummary.tsx` | Replace `window.confirm` with `AlertDialog` for tournament rounds; add tournament data cleanup before round deletion |
+| Database migration | Add DELETE RLS policies on 4 tournament tables for group members |
 
-## Files Modified
+1 file modified, 1 database migration, 0 new files.
 
-| File | Change |
-|------|--------|
-| `src/contexts/AppContext.tsx` | Add `refetchRounds` to `AppState` interface |
-| `src/App.tsx` | Wire `refetch` into context value |
-| `src/hooks/useTournamentRoundSetup.ts` | Import `useApp`, call `refetchRounds()` before navigating |
-| `src/components/ActiveRound.tsx` | Add fallback: if tournament state exists but no round, show loader and trigger refetch |
-
-0 new files, 0 database changes.
