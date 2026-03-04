@@ -72,7 +72,7 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
         {/* Winner banner */}
         {isComplete && leadingTeam && (
           <div className="bg-[hsl(var(--brand-gold))]/20 border border-[hsl(var(--brand-gold))]/40 rounded-lg p-3 text-center">
-            <span className="text-lg font-bold">🏆 {leadingTeam.name.toUpperCase()} WINS</span>
+            <span className="text-lg font-bold">🏆 {leadingTeam.name.toUpperCase()} WINS {totalA > totalB ? `${totalA} — ${totalB}` : `${totalB} — ${totalA}`}</span>
           </div>
         )}
 

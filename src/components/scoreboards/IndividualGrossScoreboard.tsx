@@ -17,7 +17,12 @@ const IndividualGrossScoreboard: React.FC<Props> = ({
   teams, rounds, players, groups, groupPlayers, holeScores,
 }) => {
   const allGroups = Object.values(groups).flat();
-  const startedRounds = rounds.filter((r: any) => r.status !== 'pending');
+  const startedRounds = rounds.filter((r: any) => {
+    if (r.status === 'pending') return false;
+    // Only show round column if at least one score exists for a group in this round
+    const roundGroupIds = new Set((groups[r.id] || []).map((g: any) => g.id));
+    return holeScores.some((s: any) => roundGroupIds.has(s.tournament_group_id) && s.gross_score != null);
+  });
   const activeRound = rounds.find((r: any) => r.status === 'active');
   const activeGroups = activeRound ? (groups[activeRound.id] || []) : [];
 

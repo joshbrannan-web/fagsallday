@@ -11,6 +11,19 @@ interface Props {
   holeResults: any[];
 }
 
+function calcMatchMargin(myPts: number, oppPts: number, holesPlayed: number, totalHoles = 18): string {
+  const lead = myPts - oppPts;
+  const holesRemaining = totalHoles - holesPlayed;
+  if (holesRemaining > 0 && lead > holesRemaining) {
+    // Match won early: lead & remaining
+    return `${lead}&${holesRemaining}`;
+  }
+  if (holesRemaining === 0) {
+    return lead === 1 ? '1UP' : `${lead}UP`;
+  }
+  return `${lead}UP`;
+}
+
 const IndividualRoundResultScoreboard: React.FC<Props> = ({
   teams, rounds, players, groups, groupPlayers, holeResults,
 }) => {
@@ -20,7 +33,6 @@ const IndividualRoundResultScoreboard: React.FC<Props> = ({
     return <Card><CardContent className="p-6 text-center text-muted-foreground">Waiting for Round 1 to begin</CardContent></Card>;
   }
 
-  // For each player, determine W/L/H per round
   const playerResults = players.map((p: any) => {
     const team = teams.find((t: any) => t.id === p.team_id);
     let wins = 0, halves = 0, losses = 0;
@@ -31,15 +43,14 @@ const IndividualRoundResultScoreboard: React.FC<Props> = ({
       const group = roundGroups.find((g: any) =>
         (groupPlayers[g.id] || []).some((gp: any) => gp.tournament_player_id === p.id)
       );
-      if (!group) return { result: null, label: '—' };
+      if (!group) return { result: null, label: '—', margin: '' };
 
       const isActive = r.status === 'active' && group.status !== 'submitted';
-      if (isActive) return { result: 'live', label: '🟢' };
+      if (isActive) return { result: 'live', label: '🟢', margin: '' };
 
       const results = holeResults.filter((hr: any) => hr.tournament_group_id === group.id);
-      if (results.length === 0) return { result: null, label: '—' };
+      if (results.length === 0) return { result: null, label: '—', margin: '' };
 
-      // Determine player's team totals
       const playerTeamId = p.team_id;
       let myPts = 0, oppPts = 0;
       results.forEach((hr: any) => {
@@ -52,22 +63,25 @@ const IndividualRoundResultScoreboard: React.FC<Props> = ({
         }
       });
 
+      const holesPlayed = results.length;
+
       if (myPts > oppPts) {
         wins++;
-        return { result: 'W', label: `W` };
+        const margin = calcMatchMargin(myPts, oppPts, holesPlayed);
+        return { result: 'W', label: 'W', margin };
       } else if (oppPts > myPts) {
         losses++;
-        return { result: 'L', label: `L` };
+        const margin = calcMatchMargin(oppPts, myPts, holesPlayed);
+        return { result: 'L', label: 'L', margin };
       } else {
         halves++;
-        return { result: 'H', label: 'H' };
+        return { result: 'H', label: 'H', margin: '' };
       }
     });
 
     return { player: p, team, roundResults, wins, halves, losses };
   });
 
-  // Sort by wins desc, halves desc
   playerResults.sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
     return b.halves - a.halves;
@@ -98,9 +112,13 @@ const IndividualRoundResultScoreboard: React.FC<Props> = ({
                 {d.roundResults.map((rr, i) => (
                   <TableCell key={i} className="text-center">
                     {rr.result === 'W' ? (
-                      <span className="inline-block text-xs px-2 py-0.5 rounded bg-success/20 text-success border border-success/30 font-medium">W</span>
+                      <span className="inline-block text-xs px-2 py-0.5 rounded bg-success/20 text-success border border-success/30 font-medium" title={rr.margin}>
+                        W{rr.margin ? ` (${rr.margin})` : ''}
+                      </span>
                     ) : rr.result === 'L' ? (
-                      <span className="inline-block text-xs px-2 py-0.5 rounded bg-destructive/20 text-destructive border border-destructive/30 font-medium">L</span>
+                      <span className="inline-block text-xs px-2 py-0.5 rounded bg-destructive/20 text-destructive border border-destructive/30 font-medium" title={rr.margin}>
+                        L{rr.margin ? ` (${rr.margin})` : ''}
+                      </span>
                     ) : rr.result === 'H' ? (
                       <span className="inline-block text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border font-medium">H</span>
                     ) : rr.result === 'live' ? (
