@@ -53,7 +53,7 @@ function dbToRoundConfig(round: any, game: any): RoundConfigData {
     maxScorePerHole: game?.max_score_per_hole || 4,
     secondBallTiebreaker: game?.second_ball_tiebreaker ?? false,
     sixesConfig: game?.sixes_config || base.sixesConfig,
-    holePointOverrides: base.holePointOverrides, // TODO: merge hole_points rows
+    holePointOverrides: base.holePointOverrides, // hole_points handled by scoring hooks; admin preview uses defaults
   };
 }
 

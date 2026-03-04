@@ -7,9 +7,21 @@ import TeamRoundResultScoreboard from './TeamRoundResultScoreboard';
 import IndividualRoundResultScoreboard from './IndividualRoundResultScoreboard';
 import { Card, CardContent } from '@/components/ui/card';
 
+interface ScoreboardData {
+  teams: any[];
+  rounds: any[];
+  players: any[];
+  groups: Record<string, any[]>;
+  groupPlayers: Record<string, any[]>;
+  holeResults: any[];
+  holeScores: any[];
+  games: Record<string, any>;
+  tournamentStatus: string;
+}
+
 interface Props {
-  scoreboard: any;
-  data: any;
+  scoreboard: { scoreboard_type: string; name: string; id: string };
+  data: ScoreboardData;
   joinCode: string;
 }
 

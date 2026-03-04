@@ -94,9 +94,12 @@ export const useTournamentOverlay = (
     setAllHoleScores(scoresMap);
 
     try {
+      const teamNameMap: Record<string, string> = {};
+      Object.entries(state.teams).forEach(([id, t]) => { teamNameMap[id] = t.name; });
+
       const engineInput: EngineInput = {
         game, holePointOverrides: overrides, players, teamAssignments: assignments,
-        scores: scoresMap, courseHoles: holes,
+        scores: scoresMap, courseHoles: holes, teamNames: teamNameMap,
       };
       const result = calcTournamentHoleResults(engineInput);
 
@@ -140,7 +143,7 @@ export const useTournamentOverlay = (
     } catch (e) {
       console.error('Tournament engine error:', e);
     }
-  }, [tournamentGroupId]);
+  }, [tournamentGroupId, state.teams]);
 
   // Initial load
   useEffect(() => {
@@ -254,10 +257,14 @@ export const useTournamentOverlay = (
       // Run engine for initial state
       if (game && groupTournamentPlayers.length > 0 && holes.length > 0) {
         try {
-          const engineInput: EngineInput = {
-            game, holePointOverrides: overrides, players: groupTournamentPlayers,
-            teamAssignments: assignments, scores: scoresMap, courseHoles: holes,
-          };
+      const teamNameMap: Record<string, string> = {};
+      Object.entries(teamsMap).forEach(([id, t]) => { teamNameMap[id] = t.name; });
+
+      const engineInput: EngineInput = {
+        game, holePointOverrides: overrides, players: groupTournamentPlayers,
+        teamAssignments: assignments, scores: scoresMap, courseHoles: holes,
+        teamNames: teamNameMap,
+      };
           const result = calcTournamentHoleResults(engineInput);
 
           const holeResults: Record<number, any> = {};
