@@ -1,0 +1,99 @@
+import React from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { calcPlayerPointsPerRound, calcThru, rankWithTies, playerHasOverride } from '@/services/scoreboardCalculations';
+
+interface Props {
+  teams: any[];
+  rounds: any[];
+  players: any[];
+  groups: Record<string, any[]>;
+  groupPlayers: Record<string, any[]>;
+  holeResults: any[];
+  holeScores: any[];
+}
+
+const IndividualPointsScoreboard: React.FC<Props> = ({
+  teams, rounds, players, groups, groupPlayers, holeResults, holeScores,
+}) => {
+  const allGroups = Object.values(groups).flat();
+  const startedRounds = rounds.filter((r: any) => r.status !== 'pending');
+  const activeRound = rounds.find((r: any) => r.status === 'active');
+  const activeGroups = activeRound ? (groups[activeRound.id] || []) : [];
+
+  const playerData = players.map((p: any) => {
+    const roundScores = startedRounds.map((r: any) =>
+      calcPlayerPointsPerRound(p.id, r.id, allGroups, groupPlayers, holeResults)
+    );
+    const total = roundScores.reduce((s: number, v) => s + (v ?? 0), 0);
+    const hasAny = roundScores.some(v => v !== null);
+    const thru = activeRound ? calcThru(p.id, activeGroups, groupPlayers, holeScores) : null;
+    const hasOverride = playerHasOverride(p.id, holeScores);
+    const team = teams.find((t: any) => t.id === p.team_id);
+    return { player: p, roundScores, total: hasAny ? total : null, thru, hasOverride, team };
+  });
+
+  const ranked = rankWithTies(
+    playerData.map(d => ({ id: d.player.id, value: d.total })),
+    'desc'
+  );
+  const rankedData = ranked.map(r => ({ ...r, ...playerData.find(d => d.player.id === r.id)! }));
+
+  if (startedRounds.length === 0) {
+    return <Card><CardContent className="p-6 text-center text-muted-foreground">Waiting for Round 1 to begin</CardContent></Card>;
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10 text-center text-xs uppercase tracking-wider">Pos</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider">Player</TableHead>
+              {startedRounds.map((r: any) => (
+                <TableHead key={r.id} className="w-12 text-center font-mono text-xs uppercase tracking-wider">R{r.round_number}</TableHead>
+              ))}
+              <TableHead className="w-14 text-center text-xs uppercase tracking-wider font-bold">Pts</TableHead>
+              {activeRound && <TableHead className="w-12 text-center text-xs uppercase tracking-wider">Thru</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rankedData.map(d => (
+              <TableRow key={d.player.id} className={
+                d.rank === 1 ? 'border-l-2 border-l-yellow-500' :
+                d.rank === 2 ? 'border-l-2 border-l-gray-400' :
+                d.rank === 3 ? 'border-l-2 border-l-amber-700' : ''
+              }>
+                <TableCell className="text-center font-bold text-sm">
+                  {d.total !== null ? (d.isTied ? `T${d.rank}` : d.rank) : ''}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1.5">
+                    {d.team && <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: d.team.color }} />}
+                    <span className="font-medium text-sm">{d.player.display_name}</span>
+                  </div>
+                </TableCell>
+                {d.roundScores.map((score: number | null, i: number) => (
+                  <TableCell key={i} className={`text-center font-mono text-sm ${startedRounds[i]?.status === 'active' ? 'italic text-muted-foreground' : ''}`}>
+                    {score !== null ? score : '—'}
+                  </TableCell>
+                ))}
+                <TableCell className="text-center font-bold font-mono text-sm">
+                  {d.total !== null ? d.total : '—'}
+                </TableCell>
+                {activeRound && (
+                  <TableCell className="text-center text-xs text-muted-foreground">
+                    {d.thru === 'F' ? 'F' : d.thru !== null ? d.thru : '—'}
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </Card>
+  );
+};
+
+export default IndividualPointsScoreboard;
