@@ -11,6 +11,10 @@ import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
 import GreenFeeSplitDialog from './GreenFeeSplitDialog';
 import TournamentRoundSummary from './tournament/TournamentRoundSummary';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>): string[] => {
   const details: string[] = [];
@@ -118,6 +122,7 @@ const RoundSummary: React.FC = () => {
   const [editValue, setEditValue] = useState('');
   const scorecardImageRef = useRef<ScorecardImageHandle>(null);
   const [showGreenFeeDialog, setShowGreenFeeDialog] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   // Course editing state
   const [editingCourse, setEditingCourse] = useState(false);
@@ -174,8 +179,27 @@ const RoundSummary: React.FC = () => {
   })();
 
   const handleDeleteRound = async () => {
+    if (tournamentGroupId) {
+      setShowDeleteConfirm(true);
+      return;
+    }
     if (!window.confirm('Delete this round? This cannot be undone.')) return;
     await deleteRound(currentRound.id);
+    navigate('/');
+  };
+
+  const handleConfirmTournamentDelete = async () => {
+    try {
+      // Delete tournament child records first, then the group
+      await supabase.from('tournament_hole_results').delete().eq('tournament_group_id', tournamentGroupId);
+      await supabase.from('tournament_hole_scores').delete().eq('tournament_group_id', tournamentGroupId);
+      await supabase.from('tournament_group_players').delete().eq('tournament_group_id', tournamentGroupId);
+      await supabase.from('tournament_groups').delete().eq('id', tournamentGroupId);
+    } catch (err) {
+      console.error('Error cleaning up tournament data:', err);
+    }
+    await deleteRound(currentRound.id);
+    toast.success('Tournament round deleted');
     navigate('/');
   };
 
@@ -596,6 +620,23 @@ const RoundSummary: React.FC = () => {
         onSkip={handleShare}
         onConfirm={handleGreenFeeConfirm}
       />
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Tournament Round?</AlertDialogTitle>
+            <AlertDialogDescription>
+              If you delete this round, all round info fed to tournament will be lost. Are you sure you want to delete?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmTournamentDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
