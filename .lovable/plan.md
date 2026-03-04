@@ -1,103 +1,107 @@
 
 
-# Plan: Tournament Mode Piece 6 — Live Scoreboards
+# Plan: Fix All Failures & Partials from Piece 6 Audit
 
-## Scope
-Replace placeholder scoreboards with full rendering for all 6 scoreboard types, add a read-only group scorecard page, live toast notifications, auth guard, and a comprehensive data hook with realtime subscriptions.
+15 items to fix across 7 files. No new files. No database changes.
 
-## Files to Create (15)
+---
 
-### `src/services/scoreboardCalculations.ts`
-Pure calculation helpers: `calcTeamTotals`, `calcTeamTotalsPerRound`, `calcPlayerGrossPerRound`, `calcPlayerNetPerRound`, `calcThru`, `rankWithTies`, `playerHasOverride`. Directly from the spec — no Supabase calls, just math over typed data.
+## 1. `src/pages/TournamentScoreboards.tsx` — Header & Completion Banner
 
-### `src/components/scoreboards/ScoreboardSelector.tsx`
-Dropdown (using Select component) showing all configured scoreboards by name in display_order. Props: `scoreboards`, `selectedId`, `onSelect`. Shows chart icon + selected name.
+**Fixes: #3 (round progress when no rounds started), #91 (completion banner missing winner)**
 
-### `src/components/scoreboards/ScoreboardRenderer.tsx`
-Switch on `scoreboard_type` to render the correct scoreboard component. Receives full data from hook + selected scoreboard config. Maps to one of the 6 scoreboard components.
+- **#3**: Show "Round 0 of N — Not started" when no rounds have started (currently shows nothing)
+- **#91**: Change completion banner from `"🏆 Tournament Complete"` to include winning team: `"🏆 [Team] wins [X] — [Y]"` or `"🏆 Tournament Complete — Tied"`. Compute team totals from holeResults inline.
 
-### `src/components/scoreboards/TeamPointsScoreboard.tsx`
-Container for team_points type. Renders `RyderCupGraphic` + collapsible `TeamPointsBreakdownTable`.
+---
 
-### `src/components/scoreboards/RyderCupGraphic.tsx`
-Visual card: team names in caps with colors, large point totals (text-5xl, leading team in gold), split progress bar, per-round breakdown rows (completed with ✓, active with green dot, not-started hidden). Shows "🏆 TEAM X WINS" when tournament complete.
+## 2. `src/components/scoreboards/TeamPointsBreakdownTable.tsx` — Group Result Labels
 
-### `src/components/scoreboards/TeamPointsBreakdownTable.tsx`
-Collapsible table behind "Show Breakdown" toggle. Round rows expandable to show group results. Group rows show abbreviated player names, points per side, result label. Tap group row navigates to read-only group scorecard.
+**Fix: #16**
 
-### `src/components/scoreboards/IndividualGrossScoreboard.tsx`
-Ranked table: Pos, Player, Team dot, HCP, R1..RN (started rounds only), Total, Thru. Sorted ascending by gross. Ties prefixed with "T". Override asterisk styling. Top 3 colored left borders.
+Change badge from generic `✓` / `½` to full text: `"USA wins"`, `"EUR wins"`, or `"Halved"`. The `resultLabel` variable already computes this on line 106 — just use it instead of the ternary with checkmarks.
 
-### `src/components/scoreboards/IndividualNetScoreboard.tsx`
-Same structure as gross but uses net score calculation (gross - strokesReceived per hole). Sorted ascending by net total.
+---
 
-### `src/components/scoreboards/IndividualPointsScoreboard.tsx`
-Same table structure but value = points earned from `player_points`. Sorted descending.
+## 3. `src/components/scoreboards/RyderCupGraphic.tsx` — Winner Banner Score
 
-### `src/components/scoreboards/TeamRoundResultScoreboard.tsx`
-Aggregate table: Round, Team A Pts, Team B Pts, Result. Expandable rows showing group breakdowns with `GroupResultRow`. Total row at bottom.
+**Fix: #19**
 
-### `src/components/scoreboards/GroupResultRow.tsx`
-Expandable row within team round result. Shows player names, points per side, result. Tap navigates to group scorecard route.
+Change line 75 from `"🏆 {leadingTeam.name.toUpperCase()} WINS"` to `"🏆 {leadingTeam.name.toUpperCase()} WINS {totalA} — {totalB}"`.
 
-### `src/components/scoreboards/IndividualRoundResultScoreboard.tsx`
-Table: Player, Team, R1 (W/L/H with match result), R2, ..., Total W-H-L. Sorted by wins desc, halves desc.
+---
 
-### `src/components/scoreboards/TournamentLiveToast.tsx`
-Fixed-position toast component. Receives `newHoleResult` from hook. Shows player name + hole number + updated team lead status. Team color left border. Auto-dismiss after 4s. Only fires for active rounds, not initial load.
+## 4. `src/components/scoreboards/IndividualGrossScoreboard.tsx` — Round Column Visibility
 
-### `src/pages/TournamentGroupScorecard.tsx`
-Read-only group scorecard page at `/tournament/:joinCode/round/:roundId/group/:groupId`. Fetches group data, scores, results. Renders a read-only version of the scorecard grid (reuses `TournamentFullScorecard` from Piece 5 or renders a simplified read-only grid). Back button to scoreboards. No editing controls.
+**Fix: #22**
 
-### Route addition in `src/App.tsx`
-Add: `/tournament/:joinCode/round/:roundId/group/:groupId` → `TournamentGroupScorecard`
+Change `startedRounds` filter from `r.status !== 'pending'` to only include rounds that have at least one score in `holeScores`. Check if any `holeScores` entry belongs to a group in that round.
 
-## Files to Modify (3)
+---
 
-### `src/hooks/useTournamentScoreboards.ts` — Full Rewrite
-Replace placeholder with comprehensive data hook:
-- Fetches all 11 tables on mount (scoreboards, rounds, teams, players, games, hole_points, groups, group_players, hole_results, hole_scores)
-- Data keyed for efficient lookup: groups by round_id, groupPlayers by group_id, holeResults by group_id then hole_number, holeScores flat array
-- Realtime subscriptions on `tournament_hole_results` and `tournament_hole_scores` — on event, re-fetch only those two tables (incremental)
-- Subscription on `tournament_rounds` for status changes
-- Tracks `newHoleResult` for toast (set on realtime INSERT/UPDATE, cleared after 4s)
-- `isInitialLoad` ref to suppress toast on first data load
-- Returns: tournament, teams, players, rounds, games, scoreboards, groups, groupPlayers, holeResults, holeScores, holePoints, isLoading, isLive, newHoleResult, lastUpdated
+## 5. `src/components/scoreboards/IndividualRoundResultScoreboard.tsx` — Match Result Margins
 
-### `src/pages/TournamentScoreboards.tsx` — Replace Content
-- Add auth guard: check `useAuth().user`, redirect to `/auth` with return URL if not logged in
-- Auto-join: if user not in `tournament_members`, insert on mount
-- Replace `TournamentScoreboardTabs` with `ScoreboardSelector` + `ScoreboardRenderer`
-- Add `selectedScoreboard` state (default first by display_order)
-- Add `TournamentLiveToast` component
-- Add gold completion banner when tournament status = 'completed'
-- Update header: show round progress "Round X of Y", live badge logic
+**Fixes: #53, #58**
 
-### `src/App.tsx` — Add Route
-Add one route line for the group scorecard page.
+- **#53**: After determining W/L/H, compute match margin from the group's hole results. Count holes with results. If match ended early (myPts or oppPts mathematically clinched), show margin as `"W (X&Y)"` where X is point lead and Y is holes remaining. For completed matches going to 18, show `"W (XUP)"`. For halved, just show `"H"`.
+- **#58**: Use team_points comparison to determine margin. Calculate: lead amount and holes remaining to produce match-play style result text like `"3&2"`, `"2UP"`, `"1UP"`.
 
-## Data Flow
-```text
-useTournamentScoreboards (hook)
-  ├── initial fetch of 11 tables
-  ├── realtime on hole_results/hole_scores → incremental re-fetch
-  └── newHoleResult state for toast
-       ↓
-TournamentScoreboards (page)
-  ├── ScoreboardSelector (dropdown)
-  ├── ScoreboardRenderer (switch)
-  │     └── [specific scoreboard component]
-  │           └── scoreboardCalculations.ts (pure math)
-  └── TournamentLiveToast (fixed overlay)
-```
+---
 
-## Key Edge Cases
-- No rounds started: show 0—0 graphic with "Tournament has not started yet"
-- Partial scores: included in rankings, marked italic + "Thru X"
-- Super user overrides: asterisk on player total, footnote at bottom
-- Tournament complete: gold banner, no live badge, no toast, "🏆 TEAM X WINS" in graphic
-- Player missed round: null in that round column, shown as "—"
+## 6. `src/pages/TournamentGroupScorecard.tsx` — Match Tracker & Status Bar
 
-## Styling
-All per the spec: Ryder Cup graphic with text-5xl gold totals, split progress bar, leaderboard tables with font-mono scores, W/L/H badges with green/red/muted colors, top-3 left borders (gold/silver/bronze), live toast with team color accent bar.
+**Fix: #61**
+
+Import and render `TournamentMatchStatusBar` (from Piece 5) and a simple match tracker dots row. Run the tournament engine or compute match state from `results` data to show:
+- Status bar with team points tally and lead text
+- Dot tracker showing which team won each completed hole
+
+The component already has `teams`, `results`, and team totals computed. Add a status section between the header and scorecard table showing the match status (lead, thru, points remaining) and colored dots per hole.
+
+---
+
+## 7. `src/components/scoreboards/TournamentLiveToast.tsx` — Lead Change Detection & Match Complete
+
+**Fixes: #68, #71, #73**
+
+- **#68**: Track previous team totals (before the new result) to distinguish "takes the lead" vs "extends lead". Store previous totals in a ref. Compare old leader vs new leader:
+  - Same leader, bigger margin → "[Team] extends lead"
+  - New leader → "[Team] takes the lead"
+  - Was leading, now tied → "Match level"
+- **#71**: Clear any existing timeout before setting a new one. Use a `timeoutRef` to ensure proper cleanup.
+- **#73**: Detect when all rounds are complete or when totals indicate a winner. Show `"🏆 [Team] wins! Final: [X] to [Y]"`.
+
+---
+
+## 8. `src/hooks/useTournamentScoreboards.ts` — Return holePoints & Incremental Update
+
+**Fixes: #82, #83**
+
+- **#82**: `holePoints` is already fetched and in state (line 134) — it's already returned. This was a false flag in the audit; verify it's actually in the return. Looking at line 134: `holePoints` IS in the return. No change needed.
+- **#83**: Replace the full `fetchScoresAndResults` call on realtime events with an incremental update. On `tournament_hole_scores` event, upsert the single changed row into `holeScores` state. On `tournament_hole_results` event, upsert the single changed row into `holeResults` state. Only fall back to full refetch for DELETE events.
+
+---
+
+## 9. `src/services/scoreboardCalculations.ts` — calcThru Returns 0
+
+**Fix: #79**
+
+Change line 205 from `return scores.length || null` to `return scores.length > 0 ? scores.length : null`. This is actually equivalent for the "not started" case — 0 scores means the player hasn't started, which should show "—". The current behavior is correct. No change needed.
+
+---
+
+## Summary of Actual Changes
+
+| File | Fixes |
+|------|-------|
+| `TournamentScoreboards.tsx` | #3, #91 — round progress empty state, completion banner with winner |
+| `TeamPointsBreakdownTable.tsx` | #16 — full result text instead of ✓/½ |
+| `RyderCupGraphic.tsx` | #19 — winner banner includes score |
+| `IndividualGrossScoreboard.tsx` | #22 — round columns only when scores exist |
+| `IndividualRoundResultScoreboard.tsx` | #53, #58 — match margin in parentheses |
+| `TournamentGroupScorecard.tsx` | #61 — add match status bar and hole result dots |
+| `TournamentLiveToast.tsx` | #68, #71, #73 — lead change detection, timeout cleanup, match complete message |
+| `useTournamentScoreboards.ts` | #83 — incremental realtime updates |
+
+8 files modified, 0 new files, 0 database changes.
 
