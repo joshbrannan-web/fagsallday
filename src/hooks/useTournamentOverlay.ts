@@ -1,24 +1,42 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { calcTournamentHoleResults, type EngineInput, type RoundResult, type CourseHole } from '@/services/tournamentEngine';
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints, MatchState } from '@/types/tournament';
+
+export interface SegmentTotal {
+  teamSums: Record<string, number>;
+  holesComplete: number;
+  totalHoles: number;
+  pointsAvailable: number;
+  isComplete: boolean;
+  winnerTeamId?: string;
+  label: string;
+}
 
 interface OverlayState {
   tournamentName: string;
   roundName: string;
   teamMatchup: { teamAId: string; teamBId: string } | null;
   teams: Record<string, { name: string; color: string }>;
-  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string }>;
+  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string; grossScores?: Record<string, number>; netScores?: Record<string, number>; playerPoints?: Record<string, number>; pointsValue?: number }>;
   teamTotals: Record<string, number>;
   holesPlayed: number;
   matchState?: MatchState;
+}
+
+export interface NewHoleEvent {
+  holeNumber: number;
+  resultLabel: string;
+  teamPoints: Record<string, number>;
+  winnerTeamId?: string;
+  pointsValue: number;
 }
 
 export const useTournamentOverlay = (
   tournamentGroupId: string | undefined,
   tournamentName?: string,
   roundName?: string,
-  playerMapping?: Record<string, string>, // roundPlayerId → tournamentPlayerId
+  playerMapping?: Record<string, string>,
   teamMatchup?: { teamAId: string; teamBId: string } | null,
 ) => {
   const [state, setState] = useState<OverlayState>({
@@ -31,8 +49,6 @@ export const useTournamentOverlay = (
     holesPlayed: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-
-  // Engine supplementary data loaded on mount
   const [tournamentGame, setTournamentGame] = useState<TournamentGame | null>(null);
   const [holePointOverrides, setHolePointOverrides] = useState<TournamentHolePoints[]>([]);
   const [tournamentPlayers, setTournamentPlayers] = useState<TournamentPlayer[]>([]);
@@ -40,12 +56,15 @@ export const useTournamentOverlay = (
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
   const [allHoleScores, setAllHoleScores] = useState<Record<string, Record<number, number>>>({});
 
+  // Animation trigger
+  const previousHoleCount = useRef(0);
+  const [newlyCompletedHole, setNewlyCompletedHole] = useState<NewHoleEvent | null>(null);
+
   useEffect(() => {
     if (!tournamentGroupId) { setIsLoading(false); return; }
     const load = async () => {
       setIsLoading(true);
 
-      // Get group → round → tournament
       const { data: group } = await supabase
         .from('tournament_groups')
         .select('tournament_round_id, team_matchup')
@@ -62,7 +81,6 @@ export const useTournamentOverlay = (
 
       if (!round) { setIsLoading(false); return; }
 
-      // Parallel fetches
       const [teamsRes, resultsRes, gameRes, groupPlayersRes, playersRes, scoresRes] = await Promise.all([
         supabase.from('tournament_teams').select('id, name, color').eq('tournament_id', round.tournament_id),
         supabase.from('tournament_hole_results').select('*').eq('tournament_group_id', tournamentGroupId),
@@ -72,17 +90,17 @@ export const useTournamentOverlay = (
         supabase.from('tournament_hole_scores').select('*').eq('tournament_group_id', tournamentGroupId),
       ]);
 
-      // Teams
       const teamsMap: Record<string, { name: string; color: string }> = {};
       (teamsRes.data || []).forEach(t => { teamsMap[t.id] = { name: t.name, color: t.color }; });
 
-      // Hole results
       const holeResults: Record<number, any> = {};
       const teamTotals: Record<string, number> = {};
       (resultsRes.data || []).forEach(r => {
         holeResults[r.hole_number] = {
           teamPoints: r.team_points as Record<string, number>,
           resultLabel: r.result_label,
+          playerPoints: r.player_points as Record<string, number>,
+          pointsValue: r.points_value,
         };
         const tp = r.team_points as Record<string, number>;
         Object.entries(tp).forEach(([tid, pts]) => {
@@ -90,7 +108,6 @@ export const useTournamentOverlay = (
         });
       });
 
-      // Game config
       if (gameRes.data) {
         const g = gameRes.data;
         setTournamentGame({
@@ -109,7 +126,6 @@ export const useTournamentOverlay = (
           sixesSegmentPoints: (g as any).sixes_segment_points ?? [1, 1, 1],
         });
 
-        // Fetch hole point overrides for this game
         const { data: hpData } = await supabase
           .from('tournament_hole_points')
           .select('*')
@@ -122,14 +138,12 @@ export const useTournamentOverlay = (
         })));
       }
 
-      // Group player → team assignments
       const assignments: Record<string, string> = {};
       (groupPlayersRes.data || []).forEach(gp => {
         assignments[gp.tournament_player_id] = gp.team_id;
       });
       setTeamAssignments(assignments);
 
-      // Players in group
       const groupPlayerIds = new Set((groupPlayersRes.data || []).map(gp => gp.tournament_player_id));
       const groupTournamentPlayers: TournamentPlayer[] = (playersRes.data || [])
         .filter(p => groupPlayerIds.has(p.id))
@@ -144,7 +158,6 @@ export const useTournamentOverlay = (
         }));
       setTournamentPlayers(groupTournamentPlayers);
 
-      // Course holes
       const cd = round.course_data as any;
       const holes: CourseHole[] = (cd?.holes || []).map((h: any, i: number) => ({
         number: i + 1,
@@ -153,7 +166,6 @@ export const useTournamentOverlay = (
       }));
       setCourseHoles(holes);
 
-      // Scores
       const scoresMap: Record<string, Record<number, number>> = {};
       (scoresRes.data || []).forEach(s => {
         if (s.gross_score !== null) {
@@ -162,6 +174,8 @@ export const useTournamentOverlay = (
         }
       });
       setAllHoleScores(scoresMap);
+
+      previousHoleCount.current = Object.keys(holeResults).length;
 
       setState(prev => ({
         ...prev,
@@ -186,7 +200,6 @@ export const useTournamentOverlay = (
     const tournamentPlayerId = playerMapping[roundPlayerId];
     if (!tournamentPlayerId) return;
 
-    // 1. Write to tournament_hole_scores
     await supabase.from('tournament_hole_scores').upsert({
       tournament_group_id: tournamentGroupId,
       tournament_player_id: tournamentPlayerId,
@@ -197,12 +210,10 @@ export const useTournamentOverlay = (
       onConflict: 'tournament_group_id,tournament_player_id,hole_number',
     });
 
-    // 2. Build updated scores map
     const updatedScores = { ...allHoleScores };
     if (!updatedScores[tournamentPlayerId]) updatedScores[tournamentPlayerId] = {};
     updatedScores[tournamentPlayerId] = { ...updatedScores[tournamentPlayerId], [holeNumber]: grossScore };
 
-    // 3. Run engine
     const engineInput: EngineInput = {
       game: tournamentGame,
       holePointOverrides,
@@ -215,18 +226,38 @@ export const useTournamentOverlay = (
     try {
       const result = calcTournamentHoleResults(engineInput);
 
-      // 4. Update local state
       const newHoleResults: Record<number, any> = {};
       const newTeamTotals: Record<string, number> = {};
       result.holeResults.forEach(hr => {
         newHoleResults[hr.holeNumber] = {
           teamPoints: hr.teamPoints,
           resultLabel: hr.resultLabel,
+          grossScores: hr.grossScores,
+          netScores: hr.netScores,
+          playerPoints: hr.playerPoints,
+          pointsValue: hr.pointsValue,
         };
         Object.entries(hr.teamPoints).forEach(([tid, pts]) => {
           newTeamTotals[tid] = (newTeamTotals[tid] || 0) + pts;
         });
       });
+
+      // Detect newly completed hole for animation
+      const completedHoles = result.holeResults.filter(hr => hr.resultLabel && hr.pointsValue > 0);
+      if (completedHoles.length > previousHoleCount.current) {
+        const newest = completedHoles[completedHoles.length - 1];
+        const winnerTeamId = Object.entries(newest.teamPoints)
+          .sort((a, b) => b[1] - a[1])[0];
+        setNewlyCompletedHole({
+          holeNumber: newest.holeNumber,
+          resultLabel: newest.resultLabel,
+          teamPoints: newest.teamPoints,
+          winnerTeamId: winnerTeamId[1] > 0 ? winnerTeamId[0] : undefined,
+          pointsValue: newest.pointsValue,
+        });
+        previousHoleCount.current = completedHoles.length;
+        setTimeout(() => setNewlyCompletedHole(null), 2500);
+      }
 
       setState(prev => ({
         ...prev,
@@ -236,7 +267,6 @@ export const useTournamentOverlay = (
         matchState: result.matchState,
       }));
 
-      // 5. Upsert tournament_hole_results
       const upsertPayload = result.holeResults.map(hr => ({
         tournament_group_id: tournamentGroupId,
         hole_number: hr.holeNumber,
@@ -254,12 +284,82 @@ export const useTournamentOverlay = (
         );
       }
 
-      // 6. Update local scores state
       setAllHoleScores(updatedScores);
     } catch (e) {
       console.error('Tournament engine error:', e);
     }
   }, [tournamentGroupId, playerMapping, tournamentGame, holePointOverrides, tournamentPlayers, teamAssignments, courseHoles, allHoleScores]);
 
-  return { ...state, isLoading, syncScore };
+  // Compute segment totals for sum-of-strokes sixes
+  const segmentTotals: SegmentTotal[] | null = (() => {
+    if (!tournamentGame || tournamentGame.gameType !== 'tournament_sixes' || tournamentGame.sixesFormat !== 'sum_of_strokes') return null;
+    if (!state.teamMatchup) return null;
+
+    const segPts = tournamentGame.sixesSegmentPoints || [1, 1, 1];
+    const segments = [
+      { start: 1, end: 6 },
+      { start: 7, end: 12 },
+      { start: 13, end: 18 },
+    ];
+
+    return segments.map((seg, idx) => {
+      const teamSums: Record<string, number> = {};
+      let holesComplete = 0;
+      const totalHoles = seg.end - seg.start + 1;
+
+      for (let h = seg.start; h <= seg.end; h++) {
+        const allScored = tournamentPlayers.every(p => allHoleScores[p.id]?.[h] !== undefined);
+        if (!allScored) continue;
+        holesComplete++;
+
+        tournamentPlayers.forEach(p => {
+          const tid = teamAssignments[p.id];
+          if (!tid) return;
+          const gross = allHoleScores[p.id]?.[h] ?? 0;
+          teamSums[tid] = (teamSums[tid] || 0) + gross;
+        });
+      }
+
+      const isComplete = holesComplete === totalHoles;
+      const teamIds = Object.keys(teamSums);
+      let winnerTeamId: string | undefined;
+      let label = 'Not started yet';
+
+      if (holesComplete > 0 && teamIds.length === 2) {
+        const diff = (teamSums[teamIds[0]] || 0) - (teamSums[teamIds[1]] || 0);
+        if (isComplete) {
+          if (diff < 0) { winnerTeamId = teamIds[0]; label = `${state.teams[teamIds[0]]?.name || 'Team A'} wins`; }
+          else if (diff > 0) { winnerTeamId = teamIds[1]; label = `${state.teams[teamIds[1]]?.name || 'Team B'} wins`; }
+          else label = 'Halved';
+        } else {
+          if (diff < 0) label = `${state.teams[teamIds[0]]?.name || 'Team A'} leads by ${Math.abs(diff)} strokes`;
+          else if (diff > 0) label = `${state.teams[teamIds[1]]?.name || 'Team B'} leads by ${Math.abs(diff)} strokes`;
+          else label = 'All Square';
+        }
+      }
+
+      return {
+        teamSums,
+        holesComplete,
+        totalHoles,
+        pointsAvailable: segPts[idx],
+        isComplete,
+        winnerTeamId,
+        label,
+      };
+    });
+  })();
+
+  return {
+    ...state,
+    isLoading,
+    syncScore,
+    tournamentGame,
+    tournamentPlayers,
+    teamAssignments,
+    courseHoles,
+    allHoleScores,
+    newlyCompletedHole,
+    segmentTotals,
+  };
 };
