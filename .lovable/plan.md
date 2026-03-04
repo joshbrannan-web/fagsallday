@@ -1,27 +1,52 @@
 
 
-# Plan: Fix Deleted Round Reappearing After Delete
+# Plan: Fix Tournament Round Deletion — Silent Supabase Errors
 
 ## Root Cause
 
-`deleteRound` in `src/hooks/useRounds.tsx` (line 304-329) clears the database record and in-memory state (`setCurrentRound(null)`, removes from `rounds` array), but does NOT call `offlineStorage.clearCachedRound()`. 
+The `handleConfirmTournamentDelete` function (line 192-205) does not check the `error` return from each Supabase delete call. The Supabase JS client does **not throw** on query errors — it returns `{ data, error }`. The `try/catch` block only catches network-level exceptions, not query failures (like RLS policy denials).
 
-When the user navigates to `/`, the `RoundRecovery` component in `App.tsx` calls `offlineStorage.getCachedRound()`, finds the stale cached round with status `ACTIVE`, and immediately resumes it — making it appear as if the delete never happened.
+So when the tournament cleanup queries silently fail (likely RLS policy denials), the code proceeds to `deleteRound(currentRound.id)`, which hits the FK constraint because `tournament_groups` still exists. The success toast fires unconditionally after the `catch` block regardless.
 
 ## Fix
 
-### `src/hooks/useRounds.tsx` — line 316
+### `src/components/RoundSummary.tsx` — `handleConfirmTournamentDelete` (lines 192-205)
 
-After `loadedRoundIdRef.current = null;`, add `offlineStorage.clearCachedRound();` inside the `deleteRound` function. This is a one-line addition.
+Check the `error` property from each Supabase delete call. If any fail, show an error toast and abort before calling `deleteRound`. Also move the success toast inside a success path.
 
 ```typescript
-loadedRoundIdRef.current = null;
-offlineStorage.clearCachedRound();  // <-- add this line
+const handleConfirmTournamentDelete = async () => {
+  setShowDeleteConfirm(false);
+  try {
+    const { error: e1 } = await supabase.from('tournament_hole_results').delete().eq('tournament_group_id', tournamentGroupId);
+    if (e1) throw e1;
+    const { error: e2 } = await supabase.from('tournament_hole_scores').delete().eq('tournament_group_id', tournamentGroupId);
+    if (e2) throw e2;
+    const { error: e3 } = await supabase.from('tournament_group_players').delete().eq('tournament_group_id', tournamentGroupId);
+    if (e3) throw e3;
+    const { error: e4 } = await supabase.from('tournament_groups').delete().eq('id', tournamentGroupId);
+    if (e4) throw e4;
+
+    await deleteRound(currentRound.id);
+    toast.success('Tournament round deleted');
+    navigate('/');
+  } catch (err) {
+    console.error('Error deleting tournament round:', err);
+    toast.error('Failed to delete round');
+  }
+};
 ```
 
-| File | Change |
-|---|---|
-| `src/hooks/useRounds.tsx` | Add `offlineStorage.clearCachedRound()` in `deleteRound` after clearing the loaded round ref |
+This ensures:
+1. Each Supabase delete is verified before proceeding
+2. If any cleanup step fails, the round delete is skipped (preventing the FK error)
+3. Only one toast appears (success or error, not both)
 
-1 line added, 0 new files, 0 database changes.
+If the RLS DELETE policies from the earlier migration weren't applied or aren't matching, the error will now be properly surfaced. In that case, we may also need to debug the RLS policies — but this code fix is required regardless to handle errors correctly.
+
+| Resource | Change |
+|---|---|
+| `src/components/RoundSummary.tsx` | Check Supabase error returns in `handleConfirmTournamentDelete`; abort on failure |
+
+1 function rewritten, 0 new files, 0 database changes.
 
