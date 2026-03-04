@@ -46,6 +46,7 @@ export interface EngineInput {
   teamAssignments: Record<string, string>; // tournamentPlayerId → teamId
   scores: Record<string, Record<number, number>>; // scores[playerId][hole] = gross
   courseHoles: CourseHole[];
+  teamNames?: Record<string, string>; // teamId → display name
 }
 
 // ── UTILITY FUNCTIONS ────────────────────────────────────────
@@ -276,13 +277,16 @@ export function calcMatchPlayBestBall(input: EngineInput): RoundResult {
     const pv = holePointValue(hole.number, game, holePointOverrides);
     let aPts = 0, bPts = 0, label = '';
 
+    const nameA = input.teamNames?.[teamAId] || 'Team A';
+    const nameB = input.teamNames?.[teamBId] || 'Team B';
+
     if (aNets[0] < bNets[0]) {
-      aPts = pv; label = 'Team A wins';
+      aPts = pv; label = `${nameA} wins`;
     } else if (bNets[0] < aNets[0]) {
-      bPts = pv; label = 'Team B wins';
+      bPts = pv; label = `${nameB} wins`;
     } else if (game.secondBallTiebreaker && aNets[1] !== undefined && bNets[1] !== undefined) {
-      if (aNets[1] < bNets[1]) { aPts = pv; label = 'Team A wins (2nd ball)'; }
-      else if (bNets[1] < aNets[1]) { bPts = pv; label = 'Team B wins (2nd ball)'; }
+      if (aNets[1] < bNets[1]) { aPts = pv; label = `${nameA} wins (2nd ball)`; }
+      else if (bNets[1] < aNets[1]) { bPts = pv; label = `${nameB} wins (2nd ball)`; }
       else { const hp = halvedPoints(pv, game.halvedHoleRule); aPts = hp; bPts = hp; label = hp > 0 ? 'Halved' : 'No points'; }
     } else {
       const hp = halvedPoints(pv, game.halvedHoleRule);
@@ -370,8 +374,10 @@ export function calcGrossBestBall(input: EngineInput): RoundResult {
     const pv = holePointValue(hole.number, game, holePointOverrides);
     let aPts = 0, bPts = 0, label = '';
 
-    if (aSum < bSum) { aPts = pv; label = `Team A wins (${aSum} vs ${bSum})`; }
-    else if (bSum < aSum) { bPts = pv; label = `Team B wins (${bSum} vs ${aSum})`; }
+    const nameA = input.teamNames?.[teamAId] || 'Team A';
+    const nameB = input.teamNames?.[teamBId] || 'Team B';
+    if (aSum < bSum) { aPts = pv; label = `${nameA} wins (${aSum} vs ${bSum})`; }
+    else if (bSum < aSum) { bPts = pv; label = `${nameB} wins (${bSum} vs ${aSum})`; }
     else { const hp = halvedPoints(pv, game.halvedHoleRule); aPts = hp; bPts = hp; label = hp > 0 ? 'Halved' : 'No points'; }
 
     teamTotals[teamAId] += aPts;
@@ -447,8 +453,10 @@ export function calcScramble(input: EngineInput): RoundResult {
     const pv = holePointValue(hole.number, game, holePointOverrides);
     let aPts = 0, bPts = 0, label = '';
 
-    if (aScore < bScore) { aPts = pv; label = 'Team A wins'; }
-    else if (bScore < aScore) { bPts = pv; label = 'Team B wins'; }
+    const nameA = input.teamNames?.[teamAId] || 'Team A';
+    const nameB = input.teamNames?.[teamBId] || 'Team B';
+    if (aScore < bScore) { aPts = pv; label = `${nameA} wins`; }
+    else if (bScore < aScore) { bPts = pv; label = `${nameB} wins`; }
     else { const hp = halvedPoints(pv, game.halvedHoleRule); aPts = hp; bPts = hp; label = hp > 0 ? 'Halved' : 'No points'; }
 
     teamTotals[teamAId] += aPts;
@@ -599,8 +607,10 @@ function calcSixesSumOfStrokes(input: EngineInput): RoundResult {
     const bSum = getTeamSum(teamBId);
 
     let aPts = 0, bPts = 0, label = '';
-    if (aSum < bSum) { aPts = pointValue; label = `Team A wins segment (${aSum} vs ${bSum})`; }
-    else if (bSum < aSum) { bPts = pointValue; label = `Team B wins segment (${bSum} vs ${aSum})`; }
+    const nameA = input.teamNames?.[teamAId] || 'Team A';
+    const nameB = input.teamNames?.[teamBId] || 'Team B';
+    if (aSum < bSum) { aPts = pointValue; label = `${nameA} wins segment (${aSum} vs ${bSum})`; }
+    else if (bSum < aSum) { bPts = pointValue; label = `${nameB} wins segment (${bSum} vs ${aSum})`; }
     else { const hp = halvedPoints(pointValue, game.halvedHoleRule); aPts = hp; bPts = hp; label = hp > 0 ? 'Halved' : 'No points'; }
 
     teamTotals[teamAId] += aPts;
