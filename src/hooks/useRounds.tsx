@@ -314,6 +314,7 @@ export const useRounds = () => {
       if (error) throw error;
 
       loadedRoundIdRef.current = null;
+      offlineStorage.clearCachedRound();
       setRounds(prev => prev.filter(r => r.id !== roundId));
       if (currentRound?.id === roundId) {
         setCurrentRound(null);
