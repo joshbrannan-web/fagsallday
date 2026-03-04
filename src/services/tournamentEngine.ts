@@ -129,6 +129,8 @@ export function calcMatchState(
   let resultLabel = '';
   if (holesPlayed === 0) {
     resultLabel = 'All Square';
+  } else if (isComplete && diff === 0) {
+    resultLabel = 'Halved';
   } else if (!leadingTeamId) {
     resultLabel = 'All Square';
   } else if (isComplete && holesPlayed < totalHoles) {
@@ -214,7 +216,7 @@ export function calcMatchPlayIndividual(input: EngineInput): RoundResult {
     } else {
       const hp = halvedPoints(pv, game.halvedHoleRule);
       p1Pts = hp; p2Pts = hp;
-      label = 'Halved';
+      label = hp > 0 ? 'Halved' : 'No points';
     }
 
     teamTotals[p1Team] += p1Pts;
