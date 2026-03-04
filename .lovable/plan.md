@@ -1,52 +1,60 @@
 
 
-# Plan: Fix Tournament Round Deletion — Silent Supabase Errors
+# Plan: Fix Infinite Recursion in Tournament Group Players DELETE Policy
 
 ## Root Cause
 
-The `handleConfirmTournamentDelete` function (line 192-205) does not check the `error` return from each Supabase delete call. The Supabase JS client does **not throw** on query errors — it returns `{ data, error }`. The `try/catch` block only catches network-level exceptions, not query failures (like RLS policy denials).
+The DELETE policy on `tournament_group_players` checks if the current user is a member of the same group by querying `tournament_group_players` itself:
 
-So when the tournament cleanup queries silently fail (likely RLS policy denials), the code proceeds to `deleteRound(currentRound.id)`, which hits the FK constraint because `tournament_groups` still exists. The success toast fires unconditionally after the `catch` block regardless.
+```sql
+EXISTS (
+  SELECT 1 FROM tournament_group_players tgp2
+    JOIN tournament_players tp ON tp.id = tgp2.tournament_player_id
+  WHERE tgp2.tournament_group_id = tournament_group_players.tournament_group_id
+    AND tp.user_id = auth.uid()
+)
+```
+
+When Postgres evaluates the DELETE, it re-applies RLS to the inner `SELECT` on `tournament_group_players`, which triggers the same policy again — infinite recursion.
+
+The same pattern also affects:
+- `tournament_groups` DELETE policy (references `tournament_group_players`)
+- `tournament_hole_results` DELETE policy (references `tournament_group_players`)
+- `tournament_hole_scores` DELETE policy (references `tournament_group_players`)
+
+All four DELETE policies query `tournament_group_players`, which has a self-referencing policy.
 
 ## Fix
 
-### `src/components/RoundSummary.tsx` — `handleConfirmTournamentDelete` (lines 192-205)
+Create a `SECURITY DEFINER` function that checks group membership without RLS, then update all four DELETE policies to use it.
 
-Check the `error` property from each Supabase delete call. If any fail, show an error toast and abort before calling `deleteRound`. Also move the success toast inside a success path.
+### Step 1: Create helper function
 
-```typescript
-const handleConfirmTournamentDelete = async () => {
-  setShowDeleteConfirm(false);
-  try {
-    const { error: e1 } = await supabase.from('tournament_hole_results').delete().eq('tournament_group_id', tournamentGroupId);
-    if (e1) throw e1;
-    const { error: e2 } = await supabase.from('tournament_hole_scores').delete().eq('tournament_group_id', tournamentGroupId);
-    if (e2) throw e2;
-    const { error: e3 } = await supabase.from('tournament_group_players').delete().eq('tournament_group_id', tournamentGroupId);
-    if (e3) throw e3;
-    const { error: e4 } = await supabase.from('tournament_groups').delete().eq('id', tournamentGroupId);
-    if (e4) throw e4;
-
-    await deleteRound(currentRound.id);
-    toast.success('Tournament round deleted');
-    navigate('/');
-  } catch (err) {
-    console.error('Error deleting tournament round:', err);
-    toast.error('Failed to delete round');
-  }
-};
+```sql
+CREATE OR REPLACE FUNCTION public.is_group_member(_group_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM tournament_group_players tgp
+    JOIN tournament_players tp ON tp.id = tgp.tournament_player_id
+    WHERE tgp.tournament_group_id = _group_id
+      AND tp.user_id = auth.uid()
+  )
+$$;
 ```
 
-This ensures:
-1. Each Supabase delete is verified before proceeding
-2. If any cleanup step fails, the round delete is skipped (preventing the FK error)
-3. Only one toast appears (success or error, not both)
+### Step 2: Replace the four DELETE policies
 
-If the RLS DELETE policies from the earlier migration weren't applied or aren't matching, the error will now be properly surfaced. In that case, we may also need to debug the RLS policies — but this code fix is required regardless to handle errors correctly.
+Replace each self-referencing policy with one that calls `is_group_member(tournament_group_id)` (or `is_group_member(id)` for `tournament_groups`).
 
 | Resource | Change |
 |---|---|
-| `src/components/RoundSummary.tsx` | Check Supabase error returns in `handleConfirmTournamentDelete`; abort on failure |
+| Database migration | Create `is_group_member` SECURITY DEFINER function; drop and recreate DELETE policies on `tournament_group_players`, `tournament_groups`, `tournament_hole_results`, `tournament_hole_scores` |
 
-1 function rewritten, 0 new files, 0 database changes.
+0 code files changed, 1 database migration.
 
