@@ -213,33 +213,7 @@ const Auth: React.FC = () => {
           navigate('/');
         }
       } else {
-        let hcap = parseFloat(handicapIndex) || 0;
-        let syncedGhin = false;
-
-        // If GHIN method selected with a number, validate first
-        if (handicapMethod === 'ghin' && ghinNumber.trim()) {
-          setGhinSyncing(true);
-          try {
-            const { data: ghinData, error: ghinError } = await supabase.functions.invoke('sync-ghin-handicap', {
-              body: { ghin_number: ghinNumber.trim(), update_profile: false }
-            });
-            if (ghinError || ghinData?.error) {
-              toast.error(ghinData?.error || ghinError?.message || 'Failed to verify GHIN number');
-              setGhinSyncing(false);
-              setIsSubmitting(false);
-              return;
-            }
-            hcap = ghinData.handicap_index;
-            syncedGhin = true;
-          } catch {
-            toast.error('Failed to verify GHIN number. Please try again.');
-            setGhinSyncing(false);
-            setIsSubmitting(false);
-            return;
-          } finally {
-            setGhinSyncing(false);
-          }
-        }
+        const hcap = parseFloat(handicapIndex) || 0;
 
         const { error } = await signUp(email, password, displayName.trim(), hcap);
         if (error) {
@@ -249,33 +223,38 @@ const Auth: React.FC = () => {
             toast.error(error.message);
           }
         } else {
-          // Update profile with GHIN data if linked
-          if (syncedGhin) {
-            // We need the user session to update profile — the edge function can do it
-            // Re-call with update_profile after signup
-            try {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session) {
-                await supabase.functions.invoke('sync-ghin-handicap', {
-                  body: { ghin_number: ghinNumber.trim(), update_profile: true }
-                });
-              }
-            } catch {
-              // Non-critical, profile will have handicap from signup metadata
-            }
-          }
-
           // Suppress GHIN prompt for all new signups
           localStorage.setItem('fg_ghin_prompt_dismissed', 'true');
 
           // Send welcome email
           await sendWelcomeEmail(email, displayName.trim());
 
-          if (syncedGhin) {
-            toast.success('Account created with GHIN linked! Check your email.');
+          // If GHIN was provided, sync AFTER signup when session exists
+          if (handicapMethod === 'ghin' && ghinNumber.trim()) {
+            setGhinSyncing(true);
+            try {
+              // Wait briefly for session to be established
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session) {
+                const { data: ghinData, error: ghinError } = await supabase.functions.invoke('sync-ghin-handicap', {
+                  body: { ghin_number: ghinNumber.trim(), update_profile: true }
+                });
+                if (ghinError || ghinData?.error) {
+                  toast.warning('Account created! GHIN sync failed — you can link it later in Edit Profile.');
+                } else {
+                  toast.success('Account created with GHIN linked! Check your email.');
+                }
+              } else {
+                toast.warning('Account created! GHIN sync will complete on next sign-in.');
+              }
+            } catch {
+              toast.warning('Account created! GHIN sync failed — you can link it later in Edit Profile.');
+            } finally {
+              setGhinSyncing(false);
+            }
           } else {
             toast.success('Account created! Check your email for your login details.');
-            // Show info dialog for manual entry users
             if (handicapMethod === 'manual') {
               setShowManualInfoDialog(true);
             }
