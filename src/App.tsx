@@ -148,7 +148,8 @@ const AppContent: React.FC = () => {
     clearLoadedRound: dbClearLoadedRound,
     lockRound: dbLockRound,
     unlockRound: dbUnlockRound,
-    toggleRoundFavorite: dbToggleRoundFavorite
+    toggleRoundFavorite: dbToggleRoundFavorite,
+    refetch: refetchRounds
   } = useRounds();
   const { 
     savedCourses: dbSavedCourses,
@@ -492,7 +493,8 @@ const AppContent: React.FC = () => {
     unlockRound,
     toggleRoundFavorite: isAuthenticated ? (roundId: string) => dbToggleRoundFavorite(roundId) : () => {},
     roundTotals,
-    isLoading
+    isLoading,
+    refetchRounds: refetchRounds
   };
 
   return (

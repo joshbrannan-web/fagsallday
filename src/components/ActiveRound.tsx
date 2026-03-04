@@ -35,7 +35,7 @@ import { isTeamBankerStretchStartHole, getTeamBankerTeamAssignment, getTeamBanke
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals, isLoading } = useApp();
+  const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals, isLoading, refetchRounds } = useApp();
   
   // Tournament mode state
   const tournamentState = (location.state as any) || {};
@@ -340,8 +340,17 @@ const ActiveRound: React.FC = () => {
     });
   }, [currentRound?.scores, activeHole, tournamentGroupId, tournamentPlayerMapping]);
 
+  // Fallback: if navigated from tournament setup but round hasn't loaded yet, trigger refetch
+  const [tournamentRefetchAttempted, setTournamentRefetchAttempted] = useState(false);
+  useEffect(() => {
+    if (!currentRound && !isLoading && tournamentGroupId && !tournamentRefetchAttempted) {
+      setTournamentRefetchAttempted(true);
+      refetchRounds();
+    }
+  }, [currentRound, isLoading, tournamentGroupId, tournamentRefetchAttempted, refetchRounds]);
+
   if (!currentRound) {
-    if (isLoading) {
+    if (isLoading || (tournamentGroupId && !tournamentRefetchAttempted)) {
       return (
         <div className="flex flex-col items-center justify-center h-screen bg-background p-6 text-center space-y-6">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
