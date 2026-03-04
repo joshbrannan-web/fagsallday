@@ -1,37 +1,42 @@
 
 
-# Fix: GHIN Sync Fails During Sign Up (No Auth Token)
+# Plan: Tournament Engine Test Suite + Label Fix
 
-## Root Cause
+## Issue Found
+`calcMatchPlayIndividual` (line 217) always sets `label = 'Halved'` on tied holes, even when `halvedHoleRule = 'no_points'`. Best Ball correctly uses `hp > 0 ? 'Halved' : 'No points'`. Need to fix this inconsistency first so Test 3 passes as specified.
 
-During sign up (line 223 of `Auth.tsx`), the app calls `sync-ghin-handicap` to validate the GHIN number **before** the user account exists. The edge function requires a valid JWT (`authorization` header) — but since the user hasn't signed up yet, there's no session token. The function returns a 401 "Missing authorization" error.
+## Changes
 
-## Fix
+### 1. Fix `src/services/tournamentEngine.ts` (line 217)
+Change the tied-hole label in `calcMatchPlayIndividual` from:
+```typescript
+label = 'Halved';
+```
+to:
+```typescript
+label = hp > 0 ? 'Halved' : 'No points';
+```
+This matches the pattern used in Best Ball, Scramble, and Gross Best Ball.
 
-Restructure the signup flow to defer the GHIN API call until after the account is created and a session exists.
+### 2. Create `src/services/tournamentEngine.test.ts`
+~700 lines. Factory helpers + 35 tests organized into 9 `describe` blocks:
 
-### `src/pages/Auth.tsx` — Reorder signup logic
+**Helpers:**
+- `makePlayer(id, name, hcap, override?)` → `TournamentPlayer`
+- `makeGame(type, overrides?)` → `TournamentGame` with defaults: 1pt/hole, half_point, no handicaps, 100% allowance
+- `makeHole(num, par, hdcpIdx)` → `CourseHole`
+- `make18Holes()` → 18 par-4 holes with handicapIndex 1-18
 
-**Current flow:**
-1. Call `sync-ghin-handicap` (fails — no auth token)
-2. Call `signUp()`
-3. Call `sync-ghin-handicap` again with `update_profile: true`
+**Test groups:**
+1. **Match Play Individual** (Tests 1-6) — net comparisons, halved rules, handicap strokes, 18-hole totals, early close-out match state
+2. **Best Ball 2v2** (Tests 7-11) — best ball, 2nd ball tiebreaker, halved variants
+3. **Gross Best Ball** (Tests 12-15) — best 2/3/4 scoring by hole segment, halved
+4. **Scramble** (Tests 16-18) — team score comparison, halved, 18-hole totals
+5. **Tournament Sixes — Match Play** (Test 19) — delegates to Best Ball
+6. **Tournament Sixes — Sum of Strokes** (Tests 20-23) — segment scoring with configurable points
+7. **Handicap Calculations** (Tests 24-28) — `strokesReceived` edge cases, match play difference
+8. **Max Score Per Hole** (Tests 29-30) — capping via `maxScorePerHole`
+9. **Match State** (Tests 31-35) — in-progress, dormie, complete, all square, halved
 
-**Fixed flow:**
-1. Validate GHIN format only (5-9 digits — already done client-side)
-2. Call `signUp()` with handicap=0 as placeholder
-3. After signup succeeds and session is available, call `sync-ghin-handicap` with `update_profile: true` to validate + save the real handicap
-4. If GHIN lookup fails post-signup, show a non-blocking warning (account is created, they can retry from Edit Profile)
-
-Changes to `handleSubmit` in the `else` (signup) branch (~lines 216-284):
-- Remove the pre-signup GHIN validation block (lines 220-242)
-- Always sign up with `hcap = parseFloat(handicapIndex) || 0` (manual value or 0)
-- After signup succeeds, if `handicapMethod === 'ghin' && ghinNumber`, wait for session then call `sync-ghin-handicap` with `update_profile: true`
-- If that call fails, show `toast.warning('GHIN sync failed — you can link it later in Edit Profile')` instead of blocking signup
-
-### No edge function changes needed
-The edge function is correct — it should require auth. The bug is purely in the client calling it before auth exists.
-
-## File
-- `src/pages/Auth.tsx` — reorder GHIN sync to happen after successful signup
+After creating the file, tests will be run to verify all 35 pass.
 
