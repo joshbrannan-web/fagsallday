@@ -1,88 +1,37 @@
 
 
-# Fix: Password Reset "Update Password" Error
+# Fix: GHIN Sync Fails During Sign Up (No Auth Token)
 
 ## Root Cause
 
-When a user clicks the password reset link in their email, this happens:
+During sign up (line 223 of `Auth.tsx`), the app calls `sync-ghin-handicap` to validate the GHIN number **before** the user account exists. The edge function requires a valid JWT (`authorization` header) — but since the user hasn't signed up yet, there's no session token. The function returns a 401 "Missing authorization" error.
 
-1. They land on the app with a `?code=xxx` query param (PKCE flow)
-2. The Supabase JS client detects the code and starts exchanging it for a session **asynchronously**
-3. Meanwhile, `useAuth`'s `getSession()` call runs — it may find a **stale cached session** from a previous login
-4. `getUser()` validates it, finds it stale, and calls `signOut()` — **this kills the in-progress PKCE code exchange**
-5. The recovery session is never established
-6. When the user submits their new password, `updateUser({ password })` fails because there's no active session
+## Fix
 
-Even without a stale session, there's a race: `getSession()` returns null (code not yet exchanged), sets `isLoading = false`, and the user sees the reset form. The code exchange may still be in progress. If they submit quickly, `updateUser` fails.
+Restructure the signup flow to defer the GHIN API call until after the account is created and a session exists.
 
-## Fix (2 files)
+### `src/pages/Auth.tsx` — Reorder signup logic
 
-### 1. `src/hooks/useAuth.tsx` — Don't nuke sessions during recovery flow
+**Current flow:**
+1. Call `sync-ghin-handicap` (fails — no auth token)
+2. Call `signUp()`
+3. Call `sync-ghin-handicap` again with `update_profile: true`
 
-Before the stale-session validation block, detect if the URL contains a recovery code (`?code=` with `mode=reset` or `type=recovery`). If so, **skip the stale session cleanup entirely** and let the Supabase client complete the code exchange naturally. The `onAuthStateChange` listener will pick up the `SIGNED_IN` / `PASSWORD_RECOVERY` event when the exchange completes.
+**Fixed flow:**
+1. Validate GHIN format only (5-9 digits — already done client-side)
+2. Call `signUp()` with handicap=0 as placeholder
+3. After signup succeeds and session is available, call `sync-ghin-handicap` with `update_profile: true` to validate + save the real handicap
+4. If GHIN lookup fails post-signup, show a non-blocking warning (account is created, they can retry from Edit Profile)
 
-```typescript
-// Before the getSession() validation block:
-const urlHasRecoveryCode = window.location.search.includes('code=') && 
-  (window.location.hash.includes('mode=reset') || window.location.search.includes('type=recovery'));
+Changes to `handleSubmit` in the `else` (signup) branch (~lines 216-284):
+- Remove the pre-signup GHIN validation block (lines 220-242)
+- Always sign up with `hcap = parseFloat(handicapIndex) || 0` (manual value or 0)
+- After signup succeeds, if `handicapMethod === 'ghin' && ghinNumber`, wait for session then call `sync-ghin-handicap` with `update_profile: true`
+- If that call fails, show `toast.warning('GHIN sync failed — you can link it later in Edit Profile')` instead of blocking signup
 
-supabase.auth.getSession().then(async ({ data: { session: cachedSession } }) => {
-  if (urlHasRecoveryCode) {
-    // Recovery flow in progress — don't validate/clear cached session.
-    // Let the PKCE code exchange complete; onAuthStateChange will handle it.
-    setIsLoading(false);
-    initialValidationDone.current = true;
-    return;
-  }
-  // ... existing stale session validation logic unchanged
-});
-```
+### No edge function changes needed
+The edge function is correct — it should require auth. The bug is purely in the client calling it before auth exists.
 
-### 2. `src/pages/Auth.tsx` — Guard `updateUser` with session check + retry
-
-In `handleResetPassword`, before calling `updateUser`, verify an active session exists. If not, wait briefly for the code exchange to complete, then retry. Show a clear error if no session after retrying.
-
-```typescript
-const handleResetPassword = async (e: React.FormEvent) => {
-  e.preventDefault();
-  // ... existing validation ...
-
-  setIsSubmitting(true);
-  try {
-    // Ensure we have an active session (code exchange may still be in flight)
-    let { data: { session: currentSession } } = await supabase.auth.getSession();
-    if (!currentSession) {
-      // Wait for PKCE code exchange to complete
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const retry = await supabase.auth.getSession();
-      currentSession = retry.data.session;
-    }
-
-    if (!currentSession) {
-      toast.error('Your reset link has expired. Please request a new one.');
-      setMode('forgot');
-      return;
-    }
-
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      if (error.message.includes('session') || error.message.includes('token')) {
-        toast.error('Your reset link has expired. Please request a new one.');
-        setMode('forgot');
-      } else {
-        toast.error(error.message);
-      }
-    } else {
-      toast.success('Password updated successfully! Redirecting...');
-      navigate('/');
-    }
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-```
-
-## Summary
-- **File 1:** `src/hooks/useAuth.tsx` — Skip stale-session cleanup when a recovery code is in the URL
-- **File 2:** `src/pages/Auth.tsx` — Add session check with brief retry before `updateUser`, and show user-friendly error if session is missing
+## File
+- `src/pages/Auth.tsx` — reorder GHIN sync to happen after successful signup
 
