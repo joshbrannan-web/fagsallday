@@ -1,4 +1,5 @@
 import React from 'react';
+import type { MatchState } from '@/types/tournament';
 
 interface HoleResultData {
   teamPoints: Record<string, number>;
@@ -14,23 +15,34 @@ interface Props {
   teams: Record<string, { name: string; color: string }>;
   courseHoles: { number: number; par: number }[];
   gameType?: string;
+  teamAssignments?: Record<string, string>;
+  matchState?: MatchState;
 }
 
-const TournamentHoleTracker: React.FC<Props> = ({ holeResults, teamMatchup, teams, courseHoles, gameType }) => {
+const TournamentHoleTracker: React.FC<Props> = ({
+  holeResults, teamMatchup, teams, courseHoles, gameType,
+  teamAssignments, matchState,
+}) => {
   if (!teamMatchup) return null;
 
   const teamA = teams[teamMatchup.teamAId];
   const teamB = teams[teamMatchup.teamBId];
 
-  // Only show holes with a result (non-empty resultLabel & pointsValue > 0 or halved)
+  // Completed holes
   const completedHoles = courseHoles
     .filter(h => {
       const r = holeResults[h.number];
       return r && r.resultLabel && r.resultLabel !== '';
     })
-    .sort((a, b) => b.number - a.number); // Reverse chronological
+    .sort((a, b) => b.number - a.number);
 
-  if (completedHoles.length === 0) {
+  // Unplayed holes after match complete (#62)
+  const completedSet = new Set(completedHoles.map(h => h.number));
+  const unplayedHoles = matchState?.isComplete
+    ? courseHoles.filter(h => !completedSet.has(h.number)).sort((a, b) => b.number - a.number)
+    : [];
+
+  if (completedHoles.length === 0 && unplayedHoles.length === 0) {
     return (
       <div className="bg-card border border-border rounded-xl p-4">
         <p className="text-sm text-muted-foreground text-center">
@@ -39,6 +51,19 @@ const TournamentHoleTracker: React.FC<Props> = ({ holeResults, teamMatchup, team
       </div>
     );
   }
+
+  // Compute team best score for a hole from net or gross scores
+  const getTeamScore = (r: HoleResultData, teamId: string): number | undefined => {
+    const scores = r.netScores || r.grossScores;
+    if (!scores || !teamAssignments) return undefined;
+    const playerIds = Object.entries(teamAssignments)
+      .filter(([, tid]) => tid === teamId)
+      .map(([pid]) => pid);
+    const vals = playerIds.map(pid => scores[pid]).filter((v): v is number => v !== undefined);
+    if (vals.length === 0) return undefined;
+    // For best ball / match play, use best (min). For sum-based, engine already provides team totals.
+    return Math.min(...vals);
+  };
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -58,12 +83,25 @@ const TournamentHoleTracker: React.FC<Props> = ({ holeResults, teamMatchup, team
           const winnerName = isAWin ? teamA?.name : isBWin ? teamB?.name : undefined;
           const winPts = Math.max(aPts, bPts);
 
+          // Team score comparison (#17)
+          const aScore = getTeamScore(r, teamMatchup.teamAId);
+          const bScore = getTeamScore(r, teamMatchup.teamBId);
+
           return (
             <div key={hole.number} className={`flex items-center justify-between px-3 py-2 text-sm ${idx % 2 === 0 ? '' : 'bg-muted/30'}`}>
               <div className="flex items-center gap-2 min-w-0">
                 <span className="font-mono text-xs text-muted-foreground w-12">Hole {hole.number}</span>
                 <span className="text-xs text-muted-foreground">Par {hole.par}</span>
               </div>
+
+              {/* Team score comparison */}
+              {aScore !== undefined && bScore !== undefined && (
+                <div className="text-xs text-muted-foreground font-mono">
+                  <span style={{ color: teamA?.color }}>{aScore}</span>
+                  {' / '}
+                  <span style={{ color: teamB?.color }}>{bScore}</span>
+                </div>
+              )}
 
               <div className="flex items-center gap-2">
                 {isAWin || isBWin ? (
@@ -73,13 +111,24 @@ const TournamentHoleTracker: React.FC<Props> = ({ holeResults, teamMatchup, team
                   </>
                 ) : isHalved ? (
                   <span className="text-xs text-muted-foreground font-semibold">½ +{aPts} each</span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">No pts</span>
-                )}
+                ) : isNoPoints ? (
+                  <span className="text-xs text-muted-foreground">½ No pts</span>
+                ) : null}
               </div>
             </div>
           );
         })}
+
+        {/* Unplayed holes after match complete (#62) */}
+        {unplayedHoles.map((hole, idx) => (
+          <div key={`unplayed-${hole.number}`} className="flex items-center justify-between px-3 py-2 text-sm opacity-40">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-mono text-xs text-muted-foreground w-12">Hole {hole.number}</span>
+              <span className="text-xs text-muted-foreground">Par {hole.par}</span>
+            </div>
+            <span className="text-xs text-muted-foreground">—</span>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import type { TournamentPlayer, TournamentGame } from '@/types/tournament';
+import type { TournamentPlayer, TournamentGame, MatchState } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
 
 interface Props {
@@ -13,14 +13,17 @@ interface Props {
   courseHoles: CourseHole[];
   game: TournamentGame | null;
   allHoleScores: Record<string, Record<number, number>>;
-  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string; netScores?: Record<string, number> }>;
+  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string; netScores?: Record<string, number>; grossScores?: Record<string, number>; pointsValue?: number }>;
   teamTotals: Record<string, number>;
-  matchState?: { resultLabel: string };
+  matchState?: MatchState;
+  tournamentName?: string;
+  roundName?: string;
 }
 
 const TournamentFullScorecard: React.FC<Props> = ({
   isOpen, onClose, players, teams, teamAssignments, teamMatchup,
   courseHoles, game, allHoleScores, holeResults, teamTotals, matchState,
+  tournamentName, roundName,
 }) => {
   if (!teamMatchup || !game) return null;
 
@@ -38,6 +41,16 @@ const TournamentFullScorecard: React.FC<Props> = ({
   const sumGross = (playerId: string, holes: CourseHole[]) =>
     holes.reduce((s, h) => s + (getPlayerGross(playerId, h.number) ?? 0), 0);
 
+  const isTeamFormat = game.gameType?.startsWith('scramble_') || game.gameType?.startsWith('alternate_shot_');
+  const isGrossBestBall = game.gameType === 'match_play_gross_best_ball';
+
+  // For GBB: find best (lowest) gross per team per hole
+  const getBestGrossForTeam = (holeNum: number, teamId: string): number | undefined => {
+    const teamPlayers = players.filter(p => teamAssignments[p.id] === teamId);
+    const scores = teamPlayers.map(p => getPlayerGross(p.id, holeNum)).filter((s): s is number => s !== undefined);
+    return scores.length > 0 ? Math.min(...scores) : undefined;
+  };
+
   // Sort players by team
   const sortedPlayers = [...players].sort((a, b) => {
     const aTeam = teamAssignments[a.id];
@@ -53,36 +66,88 @@ const TournamentFullScorecard: React.FC<Props> = ({
 
     const hr = holeResults[hole.number];
     const playerTeamId = teamAssignments[playerId];
-    let dotColor: string | undefined;
+
+    // Halved indicator (#46) + win dot
+    let indicator: React.ReactNode = null;
     if (hr && hr.teamPoints) {
       const aPts = hr.teamPoints[teamMatchup.teamAId] || 0;
       const bPts = hr.teamPoints[teamMatchup.teamBId] || 0;
-      if (aPts > bPts) dotColor = playerTeamId === teamMatchup.teamAId ? teamA?.color : '#6b7280';
-      else if (bPts > aPts) dotColor = playerTeamId === teamMatchup.teamBId ? teamB?.color : '#6b7280';
-      else if (aPts > 0) dotColor = '#9ca3af'; // halved
+      if (aPts > bPts && playerTeamId === teamMatchup.teamAId) {
+        indicator = <div className="w-1.5 h-1.5 rounded-full mx-auto mt-0.5" style={{ backgroundColor: teamA?.color }} />;
+      } else if (bPts > aPts && playerTeamId === teamMatchup.teamBId) {
+        indicator = <div className="w-1.5 h-1.5 rounded-full mx-auto mt-0.5" style={{ backgroundColor: teamB?.color }} />;
+      } else if (aPts === bPts && aPts > 0) {
+        indicator = <div className="text-[9px] text-muted-foreground mx-auto mt-0.5">½</div>;
+      }
+    }
+
+    // GBB contributing score highlighting (#53)
+    let isMuted = false;
+    if (isGrossBestBall && playerTeamId) {
+      const best = getBestGrossForTeam(hole.number, playerTeamId);
+      if (best !== undefined && gross > best) isMuted = true;
     }
 
     return (
       <td key={hole.number} className="min-w-[44px] text-center py-1">
-        <div className="font-mono text-sm">{gross}</div>
+        <div className={`font-mono text-sm ${isMuted ? 'text-muted-foreground/50' : isGrossBestBall && !isMuted ? 'font-bold' : ''}`}>
+          {gross}
+          {isTeamFormat && <sup className="text-[8px] text-muted-foreground ml-0.5">T</sup>}
+        </div>
         {net !== undefined && net !== gross && (
           <div className="text-[10px] text-muted-foreground">({net})</div>
         )}
-        {dotColor && (
-          <div className="w-1.5 h-1.5 rounded-full mx-auto mt-0.5" style={{ backgroundColor: dotColor }} />
-        )}
+        {indicator}
       </td>
     );
   };
+
+  // Result cell for a hole
+  const renderResultCell = (hole: CourseHole) => {
+    const hr = holeResults[hole.number];
+    if (!hr || !hr.teamPoints) return <td key={`r-${hole.number}`} className="min-w-[44px] text-center py-1 text-muted-foreground">—</td>;
+    const aPts = hr.teamPoints[teamMatchup.teamAId] || 0;
+    const bPts = hr.teamPoints[teamMatchup.teamBId] || 0;
+    let display = '—';
+    let color: string | undefined;
+    if (aPts > bPts) { display = teamA?.name?.charAt(0) || 'A'; color = teamA?.color; }
+    else if (bPts > aPts) { display = teamB?.name?.charAt(0) || 'B'; color = teamB?.color; }
+    else if (aPts > 0) { display = '½'; }
+    return (
+      <td key={`r-${hole.number}`} className="min-w-[44px] text-center py-1 font-bold text-[10px]" style={color ? { color } : undefined}>
+        {display}
+      </td>
+    );
+  };
+
+  // Points cell for a hole
+  const renderPointsCell = (hole: CourseHole) => {
+    const hr = holeResults[hole.number];
+    if (!hr || hr.pointsValue === undefined) return <td key={`p-${hole.number}`} className="min-w-[44px] text-center py-1 text-muted-foreground text-[10px]">—</td>;
+    return (
+      <td key={`p-${hole.number}`} className="min-w-[44px] text-center py-1 font-mono text-[10px] text-muted-foreground">
+        {hr.pointsValue}
+      </td>
+    );
+  };
+
+  // Sum points for a set of holes
+  const sumPoints = (holes: CourseHole[], teamId: string) =>
+    holes.reduce((s, h) => s + (holeResults[h.number]?.teamPoints?.[teamId] || 0), 0);
+
+  // Header line
+  const statusText = matchState?.isComplete
+    ? (totalA === totalB ? `Match Halved ${totalA} — ${totalB}` : `${totalA > totalB ? teamA?.name : teamB?.name} wins ${Math.max(totalA, totalB)} — ${Math.min(totalA, totalB)}`)
+    : `${totalA} — ${totalB}`;
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <SheetContent side="bottom" className="h-[85vh] overflow-hidden flex flex-col">
         <SheetHeader className="shrink-0">
           <SheetTitle className="text-sm flex items-center justify-between">
-            <span>Full Scorecard</span>
+            <span>{tournamentName || 'Full Scorecard'}{roundName ? ` — ${roundName}` : ''}</span>
             <span className="text-xs text-muted-foreground font-normal">
-              {matchState?.resultLabel || `${totalA} — ${totalB}`}
+              {statusText}
             </span>
           </SheetTitle>
         </SheetHeader>
@@ -140,31 +205,32 @@ const TournamentFullScorecard: React.FC<Props> = ({
                 );
               })}
 
-              {/* Result row */}
+              {/* Result row (#49 fix: split front/back with OUT/IN/TOT separators) */}
               <tr className="border-t-2 border-border bg-muted/20">
                 <td className="sticky left-0 z-10 bg-muted/20 px-2 py-1.5 font-bold text-xs">Result</td>
                 <td className="sticky left-[100px] z-10 bg-muted/20" />
-                {courseHoles.map(h => {
-                  const hr = holeResults[h.number];
-                  if (!hr || !hr.teamPoints) return <td key={h.number} className="min-w-[44px] text-center py-1 text-muted-foreground">—</td>;
-                  const aPts = hr.teamPoints[teamMatchup.teamAId] || 0;
-                  const bPts = hr.teamPoints[teamMatchup.teamBId] || 0;
-                  let display = '—';
-                  let color: string | undefined;
-                  if (aPts > bPts) { display = teamA?.name?.charAt(0) || 'A'; color = teamA?.color; }
-                  else if (bPts > aPts) { display = teamB?.name?.charAt(0) || 'B'; color = teamB?.color; }
-                  else if (aPts > 0) { display = '½'; }
+                {frontNine.map(h => renderResultCell(h))}
+                <td className="min-w-[44px]" />
+                {backNine.map(h => renderResultCell(h))}
+                <td className="min-w-[44px]" />
+                <td className="min-w-[44px]" />
+              </tr>
 
-                  return (
-                    <td key={h.number} className="min-w-[44px] text-center py-1 font-bold text-[10px]" style={color ? { color } : undefined}>
-                      {display}
-                    </td>
-                  );
-                })}
-                {/* OUT/IN/TOT for result row - just show totals */}
-                <td className="min-w-[44px]" />
-                <td className="min-w-[44px]" />
-                <td className="min-w-[44px]" />
+              {/* Points row (#50) */}
+              <tr className="border-b border-border bg-muted/10">
+                <td className="sticky left-0 z-10 bg-muted/10 px-2 py-1 font-bold text-xs text-muted-foreground">Pts</td>
+                <td className="sticky left-[100px] z-10 bg-muted/10" />
+                {frontNine.map(h => renderPointsCell(h))}
+                <td className="min-w-[44px] text-center py-1 font-mono text-[10px] font-bold">
+                  {frontNine.reduce((s, h) => s + (holeResults[h.number]?.pointsValue || 0), 0) || ''}
+                </td>
+                {backNine.map(h => renderPointsCell(h))}
+                <td className="min-w-[44px] text-center py-1 font-mono text-[10px] font-bold">
+                  {backNine.reduce((s, h) => s + (holeResults[h.number]?.pointsValue || 0), 0) || ''}
+                </td>
+                <td className="min-w-[44px] text-center py-1 font-mono text-[10px] font-bold">
+                  {courseHoles.reduce((s, h) => s + (holeResults[h.number]?.pointsValue || 0), 0) || ''}
+                </td>
               </tr>
             </tbody>
           </table>

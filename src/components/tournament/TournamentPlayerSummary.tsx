@@ -13,7 +13,6 @@ interface Props {
 const TournamentPlayerSummary: React.FC<Props> = ({
   players, teamAssignments, teams, allHoleScores, holeResults, holesPlayed,
 }) => {
-  // Compute per-player totals
   const playerData = players.map(p => {
     const teamId = teamAssignments[p.id];
     const team = teams[teamId];
@@ -28,16 +27,15 @@ const TournamentPlayerSummary: React.FC<Props> = ({
       netTotal += nr ?? score;
     });
 
-    // Sum player points from all hole results
+    // Sum player points across all holes (#28 fix)
     Object.values(holeResults).forEach(hr => {
       const pp = hr.playerPoints?.[p.id];
-      if (pp !== undefined) ptsTotal = pp; // playerPoints is cumulative in engine
+      if (pp !== undefined) ptsTotal += pp;
     });
 
     return { player: p, teamId, team, grossTotal, netTotal, ptsTotal };
   });
 
-  // Sort by team then gross ascending
   playerData.sort((a, b) => {
     if (a.teamId !== b.teamId) return a.teamId.localeCompare(b.teamId);
     return a.grossTotal - b.grossTotal;

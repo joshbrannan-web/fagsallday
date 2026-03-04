@@ -37,7 +37,6 @@ const TournamentTabPanel: React.FC<Props> = ({
 
   const isSumOfStrokes = tournamentGame?.gameType === 'tournament_sixes' && tournamentGame?.sixesFormat === 'sum_of_strokes';
 
-  // Calculate total points available
   const totalPointsAvailable = isSumOfStrokes && segmentTotals
     ? segmentTotals.reduce((s, seg) => s + seg.pointsAvailable, 0)
     : (tournamentGame?.defaultPointsPerHole || 1) * courseHoles.length;
@@ -73,6 +72,8 @@ const TournamentTabPanel: React.FC<Props> = ({
           teams={teams}
           courseHoles={courseHoles}
           gameType={tournamentGame?.gameType}
+          teamAssignments={teamAssignments}
+          matchState={matchState}
         />
       )}
 
@@ -108,6 +109,8 @@ const TournamentTabPanel: React.FC<Props> = ({
         holeResults={holeResults}
         teamTotals={teamTotals}
         matchState={matchState}
+        tournamentName={tournamentName}
+        roundName={roundName}
       />
     </div>
   );

@@ -60,190 +60,61 @@ export const useTournamentOverlay = (
   const previousHoleCount = useRef(0);
   const [newlyCompletedHole, setNewlyCompletedHole] = useState<NewHoleEvent | null>(null);
 
-  useEffect(() => {
-    if (!tournamentGroupId) { setIsLoading(false); return; }
-    const load = async () => {
-      setIsLoading(true);
+  // Stable refs for reload to avoid stale closures
+  const tournamentGameRef = useRef<TournamentGame | null>(null);
+  const holePointOverridesRef = useRef<TournamentHolePoints[]>([]);
+  const tournamentPlayersRef = useRef<TournamentPlayer[]>([]);
+  const teamAssignmentsRef = useRef<Record<string, string>>({});
+  const courseHolesRef = useRef<CourseHole[]>([]);
 
-      const { data: group } = await supabase
-        .from('tournament_groups')
-        .select('tournament_round_id, team_matchup')
-        .eq('id', tournamentGroupId)
-        .single();
+  // Reload function: fetches latest scores + results and re-runs engine
+  const reload = useCallback(async () => {
+    if (!tournamentGroupId) return;
 
-      if (!group) { setIsLoading(false); return; }
+    const game = tournamentGameRef.current;
+    const players = tournamentPlayersRef.current;
+    const assignments = teamAssignmentsRef.current;
+    const holes = courseHolesRef.current;
+    const overrides = holePointOverridesRef.current;
 
-      const { data: round } = await supabase
-        .from('tournament_rounds')
-        .select('tournament_id, course_data')
-        .eq('id', group.tournament_round_id)
-        .single();
+    if (!game || players.length === 0 || holes.length === 0) return;
 
-      if (!round) { setIsLoading(false); return; }
+    const { data: scoresData } = await supabase
+      .from('tournament_hole_scores')
+      .select('*')
+      .eq('tournament_group_id', tournamentGroupId);
 
-      const [teamsRes, resultsRes, gameRes, groupPlayersRes, playersRes, scoresRes] = await Promise.all([
-        supabase.from('tournament_teams').select('id, name, color').eq('tournament_id', round.tournament_id),
-        supabase.from('tournament_hole_results').select('*').eq('tournament_group_id', tournamentGroupId),
-        supabase.from('tournament_games').select('*').eq('tournament_round_id', group.tournament_round_id).single(),
-        supabase.from('tournament_group_players').select('tournament_player_id, team_id').eq('tournament_group_id', tournamentGroupId),
-        supabase.from('tournament_players').select('*').eq('tournament_id', round.tournament_id),
-        supabase.from('tournament_hole_scores').select('*').eq('tournament_group_id', tournamentGroupId),
-      ]);
-
-      const teamsMap: Record<string, { name: string; color: string }> = {};
-      (teamsRes.data || []).forEach(t => { teamsMap[t.id] = { name: t.name, color: t.color }; });
-
-      const holeResults: Record<number, any> = {};
-      const teamTotals: Record<string, number> = {};
-      (resultsRes.data || []).forEach(r => {
-        holeResults[r.hole_number] = {
-          teamPoints: r.team_points as Record<string, number>,
-          resultLabel: r.result_label,
-          playerPoints: r.player_points as Record<string, number>,
-          pointsValue: r.points_value,
-        };
-        const tp = r.team_points as Record<string, number>;
-        Object.entries(tp).forEach(([tid, pts]) => {
-          teamTotals[tid] = (teamTotals[tid] || 0) + (pts as number);
-        });
-      });
-
-      if (gameRes.data) {
-        const g = gameRes.data;
-        setTournamentGame({
-          id: g.id,
-          tournamentRoundId: g.tournament_round_id,
-          gameType: g.game_type as any,
-          defaultPointsPerHole: g.default_points_per_hole,
-          halvedHoleRule: g.halved_hole_rule as any,
-          secondBallTiebreaker: g.second_ball_tiebreaker ?? false,
-          useHandicaps: g.use_handicaps ?? true,
-          handicapAllowancePercent: g.handicap_allowance_percent ?? 100,
-          maxScorePerHole: g.max_score_per_hole ?? undefined,
-          sixesConfig: g.sixes_config as any,
-          rulesText: g.rules_text ?? undefined,
-          sixesFormat: (g as any).sixes_format ?? 'match_play',
-          sixesSegmentPoints: (g as any).sixes_segment_points ?? [1, 1, 1],
-        });
-
-        const { data: hpData } = await supabase
-          .from('tournament_hole_points')
-          .select('*')
-          .eq('tournament_game_id', g.id);
-        setHolePointOverrides((hpData || []).map(hp => ({
-          id: hp.id,
-          tournamentGameId: hp.tournament_game_id,
-          holeNumber: hp.hole_number,
-          points: hp.points,
-        })));
+    const scoresMap: Record<string, Record<number, number>> = {};
+    (scoresData || []).forEach(s => {
+      if (s.gross_score !== null) {
+        if (!scoresMap[s.tournament_player_id]) scoresMap[s.tournament_player_id] = {};
+        scoresMap[s.tournament_player_id][s.hole_number] = s.gross_score;
       }
-
-      const assignments: Record<string, string> = {};
-      (groupPlayersRes.data || []).forEach(gp => {
-        assignments[gp.tournament_player_id] = gp.team_id;
-      });
-      setTeamAssignments(assignments);
-
-      const groupPlayerIds = new Set((groupPlayersRes.data || []).map(gp => gp.tournament_player_id));
-      const groupTournamentPlayers: TournamentPlayer[] = (playersRes.data || [])
-        .filter(p => groupPlayerIds.has(p.id))
-        .map(p => ({
-          id: p.id,
-          tournamentId: p.tournament_id,
-          userId: p.user_id ?? undefined,
-          displayName: p.display_name,
-          handicapIndex: p.handicap_index,
-          handicapOverride: p.handicap_override ?? undefined,
-          teamId: p.team_id ?? undefined,
-        }));
-      setTournamentPlayers(groupTournamentPlayers);
-
-      const cd = round.course_data as any;
-      const holes: CourseHole[] = (cd?.holes || []).map((h: any, i: number) => ({
-        number: i + 1,
-        par: h.par || 4,
-        handicapIndex: h.handicapIndex || (i + 1),
-      }));
-      setCourseHoles(holes);
-
-      const scoresMap: Record<string, Record<number, number>> = {};
-      (scoresRes.data || []).forEach(s => {
-        if (s.gross_score !== null) {
-          if (!scoresMap[s.tournament_player_id]) scoresMap[s.tournament_player_id] = {};
-          scoresMap[s.tournament_player_id][s.hole_number] = s.gross_score;
-        }
-      });
-      setAllHoleScores(scoresMap);
-
-      previousHoleCount.current = Object.keys(holeResults).length;
-
-      setState(prev => ({
-        ...prev,
-        teams: teamsMap,
-        teamMatchup: (group.team_matchup as any) || teamMatchup || null,
-        holeResults,
-        teamTotals,
-        holesPlayed: Object.keys(holeResults).length,
-      }));
-      setIsLoading(false);
-    };
-    load();
-  }, [tournamentGroupId]);
-
-  // Sync score to tournament_hole_scores and run engine
-  const syncScore = useCallback(async (
-    holeNumber: number,
-    roundPlayerId: string,
-    grossScore: number,
-  ) => {
-    if (!tournamentGroupId || !playerMapping || !tournamentGame) return;
-    const tournamentPlayerId = playerMapping[roundPlayerId];
-    if (!tournamentPlayerId) return;
-
-    await supabase.from('tournament_hole_scores').upsert({
-      tournament_group_id: tournamentGroupId,
-      tournament_player_id: tournamentPlayerId,
-      hole_number: holeNumber,
-      gross_score: grossScore,
-      is_super_user_override: false,
-    }, {
-      onConflict: 'tournament_group_id,tournament_player_id,hole_number',
     });
-
-    const updatedScores = { ...allHoleScores };
-    if (!updatedScores[tournamentPlayerId]) updatedScores[tournamentPlayerId] = {};
-    updatedScores[tournamentPlayerId] = { ...updatedScores[tournamentPlayerId], [holeNumber]: grossScore };
-
-    const engineInput: EngineInput = {
-      game: tournamentGame,
-      holePointOverrides,
-      players: tournamentPlayers,
-      teamAssignments,
-      scores: updatedScores,
-      courseHoles,
-    };
+    setAllHoleScores(scoresMap);
 
     try {
+      const engineInput: EngineInput = {
+        game, holePointOverrides: overrides, players, teamAssignments: assignments,
+        scores: scoresMap, courseHoles: holes,
+      };
       const result = calcTournamentHoleResults(engineInput);
 
       const newHoleResults: Record<number, any> = {};
       const newTeamTotals: Record<string, number> = {};
       result.holeResults.forEach(hr => {
         newHoleResults[hr.holeNumber] = {
-          teamPoints: hr.teamPoints,
-          resultLabel: hr.resultLabel,
-          grossScores: hr.grossScores,
-          netScores: hr.netScores,
-          playerPoints: hr.playerPoints,
-          pointsValue: hr.pointsValue,
+          teamPoints: hr.teamPoints, resultLabel: hr.resultLabel,
+          grossScores: hr.grossScores, netScores: hr.netScores,
+          playerPoints: hr.playerPoints, pointsValue: hr.pointsValue,
         };
         Object.entries(hr.teamPoints).forEach(([tid, pts]) => {
           newTeamTotals[tid] = (newTeamTotals[tid] || 0) + pts;
         });
       });
 
-      // Detect newly completed hole for animation
-      const completedHoles = result.holeResults.filter(hr => hr.resultLabel && hr.pointsValue > 0);
+      // Detect newly completed hole for animation (#59 fix: include halved no-points)
+      const completedHoles = result.holeResults.filter(hr => hr.resultLabel && hr.resultLabel !== '');
       if (completedHoles.length > previousHoleCount.current) {
         const newest = completedHoles[completedHoles.length - 1];
         const winnerTeamId = Object.entries(newest.teamPoints)
@@ -266,29 +137,214 @@ export const useTournamentOverlay = (
         holesPlayed: result.holeResults.length,
         matchState: result.matchState,
       }));
-
-      const upsertPayload = result.holeResults.map(hr => ({
-        tournament_group_id: tournamentGroupId,
-        hole_number: hr.holeNumber,
-        team_points: hr.teamPoints,
-        player_points: hr.playerPoints,
-        points_value: hr.pointsValue,
-        result_label: hr.resultLabel,
-        updated_at: new Date().toISOString(),
-      }));
-
-      if (upsertPayload.length > 0) {
-        await supabase.from('tournament_hole_results').upsert(
-          upsertPayload,
-          { onConflict: 'tournament_group_id,hole_number' },
-        );
-      }
-
-      setAllHoleScores(updatedScores);
     } catch (e) {
       console.error('Tournament engine error:', e);
     }
-  }, [tournamentGroupId, playerMapping, tournamentGame, holePointOverrides, tournamentPlayers, teamAssignments, courseHoles, allHoleScores]);
+  }, [tournamentGroupId]);
+
+  // Initial load
+  useEffect(() => {
+    if (!tournamentGroupId) { setIsLoading(false); return; }
+    const load = async () => {
+      setIsLoading(true);
+
+      const { data: group } = await supabase
+        .from('tournament_groups')
+        .select('tournament_round_id, team_matchup')
+        .eq('id', tournamentGroupId)
+        .single();
+
+      if (!group) { setIsLoading(false); return; }
+
+      const { data: round } = await supabase
+        .from('tournament_rounds')
+        .select('tournament_id, course_data')
+        .eq('id', group.tournament_round_id)
+        .single();
+
+      if (!round) { setIsLoading(false); return; }
+
+      const [teamsRes, gameRes, groupPlayersRes, playersRes, scoresRes] = await Promise.all([
+        supabase.from('tournament_teams').select('id, name, color').eq('tournament_id', round.tournament_id),
+        supabase.from('tournament_games').select('*').eq('tournament_round_id', group.tournament_round_id).single(),
+        supabase.from('tournament_group_players').select('tournament_player_id, team_id').eq('tournament_group_id', tournamentGroupId),
+        supabase.from('tournament_players').select('*').eq('tournament_id', round.tournament_id),
+        supabase.from('tournament_hole_scores').select('*').eq('tournament_group_id', tournamentGroupId),
+      ]);
+
+      const teamsMap: Record<string, { name: string; color: string }> = {};
+      (teamsRes.data || []).forEach(t => { teamsMap[t.id] = { name: t.name, color: t.color }; });
+
+      let game: TournamentGame | null = null;
+      let overrides: TournamentHolePoints[] = [];
+      if (gameRes.data) {
+        const g = gameRes.data;
+        game = {
+          id: g.id,
+          tournamentRoundId: g.tournament_round_id,
+          gameType: g.game_type as any,
+          defaultPointsPerHole: g.default_points_per_hole,
+          halvedHoleRule: g.halved_hole_rule as any,
+          secondBallTiebreaker: g.second_ball_tiebreaker ?? false,
+          useHandicaps: g.use_handicaps ?? true,
+          handicapAllowancePercent: g.handicap_allowance_percent ?? 100,
+          maxScorePerHole: g.max_score_per_hole ?? undefined,
+          sixesConfig: g.sixes_config as any,
+          rulesText: g.rules_text ?? undefined,
+          sixesFormat: (g as any).sixes_format ?? 'match_play',
+          sixesSegmentPoints: (g as any).sixes_segment_points ?? [1, 1, 1],
+        };
+        setTournamentGame(game);
+        tournamentGameRef.current = game;
+
+        const { data: hpData } = await supabase
+          .from('tournament_hole_points')
+          .select('*')
+          .eq('tournament_game_id', g.id);
+        overrides = (hpData || []).map(hp => ({
+          id: hp.id,
+          tournamentGameId: hp.tournament_game_id,
+          holeNumber: hp.hole_number,
+          points: hp.points,
+        }));
+        setHolePointOverrides(overrides);
+        holePointOverridesRef.current = overrides;
+      }
+
+      const assignments: Record<string, string> = {};
+      (groupPlayersRes.data || []).forEach(gp => {
+        assignments[gp.tournament_player_id] = gp.team_id;
+      });
+      setTeamAssignments(assignments);
+      teamAssignmentsRef.current = assignments;
+
+      const groupPlayerIds = new Set((groupPlayersRes.data || []).map(gp => gp.tournament_player_id));
+      const groupTournamentPlayers: TournamentPlayer[] = (playersRes.data || [])
+        .filter(p => groupPlayerIds.has(p.id))
+        .map(p => ({
+          id: p.id,
+          tournamentId: p.tournament_id,
+          userId: p.user_id ?? undefined,
+          displayName: p.display_name,
+          handicapIndex: p.handicap_index,
+          handicapOverride: p.handicap_override ?? undefined,
+          teamId: p.team_id ?? undefined,
+        }));
+      setTournamentPlayers(groupTournamentPlayers);
+      tournamentPlayersRef.current = groupTournamentPlayers;
+
+      const cd = round.course_data as any;
+      const holes: CourseHole[] = (cd?.holes || []).map((h: any, i: number) => ({
+        number: i + 1,
+        par: h.par || 4,
+        handicapIndex: h.handicapIndex || (i + 1),
+      }));
+      setCourseHoles(holes);
+      courseHolesRef.current = holes;
+
+      const scoresMap: Record<string, Record<number, number>> = {};
+      (scoresRes.data || []).forEach(s => {
+        if (s.gross_score !== null) {
+          if (!scoresMap[s.tournament_player_id]) scoresMap[s.tournament_player_id] = {};
+          scoresMap[s.tournament_player_id][s.hole_number] = s.gross_score;
+        }
+      });
+      setAllHoleScores(scoresMap);
+
+      // Run engine for initial state
+      if (game && groupTournamentPlayers.length > 0 && holes.length > 0) {
+        try {
+          const engineInput: EngineInput = {
+            game, holePointOverrides: overrides, players: groupTournamentPlayers,
+            teamAssignments: assignments, scores: scoresMap, courseHoles: holes,
+          };
+          const result = calcTournamentHoleResults(engineInput);
+
+          const holeResults: Record<number, any> = {};
+          const teamTotals: Record<string, number> = {};
+          result.holeResults.forEach(hr => {
+            holeResults[hr.holeNumber] = {
+              teamPoints: hr.teamPoints, resultLabel: hr.resultLabel,
+              grossScores: hr.grossScores, netScores: hr.netScores,
+              playerPoints: hr.playerPoints, pointsValue: hr.pointsValue,
+            };
+            Object.entries(hr.teamPoints).forEach(([tid, pts]) => {
+              teamTotals[tid] = (teamTotals[tid] || 0) + pts;
+            });
+          });
+
+          const completedHoles = result.holeResults.filter(hr => hr.resultLabel && hr.resultLabel !== '');
+          previousHoleCount.current = completedHoles.length;
+
+          setState(prev => ({
+            ...prev,
+            teams: teamsMap,
+            teamMatchup: (group.team_matchup as any) || teamMatchup || null,
+            holeResults,
+            teamTotals,
+            holesPlayed: result.holeResults.length,
+            matchState: result.matchState,
+          }));
+        } catch (e) {
+          console.error('Tournament engine error on load:', e);
+          setState(prev => ({
+            ...prev,
+            teams: teamsMap,
+            teamMatchup: (group.team_matchup as any) || teamMatchup || null,
+          }));
+        }
+      } else {
+        setState(prev => ({
+          ...prev,
+          teams: teamsMap,
+          teamMatchup: (group.team_matchup as any) || teamMatchup || null,
+        }));
+      }
+
+      setIsLoading(false);
+    };
+    load();
+  }, [tournamentGroupId]);
+
+  // Realtime subscription (#67, #68)
+  useEffect(() => {
+    if (!tournamentGroupId) return;
+    const channel = supabase
+      .channel(`overlay-${tournamentGroupId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'tournament_hole_scores',
+        filter: `tournament_group_id=eq.${tournamentGroupId}`,
+      }, () => reload())
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'tournament_hole_results',
+        filter: `tournament_group_id=eq.${tournamentGroupId}`,
+      }, () => reload())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [tournamentGroupId, reload]);
+
+  // Sync score to tournament_hole_scores and run engine
+  const syncScore = useCallback(async (
+    holeNumber: number,
+    roundPlayerId: string,
+    grossScore: number,
+  ) => {
+    if (!tournamentGroupId || !playerMapping || !tournamentGame) return;
+    const tournamentPlayerId = playerMapping[roundPlayerId];
+    if (!tournamentPlayerId) return;
+
+    await supabase.from('tournament_hole_scores').upsert({
+      tournament_group_id: tournamentGroupId,
+      tournament_player_id: tournamentPlayerId,
+      hole_number: holeNumber,
+      gross_score: grossScore,
+      is_super_user_override: false,
+    }, {
+      onConflict: 'tournament_group_id,tournament_player_id,hole_number',
+    });
+
+    // Realtime subscription will trigger reload for all clients including this one
+  }, [tournamentGroupId, playerMapping, tournamentGame]);
 
   // Compute segment totals for sum-of-strokes sixes
   const segmentTotals: SegmentTotal[] | null = (() => {
@@ -339,13 +395,8 @@ export const useTournamentOverlay = (
       }
 
       return {
-        teamSums,
-        holesComplete,
-        totalHoles,
-        pointsAvailable: segPts[idx],
-        isComplete,
-        winnerTeamId,
-        label,
+        teamSums, holesComplete, totalHoles, pointsAvailable: segPts[idx],
+        isComplete, winnerTeamId, label,
       };
     });
   })();
