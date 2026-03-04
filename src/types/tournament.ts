@@ -101,6 +101,8 @@ export interface TournamentGame {
   maxScorePerHole?: number;
   sixesConfig?: SixesSegmentConfig[];
   rulesText?: string;
+  sixesFormat?: 'match_play' | 'sum_of_strokes';
+  sixesSegmentPoints?: [number, number, number];
 }
 
 export interface TournamentHolePoints {
