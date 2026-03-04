@@ -126,7 +126,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     // THEN validate the existing session server-side (single source of truth on first load)
+    // Detect if URL contains a recovery/reset code — if so, skip stale-session cleanup
+    // to let the PKCE code exchange complete naturally.
+    const urlHasRecoveryCode = window.location.search.includes('code=') &&
+      (window.location.hash.includes('mode=reset') || window.location.search.includes('type=recovery') || window.location.search.includes('mode=reset'));
+
     supabase.auth.getSession().then(async ({ data: { session: cachedSession } }) => {
+      if (urlHasRecoveryCode) {
+        // Recovery flow in progress — don't validate/clear cached session.
+        // Let the PKCE code exchange complete; onAuthStateChange will handle it.
+        setIsLoading(false);
+        initialValidationDone.current = true;
+        return;
+      }
+
       if (cachedSession?.user) {
         // Verify session is still valid server-side
         const { data: userData, error: userError } = await supabase.auth.getUser();

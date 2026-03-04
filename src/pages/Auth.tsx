@@ -143,15 +143,34 @@ const Auth: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      // Ensure we have an active session (PKCE code exchange may still be in flight)
+      let { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession) {
+        // Wait for PKCE code exchange to complete
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const retry = await supabase.auth.getSession();
+        currentSession = retry.data.session;
+      }
+
+      if (!currentSession) {
+        toast.error('Your reset link has expired. Please request a new one.');
+        setMode('forgot');
+        return;
+      }
+
       const { error } = await supabase.auth.updateUser({ password: newPassword });
 
       if (error) {
-        toast.error(error.message);
+        if (error.message.includes('session') || error.message.includes('token')) {
+          toast.error('Your reset link has expired. Please request a new one.');
+          setMode('forgot');
+        } else {
+          toast.error(error.message);
+        }
       } else {
         toast.success('Password updated successfully! Redirecting...');
         setNewPassword('');
         setConfirmPassword('');
-        // User is already authenticated from the reset link - navigate to home
         navigate('/');
       }
     } finally {
