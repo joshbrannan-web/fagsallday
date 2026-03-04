@@ -1,107 +1,93 @@
 
 
-# Plan: Fix All Failures & Partials from Piece 6 Audit
+# Plan: Tournament Mode Code Cleanup
 
-15 items to fix across 7 files. No new files. No database changes.
-
----
-
-## 1. `src/pages/TournamentScoreboards.tsx` — Header & Completion Banner
-
-**Fixes: #3 (round progress when no rounds started), #91 (completion banner missing winner)**
-
-- **#3**: Show "Round 0 of N — Not started" when no rounds have started (currently shows nothing)
-- **#91**: Change completion banner from `"🏆 Tournament Complete"` to include winning team: `"🏆 [Team] wins [X] — [Y]"` or `"🏆 Tournament Complete — Tied"`. Compute team totals from holeResults inline.
+Findings and fixes across tournament files. No database changes. No new files.
 
 ---
 
-## 2. `src/components/scoreboards/TeamPointsBreakdownTable.tsx` — Group Result Labels
+## 1. Remove Dead Components
 
-**Fix: #16**
+Two components are no longer imported anywhere and contain placeholder text:
 
-Change badge from generic `✓` / `½` to full text: `"USA wins"`, `"EUR wins"`, or `"Halved"`. The `resultLabel` variable already computes this on line 106 — just use it instead of the ternary with checkmarks.
-
----
-
-## 3. `src/components/scoreboards/RyderCupGraphic.tsx` — Winner Banner Score
-
-**Fix: #19**
-
-Change line 75 from `"🏆 {leadingTeam.name.toUpperCase()} WINS"` to `"🏆 {leadingTeam.name.toUpperCase()} WINS {totalA} — {totalB}"`.
+- **`src/components/tournament/TournamentScoreboardTabs.tsx`** — contains "Live scoreboards coming in a future update." Not imported. Delete entire file.
+- **`src/pages/TournamentComingSoon.tsx`** — contains "Coming Soon" placeholder. Not imported. Delete entire file.
 
 ---
 
-## 4. `src/components/scoreboards/IndividualGrossScoreboard.tsx` — Round Column Visibility
+## 2. Hardcoded "Team A" / "Team B" Labels in Engine
 
-**Fix: #22**
+`src/services/tournamentEngine.ts` uses hardcoded "Team A wins" / "Team B wins" in result labels at 6 locations (lines ~280, 284-285, 373-374, 450-451, 602-603). These labels are written to the database and displayed on scoreboards.
 
-Change `startedRounds` filter from `r.status !== 'pending'` to only include rounds that have at least one score in `holeScores`. Check if any `holeScores` entry belongs to a group in that round.
+**Fix**: The engine doesn't have access to team names (it receives teamIds, not names). Change these labels to use a neutral pattern that the UI can resolve:
+- `"Team A wins"` → Use the team position contextually. Since the UI already shows team dots/colors based on `teamPoints` data, change labels to just `"wins"` with team identification via the `teamPoints` keys. However, this would break the existing display.
 
----
-
-## 5. `src/components/scoreboards/IndividualRoundResultScoreboard.tsx` — Match Result Margins
-
-**Fixes: #53, #58**
-
-- **#53**: After determining W/L/H, compute match margin from the group's hole results. Count holes with results. If match ended early (myPts or oppPts mathematically clinched), show margin as `"W (X&Y)"` where X is point lead and Y is holes remaining. For completed matches going to 18, show `"W (XUP)"`. For halved, just show `"H"`.
-- **#58**: Use team_points comparison to determine margin. Calculate: lead amount and holes remaining to produce match-play style result text like `"3&2"`, `"2UP"`, `"1UP"`.
+**Better approach**: Pass team names into the engine. Add an optional `teamNames: Record<string, string>` to `EngineInput`. Where available, use actual names; where not, fall back to "Team A"/"Team B". Update the 6 call sites in the engine and the 2 callers (`useTournamentScorecard`, `useTournamentOverlay`) to pass team names.
 
 ---
 
-## 6. `src/pages/TournamentGroupScorecard.tsx` — Match Tracker & Status Bar
+## 3. Hardcoded "Team A" / "Team B" Fallbacks in UI Components
 
-**Fix: #61**
-
-Import and render `TournamentMatchStatusBar` (from Piece 5) and a simple match tracker dots row. Run the tournament engine or compute match state from `results` data to show:
-- Status bar with team points tally and lead text
-- Dot tracker showing which team won each completed hole
-
-The component already has `teams`, `results`, and team totals computed. Add a status section between the header and scorecard table showing the match status (lead, thru, points remaining) and colored dots per hole.
+These are legitimate null-safety fallbacks (`teamA?.name || 'Team A'`) — they only display when team data is missing. These are acceptable defensive coding. **No change needed.**
 
 ---
 
-## 7. `src/components/scoreboards/TournamentLiveToast.tsx` — Lead Change Detection & Match Complete
+## 4. TODO Comment in TournamentAdminDashboard
 
-**Fixes: #68, #71, #73**
+Line 56: `// TODO: merge hole_points rows`
 
-- **#68**: Track previous team totals (before the new result) to distinguish "takes the lead" vs "extends lead". Store previous totals in a ref. Compare old leader vs new leader:
-  - Same leader, bigger margin → "[Team] extends lead"
-  - New leader → "[Team] takes the lead"
-  - Was leading, now tied → "Match level"
-- **#71**: Clear any existing timeout before setting a new one. Use a `timeoutRef` to ensure proper cleanup.
-- **#73**: Detect when all rounds are complete or when totals indicate a winner. Show `"🏆 [Team] wins! Final: [X] to [Y]"`.
+The `holePointOverrides` are already properly fetched and merged in `useTournamentScorecard` and `useTournamentOverlay` (the actual scoring paths). This TODO is in a preview/display helper in the admin dashboard that doesn't run the engine for scoring. **Remove the TODO and add a clarifying comment**: `// hole_points handled by scoring hooks; admin preview uses defaults`.
 
 ---
 
-## 8. `src/hooks/useTournamentScoreboards.ts` — Return holePoints & Incremental Update
+## 5. `any` Types in Scoreboard Components
 
-**Fixes: #82, #83**
+Multiple scoreboard components use `any` extensively. The most egregious:
 
-- **#82**: `holePoints` is already fetched and in state (line 134) — it's already returned. This was a false flag in the audit; verify it's actually in the return. Looking at line 134: `holePoints` IS in the return. No change needed.
-- **#83**: Replace the full `fetchScoresAndResults` call on realtime events with an incremental update. On `tournament_hole_scores` event, upsert the single changed row into `holeScores` state. On `tournament_hole_results` event, upsert the single changed row into `holeResults` state. Only fall back to full refetch for DELETE events.
+- **`ScoreboardRenderer.tsx`** — `scoreboard: any; data: any` props
+- **`IndividualRoundResultScoreboard.tsx`** — all props are `any[]` or `Record<string, any[]>`
+- **`useTournamentScoreboards.ts`** — all state typed as `any[]`
 
----
-
-## 9. `src/services/scoreboardCalculations.ts` — calcThru Returns 0
-
-**Fix: #79**
-
-Change line 205 from `return scores.length || null` to `return scores.length > 0 ? scores.length : null`. This is actually equivalent for the "not started" case — 0 scores means the player hasn't started, which should show "—". The current behavior is correct. No change needed.
+**Fix**: Create a shared set of lightweight interfaces in the scoreboard files (or reference existing types from `tournament.ts`) for the common shapes: round, team, player, group, groupPlayer. Then type the hook return and component props. This is a large scope item — focus on the 3 most impactful files:
+- `useTournamentScoreboards.ts` — type the return object
+- `ScoreboardRenderer.tsx` — type the `data` prop as the hook's return type
+- `IndividualRoundResultScoreboard.tsx` — type props with specific interfaces
 
 ---
 
-## Summary of Actual Changes
+## 6. `TournamentMatchTracker` Component — Superseded?
 
-| File | Fixes |
-|------|-------|
-| `TournamentScoreboards.tsx` | #3, #91 — round progress empty state, completion banner with winner |
-| `TeamPointsBreakdownTable.tsx` | #16 — full result text instead of ✓/½ |
-| `RyderCupGraphic.tsx` | #19 — winner banner includes score |
-| `IndividualGrossScoreboard.tsx` | #22 — round columns only when scores exist |
-| `IndividualRoundResultScoreboard.tsx` | #53, #58 — match margin in parentheses |
-| `TournamentGroupScorecard.tsx` | #61 — add match status bar and hole result dots |
-| `TournamentLiveToast.tsx` | #68, #71, #73 — lead change detection, timeout cleanup, match complete message |
-| `useTournamentScoreboards.ts` | #83 — incremental realtime updates |
+`TournamentMatchTracker.tsx` is imported only by `TournamentGameOverlay.tsx` and `TournamentRoundSummary.tsx`. The Piece 5 work introduced `TournamentHoleTracker` and `TournamentMatchStatusBar` as replacements. `TournamentMatchTracker` is still actively used in those two files so it stays. **No change.**
 
-8 files modified, 0 new files, 0 database changes.
+---
+
+## 7. Unused Import Check
+
+Quick scan of `CreateTournamentWizard.tsx` default team values:
+```ts
+const [teams, setTeams] = useState<TeamData[]>([
+  { name: 'Team A', color: '#1d4ed8' },
+  { name: 'Team B', color: '#dc2626' },
+]);
+```
+These are **default placeholder values** for the creation form — user replaces them. This is correct behavior. **No change.**
+
+---
+
+## Summary of Changes
+
+| File | Action |
+|------|--------|
+| `TournamentScoreboardTabs.tsx` | Delete (dead code, placeholder text) |
+| `TournamentComingSoon.tsx` | Delete (dead code, placeholder text) |
+| `tournamentEngine.ts` | Replace 6 "Team A/B wins" labels with dynamic team names from new `teamNames` param on `EngineInput` |
+| `types/tournament.ts` | Add optional `teamNames` to `EngineInput` interface |
+| `useTournamentScorecard.ts` | Pass `teamNames` to engine |
+| `useTournamentOverlay.ts` | Pass `teamNames` to engine |
+| `TournamentAdminDashboard.tsx` | Remove TODO, add clarifying comment |
+| `useTournamentScoreboards.ts` | Add return type interface, replace `any` state types |
+| `ScoreboardRenderer.tsx` | Type `data` prop with hook return type |
+| `IndividualRoundResultScoreboard.tsx` | Replace `any` props with typed interfaces |
+
+10 files modified, 2 files deleted, 0 new files, 0 database changes.
 
