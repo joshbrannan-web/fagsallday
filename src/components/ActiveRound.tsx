@@ -337,6 +337,7 @@ const ActiveRound: React.FC = () => {
   // Tournament mode: sync scores to tournament_hole_scores whenever scores change
   useEffect(() => {
     if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound) return;
+    if (tournamentOverlay.isLoading) return; // Wait for overlay to be ready
     // Bulk-sync all holes, not just activeHole
     Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
       const holeNum = Number(holeStr);
@@ -347,7 +348,7 @@ const ActiveRound: React.FC = () => {
         }
       });
     });
-  }, [currentRound?.scores, tournamentGroupId, tournamentPlayerMapping]);
+  }, [currentRound?.scores, tournamentGroupId, tournamentPlayerMapping, tournamentOverlay.isLoading]);
 
   // Fallback: if navigated from tournament setup but round hasn't loaded yet, trigger refetch
   const [tournamentRefetchAttempted, setTournamentRefetchAttempted] = useState(false);
