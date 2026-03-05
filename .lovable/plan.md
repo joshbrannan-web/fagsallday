@@ -1,60 +1,47 @@
 
 
-# Plan: Fix Infinite Recursion in Tournament Group Players DELETE Policy
+# Plan: Disable "Not Started" Rounds in Tournament Player Wizard
 
-## Root Cause
-
-The DELETE policy on `tournament_group_players` checks if the current user is a member of the same group by querying `tournament_group_players` itself:
-
-```sql
-EXISTS (
-  SELECT 1 FROM tournament_group_players tgp2
-    JOIN tournament_players tp ON tp.id = tgp2.tournament_player_id
-  WHERE tgp2.tournament_group_id = tournament_group_players.tournament_group_id
-    AND tp.user_id = auth.uid()
-)
-```
-
-When Postgres evaluates the DELETE, it re-applies RLS to the inner `SELECT` on `tournament_group_players`, which triggers the same policy again — infinite recursion.
-
-The same pattern also affects:
-- `tournament_groups` DELETE policy (references `tournament_group_players`)
-- `tournament_hole_results` DELETE policy (references `tournament_group_players`)
-- `tournament_hole_scores` DELETE policy (references `tournament_group_players`)
-
-All four DELETE policies query `tournament_group_players`, which has a self-referencing policy.
+## Problem
+Players can currently select rounds with status `pending` ("Not Started") in Step 2 of the wizard. These rounds haven't been activated by the admin yet and shouldn't be playable.
 
 ## Fix
 
-Create a `SECURITY DEFINER` function that checks group membership without RLS, then update all four DELETE policies to use it.
+### `src/components/tournament/TournamentBuildRoundWizard.tsx` — `renderStep2` (lines 124-161)
 
-### Step 1: Create helper function
+Filter or disable rounds where `status === 'pending'`. The simplest approach: make the `TournamentRoundCard` unclickable for pending rounds and add a visual indicator.
 
-```sql
-CREATE OR REPLACE FUNCTION public.is_group_member(_group_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM tournament_group_players tgp
-    JOIN tournament_players tp ON tp.id = tgp.tournament_player_id
-    WHERE tgp.tournament_group_id = _group_id
-      AND tp.user_id = auth.uid()
-  )
-$$;
+In `renderStep2`, wrap the `onSelect` callback so it does nothing for pending rounds, and apply a visual disabled state:
+
+```tsx
+{setup.rounds.map(round => {
+  const isPending = round.status === 'pending';
+  return (
+    <div key={round.id} className={isPending ? 'opacity-50' : ''}>
+      <TournamentRoundCard
+        round={round}
+        gameType={...}
+        rulesText={...}
+        isSelected={setup.selectedRound?.id === round.id}
+        onSelect={() => { if (!isPending) setup.selectRound(round); }}
+      />
+      {isPending && (
+        <p className="text-xs text-muted-foreground mt-1 ml-1">
+          This round hasn't been opened by the admin yet.
+        </p>
+      )}
+      ...existing warnings...
+    </div>
+  );
+})}
 ```
 
-### Step 2: Replace the four DELETE policies
+Also update `TournamentRoundCard` to accept an optional `disabled` prop to show `cursor-not-allowed` instead of `cursor-pointer`.
 
-Replace each self-referencing policy with one that calls `is_group_member(tournament_group_id)` (or `is_group_member(id)` for `tournament_groups`).
-
-| Resource | Change |
+| File | Change |
 |---|---|
-| Database migration | Create `is_group_member` SECURITY DEFINER function; drop and recreate DELETE policies on `tournament_group_players`, `tournament_groups`, `tournament_hole_results`, `tournament_hole_scores` |
+| `src/components/tournament/TournamentBuildRoundWizard.tsx` | Skip `selectRound` for pending rounds; add opacity + helper text |
+| `src/components/tournament/TournamentRoundCard.tsx` | Add optional `disabled` prop for cursor styling |
 
-0 code files changed, 1 database migration.
+2 files changed, 0 database changes.
 
