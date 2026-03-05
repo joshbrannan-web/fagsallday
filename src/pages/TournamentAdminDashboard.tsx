@@ -327,12 +327,20 @@ const TournamentAdminDashboard: React.FC = () => {
                 <Card key={g.id} className="p-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">Group {g.group_number}</p>
-                    <Button size="sm" variant="outline" onClick={() => {
-                      const round = rounds.find((r: any) => r.id === g.tournament_round_id);
-                      if (round) navigate(`/tournament-admin/${tournamentId}/round/${round.id}/group/${g.id}`);
-                    }}>
-                      View Scorecard
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => {
+                        const round = rounds.find((r: any) => r.id === g.tournament_round_id);
+                        if (round) navigate(`/tournament-admin/${tournamentId}/round/${round.id}/group/${g.id}`);
+                      }}>
+                        Scorecard
+                      </Button>
+                      <Button size="sm" variant="default" onClick={() => {
+                        const round = rounds.find((r: any) => r.id === g.tournament_round_id);
+                        if (round) navigate(`/tournament-admin/${tournamentId}/round/${round.id}/group/${g.id}/live`);
+                      }}>
+                        View Live
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               ))}

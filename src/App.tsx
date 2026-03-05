@@ -18,6 +18,7 @@ import TournamentAdmin from './pages/TournamentAdmin';
 import TournamentAdminDashboard from './pages/TournamentAdminDashboard';
 import TournamentAdminScorecard from './pages/TournamentAdminScorecard';
 import TournamentAdminScoreboards from './pages/TournamentAdminScoreboards';
+import TournamentAdminLiveView from './pages/TournamentAdminLiveView';
 import Tournament from './pages/Tournament';
 import TournamentScoreboards from './pages/TournamentScoreboards';
 import TournamentGroupScorecard from './pages/TournamentGroupScorecard';
@@ -530,6 +531,7 @@ const AppContent: FC = () => {
         <Route path="/tournament-admin/:tournamentId" element={<TournamentAdminDashboard />} />
         <Route path="/tournament-admin/:tournamentId/scoreboards" element={<TournamentAdminScoreboards />} />
         <Route path="/tournament-admin/:tournamentId/round/:roundId/group/:groupId" element={<TournamentAdminScorecard />} />
+        <Route path="/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live" element={<TournamentAdminLiveView />} />
         <Route path="/tournament" element={<Tournament />} />
         <Route path="/tournament/:joinCode/scoreboards" element={<TournamentScoreboards />} />
         <Route path="/tournament/:joinCode/round/:roundId/group/:groupId" element={<TournamentGroupScorecard />} />
