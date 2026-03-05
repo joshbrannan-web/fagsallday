@@ -194,7 +194,7 @@ const Landing: React.FC = () => {
                 <button
                   onClick={() => {
                     const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
-                    navigate('/active', meta ? { state: { tournamentGroupId: meta.tournamentGroupId, tournamentName: meta.tournamentName, tournamentRoundName: meta.roundName, playerMapping: meta.playerMapping, teamMatchup: meta.teamMatchup } } : undefined);
+                    navigate('/active', meta ? { state: { tournamentGroupId: meta.tournamentGroupId, tournamentName: meta.tournamentName, tournamentRoundName: meta.roundName, playerMapping: meta.playerMapping, teamMatchup: meta.teamMatchup, preferredTab: 'betting' } } : undefined);
                   }}
                   className="w-full bg-success text-success-foreground font-bold py-4 px-6 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg animate-pulse-subtle"
                 >
