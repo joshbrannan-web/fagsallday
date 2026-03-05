@@ -1,31 +1,49 @@
 
 
-# Plan: Persist Tournament Tab When Navigating Away and Back
+# Plan: Persist Tournament State via `_TOURNAMENT_META` in `gameData`
 
 ## Problem
-The `activeTab` state in `ActiveRound.tsx` is initialized to `'betting'` every time the component mounts (line 64). When a player navigates to the tournament scorecard or home page and returns, the component remounts and resets to the betting tab, losing the tournament view.
+When a player navigates away from `/active` (e.g., to scorecard or home) and returns, `location.state` is lost. This means `tournamentGroupId`, `playerMapping`, and `teamMatchup` are all `undefined`, causing:
+1. The betting/tournament tab toggle to disappear entirely
+2. Tournament overlay not loading
+
+`RoundSummary` already handles this by falling back to `currentRound.gameData._TOURNAMENT_META` — but `ActiveRound` does not.
 
 ## Fix
 
-### `src/components/ActiveRound.tsx` — line 64
+Two changes:
 
-Change the `activeTab` initializer to default to `'tournament'` when a `tournamentGroupId` is present in the route state. This way, tournament-mode rounds always open to the tournament tab.
+### 1. Store `playerMapping` and `teamMatchup` in `_TOURNAMENT_META` (src/hooks/useTournamentRoundSetup.ts)
+
+The `_TOURNAMENT_META` already stores `tournamentGroupId`, `tournamentName`, and `roundName`, but not `playerMapping` or `teamMatchup`. Add them to the second `update` call (line 284-295) so they persist in the round's `gameData`.
+
+### 2. Fall back to `_TOURNAMENT_META` in `ActiveRound.tsx` (lines 41-50)
+
+Apply the same pattern `RoundSummary` uses: if `location.state` doesn't contain tournament data, read it from `currentRound?.gameData?._TOURNAMENT_META`.
 
 ```tsx
-// Before
-const [activeTab, setActiveTab] = useState<'betting' | 'tournament'>('betting');
-
-// After
-const [activeTab, setActiveTab] = useState<'betting' | 'tournament'>(
-  tournamentGroupId ? 'tournament' : 'betting'
-);
+const tournamentState = (location.state as any) || {};
+const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
+const tournamentGroupId = tournamentState.tournamentGroupId || meta?.tournamentGroupId;
+const tournamentPlayerMapping = tournamentState.playerMapping || meta?.playerMapping;
+const tournamentName = tournamentState.tournamentName || meta?.tournamentName;
+const tournamentRoundName = tournamentState.tournamentRoundName || meta?.roundName;
+const teamMatchup = tournamentState.teamMatchup || meta?.teamMatchup;
 ```
 
-Since `tournamentGroupId` is derived from `location.state` (line 42) which is already resolved before this `useState` call, this is safe to use as the initial value.
+Then pass these derived values into `useTournamentOverlay` and for the `activeTab` default.
+
+### 3. Pass tournament state when navigating back to `/active` (Scorecard.tsx, RoundSummary.tsx, Landing.tsx)
+
+As a belt-and-suspenders measure, update the "Return to Hole" navigations in `Scorecard.tsx` (lines 903, 1311) and `RoundSummary.tsx` (line 597) to forward the current `location.state` so tournament data isn't dropped during in-session navigation.
 
 | File | Change |
 |---|---|
-| `src/components/ActiveRound.tsx` | Default `activeTab` to `'tournament'` when `tournamentGroupId` exists |
+| `src/hooks/useTournamentRoundSetup.ts` | Add `playerMapping` and `teamMatchup` to `_TOURNAMENT_META` |
+| `src/components/ActiveRound.tsx` | Fall back to `_TOURNAMENT_META` for all tournament values |
+| `src/components/Scorecard.tsx` | Forward `location.state` when navigating to `/active` |
+| `src/components/RoundSummary.tsx` | Forward `location.state` when navigating to `/active` |
+| `src/components/Landing.tsx` | Read `_TOURNAMENT_META` from `currentRound` and pass as state when resuming |
 
-1 line changed, 0 database changes.
+5 files changed, 0 database changes.
 
