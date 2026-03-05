@@ -1,49 +1,59 @@
 
 
-# Plan: Persist Tournament State via `_TOURNAMENT_META` in `gameData`
+# Plan: Fix "Return to Hole" Tab Default & Tournament Score Sync
 
-## Problem
-When a player navigates away from `/active` (e.g., to scorecard or home) and returns, `location.state` is lost. This means `tournamentGroupId`, `playerMapping`, and `teamMatchup` are all `undefined`, causing:
-1. The betting/tournament tab toggle to disappear entirely
-2. Tournament overlay not loading
+## Problem 1: Return to Hole Opens Tournament Tab
+When "Return to Hole" is clicked from the Scorecard, the navigation state includes `tournamentGroupId`, so `ActiveRound` defaults `activeTab` to `'tournament'`. The user expects to land on the **betting** tab since they were viewing the scorecard (a betting-side feature).
 
-`RoundSummary` already handles this by falling back to `currentRound.gameData._TOURNAMENT_META` — but `ActiveRound` does not.
+## Problem 2: Scores Not Syncing to Tournament
+The sync effect in `ActiveRound.tsx` (line 337) only syncs scores for `activeHole`. When the component remounts after navigation, it only syncs the current hole — all previously entered scores on other holes are not pushed to `tournament_hole_scores`.
 
 ## Fix
 
-Two changes:
+### 1. Add `preferredTab` to navigation state (`Scorecard.tsx`, `RoundSummary.tsx`)
 
-### 1. Store `playerMapping` and `teamMatchup` in `_TOURNAMENT_META` (src/hooks/useTournamentRoundSetup.ts)
+Pass `preferredTab: 'betting'` in the navigation state from "Return to Hole" buttons so `ActiveRound` knows which tab to show.
 
-The `_TOURNAMENT_META` already stores `tournamentGroupId`, `tournamentName`, and `roundName`, but not `playerMapping` or `teamMatchup`. Add them to the second `update` call (line 284-295) so they persist in the round's `gameData`.
+**Scorecard.tsx** (lines 903-906, 1314-1316): Add `preferredTab: 'betting'` to the state object.
 
-### 2. Fall back to `_TOURNAMENT_META` in `ActiveRound.tsx` (lines 41-50)
+**RoundSummary.tsx** (line 598): Add `preferredTab: 'betting'` to the state object.
 
-Apply the same pattern `RoundSummary` uses: if `location.state` doesn't contain tournament data, read it from `currentRound?.gameData?._TOURNAMENT_META`.
+### 2. Use `preferredTab` in `ActiveRound.tsx` (line 68-70)
 
 ```tsx
-const tournamentState = (location.state as any) || {};
-const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
-const tournamentGroupId = tournamentState.tournamentGroupId || meta?.tournamentGroupId;
-const tournamentPlayerMapping = tournamentState.playerMapping || meta?.playerMapping;
-const tournamentName = tournamentState.tournamentName || meta?.tournamentName;
-const tournamentRoundName = tournamentState.tournamentRoundName || meta?.roundName;
-const teamMatchup = tournamentState.teamMatchup || meta?.teamMatchup;
+const preferredTab = tournamentState.preferredTab as 'betting' | 'tournament' | undefined;
+const [activeTab, setActiveTab] = useState<'betting' | 'tournament'>(
+  preferredTab || (tournamentGroupId ? 'tournament' : 'betting')
+);
 ```
 
-Then pass these derived values into `useTournamentOverlay` and for the `activeTab` default.
+### 3. Bulk-sync all existing scores on mount (`ActiveRound.tsx`, line 336-347)
 
-### 3. Pass tournament state when navigating back to `/active` (Scorecard.tsx, RoundSummary.tsx, Landing.tsx)
+Replace the `activeHole`-only sync with a mount-time sync that pushes **all** existing scores across all holes:
 
-As a belt-and-suspenders measure, update the "Return to Hole" navigations in `Scorecard.tsx` (lines 903, 1311) and `RoundSummary.tsx` (line 597) to forward the current `location.state` so tournament data isn't dropped during in-session navigation.
+```tsx
+useEffect(() => {
+  if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound) return;
+  // Sync all holes, not just activeHole
+  Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
+    const holeNum = Number(holeStr);
+    currentRound.players.forEach(player => {
+      const score = holeScores[player.id];
+      if (typeof score === 'number' && score > 0) {
+        tournamentOverlay.syncScore(holeNum, player.id, score);
+      }
+    });
+  });
+}, [currentRound?.scores, tournamentGroupId, tournamentPlayerMapping]);
+```
+
+This ensures all hole scores are synced whenever scores change, not just the active hole.
 
 | File | Change |
 |---|---|
-| `src/hooks/useTournamentRoundSetup.ts` | Add `playerMapping` and `teamMatchup` to `_TOURNAMENT_META` |
-| `src/components/ActiveRound.tsx` | Fall back to `_TOURNAMENT_META` for all tournament values |
-| `src/components/Scorecard.tsx` | Forward `location.state` when navigating to `/active` |
-| `src/components/RoundSummary.tsx` | Forward `location.state` when navigating to `/active` |
-| `src/components/Landing.tsx` | Read `_TOURNAMENT_META` from `currentRound` and pass as state when resuming |
+| `src/components/ActiveRound.tsx` | Use `preferredTab` from state; bulk-sync all holes |
+| `src/components/Scorecard.tsx` | Add `preferredTab: 'betting'` to navigation state |
+| `src/components/RoundSummary.tsx` | Add `preferredTab: 'betting'` to navigation state |
 
-5 files changed, 0 database changes.
+3 files changed, 0 database changes.
 
