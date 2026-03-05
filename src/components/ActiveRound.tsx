@@ -61,7 +61,9 @@ const ActiveRound: React.FC = () => {
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
   const [showHolePicker, setShowHolePicker] = useState(false);
   const [declinedPresses, setDeclinedPresses] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'betting' | 'tournament'>('betting');
+  const [activeTab, setActiveTab] = useState<'betting' | 'tournament'>(
+    tournamentGroupId ? 'tournament' : 'betting'
+  );
   const [isGeneratingLinks, setIsGeneratingLinks] = useState(false);
   
   const isOnline = useOnlineStatus();
