@@ -51,12 +51,15 @@ const TournamentAdminScorecard: React.FC = () => {
         <Button variant="ghost" size="icon" onClick={() => navigate(`/tournament-admin/${tournamentId}`)}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold">Group {group?.group_number || '?'}</h1>
           <p className="text-xs text-muted-foreground">
             {enrichedPlayers.map((p: any) => p.display_name).join(' • ')}
           </p>
         </div>
+        <Button size="sm" variant="default" onClick={() => navigate(`/tournament-admin/${tournamentId}/round/${roundId}/group/${groupId}/live`)}>
+          View Live
+        </Button>
       </div>
 
       <div className="max-w-lg mx-auto">
