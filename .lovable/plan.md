@@ -1,35 +1,16 @@
 
 
-# Plan: Fix Tournament Score Sync Timing
+## Fix: Resume Round Should Open Betting Tab
 
-## Problem
-The bulk-sync effect in `ActiveRound.tsx` (line 338-350) runs immediately on mount, but `useTournamentOverlay`'s `syncScore` function checks `if (!tournamentGame) return` (line 339 of the hook). Since the overlay is still loading at that point, `tournamentGame` is null and every `syncScore` call silently bails out. The effect's dependencies (`currentRound?.scores`, `tournamentGroupId`, `tournamentPlayerMapping`) never change again, so the sync never retries.
+The "Resume Round" button on the home screen (line 197 of `Landing.tsx`) passes tournament metadata but no `preferredTab`, so `ActiveRound` defaults to the `'tournament'` tab.
 
-## Fix
+### Change
 
-### `src/components/ActiveRound.tsx` — line 338-350
-
-Add `tournamentOverlay.isLoading` to the effect's dependency array so it re-runs once the overlay finishes loading and `syncScore` is ready:
+**`src/components/Landing.tsx`** (line 197): Add `preferredTab: 'betting'` to the navigation state object, matching the pattern already used by Scorecard and RoundSummary:
 
 ```tsx
-useEffect(() => {
-  if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound) return;
-  if (tournamentOverlay.isLoading) return; // Wait for overlay to be ready
-  Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
-    const holeNum = Number(holeStr);
-    currentRound.players.forEach(player => {
-      const score = holeScores[player.id];
-      if (typeof score === 'number' && score > 0) {
-        tournamentOverlay.syncScore(holeNum, player.id, score);
-      }
-    });
-  });
-}, [currentRound?.scores, tournamentGroupId, tournamentPlayerMapping, tournamentOverlay.isLoading]);
+navigate('/active', meta ? { state: { tournamentGroupId: meta.tournamentGroupId, tournamentName: meta.tournamentName, tournamentRoundName: meta.roundName, playerMapping: meta.playerMapping, teamMatchup: meta.teamMatchup, preferredTab: 'betting' } } : undefined);
 ```
 
-| File | Change |
-|---|---|
-| `src/components/ActiveRound.tsx` | Add `tournamentOverlay.isLoading` guard and dependency to bulk-sync effect |
-
-1 file changed, 2 lines modified, 0 database changes.
+1 file, 1 line changed.
 
