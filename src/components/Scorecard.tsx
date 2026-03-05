@@ -902,7 +902,7 @@ const Scorecard: React.FC = () => {
                     }`}
                     onClick={isReadOnly ? undefined : () => {
                       const m = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
-                      navigate('/active', { state: { startHole: h.number, ...(m ? { tournamentGroupId: m.tournamentGroupId, tournamentName: m.tournamentName, tournamentRoundName: m.roundName, playerMapping: m.playerMapping, teamMatchup: m.teamMatchup } : {}) } });
+                      navigate('/active', { state: { startHole: h.number, preferredTab: 'betting', ...(m ? { tournamentGroupId: m.tournamentGroupId, tournamentName: m.tournamentName, tournamentRoundName: m.roundName, playerMapping: m.playerMapping, teamMatchup: m.teamMatchup } : {}) } });
                     }}
                   >
                     {h.number}
@@ -1313,7 +1313,7 @@ const Scorecard: React.FC = () => {
           ) : (
             <Button onClick={() => {
               const m = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
-              navigate('/active', { state: { startHole: firstIncompleteHole, ...(m ? { tournamentGroupId: m.tournamentGroupId, tournamentName: m.tournamentName, tournamentRoundName: m.roundName, playerMapping: m.playerMapping, teamMatchup: m.teamMatchup } : {}) } });
+              navigate('/active', { state: { startHole: firstIncompleteHole, preferredTab: 'betting', ...(m ? { tournamentGroupId: m.tournamentGroupId, tournamentName: m.tournamentName, tournamentRoundName: m.roundName, playerMapping: m.playerMapping, teamMatchup: m.teamMatchup } : {}) } });
             }} className="flex-1">
               <Play className="w-4 h-4 mr-2" /> Return to Hole
             </Button>

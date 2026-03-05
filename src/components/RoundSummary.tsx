@@ -595,7 +595,7 @@ const RoundSummary: React.FC = () => {
                 });
               })?.number || 1;
               const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
-              navigate('/active', { state: { startHole: firstIncompleteHole, ...(meta ? { tournamentGroupId: meta.tournamentGroupId, tournamentName: meta.tournamentName, tournamentRoundName: meta.roundName, playerMapping: meta.playerMapping, teamMatchup: meta.teamMatchup } : {}) } });
+              navigate('/active', { state: { startHole: firstIncompleteHole, preferredTab: 'betting', ...(meta ? { tournamentGroupId: meta.tournamentGroupId, tournamentName: meta.tournamentName, tournamentRoundName: meta.roundName, playerMapping: meta.playerMapping, teamMatchup: meta.teamMatchup } : {}) } });
             }} className="w-full">
               <ArrowLeft className="w-4 h-4 mr-2" /> Return to Hole
             </Button>
