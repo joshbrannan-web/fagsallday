@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { FC } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { Round, Player, Course, GameSettings } from './types';
 import Landing from './components/Landing';
@@ -54,10 +55,10 @@ const queryClient = new QueryClient({
 });
 
 // Round recovery component - must be inside HashRouter for useNavigate
-const RoundRecovery: React.FC<{
+const RoundRecovery: FC<{
   currentRound: Round | null;
   isLoading: boolean;
-  recoveryChecked: React.MutableRefObject<boolean>;
+  recoveryChecked: { current: boolean };
   showRecoveryDialog: boolean;
   setShowRecoveryDialog: (v: boolean) => void;
   recoveryRound: Round | null;
@@ -134,7 +135,7 @@ const RoundRecovery: React.FC<{
   );
 };
 
-const AppContent: React.FC = () => {
+const AppContent: FC = () => {
   const { user, isLoading: authLoading } = useAuth();
   const { 
     rounds, 
@@ -539,7 +540,7 @@ const AppContent: React.FC = () => {
   );
 };
 
-const App: React.FC = () => {
+const App: FC = () => {
   useVersionCheck();
   return (
     <QueryClientProvider client={queryClient}>
