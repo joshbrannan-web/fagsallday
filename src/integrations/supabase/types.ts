@@ -895,6 +895,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_group_member: { Args: { _group_id: string }; Returns: boolean }
       is_round_owner: { Args: { _round_id: string }; Returns: boolean }
       is_tournament_admin: { Args: never; Returns: boolean }
       is_tournament_creator: { Args: { t_id: string }; Returns: boolean }
