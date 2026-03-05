@@ -192,7 +192,10 @@ const Landing: React.FC = () => {
             <>
               {currentRound && currentRound.status === 'ACTIVE' && !currentRound.isShared && (
                 <button
-                  onClick={() => navigate('/active')}
+                  onClick={() => {
+                    const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
+                    navigate('/active', meta ? { state: { tournamentGroupId: meta.tournamentGroupId, tournamentName: meta.tournamentName, tournamentRoundName: meta.roundName, playerMapping: meta.playerMapping, teamMatchup: meta.teamMatchup } } : undefined);
+                  }}
                   className="w-full bg-success text-success-foreground font-bold py-4 px-6 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg animate-pulse-subtle"
                 >
                   <Play className="w-5 h-5 fill-current" />
