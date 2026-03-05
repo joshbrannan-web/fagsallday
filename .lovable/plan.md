@@ -1,40 +1,20 @@
 
 
-# Plan: Fix "Return to Hole" Tab Default & Tournament Score Sync
+# Plan: Fix Tournament Score Sync Timing
 
-## Problem 1: Return to Hole Opens Tournament Tab
-When "Return to Hole" is clicked from the Scorecard, the navigation state includes `tournamentGroupId`, so `ActiveRound` defaults `activeTab` to `'tournament'`. The user expects to land on the **betting** tab since they were viewing the scorecard (a betting-side feature).
-
-## Problem 2: Scores Not Syncing to Tournament
-The sync effect in `ActiveRound.tsx` (line 337) only syncs scores for `activeHole`. When the component remounts after navigation, it only syncs the current hole — all previously entered scores on other holes are not pushed to `tournament_hole_scores`.
+## Problem
+The bulk-sync effect in `ActiveRound.tsx` (line 338-350) runs immediately on mount, but `useTournamentOverlay`'s `syncScore` function checks `if (!tournamentGame) return` (line 339 of the hook). Since the overlay is still loading at that point, `tournamentGame` is null and every `syncScore` call silently bails out. The effect's dependencies (`currentRound?.scores`, `tournamentGroupId`, `tournamentPlayerMapping`) never change again, so the sync never retries.
 
 ## Fix
 
-### 1. Add `preferredTab` to navigation state (`Scorecard.tsx`, `RoundSummary.tsx`)
+### `src/components/ActiveRound.tsx` — line 338-350
 
-Pass `preferredTab: 'betting'` in the navigation state from "Return to Hole" buttons so `ActiveRound` knows which tab to show.
-
-**Scorecard.tsx** (lines 903-906, 1314-1316): Add `preferredTab: 'betting'` to the state object.
-
-**RoundSummary.tsx** (line 598): Add `preferredTab: 'betting'` to the state object.
-
-### 2. Use `preferredTab` in `ActiveRound.tsx` (line 68-70)
-
-```tsx
-const preferredTab = tournamentState.preferredTab as 'betting' | 'tournament' | undefined;
-const [activeTab, setActiveTab] = useState<'betting' | 'tournament'>(
-  preferredTab || (tournamentGroupId ? 'tournament' : 'betting')
-);
-```
-
-### 3. Bulk-sync all existing scores on mount (`ActiveRound.tsx`, line 336-347)
-
-Replace the `activeHole`-only sync with a mount-time sync that pushes **all** existing scores across all holes:
+Add `tournamentOverlay.isLoading` to the effect's dependency array so it re-runs once the overlay finishes loading and `syncScore` is ready:
 
 ```tsx
 useEffect(() => {
   if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound) return;
-  // Sync all holes, not just activeHole
+  if (tournamentOverlay.isLoading) return; // Wait for overlay to be ready
   Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
     const holeNum = Number(holeStr);
     currentRound.players.forEach(player => {
@@ -44,16 +24,12 @@ useEffect(() => {
       }
     });
   });
-}, [currentRound?.scores, tournamentGroupId, tournamentPlayerMapping]);
+}, [currentRound?.scores, tournamentGroupId, tournamentPlayerMapping, tournamentOverlay.isLoading]);
 ```
-
-This ensures all hole scores are synced whenever scores change, not just the active hole.
 
 | File | Change |
 |---|---|
-| `src/components/ActiveRound.tsx` | Use `preferredTab` from state; bulk-sync all holes |
-| `src/components/Scorecard.tsx` | Add `preferredTab: 'betting'` to navigation state |
-| `src/components/RoundSummary.tsx` | Add `preferredTab: 'betting'` to navigation state |
+| `src/components/ActiveRound.tsx` | Add `tournamentOverlay.isLoading` guard and dependency to bulk-sync effect |
 
-3 files changed, 0 database changes.
+1 file changed, 2 lines modified, 0 database changes.
 
