@@ -19,6 +19,7 @@ interface Props {
   rulesText?: string;
   isSelected: boolean;
   onSelect: () => void;
+  disabled?: boolean;
 }
 
 const statusBadge = (status: string) => {
@@ -39,14 +40,14 @@ const GAME_TYPE_LABELS: Record<string, string> = {
   tournament_sixes: 'Tournament Sixes',
 };
 
-const TournamentRoundCard: React.FC<Props> = ({ round, gameType, rulesText, isSelected, onSelect }) => {
+const TournamentRoundCard: React.FC<Props> = ({ round, gameType, rulesText, isSelected, onSelect, disabled }) => {
   const course = round.course_data as any;
   const courseName = course?.name || 'TBD';
 
   return (
     <Card
-      className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary border-primary' : 'hover:border-primary/50'}`}
-      onClick={onSelect}
+      className={`transition-all ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ${isSelected ? 'ring-2 ring-primary border-primary' : disabled ? '' : 'hover:border-primary/50'}`}
+      onClick={disabled ? undefined : onSelect}
     >
       <CardContent className="p-4 space-y-2">
         <div className="flex items-center justify-between">

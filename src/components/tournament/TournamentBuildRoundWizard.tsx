@@ -125,15 +125,23 @@ const TournamentBuildRoundWizard: React.FC = () => {
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Choose a Round</h2>
       <div className="space-y-3">
-        {setup.rounds.map(round => (
-          <div key={round.id}>
+        {setup.rounds.map(round => {
+          const isPending = round.status === 'pending';
+          return (
+          <div key={round.id} className={isPending ? 'opacity-50' : ''}>
             <TournamentRoundCard
               round={round}
               gameType={setup.selectedRound?.id === round.id ? setup.tournamentGame?.game_type : undefined}
               rulesText={setup.selectedRound?.id === round.id ? setup.tournamentGame?.rules_text || undefined : undefined}
               isSelected={setup.selectedRound?.id === round.id}
-              onSelect={() => setup.selectRound(round)}
+              onSelect={() => { if (!isPending) setup.selectRound(round); }}
+              disabled={isPending}
             />
+            {isPending && (
+              <p className="text-xs text-muted-foreground mt-1 ml-1">
+                This round hasn't been opened by the admin yet.
+              </p>
+            )}
             {setup.selectedRound?.id === round.id && round.status === 'completed' && (
               <div className="mt-2 flex items-center gap-2 p-3 bg-yellow-950/30 border border-yellow-500/30 rounded-lg">
                 <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0" />
@@ -155,7 +163,8 @@ const TournamentBuildRoundWizard: React.FC = () => {
               </div>
             )}
           </div>
-        ))}
+        );
+        })}
       </div>
     </div>
   );
