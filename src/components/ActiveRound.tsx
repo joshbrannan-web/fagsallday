@@ -65,8 +65,9 @@ const ActiveRound: React.FC = () => {
   const [showHomeConfirm, setShowHomeConfirm] = useState(false);
   const [showHolePicker, setShowHolePicker] = useState(false);
   const [declinedPresses, setDeclinedPresses] = useState<Set<string>>(new Set());
+  const preferredTab = tournamentState.preferredTab as 'betting' | 'tournament' | undefined;
   const [activeTab, setActiveTab] = useState<'betting' | 'tournament'>(
-    tournamentGroupId ? 'tournament' : 'betting'
+    preferredTab || (tournamentGroupId ? 'tournament' : 'betting')
   );
   const [isGeneratingLinks, setIsGeneratingLinks] = useState(false);
   
@@ -336,15 +337,17 @@ const ActiveRound: React.FC = () => {
   // Tournament mode: sync scores to tournament_hole_scores whenever scores change
   useEffect(() => {
     if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound) return;
-    const holeScores = currentRound.scores[activeHole];
-    if (!holeScores) return;
-    currentRound.players.forEach(player => {
-      const score = holeScores[player.id];
-      if (typeof score === 'number' && score > 0) {
-        tournamentOverlay.syncScore(activeHole, player.id, score);
-      }
+    // Bulk-sync all holes, not just activeHole
+    Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
+      const holeNum = Number(holeStr);
+      currentRound.players.forEach(player => {
+        const score = holeScores[player.id];
+        if (typeof score === 'number' && score > 0) {
+          tournamentOverlay.syncScore(holeNum, player.id, score);
+        }
+      });
     });
-  }, [currentRound?.scores, activeHole, tournamentGroupId, tournamentPlayerMapping]);
+  }, [currentRound?.scores, tournamentGroupId, tournamentPlayerMapping]);
 
   // Fallback: if navigated from tournament setup but round hasn't loaded yet, trigger refetch
   const [tournamentRefetchAttempted, setTournamentRefetchAttempted] = useState(false);
