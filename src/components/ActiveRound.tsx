@@ -37,16 +37,20 @@ const ActiveRound: React.FC = () => {
   const location = useLocation();
   const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals, isLoading, refetchRounds } = useApp();
   
-  // Tournament mode state
+  // Tournament mode state — fall back to persisted _TOURNAMENT_META when location.state is lost
   const tournamentState = (location.state as any) || {};
-  const tournamentGroupId = tournamentState.tournamentGroupId as string | undefined;
-  const tournamentPlayerMapping = tournamentState.playerMapping as Record<string, string> | undefined;
+  const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
+  const tournamentGroupId = (tournamentState.tournamentGroupId || meta?.tournamentGroupId) as string | undefined;
+  const tournamentPlayerMapping = (tournamentState.playerMapping || meta?.playerMapping) as Record<string, string> | undefined;
+  const tournamentName = tournamentState.tournamentName || meta?.tournamentName;
+  const tournamentRoundName = tournamentState.tournamentRoundName || meta?.roundName;
+  const teamMatchup = tournamentState.teamMatchup || meta?.teamMatchup;
   const tournamentOverlay = useTournamentOverlay(
     tournamentGroupId,
-    tournamentState.tournamentName,
-    tournamentState.tournamentRoundName,
+    tournamentName,
+    tournamentRoundName,
     tournamentPlayerMapping,
-    tournamentState.teamMatchup,
+    teamMatchup,
   );
 
   // Initialize active hole from navigation state if available

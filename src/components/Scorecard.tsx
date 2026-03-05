@@ -900,7 +900,10 @@ const Scorecard: React.FC = () => {
                     } ${
                       !isReadOnly && h.number === firstIncompleteHole ? 'bg-primary/20 ring-2 ring-primary ring-inset' : ''
                     }`}
-                    onClick={isReadOnly ? undefined : () => navigate('/active', { state: { startHole: h.number } })}
+                    onClick={isReadOnly ? undefined : () => {
+                      const m = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
+                      navigate('/active', { state: { startHole: h.number, ...(m ? { tournamentGroupId: m.tournamentGroupId, tournamentName: m.tournamentName, tournamentRoundName: m.roundName, playerMapping: m.playerMapping, teamMatchup: m.teamMatchup } : {}) } });
+                    }}
                   >
                     {h.number}
                     <div className="text-[10px] text-muted-foreground font-normal mt-0.5">par {h.par}</div>
@@ -1308,7 +1311,10 @@ const Scorecard: React.FC = () => {
               <Flag className="w-4 h-4 mr-2" /> Round Complete
             </Button>
           ) : (
-            <Button onClick={() => navigate('/active', { state: { startHole: firstIncompleteHole } })} className="flex-1">
+            <Button onClick={() => {
+              const m = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
+              navigate('/active', { state: { startHole: firstIncompleteHole, ...(m ? { tournamentGroupId: m.tournamentGroupId, tournamentName: m.tournamentName, tournamentRoundName: m.roundName, playerMapping: m.playerMapping, teamMatchup: m.teamMatchup } : {}) } });
+            }} className="flex-1">
               <Play className="w-4 h-4 mr-2" /> Return to Hole
             </Button>
           )}

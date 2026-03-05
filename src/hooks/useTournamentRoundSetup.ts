@@ -281,6 +281,12 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       if (groupError || !newGroup) throw groupError;
 
       // Update game_data with the tournament group ID
+      // Build player mapping for the overlay
+      const pMapping = selectedPlayers.reduce((acc, tp, i) => {
+        acc[(i + 1).toString()] = tp.id;
+        return acc;
+      }, {} as Record<string, string>);
+
       await supabase.from('rounds').update({
         game_data: {
           _TOURNAMENT_META: {
@@ -290,6 +296,8 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
             roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
             tournamentGroupId: newGroup.id,
             displayName: `${tournament.name} — Round ${selectedRound.round_number}`,
+            playerMapping: pMapping,
+            teamMatchup,
           },
         } as any,
       }).eq('id', newRound.id);
@@ -302,12 +310,6 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       }));
       await supabase.from('tournament_group_players').insert(gpInserts);
 
-      // Build player mapping for the overlay
-      const playerMapping = selectedPlayers.reduce((acc, tp, i) => {
-        acc[(i + 1).toString()] = tp.id;
-        return acc;
-      }, {} as Record<string, string>);
-
       // Refetch rounds so useRounds picks up the new ACTIVE round before navigating
       await refetchRounds();
 
@@ -317,7 +319,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
           tournamentGroupId: newGroup.id,
           tournamentName: tournament.name,
           tournamentRoundName: selectedRound.name || `Round ${selectedRound.round_number}`,
-          playerMapping,
+          playerMapping: pMapping,
           teamMatchup,
         },
       });
