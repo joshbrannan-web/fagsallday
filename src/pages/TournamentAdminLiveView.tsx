@@ -126,6 +126,7 @@ const TournamentAdminLiveView: React.FC = () => {
                 allHoleScores={overlay.allHoleScores}
                 segmentTotals={overlay.segmentTotals}
                 newlyCompletedHole={overlay.newlyCompletedHole}
+                tournamentId={tournamentId}
               />
             </CollapsibleContent>
           </Collapsible>
