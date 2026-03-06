@@ -7,6 +7,8 @@ import { calculateTeamBanker } from '../services/teamBankerEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
 import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, getSixesMode, SixesMode } from '../services/sixesEngine';
 import { SixesMatchSummary } from './sixes';
+import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
+import TournamentMatchTracker from './tournament/TournamentMatchTracker';
 import { Button } from '@/components/ui/button';
 import GameRoundTotals from './GameRoundTotals';
 import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
@@ -662,6 +664,16 @@ const Scorecard: React.FC = () => {
   const [viewMode, setViewMode] = useState<'FRONT' | 'BACK'>('FRONT');
   const scorecardImageRef = useRef<ScorecardImageHandle>(null);
 
+  // Extract tournament metadata for overlay hook (must be before early return)
+  const tournamentMeta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'] || null;
+  const tournamentOverlay = useTournamentOverlay(
+    tournamentMeta?.tournamentGroupId,
+    tournamentMeta?.tournamentName,
+    tournamentMeta?.roundName,
+    tournamentMeta?.playerMapping,
+    tournamentMeta?.teamMatchup,
+  );
+
   if (!currentRound) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center space-y-6">
@@ -1290,6 +1302,29 @@ const Scorecard: React.FC = () => {
         {/* 6's Match Play Section */}
         {sixesGame && (
           <SixesMatchSummary round={currentRound} game={sixesGame} />
+        )}
+
+        {/* Tournament Match Summary */}
+        {tournamentMeta && !tournamentOverlay.isLoading && tournamentOverlay.teamMatchup && (
+          <div className="rounded-xl border-2 border-amber-400/60 bg-card overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-400/40">
+              <Trophy className="w-4 h-4 text-amber-600" />
+              <span className="font-semibold text-sm text-amber-900 dark:text-amber-200">
+                {tournamentMeta.tournamentName}
+              </span>
+              {tournamentMeta.roundName && (
+                <span className="text-xs text-amber-700/70 dark:text-amber-300/60">— {tournamentMeta.roundName}</span>
+              )}
+            </div>
+            <div className="p-4">
+              <TournamentMatchTracker
+                holeResults={tournamentOverlay.holeResults}
+                teamMatchup={tournamentOverlay.teamMatchup}
+                teams={tournamentOverlay.teams}
+                teamTotals={tournamentOverlay.teamTotals}
+              />
+            </div>
+          </div>
         )}
       </div>
 
