@@ -310,10 +310,14 @@ export function calcMatchPlayBestBall(input: EngineInput): RoundResult {
       }
     });
 
+    const holePlayerPoints: Record<string, number> = {};
+    (teamPlayers[teamAId] || []).forEach(p => { holePlayerPoints[p.id] = aPts; });
+    (teamPlayers[teamBId] || []).forEach(p => { holePlayerPoints[p.id] = bPts; });
+
     holeResults.push({
       holeNumber: hole.number,
       teamPoints: { [teamAId]: aPts, [teamBId]: bPts },
-      playerPoints: { ...playerTotals },
+      playerPoints: holePlayerPoints,
       pointsValue: pv,
       resultLabel: label,
       grossScores,
@@ -395,10 +399,14 @@ export function calcGrossBestBall(input: EngineInput): RoundResult {
       }
     });
 
+    const holePlayerPoints: Record<string, number> = {};
+    (teamPlayers[teamAId] || []).forEach(p => { holePlayerPoints[p.id] = aPts; });
+    (teamPlayers[teamBId] || []).forEach(p => { holePlayerPoints[p.id] = bPts; });
+
     holeResults.push({
       holeNumber: hole.number,
       teamPoints: { [teamAId]: aPts, [teamBId]: bPts },
-      playerPoints: { ...playerTotals },
+      playerPoints: holePlayerPoints,
       pointsValue: pv,
       resultLabel: label,
       grossScores,
@@ -470,10 +478,14 @@ export function calcScramble(input: EngineInput): RoundResult {
       if (g !== undefined) grossScores[p.id] = Math.min(g, max);
     });
 
+    const holePlayerPoints: Record<string, number> = {};
+    (teamPlayers[teamAId] || []).forEach(p => { holePlayerPoints[p.id] = aPts; });
+    (teamPlayers[teamBId] || []).forEach(p => { holePlayerPoints[p.id] = bPts; });
+
     holeResults.push({
       holeNumber: hole.number,
       teamPoints: { [teamAId]: aPts, [teamBId]: bPts },
-      playerPoints: { ...playerTotals },
+      playerPoints: holePlayerPoints,
       pointsValue: pv,
       resultLabel: label,
       grossScores,

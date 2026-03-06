@@ -152,6 +152,7 @@ export function calcPlayerNetPerRound(
   return playerScores.reduce((sum, s) => {
     const hole = holes.find((h: any) => h.number === s.hole_number);
     if (!hole || !s.gross_score) return sum;
+    if (courseHandicap <= 0) return sum + s.gross_score;
     const base = Math.floor(courseHandicap / 18);
     const remainder = courseHandicap % 18;
     const strokes = base + (hole.handicapIndex <= remainder ? 1 : 0);
