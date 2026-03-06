@@ -1,78 +1,60 @@
 
 
-# Tournament Scoring Audit — Findings & Fix Plan
+# Revised Plan: Admin Live View with Full Control
 
-## Bug Found: Cumulative `playerPoints` in Team Game Formats
+## What the Previous Plan Was Missing
 
-**Severity: High — produces inflated scores on Individual Points scoreboard**
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-In `src/services/tournamentEngine.ts`, the team-format game calculators (`calcMatchPlayBestBall`, `calcGrossBestBall`, `calcScramble`) store **cumulative running totals** in `playerPoints` for each hole result, instead of per-hole values.
+## What the Admin Actually Needs
 
-```text
-Example: 3-hole match, Team A wins each hole (1pt each)
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-Current (wrong):
-  Hole 1 playerPoints: { playerA: 1 }
-  Hole 2 playerPoints: { playerA: 2 }  ← cumulative
-  Hole 3 playerPoints: { playerA: 3 }  ← cumulative
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-  calcPlayerPointsPerRound sums these → 1+2+3 = 6 (WRONG)
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-Expected:
-  Hole 1 playerPoints: { playerA: 1 }
-  Hole 2 playerPoints: { playerA: 1 }  ← per-hole
-  Hole 3 playerPoints: { playerA: 1 }  ← per-hole
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-  calcPlayerPointsPerRound sums these → 1+1+1 = 3 (CORRECT)
-```
+## Files
 
-The root cause is lines like 316 in `calcMatchPlayBestBall`:
-```ts
-playerPoints: { ...playerTotals },  // playerTotals accumulates across the loop
-```
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
 
-This value gets persisted to the `tournament_hole_results` table (via `useTournamentScorecard.ts` line 197) and then consumed by `calcPlayerPointsPerRound` in the Individual Points scoreboard, which sums the already-cumulative values — double counting.
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
 
-**Individual Match Play is NOT affected** — it correctly stores per-hole values.
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
 
-### Fix
-
-In `src/services/tournamentEngine.ts`, change three functions to store per-hole player points instead of cumulative totals:
-
-1. **`calcMatchPlayBestBall`** (~line 316): Replace `{ ...playerTotals }` with a fresh object that maps each team's players to that hole's points (aPts/bPts)
-2. **`calcGrossBestBall`** (~line 401): Same fix
-3. **`calcScramble`** (~line 476): Same fix
-
-Each fix replaces the spread of cumulative `playerTotals` with:
-```ts
-const holePlayerPoints: Record<string, number> = {};
-(teamPlayers[teamAId] || []).forEach(p => { holePlayerPoints[p.id] = aPts; });
-(teamPlayers[teamBId] || []).forEach(p => { holePlayerPoints[p.id] = bPts; });
-// ...
-playerPoints: holePlayerPoints,
-```
-
-## Minor Issue: Missing Guard for Plus-Handicap Players in Net Scoreboard
-
-In `src/services/scoreboardCalculations.ts` `calcPlayerNetPerRound` (line 155-157), there is no guard for `courseHandicap <= 0`. The tournament engine (`strokesReceived`) has `if (courseHandicap <= 0) return 0`, but the scoreboard calculation doesn't. With a negative course handicap, `Math.floor` and `%` on negative numbers in JS produce unexpected results, giving wrong net scores for plus-handicap players.
-
-**Fix**: Add the same guard in the strokes calculation within `calcPlayerNetPerRound`.
-
-## Everything Else Checks Out
-
-- **Tournament Engine**: All 9 game types dispatch correctly. Handicap stroke distribution (base + remainder), max score capping, halved-hole rules, second-ball tiebreaker, Sixes sum-of-strokes segments — all mathematically sound.
-- **Match State**: Close-out detection (`diff > holesRemaining`), dormie, and result labels are correct. Completed tied match correctly labeled "Halved".
-- **Scoreboard Calculations**: `calcTeamTotals`, `calcTeamTotalsPerRound`, `calcPlayerGrossPerRound`, `rankWithTies`, `calcThru`, `calcPointsToWin` — all correct.
-- **Scoreboard Components**: All 6 types render correctly using the calculation service. Ranking borders, tie prefixes, override indicators all work.
-- **Realtime Hook**: `useTournamentScoreboards` correctly subscribes to scores, results, and round changes. Incremental updates are merged correctly.
-- **Test Suite**: 35 tests cover core engine logic.
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
 
 ## Summary
 
 | File | Change |
-|------|--------|
-| `src/services/tournamentEngine.ts` | Fix `playerPoints` in 3 team-game functions + add guard |
-| `src/services/scoreboardCalculations.ts` | Add `courseHandicap <= 0` guard in `calcPlayerNetPerRound` |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
 
-After these fixes, existing `tournament_hole_results` rows with cumulative `player_points` will need to be recalculated. This happens automatically when any score is entered or overridden for an affected group (the engine re-runs and upserts all results).
+4 files (1 new), 0 database changes.
 
