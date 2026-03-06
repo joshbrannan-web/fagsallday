@@ -664,6 +664,16 @@ const Scorecard: React.FC = () => {
   const [viewMode, setViewMode] = useState<'FRONT' | 'BACK'>('FRONT');
   const scorecardImageRef = useRef<ScorecardImageHandle>(null);
 
+  // Extract tournament metadata for overlay hook (must be before early return)
+  const tournamentMeta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'] || null;
+  const tournamentOverlay = useTournamentOverlay(
+    tournamentMeta?.tournamentGroupId,
+    tournamentMeta?.tournamentName,
+    tournamentMeta?.roundName,
+    tournamentMeta?.playerMapping,
+    tournamentMeta?.teamMatchup,
+  );
+
   if (!currentRound) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center space-y-6">
@@ -674,16 +684,6 @@ const Scorecard: React.FC = () => {
       </div>
     );
   }
-
-  // Extract tournament metadata for overlay hook
-  const tournamentMeta = (currentRound.gameData as any)?.['_TOURNAMENT_META'] || null;
-  const tournamentOverlay = useTournamentOverlay(
-    tournamentMeta?.tournamentGroupId,
-    tournamentMeta?.tournamentName,
-    tournamentMeta?.roundName,
-    tournamentMeta?.playerMapping,
-    tournamentMeta?.teamMatchup,
-  );
 
   const holePnL = calculateAggregatedHolePnL(currentRound);
   const holes = currentRound.course.holes;
