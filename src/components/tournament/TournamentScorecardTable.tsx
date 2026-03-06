@@ -98,7 +98,7 @@ const TournamentScorecardTable: FC<Props> = ({
       </p>
 
       {/* Table */}
-      <div className="overflow-x-auto -mx-4">
+      <div className="overflow-x-auto">
         <table className="w-full text-center border-collapse text-sm">
           <thead>
             <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
