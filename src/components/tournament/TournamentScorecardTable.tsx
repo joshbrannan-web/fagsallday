@@ -40,9 +40,8 @@ const TournamentScorecardTable: FC<Props> = ({
 
   // Match status text
   let statusText = 'All Square';
-  if (matchState?.isComplete && matchState.winnerTeamId) {
-    const winner = teams[matchState.winnerTeamId];
-    statusText = `${winner?.name || 'Winner'} wins ${matchState.margin || ''}`.trim();
+  if (matchState?.isComplete) {
+    statusText = matchState.resultLabel || 'Complete';
   } else if (diff > 0) {
     statusText = `${teamA?.name || 'Team A'} ${diff} UP`;
   } else if (diff < 0) {
