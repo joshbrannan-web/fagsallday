@@ -102,9 +102,9 @@ const TournamentScorecardTable: FC<Props> = ({
         <table className="w-full text-center border-collapse text-sm">
           <thead>
             <tr className="bg-muted text-xs font-bold text-muted-foreground uppercase">
-              <th className="p-2 text-left min-w-[90px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
+              <th className="p-2 text-left min-w-[100px] sticky left-0 bg-muted border-r border-border z-10">Player</th>
               {activeHoles.map(h => (
-                <th key={h.number} className="p-1.5 min-w-[36px] border-r border-border/50">
+                <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
                   {h.number}
                   <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}</div>
                 </th>
@@ -128,7 +128,7 @@ const TournamentScorecardTable: FC<Props> = ({
                         className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: team?.color || 'hsl(var(--muted))' }}
                       />
-                      <span className="font-semibold text-xs truncate max-w-[70px]">{player.displayName}</span>
+                      <span className="font-semibold text-xs whitespace-normal break-words leading-tight">{player.displayName}</span>
                     </div>
                   </td>
                   {activeHoles.map(h => {
@@ -141,7 +141,7 @@ const TournamentScorecardTable: FC<Props> = ({
                     const shapeClass = isUnderPar ? 'rounded-full' : isOverPar ? 'rounded-lg' : '';
 
                     return (
-                      <td key={h.number} className="p-1 border-r border-border/50">
+                      <td key={h.number} className="p-1.5 border-r border-border/50">
                         {hasScore ? (
                           <span className={`inline-block w-7 h-7 leading-7 ${shapeClass} text-xs font-bold ${
                             d <= -2 ? 'bg-brand-gold/20 text-brand-gold' :
@@ -172,7 +172,7 @@ const TournamentScorecardTable: FC<Props> = ({
               {activeHoles.map(h => {
                 const result = holeResults[h.number];
                 if (!result || !result.resultLabel) {
-                  return <td key={h.number} className="p-1 border-r border-border/50 text-muted-foreground text-xs">—</td>;
+                  return <td key={h.number} className="p-1.5 border-r border-border/50 text-muted-foreground text-xs">—</td>;
                 }
 
                 const aPoints = result.teamPoints[teamMatchup.teamAId] || 0;
