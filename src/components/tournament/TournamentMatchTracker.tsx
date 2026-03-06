@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 
 interface Props {
   holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string }>;
