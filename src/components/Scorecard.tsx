@@ -8,7 +8,7 @@ import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePr
 import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, getSixesMode, SixesMode } from '../services/sixesEngine';
 import { SixesMatchSummary } from './sixes';
 import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
-import TournamentMatchTracker from './tournament/TournamentMatchTracker';
+import TournamentScorecardTable from './tournament/TournamentScorecardTable';
 import { Button } from '@/components/ui/button';
 import GameRoundTotals from './GameRoundTotals';
 import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
@@ -1316,12 +1316,17 @@ const Scorecard: React.FC = () => {
                 <span className="text-xs text-amber-700/70 dark:text-amber-300/60">— {tournamentMeta.roundName}</span>
               )}
             </div>
-            <div className="p-4">
-              <TournamentMatchTracker
-                holeResults={tournamentOverlay.holeResults}
-                teamMatchup={tournamentOverlay.teamMatchup}
+            <div className="px-0 py-3">
+              <TournamentScorecardTable
+                tournamentPlayers={tournamentOverlay.tournamentPlayers}
+                teamAssignments={tournamentOverlay.teamAssignments}
                 teams={tournamentOverlay.teams}
+                holeResults={tournamentOverlay.holeResults}
+                courseHoles={tournamentOverlay.courseHoles}
+                teamMatchup={tournamentOverlay.teamMatchup}
                 teamTotals={tournamentOverlay.teamTotals}
+                viewMode={viewMode}
+                matchState={tournamentOverlay.matchState}
               />
             </div>
           </div>
