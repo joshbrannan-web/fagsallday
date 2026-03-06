@@ -1,4 +1,4 @@
-import React from 'react';
+import type { FC } from 'react';
 
 interface Props {
   holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string }>;
@@ -8,7 +8,7 @@ interface Props {
   activeHole?: number;
 }
 
-const TournamentMatchTracker: React.FC<Props> = ({ holeResults, teamMatchup, teams, teamTotals, activeHole }) => {
+const TournamentMatchTracker: FC<Props> = ({ holeResults, teamMatchup, teams, teamTotals, activeHole }) => {
   if (!teamMatchup) return null;
 
   const teamA = teams[teamMatchup.teamAId];
