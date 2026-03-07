@@ -856,7 +856,7 @@ const Scorecard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <div className="bg-brand-dark text-primary-foreground p-4 shadow-sm sticky top-0 z-10 flex items-center justify-between">
+      <div className="bg-brand-dark text-primary-foreground p-4 shadow-sm flex items-center justify-between">
         <div className="w-10" />
         <h1 className="text-xl font-bold">Scorecard</h1>
         <div className="w-10" />
