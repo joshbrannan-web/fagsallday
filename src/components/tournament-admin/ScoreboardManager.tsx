@@ -15,6 +15,7 @@ const SB_TYPES = [
   { value: 'individual_points', label: 'Individual Points Won' },
   { value: 'team_round_result', label: 'Team Round Result' },
   { value: 'individual_round_result', label: 'Individual Round Result' },
+  { value: 'group_matches', label: 'Live Group Matches' },
 ];
 
 const SORT_METRICS = [
