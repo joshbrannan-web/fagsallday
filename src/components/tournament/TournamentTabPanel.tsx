@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ClipboardList, BarChart3 } from 'lucide-react';
 import TournamentMatchStatusBar from './TournamentMatchStatusBar';
 import TournamentHoleTracker from './TournamentHoleTracker';
