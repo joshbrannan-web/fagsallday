@@ -5,6 +5,7 @@ import IndividualNetScoreboard from './IndividualNetScoreboard';
 import IndividualPointsScoreboard from './IndividualPointsScoreboard';
 import TeamRoundResultScoreboard from './TeamRoundResultScoreboard';
 import IndividualRoundResultScoreboard from './IndividualRoundResultScoreboard';
+import GroupMatchesScoreboard from './GroupMatchesScoreboard';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface ScoreboardData {
@@ -41,6 +42,8 @@ const ScoreboardRenderer: React.FC<Props> = ({ scoreboard, data, joinCode }) => 
       return <TeamRoundResultScoreboard {...commonProps} />;
     case 'individual_round_result':
       return <IndividualRoundResultScoreboard {...commonProps} />;
+    case 'group_matches':
+      return <GroupMatchesScoreboard {...commonProps} />;
     default:
       return (
         <Card>
