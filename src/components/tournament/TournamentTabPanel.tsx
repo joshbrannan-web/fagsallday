@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ClipboardList, BarChart3 } from 'lucide-react';
 import TournamentMatchStatusBar from './TournamentMatchStatusBar';
 import TournamentHoleTracker from './TournamentHoleTracker';
@@ -45,7 +45,7 @@ const TournamentTabPanel: React.FC<Props> = ({
   const sbData = useTournamentScoreboards(tournamentId);
 
   // Auto-select first scoreboard
-  React.useEffect(() => {
+  useEffect(() => {
     if (sbData.scoreboards.length > 0 && !selectedScoreboardId) {
       setSelectedScoreboardId(sbData.scoreboards[0].id);
     }
