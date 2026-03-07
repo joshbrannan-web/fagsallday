@@ -45,7 +45,7 @@ const TournamentTabPanel: React.FC<Props> = ({
   const sbData = useTournamentScoreboards(tournamentId);
 
   // Auto-select first scoreboard
-  React.useEffect(() => {
+  useEffect(() => {
     if (sbData.scoreboards.length > 0 && !selectedScoreboardId) {
       setSelectedScoreboardId(sbData.scoreboards[0].id);
     }
