@@ -14,6 +14,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
   const [holePointOverrides, setHolePointOverrides] = useState<TournamentHolePoints[]>([]);
   const [tournamentPlayers, setTournamentPlayers] = useState<TournamentPlayer[]>([]);
   const [teamAssignments, setTeamAssignments] = useState<Record<string, string>>({});
+  const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
 
   const fetchData = useCallback(async () => {
