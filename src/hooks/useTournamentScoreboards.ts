@@ -266,53 +266,73 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     allGroupIdsRef.current = Object.values(groups).flat().map((g: any) => g.id);
   }, [groups]);
 
-  // Realtime subscriptions
+  // Realtime subscriptions — per-group filtered channels to avoid receiving database-wide events
   useEffect(() => {
     if (!tournamentId) return;
+    const groupIds = allGroupIdsRef.current;
+    if (groupIds.length === 0) return;
 
-    const channel = supabase
-      .channel(`scoreboards-${tournamentId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_hole_scores' }, (payload) => {
-        const row = payload.new as any;
-        if (payload.eventType === 'DELETE') {
-          fetchScoresAndResults(allGroupIdsRef.current);
-          return;
-        }
-        if (row && allGroupIdsRef.current.includes(row.tournament_group_id)) {
-          setHoleScores(prev => {
-            const idx = prev.findIndex((s: any) => s.id === row.id);
-            if (idx >= 0) { const next = [...prev]; next[idx] = row; return next; }
-            return [...prev, row];
-          });
-          setLastUpdated(new Date());
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_hole_results' }, (payload) => {
-        const row = payload.new as any;
-        if (payload.eventType === 'DELETE') {
-          fetchScoresAndResults(allGroupIdsRef.current);
-          return;
-        }
-        if (row && allGroupIdsRef.current.includes(row.tournament_group_id)) {
-          setHoleResults(prev => {
-            const idx = prev.findIndex((r: any) => r.id === row.id);
-            if (idx >= 0) { const next = [...prev]; next[idx] = row; return next; }
-            return [...prev, row];
-          });
-          setLastUpdated(new Date());
-          if (!isInitialLoad.current) {
-            setNewHoleResult(row);
-            setTimeout(() => setNewHoleResult(null), 4500);
+    const channels: ReturnType<typeof supabase.channel>[] = [];
+
+    // One filtered channel per group for scores + results
+    groupIds.forEach(groupId => {
+      const channel = supabase
+        .channel(`scoreboard-${tournamentId}-${groupId}`)
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'tournament_hole_scores',
+          filter: `tournament_group_id=eq.${groupId}`,
+        }, (payload) => {
+          const row = payload.new as any;
+          if (payload.eventType === 'DELETE') {
+            fetchScoresAndResults(allGroupIdsRef.current);
+            return;
           }
-        }
-      })
+          if (row) {
+            setHoleScores(prev => {
+              const idx = prev.findIndex((s: any) => s.id === row.id);
+              if (idx >= 0) { const next = [...prev]; next[idx] = row; return next; }
+              return [...prev, row];
+            });
+            setLastUpdated(new Date());
+          }
+        })
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'tournament_hole_results',
+          filter: `tournament_group_id=eq.${groupId}`,
+        }, (payload) => {
+          const row = payload.new as any;
+          if (payload.eventType === 'DELETE') {
+            fetchScoresAndResults(allGroupIdsRef.current);
+            return;
+          }
+          if (row) {
+            setHoleResults(prev => {
+              const idx = prev.findIndex((r: any) => r.id === row.id);
+              if (idx >= 0) { const next = [...prev]; next[idx] = row; return next; }
+              return [...prev, row];
+            });
+            setLastUpdated(new Date());
+            if (!isInitialLoad.current) {
+              setNewHoleResult(row);
+              setTimeout(() => setNewHoleResult(null), 4500);
+            }
+          }
+        })
+        .subscribe();
+      channels.push(channel);
+    });
+
+    // Separate channel for tournament round status changes (already filtered)
+    const roundChannel = supabase
+      .channel(`scoreboard-rounds-${tournamentId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_rounds', filter: `tournament_id=eq.${tournamentId}` }, () => {
         fetchAll();
       })
       .subscribe();
+    channels.push(roundChannel);
 
-    return () => { supabase.removeChannel(channel); };
-  }, [tournamentId, fetchAll, fetchScoresAndResults]);
+    return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
+  }, [tournamentId, groups, fetchAll, fetchScoresAndResults]);
 
   return {
     scoreboards, rounds, teams, players, games, holePoints,
