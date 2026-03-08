@@ -1,6 +1,4 @@
-import React from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart3 } from 'lucide-react';
+import React from "react";
 
 interface ScoreboardConfig {
   id: string;
@@ -19,19 +17,21 @@ const ScoreboardSelector: React.FC<Props> = ({ scoreboards, selectedId, onSelect
   if (scoreboards.length <= 1) return null;
 
   return (
-    <Select value={selectedId} onValueChange={onSelect}>
-      <SelectTrigger className="w-full">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-muted-foreground" />
-          <SelectValue />
-        </div>
-      </SelectTrigger>
-      <SelectContent>
-        {scoreboards.map(sb => (
-          <SelectItem key={sb.id} value={sb.id}>{sb.name}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+      {scoreboards.map((sb) => (
+        <button
+          key={sb.id}
+          onClick={() => onSelect(sb.id)}
+          className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-semibold border transition-all ${
+            selectedId === sb.id
+              ? "border-[hsl(var(--brand-gold))] bg-[hsl(var(--brand-gold))]/10 text-[hsl(var(--brand-gold))]"
+              : "border-border text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {sb.name}
+        </button>
+      ))}
+    </div>
   );
 };
 

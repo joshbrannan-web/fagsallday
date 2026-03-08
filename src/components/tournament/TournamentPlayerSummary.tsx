@@ -1,5 +1,5 @@
-import React from 'react';
-import type { TournamentPlayer } from '@/types/tournament';
+import React from "react";
+import type { TournamentPlayer } from "@/types/tournament";
 
 interface Props {
   players: TournamentPlayer[];
@@ -10,16 +10,13 @@ interface Props {
   holesPlayed: number;
 }
 
-const TournamentPlayerSummary: React.FC<Props> = ({
-  players, teamAssignments, teams, allHoleScores, holeResults, holesPlayed,
-}) => {
-  const playerData = players.map(p => {
+const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults }) => {
+  const playerData = players.map((p) => {
     const teamId = teamAssignments[p.id];
     const team = teams[teamId];
-
-    let grossTotal = 0;
-    let netTotal = 0;
-    let ptsTotal = 0;
+    let grossTotal = 0,
+      netTotal = 0,
+      ptsTotal = 0;
 
     Object.entries(allHoleScores[p.id] || {}).forEach(([h, score]) => {
       grossTotal += score;
@@ -27,8 +24,7 @@ const TournamentPlayerSummary: React.FC<Props> = ({
       netTotal += nr ?? score;
     });
 
-    // Sum player points across all holes (#28 fix)
-    Object.values(holeResults).forEach(hr => {
+    Object.values(holeResults).forEach((hr) => {
       const pp = hr.playerPoints?.[p.id];
       if (pp !== undefined) ptsTotal += pp;
     });
@@ -36,39 +32,58 @@ const TournamentPlayerSummary: React.FC<Props> = ({
     return { player: p, teamId, team, grossTotal, netTotal, ptsTotal };
   });
 
-  playerData.sort((a, b) => {
-    if (a.teamId !== b.teamId) return a.teamId.localeCompare(b.teamId);
-    return a.grossTotal - b.grossTotal;
-  });
+  // Group by team
+  const teamIds = [...new Set(playerData.map((d) => d.teamId))].filter(Boolean).sort();
+
+  if (teamIds.length === 0) return null;
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-xs text-muted-foreground">
-            <th className="text-left px-3 py-2 font-medium">Player</th>
-            <th className="text-center px-2 py-2 font-medium">Team</th>
-            <th className="text-center px-2 py-2 font-medium">Gross</th>
-            <th className="text-center px-2 py-2 font-medium">Net</th>
-            <th className="text-center px-2 py-2 font-medium">Pts</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {playerData.map(({ player, team, grossTotal, netTotal, ptsTotal }) => (
-            <tr key={player.id}>
-              <td className="px-3 py-2 font-medium text-foreground truncate max-w-[120px]">
-                {player.displayName}
-              </td>
-              <td className="text-center px-2 py-2">
-                <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: team?.color }} />
-              </td>
-              <td className="text-center px-2 py-2 font-mono text-foreground">{grossTotal || '—'}</td>
-              <td className="text-center px-2 py-2 font-mono text-muted-foreground">{netTotal || '—'}</td>
-              <td className="text-center px-2 py-2 font-mono font-semibold text-foreground">{ptsTotal}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="grid grid-cols-2 gap-2">
+      {teamIds.map((tid) => {
+        const team = teams[tid];
+        const teamPlayers = playerData.filter((d) => d.teamId === tid);
+
+        return (
+          <div key={tid} className="rounded-xl border border-border overflow-hidden bg-card">
+            {/* Team header */}
+            <div
+              className="flex items-center gap-2 px-3 py-2 border-b border-border"
+              style={{ borderBottomColor: team?.color + "40", backgroundColor: team?.color + "0f" }}
+            >
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: team?.color }} />
+              <span className="text-[11px] font-bold uppercase tracking-wide truncate" style={{ color: team?.color }}>
+                {team?.name}
+              </span>
+            </div>
+
+            {/* Players */}
+            {teamPlayers.map((d, i) => (
+              <div
+                key={d.player.id}
+                className={`px-3 py-2.5 ${i < teamPlayers.length - 1 ? "border-b border-border/50" : ""}`}
+              >
+                <p className="text-[13px] font-semibold text-foreground truncate mb-1.5">{d.player.displayName}</p>
+                <div className="flex gap-3">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Gross</span>
+                    <span className="text-[13px] font-bold font-mono text-foreground">{d.grossTotal || "—"}</span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Net</span>
+                    <span className="text-[13px] font-bold font-mono text-muted-foreground">{d.netTotal || "—"}</span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Pts</span>
+                    <span className="text-[13px] font-bold font-mono" style={{ color: team?.color }}>
+                      {d.ptsTotal}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 };
