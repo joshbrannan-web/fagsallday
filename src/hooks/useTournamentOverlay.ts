@@ -140,6 +140,26 @@ export const useTournamentOverlay = (
         holesPlayed: result.holeResults.length,
         matchState: result.matchState,
       }));
+
+      // Persist computed results to tournament_hole_results so scoreboards stay in sync
+      const upsertPayload = result.holeResults
+        .filter(hr => hr.resultLabel && hr.resultLabel !== '')
+        .map(hr => ({
+          tournament_group_id: tournamentGroupId,
+          hole_number: hr.holeNumber,
+          team_points: hr.teamPoints,
+          player_points: hr.playerPoints,
+          points_value: hr.pointsValue,
+          result_label: hr.resultLabel,
+          updated_at: new Date().toISOString(),
+        }));
+
+      if (upsertPayload.length > 0) {
+        await supabase.from('tournament_hole_results').upsert(
+          upsertPayload,
+          { onConflict: 'tournament_group_id,hole_number' },
+        );
+      }
     } catch (e) {
       console.error('Tournament engine error:', e);
     }
