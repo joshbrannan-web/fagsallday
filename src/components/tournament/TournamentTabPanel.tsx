@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { ClipboardList } from "lucide-react";
 import TournamentMatchStatusBar from "./TournamentMatchStatusBar";
 import TournamentHoleTracker from "./TournamentHoleTracker";
@@ -63,6 +64,13 @@ const TournamentTabPanel: React.FC<Props> = ({
   const [selectedScoreboardId, setSelectedScoreboardId] = useState<string>("");
 
   const sbData = useTournamentScoreboards(tournamentId);
+  const [joinCode, setJoinCode] = useState("");
+
+  useEffect(() => {
+    if (!tournamentId) return;
+    supabase.from("tournaments").select("join_code").eq("id", tournamentId).single()
+      .then(({ data }) => { if (data) setJoinCode(data.join_code); });
+  }, [tournamentId]);
 
   useEffect(() => {
     if (sbData.scoreboards.length > 0 && !selectedScoreboardId) {
@@ -201,7 +209,7 @@ const TournamentTabPanel: React.FC<Props> = ({
                 games: sbData.games,
                 tournamentStatus: sbData.isLive ? "active" : "completed",
               }}
-              joinCode=""
+              joinCode={joinCode}
             />
           ) : null}
         </div>
