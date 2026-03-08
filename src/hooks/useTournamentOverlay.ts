@@ -340,6 +340,11 @@ export const useTournamentOverlay = (
     const tournamentPlayerId = playerMapping[roundPlayerId];
     if (!tournamentPlayerId) return;
 
+    // Mark hole dirty if it was previously synced (score edit on completed hole)
+    if (syncedHolesRef.current.has(holeNumber)) {
+      dirtyHolesRef.current.add(holeNumber);
+    }
+
     // Update local state only
     setAllHoleScores(prev => {
       const updated = { ...prev };
@@ -405,6 +410,117 @@ export const useTournamentOverlay = (
       console.error('Tournament engine error (local):', e);
     }
   }, [allHoleScores, tournamentGame, tournamentPlayers, courseHoles, holePointOverrides, teamAssignments, subMatchups, state.teams]);
+
+  // Track which holes have been synced vs edited after sync
+  const syncedHolesRef = useRef<Set<number>>(new Set());
+  const dirtyHolesRef = useRef<Set<number>>(new Set());
+
+  // Get list of dirty holes that need re-sync
+  const getDirtyHoles = useCallback((): number[] => {
+    return Array.from(dirtyHolesRef.current);
+  }, []);
+
+  // Mark a hole as dirty (edited after being synced)
+  const markHoleDirty = useCallback((holeNumber: number) => {
+    if (syncedHolesRef.current.has(holeNumber)) {
+      dirtyHolesRef.current.add(holeNumber);
+    }
+  }, []);
+
+  // Batch sync a single hole's scores + results to DB
+  const batchSyncHole = useCallback(async (holeNumber: number): Promise<boolean> => {
+    if (!tournamentGroupId || !tournamentGame || tournamentPlayers.length === 0 || courseHoles.length === 0) {
+      return true;
+    }
+
+    try {
+      // 1. Build score payloads for this hole only
+      const scorePayloads: {
+        tournament_group_id: string;
+        tournament_player_id: string;
+        hole_number: number;
+        gross_score: number;
+        is_super_user_override: boolean;
+      }[] = [];
+
+      tournamentPlayers.forEach(p => {
+        const score = allHoleScores[p.id]?.[holeNumber];
+        if (typeof score === 'number' && score > 0) {
+          scorePayloads.push({
+            tournament_group_id: tournamentGroupId,
+            tournament_player_id: p.id,
+            hole_number: holeNumber,
+            gross_score: score,
+            is_super_user_override: false,
+          });
+        }
+      });
+
+      // 2. Check for admin overrides — skip players whose scores were overridden
+      const { data: overridden } = await supabase
+        .from('tournament_hole_scores')
+        .select('tournament_player_id')
+        .eq('tournament_group_id', tournamentGroupId)
+        .eq('hole_number', holeNumber)
+        .eq('is_super_user_override', true);
+
+      const overriddenPlayers = new Set(overridden?.map(e => e.tournament_player_id));
+      const filteredPayloads = scorePayloads.filter(p => !overriddenPlayers.has(p.tournament_player_id));
+
+      // 3. Batch upsert scores
+      if (filteredPayloads.length > 0) {
+        const { error: scoreErr } = await supabase.from('tournament_hole_scores').upsert(
+          filteredPayloads,
+          { onConflict: 'tournament_group_id,tournament_player_id,hole_number' },
+        );
+        if (scoreErr) {
+          // Queue for offline retry
+          filteredPayloads.forEach(p =>
+            offlineStorage.addTournamentScore(p.tournament_group_id, p.tournament_player_id, p.hole_number, p.gross_score)
+          );
+          return false;
+        }
+      }
+
+      // 4. Run engine and upsert results for this hole
+      const teamNameMap: Record<string, string> = {};
+      Object.entries(state.teams).forEach(([id, t]) => { teamNameMap[id] = t.name; });
+
+      const engineInput: EngineInput = {
+        game: tournamentGame, holePointOverrides, players: tournamentPlayers,
+        teamAssignments, scores: allHoleScores, courseHoles,
+        teamNames: teamNameMap, subMatchups,
+      };
+      const result = calcTournamentHoleResults(engineInput);
+
+      const holeResult = result.holeResults.find(hr => hr.holeNumber === holeNumber && hr.resultLabel && hr.resultLabel !== '');
+      if (holeResult) {
+        const { error: resultErr } = await supabase.from('tournament_hole_results').upsert(
+          [{
+            tournament_group_id: tournamentGroupId,
+            hole_number: holeResult.holeNumber,
+            team_points: holeResult.teamPoints,
+            player_points: holeResult.playerPoints,
+            points_value: holeResult.pointsValue,
+            result_label: holeResult.resultLabel,
+            updated_at: new Date().toISOString(),
+          }],
+          { onConflict: 'tournament_group_id,hole_number' },
+        );
+        if (resultErr) {
+          console.warn('Failed to sync hole result, will retry on round completion:', resultErr);
+        }
+      }
+
+      // Mark hole as synced, remove from dirty set
+      syncedHolesRef.current.add(holeNumber);
+      dirtyHolesRef.current.delete(holeNumber);
+      return true;
+    } catch (e) {
+      console.error(`Per-hole sync failed for hole ${holeNumber}:`, e);
+      return false;
+    }
+  }, [tournamentGroupId, tournamentGame, tournamentPlayers, courseHoles, holePointOverrides, teamAssignments, allHoleScores, subMatchups, state.teams]);
 
   // Batch sync all scores and results to DB — called only on round completion
   const batchSyncAllScores = useCallback(async (): Promise<boolean> => {
@@ -539,7 +655,10 @@ export const useTournamentOverlay = (
     ...state,
     isLoading,
     syncScore,
+    batchSyncHole,
     batchSyncAllScores,
+    getDirtyHoles,
+    markHoleDirty,
     tournamentGame,
     tournamentPlayers,
     teamAssignments,
