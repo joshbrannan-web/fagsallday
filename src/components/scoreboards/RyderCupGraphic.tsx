@@ -19,8 +19,16 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
   const teamB = teams[1];
   const teamIds = [teamA.id, teamB.id];
 
-  const totals = calcTeamTotals(holeResults, teamIds);
   const perRound = calcTeamTotalsPerRound(rounds, groups, holeResults, teamIds);
+
+  // Grand total = only completed rounds
+  const completedRounds = rounds.filter((r: any) => r.status === 'completed');
+  const totals: Record<string, number> = {};
+  teamIds.forEach(id => { totals[id] = 0; });
+  completedRounds.forEach((r: any) => {
+    const rTotals = perRound[r.id] || {};
+    teamIds.forEach(id => { totals[id] += rTotals[id] || 0; });
+  });
 
   const totalA = totals[teamA.id] || 0;
   const totalB = totals[teamB.id] || 0;
