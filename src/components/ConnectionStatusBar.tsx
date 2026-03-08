@@ -7,7 +7,9 @@ const ConnectionStatusBar: React.FC = () => {
   const isOnline = useOnlineStatus();
   const [showBackOnline, setShowBackOnline] = useState(false);
   const wasOfflineRef = useRef(false);
-  const pendingSyncCount = offlineStorage.getPendingSyncCount() + offlineStorage.getPendingTournamentSyncCount();
+  const pendingSyncCount = offlineStorage.getPendingSyncCount()
+    + offlineStorage.getPendingTournamentSyncCount()
+    + offlineStorage.getPendingTournamentResultCount();
 
   useEffect(() => {
     if (!isOnline) {
