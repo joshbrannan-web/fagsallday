@@ -14,6 +14,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
   const [holePointOverrides, setHolePointOverrides] = useState<TournamentHolePoints[]>([]);
   const [tournamentPlayers, setTournamentPlayers] = useState<TournamentPlayer[]>([]);
   const [teamAssignments, setTeamAssignments] = useState<Record<string, string>>({});
+  const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
 
   const fetchData = useCallback(async () => {
@@ -46,11 +47,16 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         .single();
       if (!round) return;
 
-      const [gameRes, gpRes, playersRes] = await Promise.all([
+      const [gameRes, gpRes, playersRes, teamsRes] = await Promise.all([
         supabase.from('tournament_games').select('*').eq('tournament_round_id', group.tournament_round_id).single(),
         supabase.from('tournament_group_players').select('tournament_player_id, team_id').eq('tournament_group_id', groupId),
         supabase.from('tournament_players').select('*').eq('tournament_id', round.tournament_id),
+        supabase.from('tournament_teams').select('id, name').eq('tournament_id', round.tournament_id),
       ]);
+
+      const names: Record<string, string> = {};
+      (teamsRes.data || []).forEach(t => { names[t.id] = t.name; });
+      setTeamNames(names);
 
       if (gameRes.data) {
         const g = gameRes.data;
@@ -186,6 +192,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         teamAssignments,
         scores: scoresMap,
         courseHoles,
+        teamNames,
       };
 
       const result = calcTournamentHoleResults(engineInput);
