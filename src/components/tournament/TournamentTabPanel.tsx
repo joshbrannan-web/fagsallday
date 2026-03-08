@@ -209,7 +209,7 @@ const TournamentTabPanel: React.FC<Props> = ({
                 games: sbData.games,
                 tournamentStatus: sbData.isLive ? "active" : "completed",
               }}
-              joinCode=""
+              joinCode={joinCode}
             />
           ) : null}
         </div>
