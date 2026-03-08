@@ -1,46 +1,60 @@
 
 
-# Fix: Tournament Team Totals Should Only Count Completed Rounds
+# Revised Plan: Admin Live View with Full Control
 
-## Problem
+## What the Previous Plan Was Missing
 
-The `RyderCupGraphic` component calls `calcTeamTotals(holeResults, teamIds)` on **all** hole results across every round — including in-progress ones. This means the grand total (the big "4.5 — 0.5" display) includes live scoring from active rounds. The user expects the tournament-wide total to only reflect **completed** rounds, since points aren't "official" until a round finishes.
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-## Intended Behavior
+## What the Admin Actually Needs
 
-| Section | Data Source |
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+
+## Files
+
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
+
+## Summary
+
+| File | Change |
 |---|---|
-| **Grand total** (big numbers) | Only completed rounds |
-| **Per-round breakdown rows** | All started rounds (active + completed), showing live scores |
-| **Progress bar** | Only completed rounds (matches grand total) |
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
 
-This way the per-round rows still show live scores as a preview, but the authoritative tournament total only counts finalized rounds.
-
-## Changes
-
-### `src/components/scoreboards/RyderCupGraphic.tsx`
-
-Instead of `calcTeamTotals(holeResults, teamIds)` which sums everything, compute the grand total by summing only completed rounds from `perRound`:
-
-```ts
-// Replace line 22-23 area:
-const perRound = calcTeamTotalsPerRound(rounds, groups, holeResults, teamIds);
-
-// Grand total = only completed rounds
-const completedRounds = rounds.filter((r: any) => r.status === 'completed');
-const totals: Record<string, number> = {};
-teamIds.forEach(id => { totals[id] = 0; });
-completedRounds.forEach((r: any) => {
-  const rTotals = perRound[r.id] || {};
-  teamIds.forEach(id => { totals[id] += rTotals[id] || 0; });
-});
-```
-
-Lines 25-27 (`totalA`, `totalB`, `grandTotal`) stay the same since they read from `totals`.
-
-### `src/components/scoreboards/TeamPointsBreakdownTable.tsx`
-
-No changes needed — the breakdown table already shows per-round and per-group detail which is fine to be live.
-
-**1 file changed, 0 database changes.**
+4 files (1 new), 0 database changes.
 
