@@ -63,6 +63,13 @@ const TournamentTabPanel: React.FC<Props> = ({
   const [selectedScoreboardId, setSelectedScoreboardId] = useState<string>("");
 
   const sbData = useTournamentScoreboards(tournamentId);
+  const [joinCode, setJoinCode] = useState("");
+
+  useEffect(() => {
+    if (!tournamentId) return;
+    supabase.from("tournaments").select("join_code").eq("id", tournamentId).single()
+      .then(({ data }) => { if (data) setJoinCode(data.join_code); });
+  }, [tournamentId]);
 
   useEffect(() => {
     if (sbData.scoreboards.length > 0 && !selectedScoreboardId) {
