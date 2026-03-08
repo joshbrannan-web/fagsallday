@@ -47,11 +47,16 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         .single();
       if (!round) return;
 
-      const [gameRes, gpRes, playersRes] = await Promise.all([
+      const [gameRes, gpRes, playersRes, teamsRes] = await Promise.all([
         supabase.from('tournament_games').select('*').eq('tournament_round_id', group.tournament_round_id).single(),
         supabase.from('tournament_group_players').select('tournament_player_id, team_id').eq('tournament_group_id', groupId),
         supabase.from('tournament_players').select('*').eq('tournament_id', round.tournament_id),
+        supabase.from('tournament_teams').select('id, name').eq('tournament_id', round.tournament_id),
       ]);
+
+      const names: Record<string, string> = {};
+      (teamsRes.data || []).forEach(t => { names[t.id] = t.name; });
+      setTeamNames(names);
 
       if (gameRes.data) {
         const g = gameRes.data;
