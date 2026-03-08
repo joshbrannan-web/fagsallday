@@ -192,6 +192,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         teamAssignments,
         scores: scoresMap,
         courseHoles,
+        teamNames,
       };
 
       const result = calcTournamentHoleResults(engineInput);
