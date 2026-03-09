@@ -80,6 +80,13 @@ const Admin = () => {
     }
   }, [isAdmin, session]);
 
+  // Fetch admin requests after users are loaded (for display name enrichment)
+  useEffect(() => {
+    if (isAdmin && users.length > 0) {
+      fetchAdminRequests();
+    }
+  }, [isAdmin, users]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
