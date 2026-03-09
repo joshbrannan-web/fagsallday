@@ -1,21 +1,60 @@
 
 
-# Fix: Auto-show GHIN badge immediately after linking a player
+# Revised Plan: Admin Live View with Full Control
 
-## Problem
-When a user links a new player to an app user, the `addPlayer` function inserts into `saved_players` and uses the raw insert response to update local state. This raw row doesn't include `ghin_number` or `ghin_last_synced` (those come from the joined `profiles` table via the RPC). So the GHIN badge won't appear until the user navigates away and back.
+## What the Previous Plan Was Missing
 
-## Fix
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-**`src/hooks/useSavedPlayers.tsx`** — After a successful `addPlayer` with a `linkedUserId`, call `fetchPlayers()` (the existing refetch that uses the RPC) instead of manually appending the raw row to local state. This ensures the joined profile data (including GHIN fields) is immediately available.
+## What the Admin Actually Needs
 
-Same fix for the link/unlink flows in `Players.tsx` — after updating `linked_user_id`, call `refetch()` to reload from the RPC.
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-### Changes
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-1. **`src/hooks/useSavedPlayers.tsx` — `addPlayer`**: After successful insert + reciprocal link, call `await fetchPlayers()` instead of `setSavedPlayers(prev => [...prev, data])`. Return the data as before.
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-2. **`src/pages/Players.tsx` — `handleLinkUser` callback and `handleUnlinkUser`**: After successful update, call `refetch()` from `useSavedPlayers` to reload the full joined data.
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-**2 files changed, 0 database changes.**
+## Files
+
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
+
+## Summary
+
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+
+4 files (1 new), 0 database changes.
 

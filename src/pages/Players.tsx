@@ -25,7 +25,7 @@ import UserSearchDialog from '@/components/UserSearchDialog';
 const Players: React.FC = () => {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
-  const { savedPlayers, isLoading: playersLoading, addPlayer, updatePlayer, deletePlayer } = useSavedPlayers();
+  const { savedPlayers, isLoading: playersLoading, addPlayer, updatePlayer, deletePlayer, refetch } = useSavedPlayers();
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -109,10 +109,10 @@ const Players: React.FC = () => {
     
     const success = await updatePlayer(playerId, { linked_user_id: null });
     if (success) {
-      // Remove reciprocal link on the other side
       if (oldLinkedId) {
         await supabase.rpc('unlink_players_bidirectional', { p_linked_user_id: oldLinkedId } as any);
       }
+      await refetch();
       toast.success('User unlinked');
     }
   };
@@ -390,8 +390,8 @@ const Players: React.FC = () => {
           if (linkingPlayerId) {
             const success = await updatePlayer(linkingPlayerId, { linked_user_id: selectedUser.id });
             if (success) {
-              // Create reciprocal link
               await supabase.rpc('link_players_bidirectional', { p_linked_user_id: selectedUser.id } as any);
+              await refetch();
               toast.success(`Linked to ${selectedUser.display_name}`);
             }
             setLinkingPlayerId(null);
