@@ -44,12 +44,21 @@ interface AdminRound {
   players_count: number;
 }
 
+interface AdminRequest {
+  id: string;
+  user_id: string;
+  status: string;
+  requested_at: string;
+  display_name?: string;
+}
+
 const Admin = () => {
   const navigate = useNavigate();
   const { isAdmin, isLoading: adminLoading } = useAdminAuth();
   const { session } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [rounds, setRounds] = useState<AdminRound[]>([]);
+  const [adminRequests, setAdminRequests] = useState<AdminRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
