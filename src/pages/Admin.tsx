@@ -146,6 +146,47 @@ const Admin = () => {
     setAdminRequests(enriched);
   };
 
+  const handleApproveRequest = async (req: AdminRequest) => {
+    setActionLoading(req.id);
+    try {
+      // Insert into tournament_admins
+      const { error: insertErr } = await supabase
+        .from('tournament_admins')
+        .insert({ user_id: req.user_id, granted_by: session?.user?.id });
+      if (insertErr) throw insertErr;
+
+      // Update request status
+      await supabase
+        .from('tournament_admin_requests' as any)
+        .update({ status: 'approved', reviewed_by: session?.user?.id, reviewed_at: new Date().toISOString() } as any)
+        .eq('id', req.id);
+
+      setAdminRequests(prev => prev.filter(r => r.id !== req.id));
+      toast.success(`${req.display_name} approved as tournament admin`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to approve');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDenyRequest = async (req: AdminRequest) => {
+    setActionLoading(req.id);
+    try {
+      await supabase
+        .from('tournament_admin_requests' as any)
+        .update({ status: 'denied', reviewed_by: session?.user?.id, reviewed_at: new Date().toISOString() } as any)
+        .eq('id', req.id);
+
+      setAdminRequests(prev => prev.filter(r => r.id !== req.id));
+      toast.success(`Request from ${req.display_name} denied`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to deny');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     
