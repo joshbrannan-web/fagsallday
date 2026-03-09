@@ -317,6 +317,11 @@ const Players: React.FC = () => {
                         <UserCheck className="w-3 h-3" /> Linked
                       </Badge>
                     )}
+                    {player.ghin_number && (
+                      <Badge className="text-[10px] gap-0.5 px-1.5 py-0 border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
+                        GHIN ✓
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Handicap: {player.handicap_index} • Tee: {player.tee}
