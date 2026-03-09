@@ -326,7 +326,7 @@ const Admin = () => {
 
         {/* Data Tabs */}
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full max-w-lg grid-cols-3">
+          <TabsList className="grid w-full max-w-lg grid-cols-4">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Users
@@ -334,6 +334,15 @@ const Admin = () => {
             <TabsTrigger value="rounds" className="flex items-center gap-2">
               <Trophy className="h-4 w-4" />
               Rounds
+            </TabsTrigger>
+            <TabsTrigger value="requests" className="flex items-center gap-2 relative">
+              <Shield className="h-4 w-4" />
+              Requests
+              {adminRequests.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {adminRequests.length}
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="email" className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
