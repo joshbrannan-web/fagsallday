@@ -546,6 +546,71 @@ const Admin = () => {
               </Card>
             </div>
           </TabsContent>
+
+          <TabsContent value="requests" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Pending Tournament Admin Requests</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Requested</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {adminRequests.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                            No pending requests
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        adminRequests.map((req) => (
+                          <TableRow key={req.id}>
+                            <TableCell className="font-medium">{req.display_name}</TableCell>
+                            <TableCell>{format(new Date(req.requested_at), 'MMM d, yyyy h:mm a')}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => handleApproveRequest(req)}
+                                  disabled={actionLoading === req.id}
+                                >
+                                  {actionLoading === req.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDenyRequest(req)}
+                                  disabled={actionLoading === req.id}
+                                >
+                                  {actionLoading === req.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <XCircle className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </main>
 
