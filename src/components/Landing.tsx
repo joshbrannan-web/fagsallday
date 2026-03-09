@@ -25,7 +25,7 @@ const Landing: React.FC = () => {
   const { currentRound, clearLoadedRound, isLoading: appLoading, roundHistory, loadPastRound } = useApp();
   const { user, profile, signOut, isLoading: authLoading } = useAuth();
   const { isAdmin } = useAdminAuth();
-  const { isTournamentAdmin } = useTournamentAdmin();
+  const { isTournamentAdmin, requestStatus, requestAccess } = useTournamentAdmin();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Clear any manually-loaded past round when returning to home
