@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Users, Trophy, ArrowLeft, Trash2, KeyRound, Loader2, Shield, Mail, Send } from 'lucide-react';
+import { Users, Trophy, ArrowLeft, Trash2, KeyRound, Loader2, Shield, Mail, Send, CheckCircle, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
