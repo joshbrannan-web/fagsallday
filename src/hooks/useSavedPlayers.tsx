@@ -77,7 +77,8 @@ export const useSavedPlayers = () => {
         await supabase.rpc('link_players_bidirectional', { p_linked_user_id: linkedUserId } as any);
       }
       
-      setSavedPlayers(prev => [...prev, data as SavedPlayer].sort((a, b) => a.name.localeCompare(b.name)));
+      // Refetch to get joined profile data (GHIN fields)
+      await fetchPlayers();
       return data as SavedPlayer;
     } catch (error) {
       console.error('Error adding player:', error);

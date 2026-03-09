@@ -25,7 +25,7 @@ import UserSearchDialog from '@/components/UserSearchDialog';
 const Players: React.FC = () => {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
-  const { savedPlayers, isLoading: playersLoading, addPlayer, updatePlayer, deletePlayer } = useSavedPlayers();
+  const { savedPlayers, isLoading: playersLoading, addPlayer, updatePlayer, deletePlayer, refetch } = useSavedPlayers();
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
