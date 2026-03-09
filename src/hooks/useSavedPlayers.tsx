@@ -9,6 +9,8 @@ export interface SavedPlayer {
   handicap_index: number;
   tee: string;
   linked_user_id?: string | null;
+  ghin_number?: string | null;
+  ghin_last_synced?: string | null;
   created_at: string;
   updated_at: string;
 }
