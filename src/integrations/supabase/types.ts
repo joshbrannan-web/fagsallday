@@ -879,6 +879,8 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: {
           created_at: string
+          ghin_last_synced: string
+          ghin_number: string
           handicap_index: number
           id: string
           linked_user_id: string
