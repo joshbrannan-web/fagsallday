@@ -25,7 +25,7 @@ const Landing: React.FC = () => {
   const { currentRound, clearLoadedRound, isLoading: appLoading, roundHistory, loadPastRound } = useApp();
   const { user, profile, signOut, isLoading: authLoading } = useAuth();
   const { isAdmin } = useAdminAuth();
-  const { isTournamentAdmin } = useTournamentAdmin();
+  const { isTournamentAdmin, requestStatus, requestAccess } = useTournamentAdmin();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Clear any manually-loaded past round when returning to home
@@ -132,12 +132,22 @@ const Landing: React.FC = () => {
                 <Users className="w-4 h-4 mr-2" />
                 My Players
               </DropdownMenuItem>
-              {isTournamentAdmin && (
+              {isTournamentAdmin ? (
                 <DropdownMenuItem onClick={() => navigate('/tournament-admin')}>
                   <Trophy className="w-4 h-4 mr-2" />
                   Tournament Admin
                 </DropdownMenuItem>
-              )}
+              ) : requestStatus === 'pending' ? (
+                <DropdownMenuItem disabled>
+                  <Trophy className="w-4 h-4 mr-2 opacity-50" />
+                  Request Pending…
+                </DropdownMenuItem>
+              ) : requestStatus === 'none' ? (
+                <DropdownMenuItem onClick={requestAccess}>
+                  <Trophy className="w-4 h-4 mr-2" />
+                  Request Tournament Admin
+                </DropdownMenuItem>
+              ) : null}
               {isAdmin && (
                 <DropdownMenuItem onClick={() => navigate('/admin')}>
                   <Shield className="w-4 h-4 mr-2" />
