@@ -122,6 +122,23 @@ const Admin = () => {
     }
   };
 
+  const fetchAdminRequests = async () => {
+    const { data } = await supabase
+      .from('tournament_admin_requests' as any)
+      .select('*')
+      .eq('status', 'pending')
+      .order('requested_at', { ascending: true });
+
+    if (!data) { setAdminRequests([]); return; }
+
+    // Enrich with display names from users list or profiles
+    const enriched: AdminRequest[] = (data as any[]).map((r: any) => {
+      const u = users.find(u => u.id === r.user_id);
+      return { ...r, display_name: u?.display_name || r.user_id };
+    });
+    setAdminRequests(enriched);
+  };
+
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     
