@@ -109,10 +109,10 @@ const Players: React.FC = () => {
     
     const success = await updatePlayer(playerId, { linked_user_id: null });
     if (success) {
-      // Remove reciprocal link on the other side
       if (oldLinkedId) {
         await supabase.rpc('unlink_players_bidirectional', { p_linked_user_id: oldLinkedId } as any);
       }
+      await refetch();
       toast.success('User unlinked');
     }
   };
