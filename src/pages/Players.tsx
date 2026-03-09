@@ -390,8 +390,8 @@ const Players: React.FC = () => {
           if (linkingPlayerId) {
             const success = await updatePlayer(linkingPlayerId, { linked_user_id: selectedUser.id });
             if (success) {
-              // Create reciprocal link
               await supabase.rpc('link_players_bidirectional', { p_linked_user_id: selectedUser.id } as any);
+              await refetch();
               toast.success(`Linked to ${selectedUser.display_name}`);
             }
             setLinkingPlayerId(null);
