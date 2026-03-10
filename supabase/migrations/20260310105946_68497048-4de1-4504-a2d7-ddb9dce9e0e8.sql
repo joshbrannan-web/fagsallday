@@ -1,0 +1,1 @@
+ALTER TABLE tournaments ADD COLUMN team_scoring_method text NOT NULL DEFAULT 'cumulative';
