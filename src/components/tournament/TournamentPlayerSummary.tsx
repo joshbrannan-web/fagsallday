@@ -9,9 +9,10 @@ interface Props {
   holeResults: Record<number, { netScores?: Record<string, number>; playerPoints?: Record<string, number> }>;
   holesPlayed: number;
   subMatchups?: { playerA: string; playerB: string }[];
+  teamAId?: string;
 }
 
-const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults, subMatchups }) => {
+const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults, subMatchups, teamAId }) => {
   const playerData = players.map((p) => {
     const teamId = teamAssignments[p.id];
     const team = teams[teamId];
@@ -38,10 +39,13 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
   // 1v1 matchup pair layout
   if (has1v1) {
     const playerMap = Object.fromEntries(playerData.map(d => [d.player.id, d]));
+    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
+      teamAId && teamAssignments[sm.playerA] === teamAId ? sm : teamAId && teamAssignments[sm.playerB] === teamAId ? { playerA: sm.playerB, playerB: sm.playerA } : sm;
 
     return (
       <div className="space-y-2">
-        {subMatchups.map((sm, idx) => {
+        {subMatchups.map((rawSm, idx) => {
+          const sm = normalizeMatchup(rawSm);
           const dA = playerMap[sm.playerA];
           const dB = playerMap[sm.playerB];
           if (!dA || !dB) return null;

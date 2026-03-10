@@ -54,6 +54,8 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
   // 1v1: Show separate match cards instead of combined team score
   if (has1v1) {
     const playerMap = Object.fromEntries(tournamentPlayers!.map(p => [p.id, p]));
+    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
+      teamAssignments![sm.playerA] === teamMatchup.teamAId ? sm : { playerA: sm.playerB, playerB: sm.playerA };
 
     return (
       <div className="space-y-2">
@@ -65,7 +67,8 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
           <span>{tournamentName}{roundName ? ` — ${roundName}` : ''}</span>
         </div>
 
-        {subMatchups!.map((sm, idx) => {
+        {subMatchups!.map((rawSm, idx) => {
+          const sm = normalizeMatchup(rawSm);
           const pA = playerMap[sm.playerA];
           const pB = playerMap[sm.playerB];
           if (!pA || !pB) return null;
