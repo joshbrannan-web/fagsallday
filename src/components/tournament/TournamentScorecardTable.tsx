@@ -52,14 +52,17 @@ const TournamentScorecardTable: FC<Props> = ({
 
   const holesPlayed = Object.values(holeResults).filter(hr => hr.resultLabel && hr.resultLabel !== '').length;
 
-  // Sort players by team
-  const sortedPlayers = [...tournamentPlayers].sort((a, b) => {
-    const tA = teamAssignments[a.id] || '';
-    const tB = teamAssignments[b.id] || '';
-    if (tA === teamMatchup.teamAId && tB !== teamMatchup.teamAId) return -1;
-    if (tA !== teamMatchup.teamAId && tB === teamMatchup.teamAId) return 1;
-    return 0;
-  });
+  // Sort players: by matchup pairs if 1v1, else by team
+  const has1v1 = subMatchups && subMatchups.length > 0;
+  const sortedPlayers = has1v1
+    ? subMatchups!.flatMap(sm => tournamentPlayers.filter(p => p.id === sm.playerA || p.id === sm.playerB))
+    : [...tournamentPlayers].sort((a, b) => {
+        const tA = teamAssignments[a.id] || '';
+        const tB = teamAssignments[b.id] || '';
+        if (tA === teamMatchup.teamAId && tB !== teamMatchup.teamAId) return -1;
+        if (tA !== teamMatchup.teamAId && tB === teamMatchup.teamAId) return 1;
+        return 0;
+      });
 
   const getPlayerSubtotal = (playerId: string) => {
     let total = 0;
