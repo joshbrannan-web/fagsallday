@@ -21,6 +21,7 @@ const CreateTournamentWizard: React.FC = () => {
 
   const [basicInfo, setBasicInfo] = useState({
     name: '', description: '', startDate: '', endDate: '', numRounds: 2,
+    teamScoringMethod: 'cumulative' as 'cumulative' | 'round_win',
   });
   const [teams, setTeams] = useState<TeamData[]>([
     { name: 'Team A', color: '#1d4ed8' },
