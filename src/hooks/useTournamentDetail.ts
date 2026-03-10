@@ -198,11 +198,11 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   };
 
   return {
-    tournament, teams, players, rounds, games, scoreboards, groups, isLoading,
+    tournament, teams, players, rounds, games, scoreboards, groups, groupPlayers, isLoading,
     refetch: fetchAll,
     updateTournament, deleteTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
     startRound, completeRound, updateRound, updateGame, addRound, deleteRound,
     addScoreboard, updateScoreboard, deleteScoreboard,
-    addTeam, deleteTeam,
+    addTeam, deleteTeam, addGroup, deleteGroup,
   };
 };
