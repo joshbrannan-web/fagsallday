@@ -293,7 +293,7 @@ export const useTournamentOverlay = (
       const engineInput: EngineInput = {
         game, holePointOverrides: overrides, players: groupTournamentPlayers,
         teamAssignments: assignments, scores: scoresMap, courseHoles: holes,
-        teamNames: teamNameMap, subMatchups: subMatchups,
+        teamNames: teamNameMap, subMatchups: extractedSubMatchups,
       };
           const result = calcTournamentHoleResults(engineInput);
 
