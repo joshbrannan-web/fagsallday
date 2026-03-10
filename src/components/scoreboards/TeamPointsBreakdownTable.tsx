@@ -12,6 +12,7 @@ interface Props {
   players: any[];
   holeResults: any[];
   joinCode: string;
+  teamScoringMethod?: 'cumulative' | 'round_win';
 }
 
 const TeamPointsBreakdownTable: React.FC<Props> = ({
