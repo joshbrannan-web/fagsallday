@@ -12,6 +12,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   const [games, setGames] = useState<any[]>([]);
   const [scoreboards, setScoreboards] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+  const [groupPlayers, setGroupPlayers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
