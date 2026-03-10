@@ -13,11 +13,12 @@ interface Props {
   courseHoles: CourseHole[];
   game: TournamentGame | null;
   allHoleScores: Record<string, Record<number, number>>;
-  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string; netScores?: Record<string, number>; grossScores?: Record<string, number>; pointsValue?: number }>;
+  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string; netScores?: Record<string, number>; grossScores?: Record<string, number>; pointsValue?: number; playerPoints?: Record<string, number> }>;
   teamTotals: Record<string, number>;
   matchState?: MatchState;
   tournamentName?: string;
   roundName?: string;
+  subMatchups?: { playerA: string; playerB: string }[];
 }
 
 const TournamentFullScorecard: React.FC<Props> = ({
