@@ -12,6 +12,7 @@ interface Props {
   tournamentStatus: string;
   games: Record<string, any>;
   joinCode: string;
+  teamScoringMethod?: 'cumulative' | 'round_win';
 }
 
 const TeamPointsScoreboard: React.FC<Props> = (props) => {
