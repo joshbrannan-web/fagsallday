@@ -67,7 +67,7 @@ const ActiveRound: React.FC = () => {
   const [declinedPresses, setDeclinedPresses] = useState<Set<string>>(new Set());
   const preferredTab = tournamentState.preferredTab as 'betting' | 'tournament' | undefined;
   const [activeTab, setActiveTab] = useState<'betting' | 'tournament'>(
-    preferredTab || (tournamentGroupId ? 'tournament' : 'betting')
+    preferredTab || 'betting'
   );
   const [isGeneratingLinks, setIsGeneratingLinks] = useState(false);
   
