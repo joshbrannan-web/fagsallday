@@ -24,7 +24,7 @@ interface Props {
 const TournamentFullScorecard: React.FC<Props> = ({
   isOpen, onClose, players, teams, teamAssignments, teamMatchup,
   courseHoles, game, allHoleScores, holeResults, teamTotals, matchState,
-  tournamentName, roundName,
+  tournamentName, roundName, subMatchups,
 }) => {
   if (!teamMatchup || !game) return null;
 
