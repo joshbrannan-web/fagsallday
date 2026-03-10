@@ -32,6 +32,7 @@ interface Props {
   segmentTotals: SegmentTotal[] | null;
   newlyCompletedHole: NewHoleEvent | null;
   tournamentId?: string;
+  subMatchups?: { playerA: string; playerB: string }[];
 }
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -58,6 +59,7 @@ const TournamentTabPanel: React.FC<Props> = ({
   segmentTotals,
   newlyCompletedHole,
   tournamentId,
+  subMatchups,
 }) => {
   const [activeTab, setActiveTab] = useState<"game" | "boards">("game");
   const [showFullScorecard, setShowFullScorecard] = useState(false);
@@ -129,6 +131,10 @@ const TournamentTabPanel: React.FC<Props> = ({
             holesPlayed={holesPlayed}
             matchState={matchState}
             totalPointsAvailable={totalPointsAvailable}
+            subMatchups={subMatchups}
+            tournamentPlayers={tournamentPlayers}
+            holeResults={holeResults}
+            teamAssignments={teamAssignments}
           />
 
           {/* Players */}
@@ -140,6 +146,7 @@ const TournamentTabPanel: React.FC<Props> = ({
             allHoleScores={allHoleScores}
             holeResults={holeResults}
             holesPlayed={holesPlayed}
+            subMatchups={subMatchups}
           />
 
           {/* Hole tracker */}
@@ -155,6 +162,8 @@ const TournamentTabPanel: React.FC<Props> = ({
               gameType={tournamentGame?.gameType}
               teamAssignments={teamAssignments}
               matchState={matchState}
+              subMatchups={subMatchups}
+              tournamentPlayers={tournamentPlayers}
             />
           )}
 
@@ -181,6 +190,7 @@ const TournamentTabPanel: React.FC<Props> = ({
             matchState={matchState}
             tournamentName={tournamentName}
             roundName={roundName}
+            subMatchups={subMatchups}
           />
         </div>
       )}

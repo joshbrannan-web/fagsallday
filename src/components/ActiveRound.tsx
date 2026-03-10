@@ -2503,6 +2503,7 @@ const ActiveRound: React.FC = () => {
             segmentTotals={tournamentOverlay.segmentTotals}
             newlyCompletedHole={tournamentOverlay.newlyCompletedHole}
             tournamentId={meta?.tournamentId}
+            subMatchups={tournamentOverlay.subMatchups}
           />
         </div>
       )}

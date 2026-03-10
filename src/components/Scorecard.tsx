@@ -1351,6 +1351,7 @@ const Scorecard: React.FC = () => {
                 teamTotals={tournamentOverlay.teamTotals}
                 viewMode={viewMode}
                 matchState={tournamentOverlay.matchState}
+                subMatchups={tournamentOverlay.subMatchups}
               />
             </div>
           </div>

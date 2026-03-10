@@ -80,6 +80,15 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                     if (player) teamPlayersMap[gp.team_id].push(player);
                   });
 
+                  // Extract subMatchups from team_matchup JSONB
+                  const tm = group.team_matchup as any;
+                  const groupSubMatchups: { playerA: string; playerB: string }[] | undefined =
+                    tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+
+                  // Build player-to-team map for this group
+                  const gpTeamMap: Record<string, string> = {};
+                  gPlayers.forEach((gp: any) => { gpTeamMap[gp.tournament_player_id] = gp.team_id; });
+
                   const matchTeamIds = Object.keys(teamPlayersMap);
                   if (matchTeamIds.length < 2) return null;
 
@@ -188,8 +197,48 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                         ) : null}
                       </div>
 
+                      {/* Sub-matchup breakdown for 1v1 formats */}
+                      {groupSubMatchups && groupSubMatchups.length > 0 && (
+                        <div className="px-3 pb-2 space-y-1">
+                          {groupSubMatchups.map((sm, smIdx) => {
+                            const pA = playerMap[sm.playerA];
+                            const pB = playerMap[sm.playerB];
+                            if (!pA || !pB) return null;
+
+                            const aTeamId = gpTeamMap[sm.playerA];
+                            const bTeamId = gpTeamMap[sm.playerB];
+                            const aColor = teamMap[aTeamId]?.color;
+                            const bColor = teamMap[bTeamId]?.color;
+
+                            // Sum player_points for this sub-matchup
+                            let smAPts = 0, smBPts = 0;
+                            groupResults.forEach((r: any) => {
+                              smAPts += r.player_points?.[sm.playerA] || 0;
+                              smBPts += r.player_points?.[sm.playerB] || 0;
+                            });
+
+                            return (
+                              <div key={smIdx} className="flex items-center justify-between text-[10px] px-1">
+                                <div className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: aColor }} />
+                                  <span className="font-medium">{pA.display_name.split(' ')[0]}</span>
+                                  <span className="text-muted-foreground/50">vs</span>
+                                  <span className="font-medium">{pB.display_name.split(' ')[0]}</span>
+                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: bColor }} />
+                                </div>
+                                <div className="flex items-center gap-1 font-mono font-bold">
+                                  <span style={{ color: aColor }}>{smAPts}</span>
+                                  <span className="text-muted-foreground">-</span>
+                                  <span style={{ color: bColor }}>{smBPts}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
                       {/* Status line */}
-                      <div className="px-3 pb-2 -mt-1">
+                      <div className={`px-3 pb-2 ${groupSubMatchups && groupSubMatchups.length > 0 ? '' : '-mt-1'}`}>
                         <p className={`text-[10px] text-center ${isSubmitted ? 'text-[hsl(var(--brand-gold))] font-semibold' : 'text-muted-foreground'}`}>
                           {statusText}
                         </p>

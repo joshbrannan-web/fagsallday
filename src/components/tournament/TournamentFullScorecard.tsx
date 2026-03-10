@@ -13,17 +13,18 @@ interface Props {
   courseHoles: CourseHole[];
   game: TournamentGame | null;
   allHoleScores: Record<string, Record<number, number>>;
-  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string; netScores?: Record<string, number>; grossScores?: Record<string, number>; pointsValue?: number }>;
+  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string; netScores?: Record<string, number>; grossScores?: Record<string, number>; pointsValue?: number; playerPoints?: Record<string, number> }>;
   teamTotals: Record<string, number>;
   matchState?: MatchState;
   tournamentName?: string;
   roundName?: string;
+  subMatchups?: { playerA: string; playerB: string }[];
 }
 
 const TournamentFullScorecard: React.FC<Props> = ({
   isOpen, onClose, players, teams, teamAssignments, teamMatchup,
   courseHoles, game, allHoleScores, holeResults, teamTotals, matchState,
-  tournamentName, roundName,
+  tournamentName, roundName, subMatchups,
 }) => {
   if (!teamMatchup || !game) return null;
 
@@ -51,13 +52,16 @@ const TournamentFullScorecard: React.FC<Props> = ({
     return scores.length > 0 ? Math.min(...scores) : undefined;
   };
 
-  // Sort players by team
-  const sortedPlayers = [...players].sort((a, b) => {
-    const aTeam = teamAssignments[a.id];
-    const bTeam = teamAssignments[b.id];
-    if (aTeam !== bTeam) return aTeam === teamMatchup.teamAId ? -1 : 1;
-    return 0;
-  });
+  // Sort players: by matchup pairs if 1v1, else by team
+  const has1v1 = subMatchups && subMatchups.length > 0;
+  const sortedPlayers = has1v1
+    ? subMatchups!.flatMap(sm => players.filter(p => p.id === sm.playerA || p.id === sm.playerB))
+    : [...players].sort((a, b) => {
+        const aTeam = teamAssignments[a.id];
+        const bTeam = teamAssignments[b.id];
+        if (aTeam !== bTeam) return aTeam === teamMatchup.teamAId ? -1 : 1;
+        return 0;
+      });
 
   const renderHoleCell = (playerId: string, hole: CourseHole) => {
     const gross = getPlayerGross(playerId, hole.number);
@@ -184,24 +188,36 @@ const TournamentFullScorecard: React.FC<Props> = ({
               </tr>
             </thead>
             <tbody>
-              {sortedPlayers.map(p => {
+              {sortedPlayers.map((p, pIdx) => {
                 const teamId = teamAssignments[p.id];
                 const team = teams[teamId];
                 const outGross = sumGross(p.id, frontNine);
                 const inGross = sumGross(p.id, backNine);
 
-                return (
-                  <tr key={p.id} className="border-b border-border">
-                    <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium truncate max-w-[100px]">{p.displayName}</td>
-                    <td className="sticky left-[100px] z-10 bg-card px-1 py-1.5 text-center">
-                      <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: team?.color }} />
+                // Insert match separator for 1v1 formats
+                const matchSeparator = has1v1 && pIdx % 2 === 0 ? (
+                  <tr key={`sep-${pIdx}`} className="bg-muted/40">
+                    <td colSpan={frontNine.length + backNine.length + 5} className="px-2 py-1 text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">
+                      Match {Math.floor(pIdx / 2) + 1}
                     </td>
-                    {frontNine.map(h => renderHoleCell(p.id, h))}
-                    <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{outGross || '—'}</td>
-                    {backNine.map(h => renderHoleCell(p.id, h))}
-                    <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{inGross || '—'}</td>
-                    <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{(outGross + inGross) || '—'}</td>
                   </tr>
+                ) : null;
+
+                return (
+                  <React.Fragment key={p.id}>
+                    {matchSeparator}
+                    <tr className="border-b border-border">
+                      <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium truncate max-w-[100px]">{p.displayName}</td>
+                      <td className="sticky left-[100px] z-10 bg-card px-1 py-1.5 text-center">
+                        <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: team?.color }} />
+                      </td>
+                      {frontNine.map(h => renderHoleCell(p.id, h))}
+                      <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{outGross || '—'}</td>
+                      {backNine.map(h => renderHoleCell(p.id, h))}
+                      <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{inGross || '—'}</td>
+                      <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{(outGross + inGross) || '—'}</td>
+                    </tr>
+                  </React.Fragment>
                 );
               })}
 
