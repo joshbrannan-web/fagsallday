@@ -1,60 +1,39 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Auto-Suggest Scoreboards with Preview
 
-## What the Previous Plan Was Missing
+## What
+When the admin opens the Scoreboards page, the app analyzes the tournament setup (teams, games, handicap settings) and suggests relevant scoreboards. Each suggestion shows a preview with example data. The admin can add, edit, or dismiss suggestions. Existing add/edit/delete functionality remains.
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Suggestion Logic (pure function)
 
-## What the Admin Actually Needs
+Based on tournament config:
+- **Teams exist (2+)** → suggest "Team Points" (team_points, sort: total_points desc) + "Team Round Result" (team_round_result, sort: wins desc)
+- **Any game uses handicaps** → suggest "Individual Net" (individual_net, sort: net_score asc)
+- **Always** → suggest "Individual Gross" (individual_gross, sort: gross_score asc)
+- **Always** → suggest "Individual Points" (individual_points, sort: total_points desc)
+- **Always** → suggest "Live Group Matches" (group_matches, sort: total_points desc)
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+Filter out any types already added as scoreboards.
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+## Preview
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+Each suggestion card has a "Preview" button that opens a Sheet showing the scoreboard renderer (`ScoreboardRenderer`) populated with **mock data** generated from the actual tournament teams/players. The mock data generator creates fake hole results, scores, etc. so the admin sees a realistic preview with their real team names/colors and player names.
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+## UI Changes
 
-## Files
+### `src/components/tournament-admin/ScoreboardManager.tsx`
+- Accept new props: `teams`, `games`, `players`, `rounds`
+- Above the existing scoreboard list, show a "Suggested Scoreboards" section when there are suggestions not yet added
+- Each suggestion: card with name, type label, description of why it's suggested, "Preview" and "Add" buttons
+- "Add" calls `onAdd` with pre-filled config
+- "Preview" opens a Sheet with `ScoreboardRenderer` using mock data
+- Add a helper `generateSuggestions(teams, games, scoreboards)` and `generateMockData(teams, players, rounds)`
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+### `src/pages/TournamentAdminScoreboards.tsx`
+- Pass `teams`, `games`, `players`, `rounds` from `useTournamentDetail` down to `ScoreboardManager`
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
-
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
-
-## Summary
-
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
-
-4 files (1 new), 0 database changes.
+## Files Changed
+1. **`src/components/tournament-admin/ScoreboardManager.tsx`** — Add suggestion logic, preview Sheet with mock data, suggestion cards
+2. **`src/pages/TournamentAdminScoreboards.tsx`** — Pass additional props
 
