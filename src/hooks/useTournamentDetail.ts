@@ -156,7 +156,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else await fetchAll();
   };
 
-  const addGroup = async (roundId: string, playerIds: string[]) => {
+  const addGroup = async (roundId: string, playerIds: string[], subMatchups?: { playerA: string; playerB: string }[]) => {
     const roundGroups = groups.filter((g: any) => g.tournament_round_id === roundId);
     const nextGroupNumber = roundGroups.length > 0 ? Math.max(...roundGroups.map((g: any) => g.group_number)) + 1 : 1;
     const selectedPlayerObjs = players.filter((p: any) => playerIds.includes(p.id));
