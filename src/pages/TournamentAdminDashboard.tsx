@@ -63,11 +63,11 @@ const TournamentAdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const {
-    tournament, teams, players, rounds, games, scoreboards, groups, isLoading,
+    tournament, teams, players, rounds, games, scoreboards, groups, groupPlayers, isLoading,
     updateTournament, deleteTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
     startRound, completeRound, updateRound, updateGame, addRound, deleteRound,
     addScoreboard, updateScoreboard, deleteScoreboard,
-    addTeam, deleteTeam,
+    addTeam, deleteTeam, addGroup, deleteGroup,
   } = useTournamentDetail(tournamentId);
 
   const [deletingTournament, setDeletingTournament] = useState(false);
