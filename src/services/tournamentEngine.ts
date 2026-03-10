@@ -260,7 +260,7 @@ function maxScoreForHole(game: TournamentGame, par: number): number {
 // ── 1. INDIVIDUAL MATCH PLAY ─────────────────────────────────
 
 export function calcMatchPlayIndividual(input: EngineInput): RoundResult {
-  const { game, players, teamAssignments, scores, courseHoles, subMatchups } = input;
+  const { game, holePointOverrides, players, teamAssignments, scores, courseHoles, subMatchups } = input;
 
   // If >2 players, run sub-matchups and merge
   if (players.length > 2) {
