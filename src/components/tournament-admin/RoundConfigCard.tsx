@@ -149,14 +149,29 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber }) => {
 
       <div>
         <Label>Game Type *</Label>
-        <Select value={data.gameType} onValueChange={v => update('gameType', v)}>
-          <SelectTrigger><SelectValue placeholder="Select game type..." /></SelectTrigger>
-          <SelectContent>
-            {GAME_TYPES.map(g => (
-              <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={data.gameType} onValueChange={v => update('gameType', v)}>
+            <SelectTrigger><SelectValue placeholder="Select game type..." /></SelectTrigger>
+            <SelectContent>
+              {GAME_TYPES.map(g => (
+                <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {data.gameType && TOURNAMENT_GAME_DETAILS[data.gameType as TournamentGameType] && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:text-primary hover:bg-accent transition-colors">
+                  <Info className="w-5 h-5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <h4 className="font-semibold text-sm mb-1">{TOURNAMENT_GAME_DETAILS[data.gameType as TournamentGameType].name}</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">{TOURNAMENT_GAME_DETAILS[data.gameType as TournamentGameType].description}</p>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
       </div>
 
       {data.gameType && (
