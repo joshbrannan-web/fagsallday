@@ -8,9 +8,10 @@ interface Props {
   allHoleScores: Record<string, Record<number, number>>;
   holeResults: Record<number, { netScores?: Record<string, number>; playerPoints?: Record<string, number> }>;
   holesPlayed: number;
+  subMatchups?: { playerA: string; playerB: string }[];
 }
 
-const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults }) => {
+const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults, subMatchups }) => {
   const playerData = players.map((p) => {
     const teamId = teamAssignments[p.id];
     const team = teams[teamId];
@@ -32,9 +33,68 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
     return { player: p, teamId, team, grossTotal, netTotal, ptsTotal };
   });
 
-  // Group by team
-  const teamIds = [...new Set(playerData.map((d) => d.teamId))].filter(Boolean).sort();
+  const has1v1 = subMatchups && subMatchups.length > 0;
 
+  // 1v1 matchup pair layout
+  if (has1v1) {
+    const playerMap = Object.fromEntries(playerData.map(d => [d.player.id, d]));
+
+    return (
+      <div className="space-y-2">
+        {subMatchups.map((sm, idx) => {
+          const dA = playerMap[sm.playerA];
+          const dB = playerMap[sm.playerB];
+          if (!dA || !dB) return null;
+
+          return (
+            <div key={idx} className="rounded-xl border border-border overflow-hidden bg-card">
+              {/* Match header */}
+              <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border/50">
+                <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">Match {idx + 1}</span>
+                <span className="text-[10px] text-muted-foreground/50">
+                  {dA.ptsTotal > dB.ptsTotal
+                    ? `${dA.player.displayName.split(' ')[0]} ${dA.ptsTotal - dB.ptsTotal} UP`
+                    : dB.ptsTotal > dA.ptsTotal
+                    ? `${dB.player.displayName.split(' ')[0]} ${dB.ptsTotal - dA.ptsTotal} UP`
+                    : 'All Square'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 divide-x divide-border/50">
+                {[dA, dB].map((d) => (
+                  <div key={d.player.id} className="px-3 py-2.5">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.team?.color }} />
+                      <p className="text-[13px] font-semibold text-foreground truncate">{d.player.displayName}</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Gross</span>
+                        <span className="text-[13px] font-bold font-mono text-foreground">{d.grossTotal || "—"}</span>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Net</span>
+                        <span className="text-[13px] font-bold font-mono text-muted-foreground">{d.netTotal || "—"}</span>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Pts</span>
+                        <span className="text-[13px] font-bold font-mono" style={{ color: d.team?.color }}>
+                          {d.ptsTotal}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Default team-grouped layout
+  const teamIds = [...new Set(playerData.map((d) => d.teamId))].filter(Boolean).sort();
   if (teamIds.length === 0) return null;
 
   return (
@@ -45,7 +105,6 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
 
         return (
           <div key={tid} className="rounded-xl border border-border overflow-hidden bg-card">
-            {/* Team header */}
             <div
               className="flex items-center gap-2 px-3 py-2 border-b border-border"
               style={{ borderBottomColor: team?.color + "40", backgroundColor: team?.color + "0f" }}
@@ -56,7 +115,6 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
               </span>
             </div>
 
-            {/* Players */}
             {teamPlayers.map((d, i) => (
               <div
                 key={d.player.id}
