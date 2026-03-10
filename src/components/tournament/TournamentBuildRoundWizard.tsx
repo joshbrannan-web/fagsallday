@@ -287,7 +287,7 @@ const TournamentBuildRoundWizard: React.FC = () => {
       id: p.id,
       name: p.display_name,
       handicapIndex: p.handicap_index ?? 0,
-      courseHandicap: 0,
+      courseHandicap: calculateCourseHandicap(p.handicap_index ?? 0, 72),
       tee: '',
     }));
 
