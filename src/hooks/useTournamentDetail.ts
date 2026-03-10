@@ -50,6 +50,20 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
           .in('tournament_round_id', roundIds)
           .order('group_number');
         setGroups(groupsData || []);
+
+        // Fetch group players
+        const groupIds = (groupsData || []).map((g: any) => g.id);
+        if (groupIds.length > 0) {
+          const { data: gpData } = await supabase
+            .from('tournament_group_players')
+            .select('*')
+            .in('tournament_group_id', groupIds);
+          setGroupPlayers(gpData || []);
+        } else {
+          setGroupPlayers([]);
+        }
+      } else {
+        setGroupPlayers([]);
       }
     } catch (err) {
       console.error(err);
