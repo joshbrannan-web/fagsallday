@@ -12,6 +12,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   const [games, setGames] = useState<any[]>([]);
   const [scoreboards, setScoreboards] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+  const [groupPlayers, setGroupPlayers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
@@ -49,6 +50,20 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
           .in('tournament_round_id', roundIds)
           .order('group_number');
         setGroups(groupsData || []);
+
+        // Fetch group players
+        const groupIds = (groupsData || []).map((g: any) => g.id);
+        if (groupIds.length > 0) {
+          const { data: gpData } = await supabase
+            .from('tournament_group_players')
+            .select('*')
+            .in('tournament_group_id', groupIds);
+          setGroupPlayers(gpData || []);
+        } else {
+          setGroupPlayers([]);
+        }
+      } else {
+        setGroupPlayers([]);
       }
     } catch (err) {
       console.error(err);
@@ -141,6 +156,43 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else await fetchAll();
   };
 
+  const addGroup = async (roundId: string, playerIds: string[]) => {
+    const roundGroups = groups.filter((g: any) => g.tournament_round_id === roundId);
+    const nextGroupNumber = roundGroups.length > 0 ? Math.max(...roundGroups.map((g: any) => g.group_number)) + 1 : 1;
+    const selectedPlayerObjs = players.filter((p: any) => playerIds.includes(p.id));
+    const teamIds = [...new Set(selectedPlayerObjs.map((p: any) => p.team_id).filter(Boolean))];
+    const teamMatchup = teamIds.length === 2 ? { teamAId: teamIds[0], teamBId: teamIds[1] } : null;
+
+    const { data: newGroup, error: groupErr } = await supabase
+      .from('tournament_groups')
+      .insert({
+        tournament_round_id: roundId,
+        group_number: nextGroupNumber,
+        team_matchup: teamMatchup as any,
+        status: 'pending',
+      })
+      .select('id')
+      .single();
+    if (groupErr || !newGroup) { toast.error('Failed to create group'); return; }
+
+    const gpInserts = selectedPlayerObjs.map((p: any) => ({
+      tournament_group_id: newGroup.id,
+      tournament_player_id: p.id,
+      team_id: p.team_id || teams[0]?.id || '',
+    }));
+    const { error: gpErr } = await supabase.from('tournament_group_players').insert(gpInserts);
+    if (gpErr) toast.error('Group created but failed to add players');
+    else toast.success('Group added');
+    await fetchAll();
+  };
+
+  const deleteGroup = async (groupId: string) => {
+    await supabase.from('tournament_group_players').delete().eq('tournament_group_id', groupId);
+    const { error } = await supabase.from('tournament_groups').delete().eq('id', groupId);
+    if (error) toast.error('Failed to delete group');
+    else { toast.success('Group deleted'); await fetchAll(); }
+  };
+
   const updateTournament = async (updates: { name?: string; description?: string | null; start_date?: string | null; end_date?: string | null; status?: string }) => {
     if (!tournamentId) return;
     const { error } = await supabase.from('tournaments').update(updates).eq('id', tournamentId);
@@ -183,11 +235,11 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   };
 
   return {
-    tournament, teams, players, rounds, games, scoreboards, groups, isLoading,
+    tournament, teams, players, rounds, games, scoreboards, groups, groupPlayers, isLoading,
     refetch: fetchAll,
     updateTournament, deleteTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
     startRound, completeRound, updateRound, updateGame, addRound, deleteRound,
     addScoreboard, updateScoreboard, deleteScoreboard,
-    addTeam, deleteTeam,
+    addTeam, deleteTeam, addGroup, deleteGroup,
   };
 };

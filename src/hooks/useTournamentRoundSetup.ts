@@ -94,6 +94,11 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
   const [sideGames, setSideGames] = useState<GameSettings[]>([]);
   const [isStarting, setIsStarting] = useState(false);
 
+  // Pre-set groups from admin
+  const [roundGroups, setRoundGroups] = useState<any[]>([]);
+  const [roundGroupPlayers, setRoundGroupPlayers] = useState<any[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+
   // Duplicate group warnings
   const [groupedPlayerIds, setGroupedPlayerIds] = useState<Set<string>>(new Set());
 
@@ -132,6 +137,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
 
   const selectRound = useCallback(async (round: TournamentRound) => {
     setSelectedRound(round);
+    setSelectedGroupId(null);
     // Load game config
     const { data: game } = await supabase
       .from('tournament_games')
@@ -150,19 +156,26 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       setHolePoints(points || []);
     }
 
-    // Check for existing groups in this round
+    // Check for existing groups in this round (admin pre-set pairings)
     const { data: groups } = await supabase
       .from('tournament_groups')
-      .select('id')
-      .eq('tournament_round_id', round.id);
-    const groupIds = (groups || []).map(g => g.id);
+      .select('*')
+      .eq('tournament_round_id', round.id)
+      .order('group_number');
+    
+    const allGroups = groups || [];
+    setRoundGroups(allGroups);
+
+    const groupIds = allGroups.map(g => g.id);
     if (groupIds.length > 0) {
       const { data: gp } = await supabase
         .from('tournament_group_players')
-        .select('tournament_player_id')
+        .select('*')
         .in('tournament_group_id', groupIds);
+      setRoundGroupPlayers(gp || []);
       setGroupedPlayerIds(new Set((gp || []).map(p => p.tournament_player_id)));
     } else {
+      setRoundGroupPlayers([]);
       setGroupedPlayerIds(new Set());
     }
 
@@ -175,6 +188,21 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       }
     }
   }, [user, allPlayers]);
+
+  const selectGroup = useCallback((groupId: string) => {
+    setSelectedGroupId(groupId);
+    // Auto-populate selectedPlayers and teamAssignments from group data
+    const gPlayers = roundGroupPlayers.filter(gp => gp.tournament_group_id === groupId);
+    const players = gPlayers
+      .map(gp => allPlayers.find(p => p.id === gp.tournament_player_id))
+      .filter(Boolean) as TournamentPlayer[];
+    setSelectedPlayers(players);
+    const assignments: Record<string, string> = {};
+    gPlayers.forEach(gp => {
+      assignments[gp.tournament_player_id] = gp.team_id;
+    });
+    setTeamAssignments(assignments);
+  }, [roundGroupPlayers, allPlayers]);
 
   const togglePlayer = useCallback((player: TournamentPlayer) => {
     setSelectedPlayers(prev => {
@@ -206,7 +234,6 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
 
     try {
       const courseData = selectedRound.course_data as Course;
-      // Map tournament players to round Player objects
       const players: Player[] = selectedPlayers.map((tp, i) => ({
         id: (i + 1).toString(),
         name: tp.display_name,
@@ -253,34 +280,53 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         await supabase.from('round_participants').insert(participantInserts);
       }
 
-      // Determine next group number
-      const { count } = await supabase
-        .from('tournament_groups')
-        .select('id', { count: 'exact', head: true })
-        .eq('tournament_round_id', selectedRound.id);
-
       // Build team matchup
       const teamIds = [...new Set(Object.values(teamAssignments).filter(Boolean))];
       const teamMatchup = teamIds.length === 2
         ? { teamAId: teamIds[0], teamBId: teamIds[1] }
         : null;
 
-      // Create tournament group
-      const { data: newGroup, error: groupError } = await supabase
-        .from('tournament_groups')
-        .insert({
-          tournament_round_id: selectedRound.id,
-          group_number: (count || 0) + 1,
-          team_matchup: teamMatchup as any,
-          round_id: newRound.id,
-          status: 'active',
-        })
-        .select('id')
-        .single();
+      let activeGroupId: string;
 
-      if (groupError || !newGroup) throw groupError;
+      if (selectedGroupId) {
+        // Use pre-set group from admin — update it to active with round_id
+        const { error: updateErr } = await supabase
+          .from('tournament_groups')
+          .update({ status: 'active', round_id: newRound.id })
+          .eq('id', selectedGroupId);
+        if (updateErr) throw updateErr;
+        activeGroupId = selectedGroupId;
+      } else {
+        // Create new group (fallback when no admin pairings)
+        const { count } = await supabase
+          .from('tournament_groups')
+          .select('id', { count: 'exact', head: true })
+          .eq('tournament_round_id', selectedRound.id);
 
-      // Update game_data with the tournament group ID
+        const { data: newGroup, error: groupError } = await supabase
+          .from('tournament_groups')
+          .insert({
+            tournament_round_id: selectedRound.id,
+            group_number: (count || 0) + 1,
+            team_matchup: teamMatchup as any,
+            round_id: newRound.id,
+            status: 'active',
+          })
+          .select('id')
+          .single();
+
+        if (groupError || !newGroup) throw groupError;
+        activeGroupId = newGroup.id;
+
+        // Create group players for new group
+        const gpInserts = selectedPlayers.map(tp => ({
+          tournament_group_id: activeGroupId,
+          tournament_player_id: tp.id,
+          team_id: teamAssignments[tp.id] || teams[0]?.id || '',
+        }));
+        await supabase.from('tournament_group_players').insert(gpInserts);
+      }
+
       // Build player mapping for the overlay
       const pMapping = selectedPlayers.reduce((acc, tp, i) => {
         acc[(i + 1).toString()] = tp.id;
@@ -294,21 +340,13 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
             tournamentName: tournament.name,
             roundNumber: selectedRound.round_number,
             roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
-            tournamentGroupId: newGroup.id,
+            tournamentGroupId: activeGroupId,
             displayName: `${tournament.name} — Round ${selectedRound.round_number}`,
             playerMapping: pMapping,
             teamMatchup,
           },
         } as any,
       }).eq('id', newRound.id);
-
-      // Create group players
-      const gpInserts = selectedPlayers.map(tp => ({
-        tournament_group_id: newGroup.id,
-        tournament_player_id: tp.id,
-        team_id: teamAssignments[tp.id] || teams[0]?.id || '',
-      }));
-      await supabase.from('tournament_group_players').insert(gpInserts);
 
       // Auto-activate tournament if still in setup
       if (tournament.status === 'setup') {
@@ -318,13 +356,12 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
           .eq('id', tournament.id);
       }
 
-      // Refetch rounds so useRounds picks up the new ACTIVE round before navigating
       await refetchRounds();
 
       toast.success('Round started! 🏌️');
       navigate('/active', {
         state: {
-          tournamentGroupId: newGroup.id,
+          tournamentGroupId: activeGroupId,
           tournamentName: tournament.name,
           tournamentRoundName: selectedRound.name || `Round ${selectedRound.round_number}`,
           playerMapping: pMapping,
@@ -337,7 +374,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
     } finally {
       setIsStarting(false);
     }
-  }, [user, tournament, selectedRound, tournamentGame, selectedPlayers, teamAssignments, sideGames, teams, navigate]);
+  }, [user, tournament, selectedRound, tournamentGame, selectedPlayers, teamAssignments, sideGames, teams, navigate, selectedGroupId]);
 
   return {
     tournament,
@@ -357,7 +394,11 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
     currentUserTeam,
     requiredPlayerCount,
     isScrambleFormat,
+    roundGroups,
+    roundGroupPlayers,
+    selectedGroupId,
     selectRound,
+    selectGroup,
     togglePlayer,
     setTeamAssignments,
     setSideGames,

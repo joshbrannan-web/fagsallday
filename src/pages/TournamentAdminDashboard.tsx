@@ -19,6 +19,7 @@ import {
 import PlayerListAdmin from '@/components/tournament-admin/PlayerListAdmin';
 import TeamListAdmin from '@/components/tournament-admin/TeamListAdmin';
 import RoundConfigCard, { RoundConfigData, defaultRoundConfig } from '@/components/tournament-admin/RoundConfigCard';
+import RoundPairingsEditor from '@/components/tournament-admin/RoundPairingsEditor';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -62,15 +63,16 @@ const TournamentAdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const {
-    tournament, teams, players, rounds, games, scoreboards, groups, isLoading,
+    tournament, teams, players, rounds, games, scoreboards, groups, groupPlayers, isLoading,
     updateTournament, deleteTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
     startRound, completeRound, updateRound, updateGame, addRound, deleteRound,
     addScoreboard, updateScoreboard, deleteScoreboard,
-    addTeam, deleteTeam,
+    addTeam, deleteTeam, addGroup, deleteGroup,
   } = useTournamentDetail(tournamentId);
 
   const [deletingTournament, setDeletingTournament] = useState(false);
   const [roundToDelete, setRoundToDelete] = useState<string | null>(null);
+  const [pairingsRoundId, setPairingsRoundId] = useState<string | null>(null);
 
   /* ── edit basic info state ── */
   const [editOpen, setEditOpen] = useState(false);
@@ -293,28 +295,40 @@ const TournamentAdminDashboard: React.FC = () => {
               const game = games.find((g: any) => g.tournament_round_id === r.id);
               const roundGroups = groups.filter((g: any) => g.tournament_round_id === r.id);
               const submittedCount = roundGroups.filter((g: any) => g.status === 'submitted').length;
+              const pairingCount = roundGroups.filter((g: any) => g.status === 'pending').length;
               return (
-                <Card key={r.id} className="p-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{r.name || `Round ${r.round_number}`}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {game?.game_type?.replace(/_/g, ' ') || 'No game'}
-                      {roundGroups.length > 0 && ` • ${submittedCount}/${roundGroups.length} groups`}
-                    </p>
+                <Card key={r.id} className="p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{r.name || `Round ${r.round_number}`}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {game?.game_type?.replace(/_/g, ' ') || 'No game'}
+                        {roundGroups.length > 0 && ` • ${submittedCount}/${roundGroups.length} groups`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={roundStatusColors[r.status] || ''}>{r.status}</Badge>
+                      {r.status === 'pending' && (
+                        <Button size="sm" variant="outline" onClick={() => startRound(r.id)}>
+                          <Play className="w-3.5 h-3.5 mr-1" /> Start
+                        </Button>
+                      )}
+                      {r.status === 'active' && (
+                        <Button size="sm" variant="outline" onClick={() => completeRound(r.id)}>
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Complete
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={roundStatusColors[r.status] || ''}>{r.status}</Badge>
-                    {r.status === 'pending' && (
-                      <Button size="sm" variant="outline" onClick={() => startRound(r.id)}>
-                        <Play className="w-3.5 h-3.5 mr-1" /> Start
-                      </Button>
-                    )}
-                    {r.status === 'active' && (
-                      <Button size="sm" variant="outline" onClick={() => completeRound(r.id)}>
-                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Complete
-                      </Button>
-                    )}
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setPairingsRoundId(r.id)}
+                  >
+                    <Users className="w-3.5 h-3.5 mr-1" />
+                    Set Pairings{pairingCount > 0 ? ` (${pairingCount} groups)` : ''}
+                  </Button>
                 </Card>
               );
             })}
@@ -459,6 +473,22 @@ const TournamentAdminDashboard: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Pairings Editor */}
+      {pairingsRoundId && (
+        <RoundPairingsEditor
+          open={!!pairingsRoundId}
+          onOpenChange={open => { if (!open) setPairingsRoundId(null); }}
+          roundId={pairingsRoundId}
+          roundName={rounds.find((r: any) => r.id === pairingsRoundId)?.name || `Round ${rounds.find((r: any) => r.id === pairingsRoundId)?.round_number}`}
+          players={players}
+          teams={teams}
+          groups={groups}
+          groupPlayers={groupPlayers}
+          onAddGroup={addGroup}
+          onDeleteGroup={deleteGroup}
+        />
+      )}
     </div>
   );
 };

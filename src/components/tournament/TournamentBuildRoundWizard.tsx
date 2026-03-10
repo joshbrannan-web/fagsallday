@@ -12,12 +12,14 @@ import { useTournamentRoundSetup } from '@/hooks/useTournamentRoundSetup';
 import TournamentRoundCard, { GAME_TYPE_LABELS } from './TournamentRoundCard';
 import TournamentRulesCallout from './TournamentRulesCallout';
 import TournamentPlayerSelector from './TournamentPlayerSelector';
+import TournamentGroupSelector from './TournamentGroupSelector';
 import TournamentTeamAssigner from './TournamentTeamAssigner';
 import GameSelector from '@/components/GameSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { GAME_LIBRARY, GAME_DETAILS } from '@/lib/gameLibrary';
 import { Player, GameSettings, GameType } from '@/types';
 
+// Steps: 1=Welcome, 2=Round, 3=Course, 4=Players/Group, 5=Teams, 6=SideGames, 7=Review
 const TOTAL_STEPS = 7;
 
 const TournamentBuildRoundWizard: React.FC = () => {
@@ -51,13 +53,29 @@ const TournamentBuildRoundWizard: React.FC = () => {
     );
   }
 
+  const hasPresetGroups = setup.roundGroups.length > 0;
+  // When groups are pre-set: skip steps 4 (player select) and 5 (team assign) — replace with group select
+  // Effective steps: 1=Welcome, 2=Round, 3=Course, 4=GroupSelect, 5=SideGames, 6=Review (6 total)
+  const totalSteps = hasPresetGroups ? 6 : TOTAL_STEPS;
+
   const canProceed = (): boolean => {
+    if (hasPresetGroups) {
+      switch (step) {
+        case 1: return true;
+        case 2: return !!setup.selectedRound && !!setup.tournamentGame;
+        case 3: return true;
+        case 4: return !!setup.selectedGroupId;
+        case 5: return true;
+        case 6: return true;
+        default: return false;
+      }
+    }
     switch (step) {
       case 1: return true;
       case 2: return !!setup.selectedRound && !!setup.tournamentGame;
       case 3: return true;
       case 4: return setup.selectedPlayers.length === setup.requiredPlayerCount;
-      case 5: return true; // Team assignments are read-only/pre-populated
+      case 5: return true;
       case 6: return true;
       case 7: return true;
       default: return false;
@@ -65,16 +83,16 @@ const TournamentBuildRoundWizard: React.FC = () => {
   };
 
   const handleNext = () => {
-    if (step === 5 && setup.isScrambleFormat) {
-      setStep(6); // Already skipping, but step flow handles it
+    if (!hasPresetGroups && step === 5 && setup.isScrambleFormat) {
+      setStep(6);
       return;
     }
-    if (step < TOTAL_STEPS) setStep(s => s + 1);
+    if (step < totalSteps) setStep(s => s + 1);
   };
 
   const handleBack = () => {
-    if (step === 6 && setup.isScrambleFormat) {
-      setStep(4); // Skip step 5 going back too
+    if (!hasPresetGroups && step === 6 && setup.isScrambleFormat) {
+      setStep(4);
       return;
     }
     if (step > 1) setStep(s => s - 1);
@@ -85,17 +103,26 @@ const TournamentBuildRoundWizard: React.FC = () => {
     setup.startRound();
   };
 
-  const effectiveStep = step === 5 && setup.isScrambleFormat ? 6 : step;
-
   const renderStep = () => {
-    switch (effectiveStep) {
-      case 1: return renderStep1();
-      case 2: return renderStep2();
-      case 3: return renderStep3();
-      case 4: return renderStep4();
-      case 5: return renderStep5();
-      case 6: return renderStep6();
-      case 7: return renderStep7();
+    if (hasPresetGroups) {
+      switch (step) {
+        case 1: return renderStep1();
+        case 2: return renderStep2();
+        case 3: return renderStep3();
+        case 4: return renderGroupSelect();
+        case 5: return renderStep6(); // side games
+        case 6: return renderStep7(); // review
+      }
+    } else {
+      switch (step) {
+        case 1: return renderStep1();
+        case 2: return renderStep2();
+        case 3: return renderStep3();
+        case 4: return renderStep4();
+        case 5: return renderStep5();
+        case 6: return renderStep6();
+        case 7: return renderStep7();
+      }
     }
   };
 
@@ -217,6 +244,22 @@ const TournamentBuildRoundWizard: React.FC = () => {
     </div>
   );
 
+  const renderGroupSelect = () => (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold">Select Your Group</h2>
+      <p className="text-sm text-muted-foreground">Your admin has set up the pairings. Pick the group you're playing in.</p>
+      <TournamentGroupSelector
+        groups={setup.roundGroups}
+        groupPlayers={setup.roundGroupPlayers}
+        players={setup.allPlayers}
+        teams={setup.teams}
+        selectedGroupId={setup.selectedGroupId}
+        currentUserId={user?.id}
+        onSelect={setup.selectGroup}
+      />
+    </div>
+  );
+
   const renderStep5 = () => (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Team Assignments</h2>
@@ -328,9 +371,9 @@ const TournamentBuildRoundWizard: React.FC = () => {
           <Button variant="ghost" size="sm" onClick={handleBack}>
             <ArrowLeft className="w-4 h-4 mr-1" /> Back
           </Button>
-          <span className="text-sm text-muted-foreground">Step {effectiveStep} of {TOTAL_STEPS}</span>
+          <span className="text-sm text-muted-foreground">Step {step} of {totalSteps}</span>
         </div>
-        <Progress value={(effectiveStep / TOTAL_STEPS) * 100} className="h-2" />
+        <Progress value={(step / totalSteps) * 100} className="h-2" />
       </div>
 
       {/* Content */}
@@ -340,7 +383,7 @@ const TournamentBuildRoundWizard: React.FC = () => {
 
       {/* Bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
-        {effectiveStep < TOTAL_STEPS ? (
+        {step < totalSteps ? (
           <Button className="w-full" onClick={handleNext} disabled={!canProceed()}>
             Continue <ArrowRight className="w-4 h-4 ml-1" />
           </Button>
