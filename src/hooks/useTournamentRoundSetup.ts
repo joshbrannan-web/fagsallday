@@ -94,6 +94,11 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
   const [sideGames, setSideGames] = useState<GameSettings[]>([]);
   const [isStarting, setIsStarting] = useState(false);
 
+  // Pre-set groups from admin
+  const [roundGroups, setRoundGroups] = useState<any[]>([]);
+  const [roundGroupPlayers, setRoundGroupPlayers] = useState<any[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+
   // Duplicate group warnings
   const [groupedPlayerIds, setGroupedPlayerIds] = useState<Set<string>>(new Set());
 
