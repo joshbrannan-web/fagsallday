@@ -312,12 +312,12 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                   <div className="space-y-1.5">
                     <span className="text-xs font-medium">Match 2</span>
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50">
-                      <span className="text-xs flex-1 text-center font-medium">
-                        {match2Players[0] ? getPlayer(match2Players[0])?.display_name : '—'}
+                      <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
+                        {(() => { const p = match2Players[0] ? getPlayer(match2Players[0]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
                       </span>
                       <span className="text-xs text-muted-foreground font-medium">vs</span>
-                      <span className="text-xs flex-1 text-center font-medium">
-                        {match2Players[1] ? getPlayer(match2Players[1])?.display_name : '—'}
+                      <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
+                        {(() => { const p = match2Players[1] ? getPlayer(match2Players[1]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
                       </span>
                     </div>
                   </div>
