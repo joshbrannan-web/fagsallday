@@ -312,7 +312,7 @@ const TournamentAdminDashboard: React.FC = () => {
               const game = games.find((g: any) => g.tournament_round_id === r.id);
               const roundGroups = groups.filter((g: any) => g.tournament_round_id === r.id);
               const submittedCount = roundGroups.filter((g: any) => g.status === 'submitted').length;
-              const pairingCount = roundGroups.filter((g: any) => g.status === 'pending').length;
+              const pairingCount = roundGroups.length;
               return (
                 <Card key={r.id} className="p-3 space-y-2">
                   <div className="flex items-center justify-between">
