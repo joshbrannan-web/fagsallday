@@ -130,13 +130,21 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
               const isActive = round.status === 'active';
               const isCompleted = round.status === 'completed';
 
+              // Display values: in round_win mode show the round win result for completed rounds
+              let displayA = rA;
+              let displayB = rB;
+              if (isRoundWin && isCompleted) {
+                displayA = rA > rB ? 1 : rA === rB ? 0.5 : 0;
+                displayB = rB > rA ? 1 : rA === rB ? 0.5 : 0;
+              }
+
               return (
                 <div key={round.id} className="flex items-center justify-between text-sm bg-muted/50 rounded-lg px-3 py-2">
                   <span className="text-muted-foreground">{round.name || `Round ${round.round_number}`}</span>
                   <div className="flex items-center gap-3">
-                    <span className="font-mono" style={{ color: teamA.color }}>{rA % 1 === 0 ? rA : rA.toFixed(1)}</span>
+                    <span className="font-mono" style={{ color: teamA.color }}>{displayA % 1 === 0 ? displayA : displayA.toFixed(1)}</span>
                     <span className="text-muted-foreground">—</span>
-                    <span className="font-mono" style={{ color: teamB.color }}>{rB % 1 === 0 ? rB : rB.toFixed(1)}</span>
+                    <span className="font-mono" style={{ color: teamB.color }}>{displayB % 1 === 0 ? displayB : displayB.toFixed(1)}</span>
                     {isCompleted && <CheckCircle className="w-4 h-4 text-success" />}
                     {isActive && <span className="w-2 h-2 rounded-full bg-success animate-pulse" />}
                   </div>
