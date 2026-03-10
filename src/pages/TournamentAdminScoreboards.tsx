@@ -42,6 +42,10 @@ const TournamentAdminScoreboards: React.FC = () => {
       <div className="max-w-lg mx-auto">
         <ScoreboardManager
           scoreboards={scoreboards}
+          teams={teams}
+          games={games}
+          players={players}
+          rounds={rounds}
           onAdd={addScoreboard}
           onUpdate={updateScoreboard}
           onDelete={deleteScoreboard}
