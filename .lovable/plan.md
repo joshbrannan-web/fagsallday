@@ -1,60 +1,41 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Consistent Team Ordering in 1v1 Sub-Matchups
 
-## What the Previous Plan Was Missing
+## Problem
+When sub-matchups are stored, `playerA` and `playerB` may not consistently correspond to Team 1 and Team 2. This means Match 1 might show Team 1 on the left while Match 2 shows Team 2 on the left, which is confusing.
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Solution
+In every component that renders sub-matchups, normalize the order so the player from **Team A** (the first team / `teamAId`) is always displayed first (left), and the player from **Team B** is always second (right). This is a small normalization step applied before rendering.
 
-## What the Admin Actually Needs
+## Helper
+Add a reusable normalize function (inline or shared):
+```typescript
+const normalizeMatchup = (sm: {playerA: string; playerB: string}, teamAssignments: Record<string, string>, teamAId: string) => {
+  const aIsTeamA = teamAssignments[sm.playerA] === teamAId;
+  return aIsTeamA ? sm : { playerA: sm.playerB, playerB: sm.playerA };
+};
+```
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+## Files to Update (6)
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+### 1. `TournamentMatchStatusBar.tsx`
+Before iterating `subMatchups`, normalize each entry using `teamAssignments` and `teamMatchup.teamAId`.
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+### 2. `TournamentScorecardTable.tsx`
+In the `MatchupTable` rendering loop (~line 175), normalize each sub-matchup before passing `playerA`/`playerB`.
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+### 3. `TournamentFullScorecard.tsx`
+In the 1v1 rendering block (~line 143), normalize each sub-matchup before looking up players.
 
-## Files
+### 4. `TournamentPlayerSummary.tsx`
+Needs `teamMatchup` prop added (or just use the first team from sorted team IDs as the canonical "Team A"). Normalize sub-matchup order so Team 1 player is always on the left column.
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+### 5. `TournamentHoleTracker.tsx`
+In the 1v1 block (~line 98), normalize each sub-matchup so Team A's player column is always first.
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+### 6. `GroupMatchesScoreboard.tsx`
+In the sub-matchup rendering (~line 89), normalize using `gpTeamMap` and the first team in the tournament's team list (or `tm.teamAId` from the `team_matchup` JSONB).
 
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
-
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
-
-## Summary
-
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
-
-4 files (1 new), 0 database changes.
+Each change is 2-3 lines: compute normalized matchup, then use it instead of the raw `sm`.
 
