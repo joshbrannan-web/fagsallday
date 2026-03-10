@@ -203,8 +203,10 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                       const pB = getPlayer(sm.playerB);
                       return (
                         <div key={i} className="text-xs text-foreground flex items-center gap-1">
+                          {(() => { const tA = getTeam(pA?.team_id ?? null); return tA ? <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: tA.color }} /> : null; })()}
                           <span className="font-medium">{pA?.display_name || '?'}</span>
                           <span className="text-muted-foreground">vs</span>
+                          {(() => { const tB = getTeam(pB?.team_id ?? null); return tB ? <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: tB.color }} /> : null; })()}
                           <span className="font-medium">{pB?.display_name || '?'}</span>
                         </div>
                       );
