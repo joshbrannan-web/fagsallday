@@ -184,7 +184,28 @@ function maxScoreForHole(game: TournamentGame, par: number): number {
 // ── 1. INDIVIDUAL MATCH PLAY ─────────────────────────────────
 
 export function calcMatchPlayIndividual(input: EngineInput): RoundResult {
-  const { game, holePointOverrides, players, teamAssignments, scores, courseHoles } = input;
+  const { game, players, teamAssignments, scores, courseHoles, subMatchups } = input;
+
+  // If >2 players, run sub-matchups and merge
+  if (players.length > 2) {
+    const matchups = subMatchups && subMatchups.length > 0
+      ? subMatchups
+      : deriveSubMatchups(players, teamAssignments);
+
+    const subResults = matchups.map(m => {
+      const pA = players.find(p => p.id === m.playerA);
+      const pB = players.find(p => p.id === m.playerB);
+      if (!pA || !pB) return null;
+      return calcMatchPlayIndividual({
+        ...input,
+        players: [pA, pB],
+        subMatchups: undefined, // prevent recursion
+      });
+    }).filter((r): r is RoundResult => r !== null);
+
+    return mergeSubMatchResults(subResults, courseHoles.length, teamAssignments);
+  }
+
   const [p1, p2] = players;
   const p1Team = teamAssignments[p1.id];
   const p2Team = teamAssignments[p2.id];
