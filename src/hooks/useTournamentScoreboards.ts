@@ -38,6 +38,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     setTeams(teamsRes.data || []);
     setPlayers(playersRes.data || []);
     setIsLive(roundsData.some((r: any) => r.status === 'active'));
+    setTeamScoringMethod(((tRes.data as any)?.team_scoring_method as any) || 'cumulative');
 
     // Fetch games keyed by round_id
     const roundIds = roundsData.map((r: any) => r.id);
