@@ -24,11 +24,12 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     if (!tournamentId) return;
     setIsLoading(true);
 
-    const [sbRes, rndsRes, teamsRes, playersRes] = await Promise.all([
+    const [sbRes, rndsRes, teamsRes, playersRes, tRes] = await Promise.all([
       supabase.from('tournament_scoreboards').select('*').eq('tournament_id', tournamentId).order('display_order'),
       supabase.from('tournament_rounds').select('*').eq('tournament_id', tournamentId).order('round_number'),
       supabase.from('tournament_teams').select('*').eq('tournament_id', tournamentId).order('display_order'),
       supabase.from('tournament_players').select('*').eq('tournament_id', tournamentId),
+      supabase.from('tournaments').select('team_scoring_method').eq('id', tournamentId).single(),
     ]);
 
     const roundsData = rndsRes.data || [];
