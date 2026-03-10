@@ -493,6 +493,7 @@ const TournamentAdminDashboard: React.FC = () => {
           teams={teams}
           groups={groups}
           groupPlayers={groupPlayers}
+          gameType={games.find((g: any) => g.tournament_round_id === pairingsRoundId)?.game_type}
           onAddGroup={addGroup}
           onDeleteGroup={deleteGroup}
         />

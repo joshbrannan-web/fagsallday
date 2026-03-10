@@ -161,7 +161,9 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     const nextGroupNumber = roundGroups.length > 0 ? Math.max(...roundGroups.map((g: any) => g.group_number)) + 1 : 1;
     const selectedPlayerObjs = players.filter((p: any) => playerIds.includes(p.id));
     const teamIds = [...new Set(selectedPlayerObjs.map((p: any) => p.team_id).filter(Boolean))];
-    const teamMatchup = teamIds.length === 2 ? { teamAId: teamIds[0], teamBId: teamIds[1] } : null;
+    const teamMatchup = teamIds.length === 2
+      ? { teamAId: teamIds[0], teamBId: teamIds[1], ...(subMatchups ? { subMatchups } : {}) }
+      : subMatchups ? { subMatchups } : null;
 
     const { data: newGroup, error: groupErr } = await supabase
       .from('tournament_groups')

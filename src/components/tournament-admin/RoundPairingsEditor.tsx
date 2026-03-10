@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Users, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
 interface Player {
@@ -27,6 +28,7 @@ interface Group {
   group_number: number;
   tournament_round_id: string;
   status: string;
+  team_matchup: any;
 }
 
 interface GroupPlayer {
@@ -35,6 +37,13 @@ interface GroupPlayer {
   tournament_player_id: string;
   team_id: string;
 }
+
+interface SubMatchup {
+  playerA: string;
+  playerB: string;
+}
+
+const ONE_V_ONE_TYPES = ['match_play_individual', 'alternate_shot_twosomes', 'scramble_2'];
 
 interface RoundPairingsEditorProps {
   open: boolean;
@@ -45,24 +54,35 @@ interface RoundPairingsEditorProps {
   teams: Team[];
   groups: Group[];
   groupPlayers: GroupPlayer[];
-  onAddGroup: (roundId: string, playerIds: string[]) => Promise<void>;
+  gameType?: string;
+  onAddGroup: (roundId: string, playerIds: string[], subMatchups?: SubMatchup[]) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
 }
 
 const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
   open, onOpenChange, roundId, roundName, players, teams, groups, groupPlayers,
-  onAddGroup, onDeleteGroup,
+  gameType, onAddGroup, onDeleteGroup,
 }) => {
   const [adding, setAdding] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [matchupStep, setMatchupStep] = useState(false);
+  const [match1A, setMatch1A] = useState<string>('');
+  const [match1B, setMatch1B] = useState<string>('');
+
+  const is1v1 = gameType ? ONE_V_ONE_TYPES.includes(gameType) : false;
+  const needs1v1Step = is1v1 && selectedIds.length === 4;
 
   const roundGroups = groups.filter(g => g.tournament_round_id === roundId);
   const roundGroupPlayerIds = new Set(
     groupPlayers.filter(gp => roundGroups.some(g => g.id === gp.tournament_group_id)).map(gp => gp.tournament_player_id)
   );
-
   const availablePlayers = players.filter(p => !roundGroupPlayerIds.has(p.id));
+
+  // Derive match 2 players from those not in match 1
+  const match2Players = useMemo(() => {
+    return selectedIds.filter(id => id !== match1A && id !== match1B);
+  }, [selectedIds, match1A, match1B]);
 
   const togglePlayer = (id: string) => {
     setSelectedIds(prev =>
@@ -70,19 +90,50 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
     );
   };
 
-  const handleSaveGroup = async () => {
+  const handleProceed = () => {
     if (selectedIds.length !== 2 && selectedIds.length !== 4) {
       toast.error('Select exactly 2 or 4 players');
       return;
     }
+    if (needs1v1Step) {
+      // Default matchup: first two vs last two
+      setMatch1A(selectedIds[0]);
+      setMatch1B(selectedIds[1]);
+      setMatchupStep(true);
+    } else {
+      handleSaveGroup();
+    }
+  };
+
+  const handleSaveGroup = async (subMatchups?: SubMatchup[]) => {
     setSaving(true);
-    await onAddGroup(roundId, selectedIds);
-    setSelectedIds([]);
-    setAdding(false);
+    await onAddGroup(roundId, selectedIds, subMatchups);
+    resetForm();
     setSaving(false);
   };
 
+  const handleSaveWithMatchups = async () => {
+    if (!match1A || !match1B || match2Players.length !== 2) {
+      toast.error('Please assign all matchups');
+      return;
+    }
+    const subMatchups: SubMatchup[] = [
+      { playerA: match1A, playerB: match1B },
+      { playerA: match2Players[0], playerB: match2Players[1] },
+    ];
+    await handleSaveGroup(subMatchups);
+  };
+
+  const resetForm = () => {
+    setSelectedIds([]);
+    setAdding(false);
+    setMatchupStep(false);
+    setMatch1A('');
+    setMatch1B('');
+  };
+
   const getTeam = (teamId: string | null) => teams.find(t => t.id === teamId);
+  const getPlayer = (playerId: string) => players.find(p => p.id === playerId);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -103,9 +154,9 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                 return { ...gp, player, team };
               });
 
-            // Derive team matchup
             const teamIds = [...new Set(gPlayers.map(gp => gp.team_id).filter(Boolean))];
             const matchupTeams = teamIds.map(tid => teams.find(t => t.id === tid)).filter(Boolean);
+            const subMatchups: SubMatchup[] = (group.team_matchup as any)?.subMatchups || [];
 
             return (
               <Card key={group.id} className="p-3 space-y-2">
@@ -143,6 +194,23 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                     </Badge>
                   ))}
                 </div>
+                {/* Sub-matchup display */}
+                {subMatchups.length > 0 && (
+                  <div className="space-y-1 pt-1 border-t border-border">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">1v1 Matches</span>
+                    {subMatchups.map((sm, i) => {
+                      const pA = getPlayer(sm.playerA);
+                      const pB = getPlayer(sm.playerB);
+                      return (
+                        <div key={i} className="text-xs text-foreground flex items-center gap-1">
+                          <span className="font-medium">{pA?.display_name || '?'}</span>
+                          <span className="text-muted-foreground">vs</span>
+                          <span className="font-medium">{pB?.display_name || '?'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </Card>
             );
           })}
@@ -150,47 +218,116 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
           {/* Add group form */}
           {adding ? (
             <Card className="p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">New Group</span>
-                <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setSelectedIds([]); }}>
-                  <X className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Select 2 or 4 players ({selectedIds.length} selected)
-              </p>
-              <div className="space-y-1 max-h-60 overflow-y-auto">
-                {availablePlayers.map(p => {
-                  const team = getTeam(p.team_id);
-                  const isChecked = selectedIds.includes(p.id);
-                  return (
-                    <label
-                      key={p.id}
-                      className={`flex items-center gap-2 p-2 rounded-md cursor-pointer hover:bg-muted/50 ${isChecked ? 'bg-primary/10' : ''}`}
-                    >
-                      <Checkbox
-                        checked={isChecked}
-                        onCheckedChange={() => togglePlayer(p.id)}
-                        disabled={!isChecked && selectedIds.length >= 4}
-                      />
-                      {team && <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: team.color }} />}
-                      <span className="text-sm flex-1">{p.display_name}</span>
-                      <span className="text-xs text-muted-foreground">{p.handicap_override ?? p.handicap_index}</span>
-                    </label>
-                  );
-                })}
-                {availablePlayers.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-2">All players are already assigned to groups</p>
-                )}
-              </div>
-              <Button
-                size="sm"
-                className="w-full"
-                disabled={saving || (selectedIds.length !== 2 && selectedIds.length !== 4)}
-                onClick={handleSaveGroup}
-              >
-                Save Group ({selectedIds.length} players)
-              </Button>
+              {!matchupStep ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">New Group</span>
+                    <Button size="sm" variant="ghost" onClick={resetForm}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Select 2 or 4 players ({selectedIds.length} selected)
+                  </p>
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {availablePlayers.map(p => {
+                      const team = getTeam(p.team_id);
+                      const isChecked = selectedIds.includes(p.id);
+                      return (
+                        <label
+                          key={p.id}
+                          className={`flex items-center gap-2 p-2 rounded-md cursor-pointer hover:bg-muted/50 ${isChecked ? 'bg-primary/10' : ''}`}
+                        >
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={() => togglePlayer(p.id)}
+                            disabled={!isChecked && selectedIds.length >= 4}
+                          />
+                          {team && <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: team.color }} />}
+                          <span className="text-sm flex-1">{p.display_name}</span>
+                          <span className="text-xs text-muted-foreground">{p.handicap_override ?? p.handicap_index}</span>
+                        </label>
+                      );
+                    })}
+                    {availablePlayers.length === 0 && (
+                      <p className="text-xs text-muted-foreground py-2">All players are already assigned to groups</p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={saving || (selectedIds.length !== 2 && selectedIds.length !== 4)}
+                    onClick={handleProceed}
+                  >
+                    {needs1v1Step ? 'Next: Assign Matches' : `Save Group (${selectedIds.length} players)`}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Assign 1v1 Matches</span>
+                    <Button size="sm" variant="ghost" onClick={() => setMatchupStep(false)}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Choose who plays who in each 1v1 match
+                  </p>
+
+                  {/* Match 1 */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium">Match 1</span>
+                    <div className="flex items-center gap-2">
+                      <Select value={match1A} onValueChange={setMatch1A}>
+                        <SelectTrigger className="flex-1 h-8 text-xs">
+                          <SelectValue placeholder="Player A" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedIds.filter(id => id !== match1B).map(id => {
+                            const p = getPlayer(id);
+                            return <SelectItem key={id} value={id}>{p?.display_name || id}</SelectItem>;
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <span className="text-xs text-muted-foreground font-medium">vs</span>
+                      <Select value={match1B} onValueChange={setMatch1B}>
+                        <SelectTrigger className="flex-1 h-8 text-xs">
+                          <SelectValue placeholder="Player B" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedIds.filter(id => id !== match1A).map(id => {
+                            const p = getPlayer(id);
+                            return <SelectItem key={id} value={id}>{p?.display_name || id}</SelectItem>;
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Match 2 (auto-derived) */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium">Match 2</span>
+                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50">
+                      <span className="text-xs flex-1 text-center font-medium">
+                        {match2Players[0] ? getPlayer(match2Players[0])?.display_name : '—'}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-medium">vs</span>
+                      <span className="text-xs flex-1 text-center font-medium">
+                        {match2Players[1] ? getPlayer(match2Players[1])?.display_name : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={saving || !match1A || !match1B || match2Players.length !== 2}
+                    onClick={handleSaveWithMatchups}
+                  >
+                    Save Group with Matches
+                  </Button>
+                </>
+              )}
             </Card>
           ) : (
             <Button variant="outline" className="w-full" onClick={() => setAdding(true)}>
