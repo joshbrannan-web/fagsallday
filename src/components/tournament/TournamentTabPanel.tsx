@@ -190,6 +190,7 @@ const TournamentTabPanel: React.FC<Props> = ({
             matchState={matchState}
             tournamentName={tournamentName}
             roundName={roundName}
+            subMatchups={subMatchups}
           />
         </div>
       )}

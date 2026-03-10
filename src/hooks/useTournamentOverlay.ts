@@ -449,5 +449,6 @@ export const useTournamentOverlay = (
     allHoleScores,
     newlyCompletedHole,
     segmentTotals,
+    subMatchups,
   };
 };
