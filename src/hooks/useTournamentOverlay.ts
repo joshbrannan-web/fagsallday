@@ -182,6 +182,13 @@ export const useTournamentOverlay = (
 
       if (!group) { setIsLoading(false); return; }
 
+      // Extract subMatchups from team_matchup JSONB
+      const tm = group.team_matchup as any;
+      const extractedSubMatchups: { playerA: string; playerB: string }[] | undefined =
+        tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+      setSubMatchups(extractedSubMatchups);
+      subMatchupsRef.current = extractedSubMatchups;
+
       const { data: round } = await supabase
         .from('tournament_rounds')
         .select('tournament_id, course_data')
