@@ -32,6 +32,7 @@ interface Props {
   segmentTotals: SegmentTotal[] | null;
   newlyCompletedHole: NewHoleEvent | null;
   tournamentId?: string;
+  subMatchups?: { playerA: string; playerB: string }[];
 }
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
