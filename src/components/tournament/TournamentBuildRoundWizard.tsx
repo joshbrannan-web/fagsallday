@@ -258,7 +258,7 @@ const TournamentBuildRoundWizard: React.FC = () => {
         onSelect={setup.selectGroup}
       />
     </div>
-  
+  );
 
   const renderStep5 = () => (
     <div className="space-y-4">
