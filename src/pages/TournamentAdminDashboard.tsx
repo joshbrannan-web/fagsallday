@@ -473,6 +473,22 @@ const TournamentAdminDashboard: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Pairings Editor */}
+      {pairingsRoundId && (
+        <RoundPairingsEditor
+          open={!!pairingsRoundId}
+          onOpenChange={open => { if (!open) setPairingsRoundId(null); }}
+          roundId={pairingsRoundId}
+          roundName={rounds.find((r: any) => r.id === pairingsRoundId)?.name || `Round ${rounds.find((r: any) => r.id === pairingsRoundId)?.round_number}`}
+          players={players}
+          teams={teams}
+          groups={groups}
+          groupPlayers={groupPlayers}
+          onAddGroup={addGroup}
+          onDeleteGroup={deleteGroup}
+        />
+      )}
     </div>
   );
 };
