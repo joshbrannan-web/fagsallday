@@ -9,9 +9,10 @@ interface Props {
   holeResults: Record<number, { netScores?: Record<string, number>; playerPoints?: Record<string, number> }>;
   holesPlayed: number;
   subMatchups?: { playerA: string; playerB: string }[];
+  teamAId?: string;
 }
 
-const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults, subMatchups }) => {
+const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults, subMatchups, teamAId }) => {
   const playerData = players.map((p) => {
     const teamId = teamAssignments[p.id];
     const team = teams[teamId];
