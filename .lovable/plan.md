@@ -1,60 +1,77 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Admin-Managed Pairings + Player Group Selection
 
-## What the Previous Plan Was Missing
+## Overview
+Two changes: (1) Admin creates groups/pairings per round from the dashboard, (2) Players pick from pre-created groups instead of selecting players themselves.
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## 1. Admin: "Set Pairings" UI
 
-## What the Admin Actually Needs
+### New component: `src/components/tournament-admin/RoundPairingsEditor.tsx`
+A Sheet/dialog opened from the Overview tab's round cards. Shows:
+- List of existing groups for the round (with players listed)
+- "Add Group" button that opens an inline form to select 2 or 4 players from the tournament roster
+- Player picker filters by team, shows handicap, prevents duplicates across groups
+- Each group shows team matchup derived from player team assignments
+- Delete group button per group
+- Groups are saved to `tournament_groups` (status `'pending'`, no `round_id`) and `tournament_group_players`
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+### `src/hooks/useTournamentDetail.ts`
+- Add `addGroup(roundId, playerIds)` — inserts a `tournament_group` + `tournament_group_players`
+- Add `deleteGroup(groupId)` — deletes group and its players
+- Fetch `tournament_group_players` alongside groups in `fetchAll` (new state: `groupPlayers`)
+- Return `groupPlayers` from the hook
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+### `src/pages/TournamentAdminDashboard.tsx`
+- In the Overview tab round cards, add a "Set Pairings" button (icon: Users) next to the status badge
+- Clicking opens the `RoundPairingsEditor` sheet for that round
+- Show pairing count: "3 groups set"
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+## 2. Player: Select Pre-Created Group
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+### `src/hooks/useTournamentRoundSetup.ts`
+- On `selectRound`, fetch groups + group_players for the round
+- Expose `roundGroups` and `roundGroupPlayers` state
+- Add `selectedGroupId` state + `selectGroup(groupId)` setter
+- When a group is selected, auto-populate `selectedPlayers` and `teamAssignments` from the group data
+- In `startRound`: instead of creating a new group, update the existing group's `round_id` and set `status: 'active'`
+- Remove player selection/toggle logic when groups exist (keep as fallback if no groups are pre-set)
 
-## Files
+### `src/components/tournament/TournamentBuildRoundWizard.tsx`
+- Detect if pre-created groups exist for the selected round (`setup.roundGroups.length > 0`)
+- **If groups exist**: Step 4 becomes "Select Your Group" — shows cards for each group with player names/teams. Player picks the group they're in. Step 5 (team assignment) is skipped entirely.
+- **If no groups**: current flow remains as fallback
+- Adjust `TOTAL_STEPS` dynamically (5 steps when groups pre-exist: confirm, round, course, group select, side games, review → 6 steps)
+- `canProceed` for the group selection step: requires `selectedGroupId` to be set
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+### New component: `src/components/tournament/TournamentGroupSelector.tsx`
+Shows pre-created groups as cards:
+- Each card shows group number, player names with team colors
+- Highlight the group containing the current user (if any)
+- Click to select; selected state with border highlight
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+## Data Flow
 
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+```text
+Admin Dashboard                          Player Wizard
+┌──────────────────┐                    ┌──────────────────┐
+│ Set Pairings     │                    │ Select Round     │
+│ ┌──────────────┐ │                    │        ↓         │
+│ │ Group 1      │ │  ──(DB)──────────► │ Select Group     │
+│ │ A vs B, C, D │ │  tournament_groups │ [Group 1] [Grp2] │
+│ └──────────────┘ │  + group_players   │        ↓         │
+│ ┌──────────────┐ │                    │ Side Games       │
+│ │ Group 2      │ │                    │        ↓         │
+│ │ E vs F, G, H │ │                    │ Review & Start   │
+│ └──────────────┘ │                    └──────────────────┘
+└──────────────────┘
+```
 
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
-
-## Summary
-
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
-
-4 files (1 new), 0 database changes.
+## Files Changed
+1. **`src/components/tournament-admin/RoundPairingsEditor.tsx`** — New component for admin pairing management
+2. **`src/components/tournament/TournamentGroupSelector.tsx`** — New component for player group selection
+3. **`src/hooks/useTournamentDetail.ts`** — Add `groupPlayers`, `addGroup`, `deleteGroup`
+4. **`src/pages/TournamentAdminDashboard.tsx`** — Add "Set Pairings" button in Overview round cards
+5. **`src/hooks/useTournamentRoundSetup.ts`** — Fetch pre-set groups, add group selection, modify `startRound` to use existing group
+6. **`src/components/tournament/TournamentBuildRoundWizard.tsx`** — Replace player selection with group selection when groups exist
 
