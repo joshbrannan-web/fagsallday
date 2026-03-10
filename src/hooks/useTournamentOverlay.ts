@@ -67,6 +67,7 @@ export const useTournamentOverlay = (
   const tournamentPlayersRef = useRef<TournamentPlayer[]>([]);
   const teamAssignmentsRef = useRef<Record<string, string>>({});
   const courseHolesRef = useRef<CourseHole[]>([]);
+  const subMatchupsRef = useRef<{ playerA: string; playerB: string }[] | undefined>(undefined);
 
   // Reload function: fetches latest scores + results and re-runs engine
   const reload = useCallback(async () => {
