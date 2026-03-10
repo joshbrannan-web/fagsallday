@@ -815,6 +815,7 @@ export type Database = {
           num_rounds: number
           start_date: string | null
           status: string
+          team_scoring_method: string
           updated_at: string | null
         }
         Insert: {
@@ -828,6 +829,7 @@ export type Database = {
           num_rounds?: number
           start_date?: string | null
           status?: string
+          team_scoring_method?: string
           updated_at?: string | null
         }
         Update: {
@@ -841,6 +843,7 @@ export type Database = {
           num_rounds?: number
           start_date?: string | null
           status?: string
+          team_scoring_method?: string
           updated_at?: string | null
         }
         Relationships: [

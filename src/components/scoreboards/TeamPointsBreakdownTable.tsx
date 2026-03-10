@@ -12,10 +12,11 @@ interface Props {
   players: any[];
   holeResults: any[];
   joinCode: string;
+  teamScoringMethod?: 'cumulative' | 'round_win';
 }
 
 const TeamPointsBreakdownTable: React.FC<Props> = ({
-  teams, rounds, groups, groupPlayers, players, holeResults, joinCode,
+  teams, rounds, groups, groupPlayers, players, holeResults, joinCode, teamScoringMethod,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
@@ -81,6 +82,15 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
             roundB += pts[teamB.id] || 0;
           });
 
+          // In round_win mode, show 1/0.5/0 for completed rounds
+          const isRoundWin = teamScoringMethod === 'round_win';
+          const isCompleted = round.status === 'completed';
+          let displayA = roundA, displayB = roundB;
+          if (isRoundWin && isCompleted) {
+            displayA = roundA > roundB ? 1 : roundA === roundB ? 0.5 : 0;
+            displayB = roundB > roundA ? 1 : roundA === roundB ? 0.5 : 0;
+          }
+
           return (
             <div key={round.id} className="border rounded-lg overflow-hidden">
               <button
@@ -93,9 +103,9 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
                   <span className="text-xs text-muted-foreground">{roundGroups.length} groups</span>
                 </div>
                 <div className="flex items-center gap-2 font-mono text-xs">
-                  <span style={{ color: teamA.color }}>{roundA}</span>
+                  <span style={{ color: teamA.color }}>{displayA}</span>
                   <span className="text-muted-foreground">—</span>
-                  <span style={{ color: teamB.color }}>{roundB}</span>
+                  <span style={{ color: teamB.color }}>{displayB}</span>
                 </div>
               </button>
 

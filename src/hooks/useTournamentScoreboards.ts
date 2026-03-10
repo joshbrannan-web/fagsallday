@@ -16,6 +16,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   const [isLive, setIsLive] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [newHoleResult, setNewHoleResult] = useState<any | null>(null);
+  const [teamScoringMethod, setTeamScoringMethod] = useState<'cumulative' | 'round_win'>('cumulative');
   const isInitialLoad = useRef(true);
 
   // Fetch all core data
@@ -23,11 +24,12 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     if (!tournamentId) return;
     setIsLoading(true);
 
-    const [sbRes, rndsRes, teamsRes, playersRes] = await Promise.all([
+    const [sbRes, rndsRes, teamsRes, playersRes, tRes] = await Promise.all([
       supabase.from('tournament_scoreboards').select('*').eq('tournament_id', tournamentId).order('display_order'),
       supabase.from('tournament_rounds').select('*').eq('tournament_id', tournamentId).order('round_number'),
       supabase.from('tournament_teams').select('*').eq('tournament_id', tournamentId).order('display_order'),
       supabase.from('tournament_players').select('*').eq('tournament_id', tournamentId),
+      supabase.from('tournaments').select('team_scoring_method').eq('id', tournamentId).single(),
     ]);
 
     const roundsData = rndsRes.data || [];
@@ -36,6 +38,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     setTeams(teamsRes.data || []);
     setPlayers(playersRes.data || []);
     setIsLive(roundsData.some((r: any) => r.status === 'active'));
+    setTeamScoringMethod(((tRes.data as any)?.team_scoring_method as any) || 'cumulative');
 
     // Fetch games keyed by round_id
     const roundIds = roundsData.map((r: any) => r.id);
@@ -151,6 +154,6 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   return {
     scoreboards, rounds, teams, players, games, holePoints,
     groups, groupPlayers, holeScores, holeResults,
-    isLoading, isLive, lastUpdated, newHoleResult,
+    isLoading, isLive, lastUpdated, newHoleResult, teamScoringMethod,
   };
 };

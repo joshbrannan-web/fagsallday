@@ -18,7 +18,7 @@ interface TournamentRow {
   updated_at: string | null;
 }
 
-const mapRow = (r: TournamentRow): Tournament => ({
+const mapRow = (r: any): Tournament => ({
   id: r.id,
   name: r.name,
   description: r.description || undefined,
@@ -30,6 +30,7 @@ const mapRow = (r: TournamentRow): Tournament => ({
   createdBy: r.created_by,
   createdAt: r.created_at || '',
   updatedAt: r.updated_at || '',
+  teamScoringMethod: r.team_scoring_method || 'cumulative',
 });
 
 export interface CreateTournamentData {
@@ -38,6 +39,7 @@ export interface CreateTournamentData {
   startDate?: string;
   endDate?: string;
   numRounds: number;
+  teamScoringMethod?: 'cumulative' | 'round_win';
   teams: { name: string; color: string; displayOrder: number }[];
   players: { displayName: string; handicapIndex: number; teamIndex: number; userId?: string }[];
   rounds: {
@@ -94,7 +96,8 @@ export const useTournaments = () => {
           end_date: input.endDate || null,
           num_rounds: input.numRounds,
           status: 'setup',
-        })
+          team_scoring_method: input.teamScoringMethod || 'cumulative',
+        } as any)
         .select()
         .single();
       if (tErr || !tData) throw tErr || new Error('No tournament returned');

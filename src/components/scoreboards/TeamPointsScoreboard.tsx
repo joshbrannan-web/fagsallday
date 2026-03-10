@@ -12,6 +12,7 @@ interface Props {
   tournamentStatus: string;
   games: Record<string, any>;
   joinCode: string;
+  teamScoringMethod?: 'cumulative' | 'round_win';
 }
 
 const TeamPointsScoreboard: React.FC<Props> = (props) => {
@@ -24,6 +25,7 @@ const TeamPointsScoreboard: React.FC<Props> = (props) => {
         holeResults={props.holeResults}
         tournamentStatus={props.tournamentStatus}
         games={props.games}
+        teamScoringMethod={props.teamScoringMethod}
       />
       <TeamPointsBreakdownTable
         teams={props.teams}
@@ -33,6 +35,7 @@ const TeamPointsScoreboard: React.FC<Props> = (props) => {
         players={props.players}
         holeResults={props.holeResults}
         joinCode={props.joinCode}
+        teamScoringMethod={props.teamScoringMethod}
       />
     </div>
   );
