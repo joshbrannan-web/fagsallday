@@ -200,6 +200,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         scores: scoresMap,
         courseHoles,
         teamNames,
+        subMatchups,
       };
 
       const result = calcTournamentHoleResults(engineInput);
