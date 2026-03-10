@@ -35,6 +35,7 @@ const TeamPointsScoreboard: React.FC<Props> = (props) => {
         players={props.players}
         holeResults={props.holeResults}
         joinCode={props.joinCode}
+        teamScoringMethod={props.teamScoringMethod}
       />
     </div>
   );

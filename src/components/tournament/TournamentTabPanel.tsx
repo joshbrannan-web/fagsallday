@@ -208,6 +208,7 @@ const TournamentTabPanel: React.FC<Props> = ({
                 holeScores: sbData.holeScores,
                 games: sbData.games,
                 tournamentStatus: sbData.isLive ? "active" : "completed",
+                teamScoringMethod: sbData.teamScoringMethod,
               }}
               joinCode={joinCode}
             />
