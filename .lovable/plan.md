@@ -1,60 +1,94 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Show 1v1 Sub-Matchups in Tournament Mode UI
 
-## What the Previous Plan Was Missing
+## Problem
+When a 1v1 game type (Match Play Individual, Alternate Shot Twosomes, Scramble 2) is played with 4 players in a group, the scoring engine correctly splits into two sub-matchups and merges results. However, the UI everywhere displays the match as a generic "Team A vs Team B" 2v2, making it impossible to see:
+- Which player is matched against which player
+- How each individual matchup is contributing points to the team total
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Root Cause
+The `subMatchups` data (stored in `team_matchup` JSONB) is loaded by `useTournamentOverlay` but **never returned** to consuming components. All UI components only receive `teamMatchup` (Team A vs Team B) and display team-level aggregates.
 
-## What the Admin Actually Needs
+## Helper Function
+Create a utility to detect if the current game has sub-matchups:
+```typescript
+const is1v1WithSubMatchups = (gameType: string, subMatchups?: {playerA:string;playerB:string}[]) =>
+  subMatchups && subMatchups.length > 0 && ['match_play_individual','alternate_shot_twosomes','scramble_2'].includes(gameType);
+```
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+## Changes (8 files)
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+### 1. `src/hooks/useTournamentOverlay.ts`
+**Return `subMatchups` from the hook** — add it to the return object (line ~442).
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+### 2. `src/components/tournament/TournamentTabPanel.tsx`
+**Add `subMatchups` prop** and pass it through to child components: `TournamentMatchStatusBar`, `TournamentPlayerSummary`, `TournamentHoleTracker`, `TournamentFullScorecard`.
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+### 3. `src/components/ActiveRound.tsx` + `src/pages/TournamentAdminLiveView.tsx`
+**Pass `subMatchups`** from overlay to `TournamentTabPanel`.
 
-## Files
+### 4. `src/components/tournament/TournamentPlayerSummary.tsx`
+When `subMatchups` exist, instead of grouping by team, show **matchup pairs**:
+```
+┌─ Match 1 ──────────────────┐
+│ 🔴 Josh    vs   Mike 🔵   │
+│ G:38 N:36 Pts:3   G:40... │
+├─ Match 2 ──────────────────┤
+│ 🔴 Kyle    vs   Dan  🔵   │
+│ G:37 N:35 Pts:2   G:39... │
+└────────────────────────────┘
+```
+Each matchup shows both players side-by-side with their individual stats and who they're playing against.
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+### 5. `src/components/tournament/TournamentHoleTracker.tsx`
+When `subMatchups` exist, show **per-player scores** in each matchup row instead of team-best scores. The result column will show individual match labels (parsed from the concatenated `resultLabel` field using `·` delimiter) so each row has two result indicators. Column headers show player first names instead of team names.
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+### 6. `src/components/tournament/TournamentMatchStatusBar.tsx`
+When `subMatchups` exist, show **individual match status lines** below the team total:
+```
+Match 1: Josh vs Mike — Josh 2 UP thru 5
+Match 2: Kyle vs Dan  — All Square thru 5
+```
+This uses per-player points from `playerPoints` in `holeResults` to compute each matchup's running score.
 
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+### 7. `src/components/tournament/TournamentFullScorecard.tsx`
+When `subMatchups` exist, visually **group players by matchup** (Match 1 separator, then the two players, Match 2 separator, then the next two). The Result row shows per-matchup win indicators (two dots per hole for the two matches).
 
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
+### 8. `src/components/scoreboards/GroupMatchesScoreboard.tsx`
+When the game type is a 1v1 format and `subMatchups` exist in the group's `team_matchup` JSONB, show **individual matchup rows** within each group card:
+```
+G1  Josh vs Mike     🔴 2 - 1 🔵
+    Kyle vs Dan      🔴 1 - 2 🔵
+                     ─────────────
+    Team Total       🔴 3 - 3 🔵
+```
+Sub-matchup points are derived from `player_points` in `tournament_hole_results`. The `team_matchup` JSONB (which contains `subMatchups`) is already fetched and available.
 
-## Summary
+### 9. `src/components/Scorecard.tsx` + `src/components/tournament/TournamentScorecardTable.tsx`
+Pass `subMatchups` to `TournamentScorecardTable`. When present, group players by matchup and show per-match result indicators in the Result row.
 
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+## Data Flow
+```text
+team_matchup JSONB { teamAId, teamBId, subMatchups: [{playerA, playerB}] }
+     │
+     ▼
+useTournamentOverlay → returns subMatchups
+     │
+     ▼
+TournamentTabPanel → passes to all child components
+     │
+     ├─► MatchStatusBar (per-match status lines)
+     ├─► PlayerSummary (matchup pair layout)
+     ├─► HoleTracker (per-player scores, per-match results)
+     ├─► FullScorecard (matchup groupings)
+     └─► ScorecardTable (matchup groupings)
 
-4 files (1 new), 0 database changes.
+GroupMatchesScoreboard → reads subMatchups from team_matchup JSONB directly
+```
+
+## Key Design Decisions
+- **No engine changes** — the engine already handles subMatchups correctly; this is purely a UI presentation fix
+- **Graceful fallback** — if `subMatchups` is undefined (2-player groups or non-1v1 games), all components render exactly as they do today
+- **Per-match points** are derived from `playerPoints` in hole results (already computed by the engine) rather than requiring new engine output
 
