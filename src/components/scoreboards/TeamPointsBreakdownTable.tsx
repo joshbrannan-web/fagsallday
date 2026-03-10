@@ -82,6 +82,15 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
             roundB += pts[teamB.id] || 0;
           });
 
+          // In round_win mode, show 1/0.5/0 for completed rounds
+          const isRoundWin = teamScoringMethod === 'round_win';
+          const isCompleted = round.status === 'completed';
+          let displayA = roundA, displayB = roundB;
+          if (isRoundWin && isCompleted) {
+            displayA = roundA > roundB ? 1 : roundA === roundB ? 0.5 : 0;
+            displayB = roundB > roundA ? 1 : roundA === roundB ? 0.5 : 0;
+          }
+
           return (
             <div key={round.id} className="border rounded-lg overflow-hidden">
               <button
