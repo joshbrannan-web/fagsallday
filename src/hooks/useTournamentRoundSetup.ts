@@ -348,6 +348,14 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         } as any,
       }).eq('id', newRound.id);
 
+      // Auto-activate tournament round if still pending
+      if (selectedRound.status === 'pending') {
+        await supabase
+          .from('tournament_rounds')
+          .update({ status: 'active' })
+          .eq('id', selectedRound.id);
+      }
+
       // Auto-activate tournament if still in setup
       if (tournament.status === 'setup') {
         await supabase
