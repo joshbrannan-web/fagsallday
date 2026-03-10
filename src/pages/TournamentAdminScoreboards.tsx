@@ -12,7 +12,7 @@ const TournamentAdminScoreboards: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   const navigate = useNavigate();
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
-  const { scoreboards, addScoreboard, updateScoreboard, deleteScoreboard, isLoading } = useTournamentDetail(tournamentId);
+  const { scoreboards, teams, games, players, rounds, addScoreboard, updateScoreboard, deleteScoreboard, isLoading } = useTournamentDetail(tournamentId);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
@@ -42,6 +42,10 @@ const TournamentAdminScoreboards: React.FC = () => {
       <div className="max-w-lg mx-auto">
         <ScoreboardManager
           scoreboards={scoreboards}
+          teams={teams}
+          games={games}
+          players={players}
+          rounds={rounds}
           onAdd={addScoreboard}
           onUpdate={updateScoreboard}
           onDelete={deleteScoreboard}
