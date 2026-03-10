@@ -16,6 +16,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
   const [teamAssignments, setTeamAssignments] = useState<Record<string, string>>({});
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
+  const [subMatchups, setSubMatchups] = useState<{ playerA: string; playerB: string }[] | undefined>(undefined);
 
   const fetchData = useCallback(async () => {
     if (!groupId) { setIsLoading(false); return; }
