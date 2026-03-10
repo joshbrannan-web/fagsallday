@@ -26,6 +26,7 @@ const TournamentScorecardTable: FC<Props> = ({
   teamTotals,
   viewMode,
   matchState,
+  subMatchups,
 }) => {
   if (!teamMatchup) return null;
 
