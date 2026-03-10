@@ -52,13 +52,16 @@ const TournamentFullScorecard: React.FC<Props> = ({
     return scores.length > 0 ? Math.min(...scores) : undefined;
   };
 
-  // Sort players by team
-  const sortedPlayers = [...players].sort((a, b) => {
-    const aTeam = teamAssignments[a.id];
-    const bTeam = teamAssignments[b.id];
-    if (aTeam !== bTeam) return aTeam === teamMatchup.teamAId ? -1 : 1;
-    return 0;
-  });
+  // Sort players: by matchup pairs if 1v1, else by team
+  const has1v1 = subMatchups && subMatchups.length > 0;
+  const sortedPlayers = has1v1
+    ? subMatchups!.flatMap(sm => players.filter(p => p.id === sm.playerA || p.id === sm.playerB))
+    : [...players].sort((a, b) => {
+        const aTeam = teamAssignments[a.id];
+        const bTeam = teamAssignments[b.id];
+        if (aTeam !== bTeam) return aTeam === teamMatchup.teamAId ? -1 : 1;
+        return 0;
+      });
 
   const renderHoleCell = (playerId: string, hole: CourseHole) => {
     const gross = getPlayerGross(playerId, hole.number);
