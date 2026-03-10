@@ -157,8 +157,12 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   };
 
   const addGroup = async (roundId: string, playerIds: string[], subMatchups?: { playerA: string; playerB: string }[]) => {
-    const roundGroups = groups.filter((g: any) => g.tournament_round_id === roundId);
-    const nextGroupNumber = roundGroups.length > 0 ? Math.max(...roundGroups.map((g: any) => g.group_number)) + 1 : 1;
+    // Use DB count to avoid stale closure issues with rapid sequential calls
+    const { count } = await supabase
+      .from('tournament_groups')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_round_id', roundId);
+    const nextGroupNumber = (count || 0) + 1;
     const selectedPlayerObjs = players.filter((p: any) => playerIds.includes(p.id));
     const teamIds = [...new Set(selectedPlayerObjs.map((p: any) => p.team_id).filter(Boolean))];
     const teamMatchup = teamIds.length === 2
@@ -175,7 +179,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
       })
       .select('id')
       .single();
-    if (groupErr || !newGroup) { toast.error('Failed to create group'); return; }
+    if (groupErr || !newGroup) { console.error('Failed to create group:', groupErr); toast.error('Failed to create group'); return; }
 
     const gpInserts = selectedPlayerObjs.map((p: any) => ({
       tournament_group_id: newGroup.id,
@@ -183,7 +187,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
       team_id: p.team_id || teams[0]?.id || '',
     }));
     const { error: gpErr } = await supabase.from('tournament_group_players').insert(gpInserts);
-    if (gpErr) toast.error('Group created but failed to add players');
+    if (gpErr) { console.error('Failed to add group players:', gpErr); toast.error('Group created but failed to add players'); }
     else toast.success('Group added');
     await fetchAll();
   };
