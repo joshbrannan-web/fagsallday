@@ -95,7 +95,8 @@ export const useTournaments = () => {
           end_date: input.endDate || null,
           num_rounds: input.numRounds,
           status: 'setup',
-        })
+          team_scoring_method: input.teamScoringMethod || 'cumulative',
+        } as any)
         .select()
         .single();
       if (tErr || !tData) throw tErr || new Error('No tournament returned');
