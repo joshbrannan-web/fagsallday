@@ -12,6 +12,7 @@ import { useTournamentRoundSetup } from '@/hooks/useTournamentRoundSetup';
 import TournamentRoundCard, { GAME_TYPE_LABELS } from './TournamentRoundCard';
 import TournamentRulesCallout from './TournamentRulesCallout';
 import TournamentPlayerSelector from './TournamentPlayerSelector';
+import TournamentGroupSelector from './TournamentGroupSelector';
 import TournamentTeamAssigner from './TournamentTeamAssigner';
 import GameSelector from '@/components/GameSelector';
 import { useAuth } from '@/hooks/useAuth';
