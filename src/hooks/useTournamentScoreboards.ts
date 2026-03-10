@@ -16,6 +16,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   const [isLive, setIsLive] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [newHoleResult, setNewHoleResult] = useState<any | null>(null);
+  const [teamScoringMethod, setTeamScoringMethod] = useState<'cumulative' | 'round_win'>('cumulative');
   const isInitialLoad = useRef(true);
 
   // Fetch all core data
