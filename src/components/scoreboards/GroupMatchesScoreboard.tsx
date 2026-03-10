@@ -22,16 +22,12 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
   teams, rounds, groups, groupPlayers, holeResults, holeScores, players, games, joinCode,
 }) => {
   const navigate = useNavigate();
-  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const teamIds = teams.map(t => t.id);
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
   const playerMap = Object.fromEntries(players.map(p => [p.id, p]));
 
   const sortedRounds = [...rounds].sort((a, b) => a.round_number - b.round_number);
-
-  const toggleExpand = (groupId: string) => {
-    setExpandedGroupId(prev => prev === groupId ? null : groupId);
-  };
 
   return (
     <div className="space-y-4">
@@ -40,14 +36,12 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
         if (roundGroups.length === 0) return null;
         const isActive = round.status === 'active';
 
-        // Get course holes from round
         const courseData = round.course_data;
         const courseHoles: { number: number; par: number }[] = courseData?.holes
           ? courseData.holes.map((h: any) => ({ number: h.number, par: h.par }))
           : [];
         const totalCourseHoles = courseHoles.length;
 
-        // Get game config for default points per hole
         const game = games[round.id];
         const defaultPointsPerHole = game?.default_points_per_hole || 1;
 
@@ -70,9 +64,17 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                 {roundGroups.map((group: any) => {
                   const gPlayers = groupPlayers[group.id] || [];
                   const groupResults = holeResults.filter(r => r.tournament_group_id === group.id);
-                  const totals = calcTeamTotals(groupResults, teamIds);
+                  const groupScores = holeScores.filter((s: any) => s.tournament_group_id === group.id);
 
-                  // Group players by team
+                  // Extract subMatchups
+                  const tm = group.team_matchup as any;
+                  const subMatchups: { playerA: string; playerB: string }[] | undefined =
+                    tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+
+                  // Player-to-team map
+                  const gpTeamMap: Record<string, string> = {};
+                  gPlayers.forEach((gp: any) => { gpTeamMap[gp.tournament_player_id] = gp.team_id; });
+
                   const teamPlayersMap: Record<string, any[]> = {};
                   gPlayers.forEach((gp: any) => {
                     if (!teamPlayersMap[gp.team_id]) teamPlayersMap[gp.team_id] = [];
@@ -80,15 +82,211 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                     if (player) teamPlayersMap[gp.team_id].push(player);
                   });
 
-                  // Extract subMatchups from team_matchup JSONB
-                  const tm = group.team_matchup as any;
-                  const groupSubMatchups: { playerA: string; playerB: string }[] | undefined =
-                    tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+                  const isSubmitted = group.status === 'submitted';
 
-                  // Build player-to-team map for this group
-                  const gpTeamMap: Record<string, string> = {};
-                  gPlayers.forEach((gp: any) => { gpTeamMap[gp.tournament_player_id] = gp.team_id; });
+                  // 1v1: render each sub-matchup as separate row
+                  if (subMatchups && subMatchups.length > 0) {
+                    return subMatchups.map((sm, smIdx) => {
+                      const pA = playerMap[sm.playerA];
+                      const pB = playerMap[sm.playerB];
+                      if (!pA || !pB) return null;
 
+                      const aTeamId = gpTeamMap[sm.playerA];
+                      const bTeamId = gpTeamMap[sm.playerB];
+                      const teamA = teamMap[aTeamId];
+                      const teamB = teamMap[bTeamId];
+                      if (!teamA || !teamB) return null;
+
+                      // Sum player_points for this sub-matchup
+                      let aPts = 0, bPts = 0;
+                      let holesPlayed = 0;
+                      groupResults.forEach((r: any) => {
+                        const ppA = r.player_points?.[sm.playerA] || 0;
+                        const ppB = r.player_points?.[sm.playerB] || 0;
+                        if (ppA > 0 || ppB > 0) holesPlayed++;
+                        aPts += ppA;
+                        bPts += ppB;
+                      });
+
+                      const perMatchPoints = totalCourseHoles * defaultPointsPerHole / subMatchups.length;
+                      const remaining = Math.max(0, perMatchPoints - aPts - bPts);
+                      const aName = pA.display_name.split(' ')[0];
+                      const bName = pB.display_name.split(' ')[0];
+
+                      let statusText = '';
+                      if (isSubmitted || holesPlayed === totalCourseHoles) {
+                        if (aPts === bPts) statusText = `Halved ${aPts} — ${bPts}`;
+                        else {
+                          const winner = aPts > bPts ? aName : bName;
+                          statusText = `${winner} wins ${Math.max(aPts, bPts)} — ${Math.min(aPts, bPts)}`;
+                        }
+                      } else if (holesPlayed === 0) {
+                        statusText = 'Not started';
+                      } else if (aPts === bPts) {
+                        statusText = `All Square · Thru ${holesPlayed}`;
+                      } else {
+                        const leader = aPts > bPts ? aName : bName;
+                        statusText = `${leader} ${Math.abs(aPts - bPts)} UP · Thru ${holesPlayed}`;
+                      }
+
+                      const expandKey = `${group.id}-${smIdx}`;
+                      const isExpanded = expandedId === expandKey;
+
+                      // Build hole results map
+                      const holeResultsMap: Record<number, any> = {};
+                      groupResults.forEach((r: any) => { holeResultsMap[r.hole_number] = r; });
+
+                      return (
+                        <div key={expandKey} className="rounded-lg bg-muted/50 overflow-hidden">
+                          <div
+                            className="flex items-center gap-2 px-3 py-2.5 hover:bg-muted cursor-pointer transition-colors"
+                            onClick={() => setExpandedId(prev => prev === expandKey ? null : expandKey)}
+                          >
+                            {isExpanded
+                              ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                              : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            }
+                            <span className="text-[10px] text-muted-foreground font-medium w-6 shrink-0">
+                              G{group.group_number}.{smIdx + 1}
+                            </span>
+
+                            <div className="flex-1 min-w-0 text-right">
+                              <p className="text-xs font-medium truncate">{aName}</p>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamA.color }} />
+                              <span className={`text-sm font-bold tabular-nums ${aPts > bPts ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                {aPts}
+                              </span>
+                              <span className="text-muted-foreground text-xs">-</span>
+                              <span className={`text-sm font-bold tabular-nums ${bPts > aPts ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                {bPts}
+                              </span>
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamB.color }} />
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{bName}</p>
+                            </div>
+
+                            {isSubmitted ? (
+                              <span className="text-[10px] text-muted-foreground">F</span>
+                            ) : isActive ? (
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+                            ) : null}
+                          </div>
+
+                          <div className="px-3 pb-2 -mt-1">
+                            <p className={`text-[10px] text-center ${isSubmitted ? 'text-[hsl(var(--brand-gold))] font-semibold' : 'text-muted-foreground'}`}>
+                              {statusText}
+                            </p>
+                          </div>
+
+                          {isExpanded && courseHoles.length > 0 && (
+                            <div className="border-t border-border">
+                              <div className="grid grid-cols-[44px_1fr_1fr_72px] px-3 py-1.5 bg-muted/30 border-b border-border">
+                                <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">Hole</span>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamA.color }}>
+                                  {aName}
+                                </span>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamB.color }}>
+                                  {bName}
+                                </span>
+                                <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider text-right">
+                                  Result
+                                </span>
+                              </div>
+
+                              <div className="max-h-[300px] overflow-y-auto divide-y divide-border/50">
+                                {courseHoles.map((hole, idx) => {
+                                  const r = holeResultsMap[hole.number];
+                                  const hasResult = r && r.result_label && r.result_label !== '';
+
+                                  // Get per-player scores
+                                  const aScore = groupScores.find((s: any) => s.hole_number === hole.number && s.tournament_player_id === sm.playerA)?.gross_score;
+                                  const bScore = groupScores.find((s: any) => s.hole_number === hole.number && s.tournament_player_id === sm.playerB)?.gross_score;
+
+                                  const ppA = hasResult ? (r.player_points?.[sm.playerA] || 0) : 0;
+                                  const ppB = hasResult ? (r.player_points?.[sm.playerB] || 0) : 0;
+                                  const isAWin = ppA > ppB;
+                                  const isBWin = ppB > ppA;
+                                  const isHalved = ppA === ppB && ppA > 0;
+                                  const winnerColor = isAWin ? teamA.color : isBWin ? teamB.color : undefined;
+                                  const winPts = Math.max(ppA, ppB);
+
+                                  if (!hasResult) {
+                                    return (
+                                      <div key={hole.number} className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 opacity-30 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
+                                        <div className="flex items-baseline gap-1">
+                                          <span className="text-[13px] font-bold font-mono">{hole.number}</span>
+                                          <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
+                                        </div>
+                                        <span className="text-center text-muted-foreground text-sm">—</span>
+                                        <span className="text-center text-muted-foreground text-sm">—</span>
+                                        <span className="text-right text-muted-foreground text-xs">—</span>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div key={hole.number} className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
+                                      <div className="flex items-baseline gap-1">
+                                        <span className="text-[13px] font-bold font-mono text-foreground">{hole.number}</span>
+                                        <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
+                                      </div>
+                                      <div className="flex justify-center">
+                                        {aScore != null ? (
+                                          <ScoreChip score={aScore} par={hole.par} isWinner={isAWin} winColor={teamA.color} />
+                                        ) : (
+                                          <span className="text-muted-foreground/30 text-sm">—</span>
+                                        )}
+                                      </div>
+                                      <div className="flex justify-center">
+                                        {bScore != null ? (
+                                          <ScoreChip score={bScore} par={hole.par} isWinner={isBWin} winColor={teamB.color} />
+                                        ) : (
+                                          <span className="text-muted-foreground/30 text-sm">—</span>
+                                        )}
+                                      </div>
+                                      <div className="flex justify-end">
+                                        {isHalved ? (
+                                          <span className="text-[10px] text-muted-foreground font-semibold">½ ea</span>
+                                        ) : isAWin || isBWin ? (
+                                          <span
+                                            className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                                            style={{ color: winnerColor, backgroundColor: winnerColor ? winnerColor + '18' : undefined }}
+                                          >
+                                            +{winPts}pt
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] text-muted-foreground/40">—</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <div
+                                className="flex items-center justify-center gap-1 px-3 py-2 border-t border-border text-xs text-primary font-medium cursor-pointer hover:bg-muted/30 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/tournament/${joinCode}/round/${round.id}/group/${group.id}`);
+                                }}
+                              >
+                                View Full Scorecard
+                                <ExternalLink className="w-3 h-3" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  }
+
+                  // Default combined team view
+                  const totals = calcTeamTotals(groupResults, teamIds);
                   const matchTeamIds = Object.keys(teamPlayersMap);
                   if (matchTeamIds.length < 2) return null;
 
@@ -100,10 +298,8 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                   const scoreB = totals[teamB.id] || 0;
                   const playersA = teamPlayersMap[teamA.id] || [];
                   const playersB = teamPlayersMap[teamB.id] || [];
-                  const isSubmitted = group.status === 'submitted';
-                  const isExpanded = expandedGroupId === group.id;
+                  const isExpanded = expandedId === group.id;
 
-                  // Compute match status
                   const holesPlayed = groupResults.filter((r: any) => r.result_label && r.result_label !== '').length;
                   const totalPointsAvailable = totalCourseHoles * defaultPointsPerHole;
                   const pointsUsed = scoreA + scoreB;
@@ -125,20 +321,11 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                     statusText = `${leader} leads · Thru ${holesPlayed} · ${remaining} pts left`;
                   }
 
-                  // Build hole-by-hole data for expanded view
                   const holeResultsMap: Record<number, any> = {};
-                  groupResults.forEach((r: any) => {
-                    holeResultsMap[r.hole_number] = r;
-                  });
+                  groupResults.forEach((r: any) => { holeResultsMap[r.hole_number] = r; });
 
-                  // Get group hole scores for team best-ball display
-                  const groupScores = holeScores.filter((s: any) => s.tournament_group_id === group.id);
-
-                  // Player-to-team mapping for this group
                   const playerTeamMap: Record<string, string> = {};
-                  gPlayers.forEach((gp: any) => {
-                    playerTeamMap[gp.tournament_player_id] = gp.team_id;
-                  });
+                  gPlayers.forEach((gp: any) => { playerTeamMap[gp.tournament_player_id] = gp.team_id; });
 
                   const getTeamBestScore = (holeNum: number, teamId: string): number | undefined => {
                     const scores = groupScores
@@ -149,10 +336,9 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
 
                   return (
                     <div key={group.id} className="rounded-lg bg-muted/50 overflow-hidden">
-                      {/* Match header — tappable */}
                       <div
                         className="flex items-center gap-2 px-3 py-2.5 hover:bg-muted cursor-pointer transition-colors"
-                        onClick={() => toggleExpand(group.id)}
+                        onClick={() => setExpandedId(prev => prev === group.id ? null : group.id)}
                       >
                         {isExpanded
                           ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -162,14 +348,12 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                           G{group.group_number}
                         </span>
 
-                        {/* Team A */}
                         <div className="flex-1 min-w-0 text-right">
                           <p className="text-xs font-medium truncate">
                             {playersA.map(p => p.display_name.split(' ')[0]).join(' / ')}
                           </p>
                         </div>
 
-                        {/* Score */}
                         <div className="flex items-center gap-1.5 shrink-0">
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamA.color }} />
                           <span className={`text-sm font-bold tabular-nums ${scoreA > scoreB ? 'text-foreground' : 'text-muted-foreground'}`}>
@@ -182,14 +366,12 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamB.color }} />
                         </div>
 
-                        {/* Team B */}
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium truncate">
                             {playersB.map(p => p.display_name.split(' ')[0]).join(' / ')}
                           </p>
                         </div>
 
-                        {/* Status indicator */}
                         {isSubmitted ? (
                           <span className="text-[10px] text-muted-foreground">F</span>
                         ) : isActive ? (
@@ -197,57 +379,14 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                         ) : null}
                       </div>
 
-                      {/* Sub-matchup breakdown for 1v1 formats */}
-                      {groupSubMatchups && groupSubMatchups.length > 0 && (
-                        <div className="px-3 pb-2 space-y-1">
-                          {groupSubMatchups.map((sm, smIdx) => {
-                            const pA = playerMap[sm.playerA];
-                            const pB = playerMap[sm.playerB];
-                            if (!pA || !pB) return null;
-
-                            const aTeamId = gpTeamMap[sm.playerA];
-                            const bTeamId = gpTeamMap[sm.playerB];
-                            const aColor = teamMap[aTeamId]?.color;
-                            const bColor = teamMap[bTeamId]?.color;
-
-                            // Sum player_points for this sub-matchup
-                            let smAPts = 0, smBPts = 0;
-                            groupResults.forEach((r: any) => {
-                              smAPts += r.player_points?.[sm.playerA] || 0;
-                              smBPts += r.player_points?.[sm.playerB] || 0;
-                            });
-
-                            return (
-                              <div key={smIdx} className="flex items-center justify-between text-[10px] px-1">
-                                <div className="flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: aColor }} />
-                                  <span className="font-medium">{pA.display_name.split(' ')[0]}</span>
-                                  <span className="text-muted-foreground/50">vs</span>
-                                  <span className="font-medium">{pB.display_name.split(' ')[0]}</span>
-                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: bColor }} />
-                                </div>
-                                <div className="flex items-center gap-1 font-mono font-bold">
-                                  <span style={{ color: aColor }}>{smAPts}</span>
-                                  <span className="text-muted-foreground">-</span>
-                                  <span style={{ color: bColor }}>{smBPts}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Status line */}
-                      <div className={`px-3 pb-2 ${groupSubMatchups && groupSubMatchups.length > 0 ? '' : '-mt-1'}`}>
+                      <div className="px-3 pb-2 -mt-1">
                         <p className={`text-[10px] text-center ${isSubmitted ? 'text-[hsl(var(--brand-gold))] font-semibold' : 'text-muted-foreground'}`}>
                           {statusText}
                         </p>
                       </div>
 
-                      {/* Expanded hole-by-hole detail */}
                       {isExpanded && courseHoles.length > 0 && (
                         <div className="border-t border-border">
-                          {/* Column headers */}
                           <div className="grid grid-cols-[44px_1fr_1fr_72px] px-3 py-1.5 bg-muted/30 border-b border-border">
                             <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">Hole</span>
                             <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamA.color }}>
@@ -279,10 +418,7 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
 
                               if (!hasResult) {
                                 return (
-                                  <div
-                                    key={hole.number}
-                                    className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 opacity-30 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}
-                                  >
+                                  <div key={hole.number} className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 opacity-30 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
                                     <div className="flex items-baseline gap-1">
                                       <span className="text-[13px] font-bold font-mono">{hole.number}</span>
                                       <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
@@ -295,16 +431,11 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                               }
 
                               return (
-                                <div
-                                  key={hole.number}
-                                  className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}
-                                >
+                                <div key={hole.number} className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
                                   <div className="flex items-baseline gap-1">
                                     <span className="text-[13px] font-bold font-mono text-foreground">{hole.number}</span>
                                     <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
                                   </div>
-
-                                  {/* Score A */}
                                   <div className="flex justify-center">
                                     {aScore !== undefined ? (
                                       <ScoreChip score={aScore} par={hole.par} isWinner={isAWin} winColor={teamA.color} />
@@ -312,8 +443,6 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                                       <span className="text-muted-foreground/30 text-sm">—</span>
                                     )}
                                   </div>
-
-                                  {/* Score B */}
                                   <div className="flex justify-center">
                                     {bScore !== undefined ? (
                                       <ScoreChip score={bScore} par={hole.par} isWinner={isBWin} winColor={teamB.color} />
@@ -321,18 +450,13 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                                       <span className="text-muted-foreground/30 text-sm">—</span>
                                     )}
                                   </div>
-
-                                  {/* Result */}
                                   <div className="flex justify-end">
                                     {isHalved ? (
                                       <span className="text-[10px] text-muted-foreground font-semibold">½ ea</span>
                                     ) : isAWin || isBWin ? (
                                       <span
                                         className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
-                                        style={{
-                                          color: winnerColor,
-                                          backgroundColor: winnerColor ? winnerColor + '18' : undefined,
-                                        }}
+                                        style={{ color: winnerColor, backgroundColor: winnerColor ? winnerColor + '18' : undefined }}
                                       >
                                         +{winPts}pt
                                       </span>
@@ -345,7 +469,6 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                             })}
                           </div>
 
-                          {/* View Full Scorecard link */}
                           <div
                             className="flex items-center justify-center gap-1 px-3 py-2 border-t border-border text-xs text-primary font-medium cursor-pointer hover:bg-muted/30 transition-colors"
                             onClick={(e) => {
@@ -370,8 +493,7 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
   );
 };
 
-/* ── ScoreChip (inline, matches TournamentHoleTracker style) ── */
-
+/* ── ScoreChip ── */
 const ScoreChip: React.FC<{
   score: number;
   par: number;

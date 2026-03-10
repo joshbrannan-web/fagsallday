@@ -1,35 +1,60 @@
 
 
-# Separate 1v1 Sub-Matchup Results (No Combined View)
+# Revised Plan: Admin Live View with Full Control
 
-## Problem
-When a 1v1 game is played (e.g., Match Play Individual with 4 players), results are still combined into a single "Team A vs Team B" aggregate. The user wants each sub-matchup shown as its own independent match — "Match 1: Josh vs Mike" and "Match 2: Kyle vs Dan" — with their own separate scores, results, and status. No combined team totals.
+## What the Previous Plan Was Missing
 
-## Changes (4 components)
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-### 1. `TournamentMatchStatusBar.tsx`
-When `subMatchups` exist, **replace** the combined team score display with individual match cards. Each match shows:
-- Player A vs Player B with their team colors
-- Individual match score (e.g., "3 — 2")
-- Individual status line ("Josh 1 UP · Thru 5")
-- Remove the combined "Team A 5 — Team B 3" header entirely for 1v1
+## What the Admin Actually Needs
 
-### 2. `TournamentScorecardTable.tsx`
-When `subMatchups` exist, render **separate scorecard tables per matchup** instead of one combined table. Each table shows:
-- Only the 2 players in that matchup
-- Result row based on `playerPoints` (not combined `teamPoints`)
-- Individual match status and point totals
-- "Match 1" / "Match 2" headers
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-### 3. `TournamentFullScorecard.tsx`
-When `subMatchups` exist, render **separate table sections per matchup** with independent result/points rows per match. Each section has its own result indicators based on `playerPoints` and its own point totals footer. Remove the combined team totals footer.
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-### 4. `GroupMatchesScoreboard.tsx`
-When `subMatchups` exist, render each sub-matchup as a **separate expandable row** (like separate groups) rather than one combined group row with sub-lines underneath. Each row shows player names, individual match score, status, and its own expandable hole-by-hole detail using per-player scores.
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-## Data Source
-All per-matchup points come from `playerPoints` in `holeResults` (already computed by the engine). Per-matchup totals = sum of `playerPoints[playerA]` vs `playerPoints[playerB]` across all holes.
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-## Fallback
-When `subMatchups` is undefined (2-player groups, non-1v1 games), all components render exactly as today — no behavior change.
+## Files
+
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
+
+## Summary
+
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+
+4 files (1 new), 0 database changes.
 
