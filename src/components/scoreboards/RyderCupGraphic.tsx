@@ -13,23 +13,37 @@ interface Props {
   teamScoringMethod?: 'cumulative' | 'round_win';
 }
 
-const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, tournamentStatus, games }) => {
+const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, tournamentStatus, games, teamScoringMethod }) => {
   if (teams.length < 2) return null;
 
   const teamA = teams[0];
   const teamB = teams[1];
   const teamIds = [teamA.id, teamB.id];
+  const isRoundWin = teamScoringMethod === 'round_win';
 
   const perRound = calcTeamTotalsPerRound(rounds, groups, holeResults, teamIds);
 
-  // Grand total = only completed rounds
+  // Grand total
   const completedRounds = rounds.filter((r: any) => r.status === 'completed');
   const totals: Record<string, number> = {};
   teamIds.forEach(id => { totals[id] = 0; });
-  completedRounds.forEach((r: any) => {
-    const rTotals = perRound[r.id] || {};
-    teamIds.forEach(id => { totals[id] += rTotals[id] || 0; });
-  });
+
+  if (isRoundWin) {
+    // Round Win mode: 1pt per round win, 0.5 each if tied
+    completedRounds.forEach((r: any) => {
+      const rTotals = perRound[r.id] || {};
+      const rA = rTotals[teamA.id] || 0;
+      const rB = rTotals[teamB.id] || 0;
+      if (rA > rB) { totals[teamA.id] += 1; }
+      else if (rB > rA) { totals[teamB.id] += 1; }
+      else { totals[teamA.id] += 0.5; totals[teamB.id] += 0.5; }
+    });
+  } else {
+    completedRounds.forEach((r: any) => {
+      const rTotals = perRound[r.id] || {};
+      teamIds.forEach(id => { totals[id] += rTotals[id] || 0; });
+    });
+  }
 
   const totalA = totals[teamA.id] || 0;
   const totalB = totals[teamB.id] || 0;
