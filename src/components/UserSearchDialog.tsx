@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 interface UserResult {
   id: string;
   display_name: string;
+  handicap_index?: number;
 }
 
 interface UserSearchDialogProps {
