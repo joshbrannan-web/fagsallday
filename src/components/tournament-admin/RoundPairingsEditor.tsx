@@ -203,8 +203,10 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                       const pB = getPlayer(sm.playerB);
                       return (
                         <div key={i} className="text-xs text-foreground flex items-center gap-1">
+                          {(() => { const tA = getTeam(pA?.team_id ?? null); return tA ? <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: tA.color }} /> : null; })()}
                           <span className="font-medium">{pA?.display_name || '?'}</span>
                           <span className="text-muted-foreground">vs</span>
+                          {(() => { const tB = getTeam(pB?.team_id ?? null); return tB ? <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: tB.color }} /> : null; })()}
                           <span className="font-medium">{pB?.display_name || '?'}</span>
                         </div>
                       );
@@ -285,7 +287,8 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                         <SelectContent>
                           {selectedIds.filter(id => id !== match1B).map(id => {
                             const p = getPlayer(id);
-                            return <SelectItem key={id} value={id}>{p?.display_name || id}</SelectItem>;
+                            const t = getTeam(p?.team_id ?? null);
+                            return <SelectItem key={id} value={id}><span className="flex items-center gap-1.5">{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || id}</span></SelectItem>;
                           })}
                         </SelectContent>
                       </Select>
@@ -297,7 +300,8 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                         <SelectContent>
                           {selectedIds.filter(id => id !== match1A).map(id => {
                             const p = getPlayer(id);
-                            return <SelectItem key={id} value={id}>{p?.display_name || id}</SelectItem>;
+                            const t = getTeam(p?.team_id ?? null);
+                            return <SelectItem key={id} value={id}><span className="flex items-center gap-1.5">{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || id}</span></SelectItem>;
                           })}
                         </SelectContent>
                       </Select>
@@ -308,12 +312,12 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                   <div className="space-y-1.5">
                     <span className="text-xs font-medium">Match 2</span>
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50">
-                      <span className="text-xs flex-1 text-center font-medium">
-                        {match2Players[0] ? getPlayer(match2Players[0])?.display_name : '—'}
+                      <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
+                        {(() => { const p = match2Players[0] ? getPlayer(match2Players[0]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
                       </span>
                       <span className="text-xs text-muted-foreground font-medium">vs</span>
-                      <span className="text-xs flex-1 text-center font-medium">
-                        {match2Players[1] ? getPlayer(match2Players[1])?.display_name : '—'}
+                      <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
+                        {(() => { const p = match2Players[1] ? getPlayer(match2Players[1]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
                       </span>
                     </div>
                   </div>
