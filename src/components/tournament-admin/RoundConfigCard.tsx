@@ -5,8 +5,48 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { ChevronDown, Info } from 'lucide-react';
 import type { TournamentGameType } from '@/types/tournament';
+
+const TOURNAMENT_GAME_DETAILS: Record<TournamentGameType, { name: string; description: string }> = {
+  match_play_individual: {
+    name: 'Individual Match Play (1v1)',
+    description: 'Two players compete head-to-head. Each hole is worth a set number of points — the player with the lowest net (or gross) score wins the hole. If scores are tied, the halved-hole rule applies. The player with the most points at the end wins the match.',
+  },
+  match_play_best_ball: {
+    name: 'Best Ball Match Play (2v2)',
+    description: 'Two teams of 2 players. On each hole, every player plays their own ball. The lowest net score from each team is compared — the team with the lower score wins the hole and earns points. If the best balls are tied, the halved-hole rule applies. Optional: second-ball tiebreaker uses the second-best score to break ties.',
+  },
+  match_play_gross_best_ball: {
+    name: 'Gross Best Ball (4-man, 6/6/6)',
+    description: 'A 4-player team format using gross scores with a rotating count. Holes 1–6: best 2 of 4 scores count. Holes 7–12: best 3 of 4 scores count. Holes 13–18: all 4 scores count. Teams are compared hole-by-hole using this format.',
+  },
+  scramble_2: {
+    name: 'Scramble (2-man)',
+    description: 'Both players tee off. The team selects the best shot, and both play from that spot. This repeats until the ball is holed. The team records one score per hole. Great for pace of play and team camaraderie.',
+  },
+  scramble_4: {
+    name: 'Scramble (4-man)',
+    description: 'All four players tee off. The team selects the best shot, and all play from that spot. This repeats until the ball is holed. The team records one score per hole. A fun, social format that keeps everyone involved.',
+  },
+  alternate_shot_twosomes: {
+    name: 'Alternate Shot — Twosomes',
+    description: 'Two players share one ball per hole. They alternate shots — one tees off on odd holes, the other on even holes. After the tee shot, they continue alternating until the ball is holed. Strategy on who tees off on which holes is key.',
+  },
+  alternate_shot_foursomes: {
+    name: 'Alternate Shot — Foursomes',
+    description: 'Two teams of 2 each play one ball per team. Partners alternate shots within each hole and alternate who tees off. The classic Ryder Cup foursomes format — requires teamwork and consistency.',
+  },
+  tournament_sixes: {
+    name: 'Tournament Sixes',
+    description: 'The round is split into three 6-hole segments. Within a 4-player group, team pairings rotate each segment so every player partners with every other player once. Points are awarded per segment based on match play or sum-of-strokes results. A great format for mixing things up within a group.',
+  },
+  blind_gross_best_ball: {
+    name: 'Blind Gross Best Ball',
+    description: 'Same as Gross Best Ball (6/6/6) but team assignments are revealed after the round. Players play their own ball without knowing who their teammates are. Holes 1–6: best 2 of 4, Holes 7–12: best 3 of 4, Holes 13–18: all 4. Adds an element of surprise!',
+  },
+};
 import CoursePicker from '@/components/CoursePicker';
 import type { Course } from '@/types';
 
@@ -109,14 +149,29 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber }) => {
 
       <div>
         <Label>Game Type *</Label>
-        <Select value={data.gameType} onValueChange={v => update('gameType', v)}>
-          <SelectTrigger><SelectValue placeholder="Select game type..." /></SelectTrigger>
-          <SelectContent>
-            {GAME_TYPES.map(g => (
-              <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={data.gameType} onValueChange={v => update('gameType', v)}>
+            <SelectTrigger><SelectValue placeholder="Select game type..." /></SelectTrigger>
+            <SelectContent>
+              {GAME_TYPES.map(g => (
+                <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {data.gameType && TOURNAMENT_GAME_DETAILS[data.gameType as TournamentGameType] && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:text-primary hover:bg-accent transition-colors">
+                  <Info className="w-5 h-5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <h4 className="font-semibold text-sm mb-1">{TOURNAMENT_GAME_DETAILS[data.gameType as TournamentGameType].name}</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">{TOURNAMENT_GAME_DETAILS[data.gameType as TournamentGameType].description}</p>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
       </div>
 
       {data.gameType && (
