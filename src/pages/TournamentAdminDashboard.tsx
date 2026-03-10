@@ -72,6 +72,7 @@ const TournamentAdminDashboard: React.FC = () => {
 
   const [deletingTournament, setDeletingTournament] = useState(false);
   const [roundToDelete, setRoundToDelete] = useState<string | null>(null);
+  const [pairingsRoundId, setPairingsRoundId] = useState<string | null>(null);
 
   /* ── edit basic info state ── */
   const [editOpen, setEditOpen] = useState(false);
