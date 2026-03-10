@@ -149,10 +149,13 @@ const Auth: React.FC = () => {
       // Ensure we have an active session (PKCE code exchange may still be in flight)
       let { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!currentSession) {
-        // Wait for PKCE code exchange to complete
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const retry = await supabase.auth.getSession();
-        currentSession = retry.data.session;
+        // Poll every 500ms for up to 10 seconds waiting for PKCE exchange
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const retry = await supabase.auth.getSession();
+          currentSession = retry.data.session;
+          if (currentSession) break;
+        }
       }
 
       if (!currentSession) {
