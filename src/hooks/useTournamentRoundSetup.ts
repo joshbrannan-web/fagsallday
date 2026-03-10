@@ -137,6 +137,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
 
   const selectRound = useCallback(async (round: TournamentRound) => {
     setSelectedRound(round);
+    setSelectedGroupId(null);
     // Load game config
     const { data: game } = await supabase
       .from('tournament_games')
@@ -155,19 +156,26 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       setHolePoints(points || []);
     }
 
-    // Check for existing groups in this round
+    // Check for existing groups in this round (admin pre-set pairings)
     const { data: groups } = await supabase
       .from('tournament_groups')
-      .select('id')
-      .eq('tournament_round_id', round.id);
-    const groupIds = (groups || []).map(g => g.id);
+      .select('*')
+      .eq('tournament_round_id', round.id)
+      .order('group_number');
+    
+    const allGroups = groups || [];
+    setRoundGroups(allGroups);
+
+    const groupIds = allGroups.map(g => g.id);
     if (groupIds.length > 0) {
       const { data: gp } = await supabase
         .from('tournament_group_players')
-        .select('tournament_player_id')
+        .select('*')
         .in('tournament_group_id', groupIds);
+      setRoundGroupPlayers(gp || []);
       setGroupedPlayerIds(new Set((gp || []).map(p => p.tournament_player_id)));
     } else {
+      setRoundGroupPlayers([]);
       setGroupedPlayerIds(new Set());
     }
 
@@ -180,6 +188,21 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       }
     }
   }, [user, allPlayers]);
+
+  const selectGroup = useCallback((groupId: string) => {
+    setSelectedGroupId(groupId);
+    // Auto-populate selectedPlayers and teamAssignments from group data
+    const gPlayers = roundGroupPlayers.filter(gp => gp.tournament_group_id === groupId);
+    const players = gPlayers
+      .map(gp => allPlayers.find(p => p.id === gp.tournament_player_id))
+      .filter(Boolean) as TournamentPlayer[];
+    setSelectedPlayers(players);
+    const assignments: Record<string, string> = {};
+    gPlayers.forEach(gp => {
+      assignments[gp.tournament_player_id] = gp.team_id;
+    });
+    setTeamAssignments(assignments);
+  }, [roundGroupPlayers, allPlayers]);
 
   const togglePlayer = useCallback((player: TournamentPlayer) => {
     setSelectedPlayers(prev => {
