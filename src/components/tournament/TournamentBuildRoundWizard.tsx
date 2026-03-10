@@ -244,6 +244,22 @@ const TournamentBuildRoundWizard: React.FC = () => {
     </div>
   );
 
+  const renderGroupSelect = () => (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold">Select Your Group</h2>
+      <p className="text-sm text-muted-foreground">Your admin has set up the pairings. Pick the group you're playing in.</p>
+      <TournamentGroupSelector
+        groups={setup.roundGroups}
+        groupPlayers={setup.roundGroupPlayers}
+        players={setup.allPlayers}
+        teams={setup.teams}
+        selectedGroupId={setup.selectedGroupId}
+        currentUserId={user?.id}
+        onSelect={setup.selectGroup}
+      />
+    </div>
+  
+
   const renderStep5 = () => (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Team Assignments</h2>
