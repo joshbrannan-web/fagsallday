@@ -333,7 +333,6 @@ const TournamentAdminDashboard: React.FC = () => {
               );
             })}
           </div>
-          </div>
 
           {groups.filter((g: any) => g.status === 'active').length > 0 && (
             <div className="space-y-2">
