@@ -18,6 +18,7 @@ import GameSelector from '@/components/GameSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { GAME_LIBRARY, GAME_DETAILS } from '@/lib/gameLibrary';
 import { Player, GameSettings, GameType } from '@/types';
+import { calculateCourseHandicap } from '@/services/gameEngine';
 
 // Steps: 1=Welcome, 2=Round, 3=Course, 4=Players/Group, 5=Teams, 6=SideGames, 7=Review
 const TOTAL_STEPS = 7;
@@ -286,7 +287,7 @@ const TournamentBuildRoundWizard: React.FC = () => {
       id: p.id,
       name: p.display_name,
       handicapIndex: p.handicap_index ?? 0,
-      courseHandicap: 0,
+      courseHandicap: calculateCourseHandicap(p.handicap_index ?? 0, 72),
       tee: '',
     }));
 

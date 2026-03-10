@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { GameSettings, Course, Player } from '@/types';
+import { calculateCourseHandicap } from '@/services/gameEngine';
 import { useApp } from '@/contexts/AppContext';
 
 interface TournamentData {
@@ -238,7 +239,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         id: (i + 1).toString(),
         name: tp.display_name,
         handicapIndex: tp.handicap_override ?? tp.handicap_index,
-        courseHandicap: 0,
+        courseHandicap: calculateCourseHandicap(tp.handicap_override ?? tp.handicap_index, 72),
         tee: 'White',
         linkedUserId: tp.user_id || undefined,
       }));
