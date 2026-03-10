@@ -59,6 +59,8 @@ const Admin = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [rounds, setRounds] = useState<AdminRound[]>([]);
   const [adminRequests, setAdminRequests] = useState<AdminRequest[]>([]);
+  const [adminUserIds, setAdminUserIds] = useState<Set<string>>(new Set());
+  const [tournamentAdminIds, setTournamentAdminIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
