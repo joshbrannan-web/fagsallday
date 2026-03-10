@@ -106,11 +106,11 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                       let aPts = 0, bPts = 0;
                       let holesPlayed = 0;
                       groupResults.forEach((r: any) => {
-                        const ppA = r.player_points?.[sm.playerA] || 0;
-                        const ppB = r.player_points?.[sm.playerB] || 0;
-                        if (ppA > 0 || ppB > 0) holesPlayed++;
-                        aPts += ppA;
-                        bPts += ppB;
+                        const ppA = r.player_points?.[sm.playerA];
+                        const ppB = r.player_points?.[sm.playerB];
+                        if (ppA !== undefined || ppB !== undefined) holesPlayed++;
+                        aPts += ppA || 0;
+                        bPts += ppB || 0;
                       });
 
                       const perMatchPoints = totalCourseHoles * defaultPointsPerHole / subMatchups.length;
