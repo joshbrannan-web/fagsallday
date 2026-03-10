@@ -83,16 +83,16 @@ const TournamentBuildRoundWizard: React.FC = () => {
   };
 
   const handleNext = () => {
-    if (step === 5 && setup.isScrambleFormat) {
-      setStep(6); // Already skipping, but step flow handles it
+    if (!hasPresetGroups && step === 5 && setup.isScrambleFormat) {
+      setStep(6);
       return;
     }
-    if (step < TOTAL_STEPS) setStep(s => s + 1);
+    if (step < totalSteps) setStep(s => s + 1);
   };
 
   const handleBack = () => {
-    if (step === 6 && setup.isScrambleFormat) {
-      setStep(4); // Skip step 5 going back too
+    if (!hasPresetGroups && step === 6 && setup.isScrambleFormat) {
+      setStep(4);
       return;
     }
     if (step > 1) setStep(s => s - 1);
@@ -103,17 +103,26 @@ const TournamentBuildRoundWizard: React.FC = () => {
     setup.startRound();
   };
 
-  const effectiveStep = step === 5 && setup.isScrambleFormat ? 6 : step;
-
   const renderStep = () => {
-    switch (effectiveStep) {
-      case 1: return renderStep1();
-      case 2: return renderStep2();
-      case 3: return renderStep3();
-      case 4: return renderStep4();
-      case 5: return renderStep5();
-      case 6: return renderStep6();
-      case 7: return renderStep7();
+    if (hasPresetGroups) {
+      switch (step) {
+        case 1: return renderStep1();
+        case 2: return renderStep2();
+        case 3: return renderStep3();
+        case 4: return renderGroupSelect();
+        case 5: return renderStep6(); // side games
+        case 6: return renderStep7(); // review
+      }
+    } else {
+      switch (step) {
+        case 1: return renderStep1();
+        case 2: return renderStep2();
+        case 3: return renderStep3();
+        case 4: return renderStep4();
+        case 5: return renderStep5();
+        case 6: return renderStep6();
+        case 7: return renderStep7();
+      }
     }
   };
 
