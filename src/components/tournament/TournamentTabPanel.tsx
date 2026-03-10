@@ -146,6 +146,7 @@ const TournamentTabPanel: React.FC<Props> = ({
             allHoleScores={allHoleScores}
             holeResults={holeResults}
             holesPlayed={holesPlayed}
+            subMatchups={subMatchups}
           />
 
           {/* Hole tracker */}
