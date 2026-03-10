@@ -39,10 +39,13 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
   // 1v1 matchup pair layout
   if (has1v1) {
     const playerMap = Object.fromEntries(playerData.map(d => [d.player.id, d]));
+    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
+      teamAId && teamAssignments[sm.playerA] === teamAId ? sm : teamAId && teamAssignments[sm.playerB] === teamAId ? { playerA: sm.playerB, playerB: sm.playerA } : sm;
 
     return (
       <div className="space-y-2">
-        {subMatchups.map((sm, idx) => {
+        {subMatchups.map((rawSm, idx) => {
+          const sm = normalizeMatchup(rawSm);
           const dA = playerMap[sm.playerA];
           const dB = playerMap[sm.playerB];
           if (!dA || !dB) return null;

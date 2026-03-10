@@ -129,6 +129,8 @@ const TournamentFullScorecard: React.FC<Props> = ({
   // 1v1: separate sections per matchup
   if (has1v1) {
     const playerMap = Object.fromEntries(players.map(p => [p.id, p]));
+    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
+      teamAssignments[sm.playerA] === teamMatchup!.teamAId ? sm : { playerA: sm.playerB, playerB: sm.playerA };
 
     return (
       <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -140,7 +142,8 @@ const TournamentFullScorecard: React.FC<Props> = ({
           </SheetHeader>
 
           <div className="flex-1 overflow-auto mt-2 space-y-6">
-            {subMatchups!.map((sm, idx) => {
+            {subMatchups!.map((rawSm, idx) => {
+              const sm = normalizeMatchup(rawSm);
               const pA = playerMap[sm.playerA];
               const pB = playerMap[sm.playerB];
               if (!pA || !pB) return null;

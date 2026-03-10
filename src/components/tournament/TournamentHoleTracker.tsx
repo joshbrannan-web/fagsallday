@@ -92,10 +92,13 @@ const TournamentHoleTracker: React.FC<Props> = ({
   // For 1v1: show per-player scores instead of team best
   if (has1v1) {
     const playerMap = Object.fromEntries(tournamentPlayers!.map(p => [p.id, p]));
+    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
+      teamAssignments?.[sm.playerA] === teamMatchup.teamAId ? sm : { playerA: sm.playerB, playerB: sm.playerA };
 
     return (
       <div className="space-y-2">
-        {subMatchups!.map((sm, matchIdx) => {
+        {subMatchups!.map((rawSm, matchIdx) => {
+          const sm = normalizeMatchup(rawSm);
           const pA = playerMap[sm.playerA];
           const pB = playerMap[sm.playerB];
           if (!pA || !pB) return null;
