@@ -271,7 +271,7 @@ const SetupWizard: React.FC = () => {
     // Add to saved players as a linked player with their actual handicap
     await addSavedPlayer(selectedUser.display_name, handicap, 'White', selectedUser.id);
 
-    const totalPar = course?.holes?.reduce((s, h) => s + h.par, 0) || 72;
+    const totalPar = selectedCourse?.holes?.reduce((s, h) => s + h.par, 0) || 72;
     const newPlayer: Player = {
       id: Date.now().toString(),
       name: selectedUser.display_name,
