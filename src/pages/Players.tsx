@@ -388,7 +388,10 @@ const Players: React.FC = () => {
         onOpenChange={setLinkDialogOpen}
         onSelect={async (selectedUser) => {
           if (linkingPlayerId) {
-            const success = await updatePlayer(linkingPlayerId, { linked_user_id: selectedUser.id });
+            const success = await updatePlayer(linkingPlayerId, {
+              linked_user_id: selectedUser.id,
+              handicap_index: selectedUser.handicap_index ?? 0,
+            });
             if (success) {
               await supabase.rpc('link_players_bidirectional', { p_linked_user_id: selectedUser.id } as any);
               await refetch();
@@ -406,6 +409,7 @@ const Players: React.FC = () => {
         onSelect={(selectedUser) => {
           setNewPlayerLinkUserId(selectedUser.id);
           setNewPlayerLinkName(selectedUser.display_name);
+          setNewHandicap(selectedUser.handicap_index?.toString() || '0');
           if (!newName.trim()) {
             setNewName(selectedUser.display_name || '');
           }
