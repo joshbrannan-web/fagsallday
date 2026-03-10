@@ -225,6 +225,14 @@ const TournamentBuildRoundWizard: React.FC = () => {
             <p>Custom point values on holes: {setup.holePoints.map(hp => `#${hp.hole_number}: ${hp.points}`).join(', ')}</p>
           )}
         </div>
+        {(setup.tournament as any)?.team_scoring_method === 'cumulative' && (
+          <div className="flex items-start gap-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+            <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+            <p className="text-sm text-foreground/80">
+              <span className="font-semibold">Every hole counts!</span> Each hole is worth points towards your team's overall total. Keep playing all 18 holes — no concessions.
+            </p>
+          </div>
+        )}
       </div>
     );
   };
