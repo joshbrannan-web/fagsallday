@@ -310,6 +310,14 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       }));
       await supabase.from('tournament_group_players').insert(gpInserts);
 
+      // Auto-activate tournament if still in setup
+      if (tournament.status === 'setup') {
+        await supabase
+          .from('tournaments')
+          .update({ status: 'active' })
+          .eq('id', tournament.id);
+      }
+
       // Refetch rounds so useRounds picks up the new ACTIVE round before navigating
       await refetchRounds();
 

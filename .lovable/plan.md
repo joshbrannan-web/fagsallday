@@ -1,29 +1,60 @@
 
 
-# Auto-Activate Tournament on First Round Start
+# Revised Plan: Admin Live View with Full Control
 
-## What
-When a player starts the first group/round in a tournament that's still in `setup` status, automatically promote the tournament to `active`.
+## What the Previous Plan Was Missing
 
-## How
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-### `src/hooks/useTournamentRoundSetup.ts`
-In the `startRound` callback, after the group and round are successfully created, check if the tournament status is `setup`. If so, update it to `active`:
+## What the Admin Actually Needs
 
-```typescript
-// After group creation succeeds, auto-activate tournament
-if (tournament.status === 'setup') {
-  await supabase
-    .from('tournaments')
-    .update({ status: 'active' })
-    .eq('id', tournament.id);
-}
-```
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-This goes right after the `tournament_group_players` insert, before `refetchRounds()`.
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-### Note on permissions
-The `tournaments` UPDATE policy requires `created_by = auth.uid() AND is_tournament_admin()`. If a non-creator member starts a round, this update will silently fail (no error thrown, just no rows affected). This is acceptable — the creator/admin can still manually activate. Alternatively, we can make it a fire-and-forget call so it doesn't block round creation.
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-**1 file changed:** `src/hooks/useTournamentRoundSetup.ts`
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+
+## Files
+
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
+
+## Summary
+
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+
+4 files (1 new), 0 database changes.
 
