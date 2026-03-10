@@ -57,10 +57,13 @@ const Auth: React.FC = () => {
   const [ghinSyncing, setGhinSyncing] = useState(false);
   const [showManualInfoDialog, setShowManualInfoDialog] = useState(false);
 
+  const recoverySessionReady = useRef(false);
+
   // Listen for PASSWORD_RECOVERY event
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && isResetFromUrl.current)) {
+        recoverySessionReady.current = true;
         setMode('reset');
       }
     });
@@ -146,10 +149,13 @@ const Auth: React.FC = () => {
       // Ensure we have an active session (PKCE code exchange may still be in flight)
       let { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!currentSession) {
-        // Wait for PKCE code exchange to complete
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const retry = await supabase.auth.getSession();
-        currentSession = retry.data.session;
+        // Poll every 500ms for up to 10 seconds waiting for PKCE exchange
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const retry = await supabase.auth.getSession();
+          currentSession = retry.data.session;
+          if (currentSession) break;
+        }
       }
 
       if (!currentSession) {
