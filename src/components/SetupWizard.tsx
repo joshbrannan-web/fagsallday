@@ -266,15 +266,17 @@ const SetupWizard: React.FC = () => {
     toast.success(`Added ${savedPlayer.name}`);
   };
 
-  const handleAppUserSelected = async (selectedUser: { id: string; display_name: string }) => {
-    // Add to saved players as a linked player
-    await addSavedPlayer(selectedUser.display_name, 0, 'White', selectedUser.id);
+  const handleAppUserSelected = async (selectedUser: { id: string; display_name: string; handicap_index?: number }) => {
+    const handicap = selectedUser.handicap_index ?? 0;
+    // Add to saved players as a linked player with their actual handicap
+    await addSavedPlayer(selectedUser.display_name, handicap, 'White', selectedUser.id);
 
+    const totalPar = course?.holes?.reduce((s, h) => s + h.par, 0) || 72;
     const newPlayer: Player = {
       id: Date.now().toString(),
       name: selectedUser.display_name,
-      handicapIndex: 0,
-      courseHandicap: 0,
+      handicapIndex: handicap,
+      courseHandicap: handicap ? calculateCourseHandicap(handicap, totalPar) : 0,
       tee: 'White',
       linkedUserId: selectedUser.id,
     };
