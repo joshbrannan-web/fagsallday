@@ -80,6 +80,15 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                     if (player) teamPlayersMap[gp.team_id].push(player);
                   });
 
+                  // Extract subMatchups from team_matchup JSONB
+                  const tm = group.team_matchup as any;
+                  const groupSubMatchups: { playerA: string; playerB: string }[] | undefined =
+                    tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+
+                  // Build player-to-team map for this group
+                  const gpTeamMap: Record<string, string> = {};
+                  gPlayers.forEach((gp: any) => { gpTeamMap[gp.tournament_player_id] = gp.team_id; });
+
                   const matchTeamIds = Object.keys(teamPlayersMap);
                   if (matchTeamIds.length < 2) return null;
 
