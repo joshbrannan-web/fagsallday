@@ -152,6 +152,14 @@ const TournamentAdminDashboard: React.FC = () => {
     }
   }, [adminLoading, isTournamentAdmin]);
 
+  // Auto-promote tournament to active if any round is already active
+  useEffect(() => {
+    if (!tournament || isLoading) return;
+    if (tournament.status === 'setup' && rounds.some((r: any) => r.status === 'active')) {
+      updateTournament({ status: 'active' });
+    }
+  }, [tournament?.id, tournament?.status, rounds, isLoading]);
+
   if (adminLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background p-4 space-y-4">
