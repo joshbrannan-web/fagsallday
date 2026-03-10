@@ -7,12 +7,13 @@ interface Props {
   tournamentPlayers: TournamentPlayer[];
   teamAssignments: Record<string, string>;
   teams: Record<string, { name: string; color: string }>;
-  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string; grossScores?: Record<string, number>; netScores?: Record<string, number>; pointsValue?: number }>;
+  holeResults: Record<number, { teamPoints: Record<string, number>; resultLabel?: string; grossScores?: Record<string, number>; netScores?: Record<string, number>; pointsValue?: number; playerPoints?: Record<string, number> }>;
   courseHoles: CourseHole[];
   teamMatchup: { teamAId: string; teamBId: string } | null;
   teamTotals: Record<string, number>;
   viewMode: 'FRONT' | 'BACK';
   matchState?: MatchState;
+  subMatchups?: { playerA: string; playerB: string }[];
 }
 
 const TournamentScorecardTable: FC<Props> = ({
