@@ -59,6 +59,7 @@ const TournamentTabPanel: React.FC<Props> = ({
   segmentTotals,
   newlyCompletedHole,
   tournamentId,
+  subMatchups,
 }) => {
   const [activeTab, setActiveTab] = useState<"game" | "boards">("game");
   const [showFullScorecard, setShowFullScorecard] = useState(false);
