@@ -123,6 +123,14 @@ const Admin = () => {
       });
       
       setRounds(mappedRounds);
+
+      // Fetch role data in parallel
+      const [rolesRes, tAdminsRes] = await Promise.all([
+        supabase.from('user_roles').select('user_id, role'),
+        supabase.from('tournament_admins').select('user_id'),
+      ]);
+      setAdminUserIds(new Set((rolesRes.data || []).filter((r: any) => r.role === 'admin').map((r: any) => r.user_id)));
+      setTournamentAdminIds(new Set((tAdminsRes.data || []).map((r: any) => r.user_id)));
     } catch (err: any) {
       console.error('Error fetching admin data:', err);
       toast.error('Failed to load admin data');
