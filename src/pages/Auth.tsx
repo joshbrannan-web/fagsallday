@@ -57,10 +57,13 @@ const Auth: React.FC = () => {
   const [ghinSyncing, setGhinSyncing] = useState(false);
   const [showManualInfoDialog, setShowManualInfoDialog] = useState(false);
 
+  const recoverySessionReady = useRef(false);
+
   // Listen for PASSWORD_RECOVERY event
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && isResetFromUrl.current)) {
+        recoverySessionReady.current = true;
         setMode('reset');
       }
     });
