@@ -297,6 +297,15 @@ const TournamentAdminDashboard: React.FC = () => {
             </div>
           </Card>
 
+          <Card className="p-4">
+            <p className="text-xs text-muted-foreground mb-1">Scoring Method</p>
+            <p className="text-sm font-medium">
+              {tournament.team_scoring_method === 'cumulative'
+                ? 'Cumulative Points — every hole counts'
+                : 'Round Win — 1pt per round win, ½pt tie'}
+            </p>
+          </Card>
+
           <div className="space-y-2">
             <h3 className="font-semibold text-sm">Rounds</h3>
             {rounds.map((r: any) => {
