@@ -38,6 +38,7 @@ export interface CreateTournamentData {
   startDate?: string;
   endDate?: string;
   numRounds: number;
+  teamScoringMethod?: 'cumulative' | 'round_win';
   teams: { name: string; color: string; displayOrder: number }[];
   players: { displayName: string; handicapIndex: number; teamIndex: number; userId?: string }[];
   rounds: {
