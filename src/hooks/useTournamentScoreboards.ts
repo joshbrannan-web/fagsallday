@@ -154,6 +154,6 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   return {
     scoreboards, rounds, teams, players, games, holePoints,
     groups, groupPlayers, holeScores, holeResults,
-    isLoading, isLive, lastUpdated, newHoleResult,
+    isLoading, isLive, lastUpdated, newHoleResult, teamScoringMethod,
   };
 };
