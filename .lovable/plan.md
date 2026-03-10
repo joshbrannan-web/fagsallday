@@ -1,60 +1,44 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Tournament Team Scoring Method Option
 
-## What the Previous Plan Was Missing
+## What
+Add a tournament-level setting that lets the creator choose how round results contribute to the overall team score:
+- **Cumulative Points** (default, current behavior): every hole's points add up across all rounds
+- **Round Win** (new): each completed round awards 1 point to the winning team (½ each if tied)
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Database Change
+Add a column to `tournaments`:
+```sql
+ALTER TABLE tournaments ADD COLUMN team_scoring_method text NOT NULL DEFAULT 'cumulative';
+```
+No new RLS needed — existing tournament policies cover it.
 
-## What the Admin Actually Needs
+## Files Changed
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+### 1. `src/components/tournament-admin/WizardStepBasicInfo.tsx`
+- Add a "Team Scoring" selector with two options:
+  - "Cumulative Points" — all match points add to team total
+  - "Round Win (1pt)" — winning a round earns 1 team point
+- Store as `teamScoringMethod` in the basicInfo state
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+### 2. `src/components/tournament-admin/CreateTournamentWizard.tsx`
+- Pass `teamScoringMethod` through to `createTournament`
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+### 3. `src/hooks/useTournaments.ts`
+- Add `teamScoringMethod` to `CreateTournamentData` interface
+- Write it as `team_scoring_method` on tournament insert
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+### 4. `src/types/tournament.ts`
+- Add `teamScoringMethod` field to the `Tournament` type
 
-## Files
+### 5. `src/components/scoreboards/RyderCupGraphic.tsx`
+- Accept `teamScoringMethod` prop
+- When `'round_win'`: instead of summing hole points, award 1pt per completed round to the team with higher total (½ each if tied)
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+### 6. `src/components/scoreboards/TeamPointsBreakdownTable.tsx`
+- Same logic change for the per-round breakdown display
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
-
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
-
-## Summary
-
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
-
-4 files (1 new), 0 database changes.
+### 7. `src/hooks/useTournamentScoreboards.ts`
+- Fetch `team_scoring_method` from tournament data and pass it through to scoreboard components
 
