@@ -162,6 +162,8 @@ const TournamentTabPanel: React.FC<Props> = ({
               gameType={tournamentGame?.gameType}
               teamAssignments={teamAssignments}
               matchState={matchState}
+              subMatchups={subMatchups}
+              tournamentPlayers={tournamentPlayers}
             />
           )}
 
