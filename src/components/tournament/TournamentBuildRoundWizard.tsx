@@ -53,13 +53,29 @@ const TournamentBuildRoundWizard: React.FC = () => {
     );
   }
 
+  const hasPresetGroups = setup.roundGroups.length > 0;
+  // When groups are pre-set: skip steps 4 (player select) and 5 (team assign) — replace with group select
+  // Effective steps: 1=Welcome, 2=Round, 3=Course, 4=GroupSelect, 5=SideGames, 6=Review (6 total)
+  const totalSteps = hasPresetGroups ? 6 : TOTAL_STEPS;
+
   const canProceed = (): boolean => {
+    if (hasPresetGroups) {
+      switch (step) {
+        case 1: return true;
+        case 2: return !!setup.selectedRound && !!setup.tournamentGame;
+        case 3: return true;
+        case 4: return !!setup.selectedGroupId;
+        case 5: return true;
+        case 6: return true;
+        default: return false;
+      }
+    }
     switch (step) {
       case 1: return true;
       case 2: return !!setup.selectedRound && !!setup.tournamentGame;
       case 3: return true;
       case 4: return setup.selectedPlayers.length === setup.requiredPlayerCount;
-      case 5: return true; // Team assignments are read-only/pre-populated
+      case 5: return true;
       case 6: return true;
       case 7: return true;
       default: return false;
