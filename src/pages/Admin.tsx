@@ -385,7 +385,17 @@ const Admin = () => {
                       ) : (
                         users.map((user) => (
                           <TableRow key={user.id}>
-                            <TableCell className="font-medium">{user.display_name}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {user.display_name}
+                                {adminUserIds.has(user.id) && (
+                                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-0 text-[10px] px-1.5 py-0">Admin</Badge>
+                                )}
+                                {tournamentAdminIds.has(user.id) && (
+                                  <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-0 text-[10px] px-1.5 py-0">T-Admin</Badge>
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell className="text-muted-foreground">{user.email}</TableCell>
                             <TableCell className="text-right">{user.handicap_index}</TableCell>
                             <TableCell>{format(new Date(user.created_at), 'MMM d, yyyy')}</TableCell>
