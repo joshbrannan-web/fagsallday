@@ -287,7 +287,8 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                         <SelectContent>
                           {selectedIds.filter(id => id !== match1B).map(id => {
                             const p = getPlayer(id);
-                            return <SelectItem key={id} value={id}>{p?.display_name || id}</SelectItem>;
+                            const t = getTeam(p?.team_id ?? null);
+                            return <SelectItem key={id} value={id}><span className="flex items-center gap-1.5">{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || id}</span></SelectItem>;
                           })}
                         </SelectContent>
                       </Select>
