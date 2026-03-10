@@ -371,9 +371,9 @@ const TournamentBuildRoundWizard: React.FC = () => {
           <Button variant="ghost" size="sm" onClick={handleBack}>
             <ArrowLeft className="w-4 h-4 mr-1" /> Back
           </Button>
-          <span className="text-sm text-muted-foreground">Step {effectiveStep} of {TOTAL_STEPS}</span>
+          <span className="text-sm text-muted-foreground">Step {step} of {totalSteps}</span>
         </div>
-        <Progress value={(effectiveStep / TOTAL_STEPS) * 100} className="h-2" />
+        <Progress value={(step / totalSteps) * 100} className="h-2" />
       </div>
 
       {/* Content */}
