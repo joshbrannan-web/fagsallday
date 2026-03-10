@@ -55,6 +55,7 @@ export const useTournamentOverlay = (
   const [teamAssignments, setTeamAssignments] = useState<Record<string, string>>({});
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
   const [allHoleScores, setAllHoleScores] = useState<Record<string, Record<number, number>>>({});
+  const [subMatchups, setSubMatchups] = useState<{ playerA: string; playerB: string }[] | undefined>(undefined);
 
   // Animation trigger
   const previousHoleCount = useRef(0);
@@ -66,6 +67,7 @@ export const useTournamentOverlay = (
   const tournamentPlayersRef = useRef<TournamentPlayer[]>([]);
   const teamAssignmentsRef = useRef<Record<string, string>>({});
   const courseHolesRef = useRef<CourseHole[]>([]);
+  const subMatchupsRef = useRef<{ playerA: string; playerB: string }[] | undefined>(undefined);
 
   // Reload function: fetches latest scores + results and re-runs engine
   const reload = useCallback(async () => {
@@ -100,6 +102,7 @@ export const useTournamentOverlay = (
       const engineInput: EngineInput = {
         game, holePointOverrides: overrides, players, teamAssignments: assignments,
         scores: scoresMap, courseHoles: holes, teamNames: teamNameMap,
+        subMatchups: subMatchupsRef.current,
       };
       const result = calcTournamentHoleResults(engineInput);
 
@@ -178,6 +181,13 @@ export const useTournamentOverlay = (
         .single();
 
       if (!group) { setIsLoading(false); return; }
+
+      // Extract subMatchups from team_matchup JSONB
+      const tm = group.team_matchup as any;
+      const extractedSubMatchups: { playerA: string; playerB: string }[] | undefined =
+        tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+      setSubMatchups(extractedSubMatchups);
+      subMatchupsRef.current = extractedSubMatchups;
 
       const { data: round } = await supabase
         .from('tournament_rounds')
@@ -283,7 +293,7 @@ export const useTournamentOverlay = (
       const engineInput: EngineInput = {
         game, holePointOverrides: overrides, players: groupTournamentPlayers,
         teamAssignments: assignments, scores: scoresMap, courseHoles: holes,
-        teamNames: teamNameMap,
+        teamNames: teamNameMap, subMatchups: extractedSubMatchups,
       };
           const result = calcTournamentHoleResults(engineInput);
 

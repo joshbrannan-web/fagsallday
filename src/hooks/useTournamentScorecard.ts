@@ -16,6 +16,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
   const [teamAssignments, setTeamAssignments] = useState<Record<string, string>>({});
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
+  const [subMatchups, setSubMatchups] = useState<{ playerA: string; playerB: string }[] | undefined>(undefined);
 
   const fetchData = useCallback(async () => {
     if (!groupId) { setIsLoading(false); return; }
@@ -35,10 +36,16 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
     const loadEngineData = async () => {
       const { data: group } = await supabase
         .from('tournament_groups')
-        .select('tournament_round_id')
+        .select('tournament_round_id, team_matchup')
         .eq('id', groupId)
         .single();
       if (!group) return;
+
+      // Extract subMatchups from team_matchup JSONB
+      const tm = group.team_matchup as any;
+      const extractedSubMatchups: { playerA: string; playerB: string }[] | undefined =
+        tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+      setSubMatchups(extractedSubMatchups);
 
       const { data: round } = await supabase
         .from('tournament_rounds')
@@ -193,6 +200,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         scores: scoresMap,
         courseHoles,
         teamNames,
+        subMatchups,
       };
 
       const result = calcTournamentHoleResults(engineInput);

@@ -47,6 +47,7 @@ export interface EngineInput {
   scores: Record<string, Record<number, number>>; // scores[playerId][hole] = gross
   courseHoles: CourseHole[];
   teamNames?: Record<string, string>; // teamId → display name
+  subMatchups?: { playerA: string; playerB: string }[]; // for 4-player 1v1 groups
 }
 
 // ── UTILITY FUNCTIONS ────────────────────────────────────────
@@ -163,6 +164,82 @@ function getTeamIds(teamAssignments: Record<string, string>): [string, string] {
   return [ids[0], ids[1] || ids[0]];
 }
 
+function deriveSubMatchups(
+  players: TournamentPlayer[],
+  teamAssignments: Record<string, string>,
+): { playerA: string; playerB: string }[] {
+  const byTeam: Record<string, string[]> = {};
+  players.forEach(p => {
+    const tid = teamAssignments[p.id];
+    if (!byTeam[tid]) byTeam[tid] = [];
+    byTeam[tid].push(p.id);
+  });
+  const teamIds = Object.keys(byTeam);
+  if (teamIds.length < 2) return [{ playerA: players[0].id, playerB: players[1].id }];
+  const teamA = byTeam[teamIds[0]];
+  const teamB = byTeam[teamIds[1]];
+  const matchups: { playerA: string; playerB: string }[] = [];
+  const count = Math.min(teamA.length, teamB.length);
+  for (let i = 0; i < count; i++) {
+    matchups.push({ playerA: teamA[i], playerB: teamB[i] });
+  }
+  return matchups;
+}
+
+function mergeSubMatchResults(
+  subResults: RoundResult[],
+  totalHoles: number,
+  teamAssignments: Record<string, string>,
+): RoundResult {
+  if (subResults.length === 1) return subResults[0];
+
+  const mergedHoleMap: Record<number, HoleResult> = {};
+  const teamTotals: Record<string, number> = {};
+  const playerTotals: Record<string, number> = {};
+
+  for (const result of subResults) {
+    for (const hr of result.holeResults) {
+      if (!mergedHoleMap[hr.holeNumber]) {
+        mergedHoleMap[hr.holeNumber] = { ...hr };
+      } else {
+        const existing = mergedHoleMap[hr.holeNumber];
+        // Sum team points
+        Object.entries(hr.teamPoints).forEach(([tid, pts]) => {
+          existing.teamPoints[tid] = (existing.teamPoints[tid] || 0) + pts;
+        });
+        // Union player points
+        Object.entries(hr.playerPoints).forEach(([pid, pts]) => {
+          existing.playerPoints[pid] = (existing.playerPoints[pid] || 0) + pts;
+        });
+        // Union scores
+        Object.entries(hr.grossScores).forEach(([pid, s]) => { existing.grossScores[pid] = s; });
+        Object.entries(hr.netScores).forEach(([pid, s]) => { existing.netScores[pid] = s; });
+        // Sum points value
+        existing.pointsValue += hr.pointsValue;
+        // Concat labels
+        existing.resultLabel = [existing.resultLabel, hr.resultLabel].filter(Boolean).join(' · ');
+      }
+    }
+    Object.entries(result.teamTotals).forEach(([tid, pts]) => {
+      teamTotals[tid] = (teamTotals[tid] || 0) + pts;
+    });
+    Object.entries(result.playerTotals).forEach(([pid, pts]) => {
+      playerTotals[pid] = (playerTotals[pid] || 0) + pts;
+    });
+  }
+
+  const holeResults = Object.values(mergedHoleMap).sort((a, b) => a.holeNumber - b.holeNumber);
+  const [teamAId, teamBId] = getTeamIds(teamAssignments);
+
+  return {
+    groupId: '',
+    holeResults,
+    teamTotals,
+    playerTotals,
+    matchState: calcMatchState(holeResults, teamAId, teamBId, totalHoles),
+  };
+}
+
 function splitByTeam(
   players: TournamentPlayer[],
   teamAssignments: Record<string, string>,
@@ -183,7 +260,28 @@ function maxScoreForHole(game: TournamentGame, par: number): number {
 // ── 1. INDIVIDUAL MATCH PLAY ─────────────────────────────────
 
 export function calcMatchPlayIndividual(input: EngineInput): RoundResult {
-  const { game, holePointOverrides, players, teamAssignments, scores, courseHoles } = input;
+  const { game, holePointOverrides, players, teamAssignments, scores, courseHoles, subMatchups } = input;
+
+  // If >2 players, run sub-matchups and merge
+  if (players.length > 2) {
+    const matchups = subMatchups && subMatchups.length > 0
+      ? subMatchups
+      : deriveSubMatchups(players, teamAssignments);
+
+    const subResults = matchups.map(m => {
+      const pA = players.find(p => p.id === m.playerA);
+      const pB = players.find(p => p.id === m.playerB);
+      if (!pA || !pB) return null;
+      return calcMatchPlayIndividual({
+        ...input,
+        players: [pA, pB],
+        subMatchups: undefined, // prevent recursion
+      });
+    }).filter((r): r is RoundResult => r !== null);
+
+    return mergeSubMatchResults(subResults, courseHoles.length, teamAssignments);
+  }
+
   const [p1, p2] = players;
   const p1Team = teamAssignments[p1.id];
   const p2Team = teamAssignments[p2.id];
