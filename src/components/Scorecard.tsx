@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag, Eye } from 'lucide-react';
-import { calculateAggregatedHolePnL, calculateBanker, calculateFBO } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBanker, calculateFBO, calculateGameStrokes, calculateBankerMatchupStrokes } from '../services/gameEngine';
 import { calculateTeamBanker } from '../services/teamBankerEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
 import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, getSixesMode, SixesMode } from '../services/sixesEngine';
@@ -948,11 +948,35 @@ const Scorecard: React.FC = () => {
                     {activeHoles.map(h => {
                       const score = getPlayerScore(player.id, h.number);
                       const diff = typeof score === 'number' ? score - h.par : 0;
-                      // Check for manual stroke OR auto-calculated Stockton 6's stroke
+                      // Check for manual stroke OR auto-calculated strokes for any game
                       let hasStroke = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id] === 1;
                       if (!hasStroke && stockton6Game) {
                         const autoStrokes = calculateRelativeStrokes(currentRound.players, h.handicapIndex);
                         hasStroke = autoStrokes[player.id] === 1;
+                      }
+                      if (!hasStroke) {
+                        // Check Banker games: use bidirectional matchup strokes
+                        const bankerForHole = getBankerForHole(h.number);
+                        const bankerGame = bankerGames[0];
+                        if (bankerGame && bankerForHole && bankerForHole !== player.id && bankerGame.config.useHandicaps) {
+                          const banker = currentRound.players.find(p => p.id === bankerForHole);
+                          if (banker) {
+                            const ms = calculateBankerMatchupStrokes(player.courseHandicap, banker.courseHandicap, h.handicapIndex);
+                            hasStroke = ms.playerStrokes > 0;
+                          }
+                        }
+                        // Check other games with handicaps (FBO, Skins, Nassau, Nine Points, etc.)
+                        if (!hasStroke) {
+                          const handicapGame = currentRound.games.find(g =>
+                            g.type !== GameType.STOCKTON_6 &&
+                            g.type !== GameType.BANKER &&
+                            g.type !== GameType.BLOODY_BANKER &&
+                            g.config.useHandicaps
+                          );
+                          if (handicapGame) {
+                            hasStroke = calculateGameStrokes(currentRound, handicapGame, h.number, player.id) > 0;
+                          }
+                        }
                       }
                       const isBanker = getBankerForHole(h.number) === player.id;
                       // Determine shape: circle for birdies/eagles, square for bogeys+
