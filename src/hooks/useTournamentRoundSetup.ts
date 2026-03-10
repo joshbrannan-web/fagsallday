@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { GameSettings, Course, Player } from '@/types';
+import { calculateCourseHandicap } from '@/services/gameEngine';
 import { useApp } from '@/contexts/AppContext';
 
 interface TournamentData {

@@ -18,6 +18,7 @@ import GameSelector from '@/components/GameSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { GAME_LIBRARY, GAME_DETAILS } from '@/lib/gameLibrary';
 import { Player, GameSettings, GameType } from '@/types';
+import { calculateCourseHandicap } from '@/services/gameEngine';
 
 // Steps: 1=Welcome, 2=Round, 3=Course, 4=Players/Group, 5=Teams, 6=SideGames, 7=Review
 const TOTAL_STEPS = 7;
