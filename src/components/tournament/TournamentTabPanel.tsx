@@ -131,6 +131,10 @@ const TournamentTabPanel: React.FC<Props> = ({
             holesPlayed={holesPlayed}
             matchState={matchState}
             totalPointsAvailable={totalPointsAvailable}
+            subMatchups={subMatchups}
+            tournamentPlayers={tournamentPlayers}
+            holeResults={holeResults}
+            teamAssignments={teamAssignments}
           />
 
           {/* Players */}
