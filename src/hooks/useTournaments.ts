@@ -18,7 +18,7 @@ interface TournamentRow {
   updated_at: string | null;
 }
 
-const mapRow = (r: TournamentRow): Tournament => ({
+const mapRow = (r: any): Tournament => ({
   id: r.id,
   name: r.name,
   description: r.description || undefined,
@@ -30,6 +30,7 @@ const mapRow = (r: TournamentRow): Tournament => ({
   createdBy: r.created_by,
   createdAt: r.created_at || '',
   updatedAt: r.updated_at || '',
+  teamScoringMethod: r.team_scoring_method || 'cumulative',
 });
 
 export interface CreateTournamentData {

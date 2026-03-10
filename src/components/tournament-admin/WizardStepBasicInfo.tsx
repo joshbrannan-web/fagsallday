@@ -63,6 +63,31 @@ const WizardStepBasicInfo: React.FC<Props> = ({ data, onChange }) => {
           </Button>
         </div>
       </div>
+      <div>
+        <div className="flex items-center gap-2">
+          <Label>Team Scoring</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Info className="w-4 h-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="text-sm space-y-2 max-w-xs">
+              <p><strong>Cumulative Points:</strong> Every hole's points add up across all rounds to form the grand total.</p>
+              <p><strong>Round Win (1pt):</strong> Each completed round awards 1 point to the winning team. Tied rounds award ½ point each.</p>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <Select value={data.teamScoringMethod} onValueChange={v => update('teamScoringMethod', v)}>
+          <SelectTrigger className="mt-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="cumulative">Cumulative Points</SelectItem>
+            <SelectItem value="round_win">Round Win (1pt)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 };
