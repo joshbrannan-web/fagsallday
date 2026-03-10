@@ -18,6 +18,7 @@ interface ScoreboardData {
   holeScores: any[];
   games: Record<string, any>;
   tournamentStatus: string;
+  teamScoringMethod?: 'cumulative' | 'round_win';
 }
 
 interface Props {
