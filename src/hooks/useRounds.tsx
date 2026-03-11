@@ -58,6 +58,7 @@ const insertRoundParticipants = async (roundId: string, players: Player[], owner
     
     if (error) {
       console.error('Error inserting round participants:', error);
+      toast.warning('Some players may not see this round in their account. You can reshare the round link.');
     }
   }
 };
