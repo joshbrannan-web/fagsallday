@@ -621,24 +621,72 @@ export function calcAlternateShot(input: EngineInput): RoundResult {
     [teamBId]: teamHandicaps[teamBId] - minHcp,
   };
 
-  // Pre-adjust scores by team-level strokes, then delegate to scramble with handicaps off
-  const adjustedScores: Record<string, Record<number, number>> = {};
-  players.forEach(p => {
-    const tid = teamAssignments[p.id];
-    adjustedScores[p.id] = {};
-    courseHoles.forEach(hole => {
-      const g = input.scores[p.id]?.[hole.number];
-      if (g !== undefined) {
-        adjustedScores[p.id][hole.number] = g - strokesReceived(teamDiffs[tid], hole.handicapIndex);
-      }
-    });
-  });
+  const teamTotals: Record<string, number> = { [teamAId]: 0, [teamBId]: 0 };
+  const playerTotals: Record<string, number> = {};
+  players.forEach(p => { playerTotals[p.id] = 0; });
+  const holeResults: HoleResult[] = [];
 
-  return calcScramble({
-    ...input,
-    game: { ...game, useHandicaps: false },
-    scores: adjustedScores,
-  });
+  for (const hole of courseHoles) {
+    const max = maxScoreForHole(game, hole.par);
+
+    const getTeamScore = (tid: string): number | null => {
+      const tp = teamPlayers[tid] || [];
+      if (tp.length === 0) return null;
+      // Alternate: hole 1 = player[0], hole 2 = player[1], hole 3 = player[0], ...
+      const playerIndex = (hole.number - 1) % tp.length;
+      const shooter = tp[playerIndex];
+      const g = input.scores[shooter.id]?.[hole.number];
+      if (g === undefined) return null;
+      const adj = Math.min(g, max);
+      return netScore(adj, strokesReceived(teamDiffs[tid], hole.handicapIndex));
+    };
+
+    const aScore = getTeamScore(teamAId);
+    const bScore = getTeamScore(teamBId);
+    if (aScore === null || bScore === null) continue;
+
+    const pv = holePointValue(hole.number, game, input.holePointOverrides);
+    let aPts = 0, bPts = 0, label = '';
+
+    const nameA = input.teamNames?.[teamAId] || 'Team A';
+    const nameB = input.teamNames?.[teamBId] || 'Team B';
+    if (aScore < bScore) { aPts = pv; label = `${nameA} wins`; }
+    else if (bScore < aScore) { bPts = pv; label = `${nameB} wins`; }
+    else { const hp = halvedPoints(pv, game.halvedHoleRule); aPts = hp; bPts = hp; label = hp > 0 ? 'Halved' : 'No points'; }
+
+    teamTotals[teamAId] += aPts;
+    teamTotals[teamBId] += bPts;
+    (teamPlayers[teamAId] || []).forEach(p => { playerTotals[p.id] += aPts; });
+    (teamPlayers[teamBId] || []).forEach(p => { playerTotals[p.id] += bPts; });
+
+    const grossScores: Record<string, number> = {};
+    players.forEach(p => {
+      const g = input.scores[p.id]?.[hole.number];
+      if (g !== undefined) grossScores[p.id] = Math.min(g, max);
+    });
+
+    const holePlayerPoints: Record<string, number> = {};
+    (teamPlayers[teamAId] || []).forEach(p => { holePlayerPoints[p.id] = aPts; });
+    (teamPlayers[teamBId] || []).forEach(p => { holePlayerPoints[p.id] = bPts; });
+
+    holeResults.push({
+      holeNumber: hole.number,
+      teamPoints: { [teamAId]: aPts, [teamBId]: bPts },
+      playerPoints: holePlayerPoints,
+      pointsValue: pv,
+      resultLabel: label,
+      grossScores,
+      netScores: grossScores,
+    });
+  }
+
+  return {
+    groupId: '',
+    holeResults,
+    teamTotals,
+    playerTotals,
+    matchState: calcMatchState(holeResults, teamAId, teamBId, courseHoles.length),
+  };
 }
 
 // ── 6. TOURNAMENT SIXES ─────────────────────────────────────
