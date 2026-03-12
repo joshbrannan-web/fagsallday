@@ -1,60 +1,40 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Fix: Slow Tournament Round Info Loading on Scorecard
 
-## What the Previous Plan Was Missing
+## Problem
+When viewing the Scorecard during a tournament, the "Tournament Round" section takes noticeably long to appear. The `useTournamentOverlay` hook makes **4 sequential network round-trips** before it can render:
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+1. Fetch `tournament_groups` → get `tournament_round_id`
+2. Fetch `tournament_rounds` → get `tournament_id`, `course_data`
+3. Fetch 5 tables in parallel (teams, game, group_players, players, scores)
+4. Fetch `tournament_hole_points` → **sequential, waits for step 3 to finish**
 
-## What the Admin Actually Needs
+Step 4 is the unnecessary bottleneck — it depends only on `tournament_round_id` (available after step 2), not on the game result from step 3.
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+## Fix
+**File:** `src/hooks/useTournamentOverlay.ts`
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+Move the `tournament_hole_points` fetch into the parallel batch in step 3. Since we don't know the `tournament_game_id` yet, we fetch hole points by joining through `tournament_games` for the round — or more simply, we fetch the game first and include hole points in the same parallel batch by restructuring slightly:
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+**Approach:** Add `tournament_hole_points` to the existing `Promise.all` on line 200. We can fetch all hole points for games in this round by first getting the game, then fetching points — but since the game query is already in the parallel batch, the simplest fix is:
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+1. Move `tournament_hole_points` into the `Promise.all` by querying via a broader filter (all games for the round), then filtering client-side
+2. Remove the sequential `await` on line 233-236
 
-## Files
+```text
+Before (4 round trips):
+  groups ──► rounds ──► [teams, game, players, groupPlayers, scores] ──► hole_points
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+After (3 round trips):
+  groups ──► rounds ──► [teams, game, players, groupPlayers, scores, hole_points]
+```
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+This eliminates one full network round-trip. The `tournament_hole_points` query joins through `tournament_games` to filter by `tournament_round_id`, which is available after step 2.
 
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+### Changes
+- Lines 200-206: Add a 6th query to the `Promise.all` fetching `tournament_hole_points` joined via `tournament_game_id` from games in this round
+- Lines 233-244: Remove the sequential fetch and use the pre-fetched data instead
 
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
-
-## Summary
-
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
-
-4 files (1 new), 0 database changes.
+One file, ~15 lines changed.
 
