@@ -351,10 +351,6 @@ export const useTournamentOverlay = (
         event: '*', schema: 'public', table: 'tournament_hole_scores',
         filter: `tournament_group_id=eq.${tournamentGroupId}`,
       }, () => reload())
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'tournament_hole_results',
-        filter: `tournament_group_id=eq.${tournamentGroupId}`,
-      }, () => reload())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [tournamentGroupId, reload]);
