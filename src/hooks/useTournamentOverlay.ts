@@ -231,16 +231,14 @@ export const useTournamentOverlay = (
         setTournamentGame(game);
         tournamentGameRef.current = game;
 
-        const { data: hpData } = await supabase
-          .from('tournament_hole_points')
-          .select('*')
-          .eq('tournament_game_id', g.id);
-        overrides = (hpData || []).map(hp => ({
-          id: hp.id,
-          tournamentGameId: hp.tournament_game_id,
-          holeNumber: hp.hole_number,
-          points: hp.points,
-        }));
+        overrides = (holePointsRes.data || [])
+          .filter(hp => hp.tournament_game_id === g.id)
+          .map(hp => ({
+            id: hp.id,
+            tournamentGameId: hp.tournament_game_id,
+            holeNumber: hp.hole_number,
+            points: hp.points,
+          }));
         setHolePointOverrides(overrides);
         holePointOverridesRef.current = overrides;
       }
