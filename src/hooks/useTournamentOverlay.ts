@@ -197,12 +197,13 @@ export const useTournamentOverlay = (
 
       if (!round) { setIsLoading(false); return; }
 
-      const [teamsRes, gameRes, groupPlayersRes, playersRes, scoresRes] = await Promise.all([
+      const [teamsRes, gameRes, groupPlayersRes, playersRes, scoresRes, holePointsRes] = await Promise.all([
         supabase.from('tournament_teams').select('id, name, color').eq('tournament_id', round.tournament_id),
         supabase.from('tournament_games').select('*').eq('tournament_round_id', group.tournament_round_id).single(),
         supabase.from('tournament_group_players').select('tournament_player_id, team_id').eq('tournament_group_id', tournamentGroupId),
         supabase.from('tournament_players').select('*').eq('tournament_id', round.tournament_id),
         supabase.from('tournament_hole_scores').select('*').eq('tournament_group_id', tournamentGroupId),
+        supabase.from('tournament_hole_points').select('*, tournament_games!inner(tournament_round_id)').eq('tournament_games.tournament_round_id', group.tournament_round_id),
       ]);
 
       const teamsMap: Record<string, { name: string; color: string }> = {};
