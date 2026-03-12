@@ -197,12 +197,13 @@ export const useTournamentOverlay = (
 
       if (!round) { setIsLoading(false); return; }
 
-      const [teamsRes, gameRes, groupPlayersRes, playersRes, scoresRes] = await Promise.all([
+      const [teamsRes, gameRes, groupPlayersRes, playersRes, scoresRes, holePointsRes] = await Promise.all([
         supabase.from('tournament_teams').select('id, name, color').eq('tournament_id', round.tournament_id),
         supabase.from('tournament_games').select('*').eq('tournament_round_id', group.tournament_round_id).single(),
         supabase.from('tournament_group_players').select('tournament_player_id, team_id').eq('tournament_group_id', tournamentGroupId),
         supabase.from('tournament_players').select('*').eq('tournament_id', round.tournament_id),
         supabase.from('tournament_hole_scores').select('*').eq('tournament_group_id', tournamentGroupId),
+        supabase.from('tournament_hole_points').select('*, tournament_games!inner(tournament_round_id)').eq('tournament_games.tournament_round_id', group.tournament_round_id),
       ]);
 
       const teamsMap: Record<string, { name: string; color: string }> = {};
@@ -230,16 +231,14 @@ export const useTournamentOverlay = (
         setTournamentGame(game);
         tournamentGameRef.current = game;
 
-        const { data: hpData } = await supabase
-          .from('tournament_hole_points')
-          .select('*')
-          .eq('tournament_game_id', g.id);
-        overrides = (hpData || []).map(hp => ({
-          id: hp.id,
-          tournamentGameId: hp.tournament_game_id,
-          holeNumber: hp.hole_number,
-          points: hp.points,
-        }));
+        overrides = (holePointsRes.data || [])
+          .filter(hp => hp.tournament_game_id === g.id)
+          .map(hp => ({
+            id: hp.id,
+            tournamentGameId: hp.tournament_game_id,
+            holeNumber: hp.hole_number,
+            points: hp.points,
+          }));
         setHolePointOverrides(overrides);
         holePointOverridesRef.current = overrides;
       }
