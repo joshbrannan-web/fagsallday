@@ -999,7 +999,7 @@ const ActiveRound: React.FC = () => {
               existingBirdieMultiplier={stretch1Settings?.birdieMultiplier ?? tbGame.config.birdieMultiplier ?? 3}
               existingEagleMultiplier={stretch1Settings?.eagleMultiplier ?? tbGame.config.eagleMultiplier ?? 5}
               previousStretchTeams={previousStretchTeams}
-              onConfirm={(teamA, teamB, unitValue, useHandicaps, handicapMode, useSecondBall, birdieMultiplier, eagleMultiplier) => {
+              onConfirm={(teamA, teamB, unitValue, useHandicaps, useSecondBall, handicapMode, birdieMultiplier, eagleMultiplier) => {
                 const stretchStartHole = getTBStretchStartHole(stretch, mode);
                 updateGameDataBatch(tbGame.id, stretchStartHole, {
                   _META_TEAM_A: teamA,
