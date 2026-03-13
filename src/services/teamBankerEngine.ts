@@ -97,13 +97,28 @@ export const getTeamBankerTeamAssignment = (
 
   if (!data?._META_TEAM_A || !data?._META_TEAM_B) return null;
 
+  // Normalize potentially swapped legacy metadata
+  let rawHandicapMode = data._META_HANDICAP_MODE;
+  let rawUseSecondBall = data._META_USE_SECOND_BALL;
+
+  // Detect swap: handicapMode should be string, useSecondBall should be boolean
+  if (typeof rawHandicapMode === 'boolean' && typeof rawUseSecondBall === 'string') {
+    const temp = rawHandicapMode;
+    rawHandicapMode = rawUseSecondBall;
+    rawUseSecondBall = temp;
+  }
+
+  const handicapMode: 'absolute' | 'relative' =
+    rawHandicapMode === 'absolute' ? 'absolute' : 'relative';
+  const useSecondBallTiebreaker = rawUseSecondBall === true || rawUseSecondBall === 'true';
+
   return {
     teamA: data._META_TEAM_A,
     teamB: data._META_TEAM_B,
     unitValue: data._META_UNIT_VALUE ?? 3,
     useHandicaps: data._META_USE_HANDICAPS ?? true,
-    handicapMode: data._META_HANDICAP_MODE ?? 'relative',
-    useSecondBallTiebreaker: data._META_USE_SECOND_BALL ?? false,
+    handicapMode,
+    useSecondBallTiebreaker,
     mode: data._META_MODE ?? mode,
     birdieMultiplier: data._META_BIRDIE_MULT ?? 3,
     eagleMultiplier: data._META_EAGLE_MULT ?? 5,

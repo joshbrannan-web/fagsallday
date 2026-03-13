@@ -967,14 +967,15 @@ const ActiveRound: React.FC = () => {
         
         // Get Stretch 1 settings to carry forward
         const stretch1Data = currentRound.gameData?.[tbGame.id]?.[1];
-        const stretch1Settings = stretch > 1 && stretch1Data ? {
-          unitValue: stretch1Data._META_UNIT_VALUE ?? tbGame.unitStake,
-          useHandicaps: stretch1Data._META_USE_HANDICAPS ?? tbGame.config.useHandicaps ?? true,
-          handicapMode: stretch1Data._META_HANDICAP_MODE ?? tbGame.config.handicapMode ?? 'relative',
-          useSecondBallTiebreaker: stretch1Data._META_USE_SECOND_BALL ?? false,
-          birdieMultiplier: stretch1Data._META_BIRDIE_MULT ?? tbGame.config.birdieMultiplier ?? 3,
-          eagleMultiplier: stretch1Data._META_EAGLE_MULT ?? tbGame.config.eagleMultiplier ?? 5,
-          mode: stretch1Data._META_MODE ?? mode,
+        const stretch1Assign = stretch > 1 ? getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, 1, mode) : null;
+        const stretch1Settings = stretch1Assign ? {
+          unitValue: stretch1Assign.unitValue,
+          useHandicaps: stretch1Assign.useHandicaps,
+          handicapMode: stretch1Assign.handicapMode,
+          useSecondBallTiebreaker: stretch1Assign.useSecondBallTiebreaker,
+          birdieMultiplier: stretch1Assign.birdieMultiplier,
+          eagleMultiplier: stretch1Assign.eagleMultiplier,
+          mode: stretch1Assign.mode,
         } : null;
         
         // Gather previous stretch teams for auto-rotation
