@@ -965,8 +965,7 @@ const ActiveRound: React.FC = () => {
         const mode = getTeamBankerMode(currentRound.gameData, tbGame.id);
         const stretch = getTeamBankerStretchForHole(activeHole, mode);
         
-        // Get Stretch 1 settings to carry forward
-        const stretch1Data = currentRound.gameData?.[tbGame.id]?.[1];
+        // Get Stretch 1 settings to carry forward (use normalized reader to fix legacy swapped metadata)
         const stretch1Assign = stretch > 1 ? getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, 1, mode) : null;
         const stretch1Settings = stretch1Assign ? {
           unitValue: stretch1Assign.unitValue,
