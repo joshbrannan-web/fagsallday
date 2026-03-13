@@ -1,5 +1,5 @@
 import { Round, GameSettings, GameResult, Player } from "../types";
-import { calculateSixesStrokes } from "./sixesEngine";
+import { calculateStrokesReceived } from "./gameEngine";
 
 // Types
 export type TeamBankerMode = 'eighteen' | 'sixes' | 'threes';
