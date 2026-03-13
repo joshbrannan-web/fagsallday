@@ -1,5 +1,5 @@
 import { Round, GameSettings, GameResult, Player } from "../types";
-import { calculateSixesStrokes } from "./sixesEngine";
+import { calculateStrokesReceived } from "./gameEngine";
 
 // Types
 export type TeamBankerMode = 'eighteen' | 'sixes' | 'threes';
@@ -160,10 +160,36 @@ export const calculateTeamBanker = (round: Round, game: GameSettings): GameResul
       // Compound all multipliers
       const compoundMultiplier = allPlayerIds.reduce((acc, pid) => acc * playerMultipliers[pid], 1);
 
-      // Calculate net scores
-      const strokes = useHandicaps
-        ? calculateSixesStrokes(allPlayers, hole.handicapIndex, handicapMode)
-        : allPlayerIds.reduce((acc, pid) => ({ ...acc, [pid]: 0 }), {} as { [pid: string]: number });
+      // Calculate strokes per player using the same algorithm as the Scorecard
+      const strokes: { [pid: string]: number } = {};
+      if (useHandicaps) {
+        const courseHandicaps = allPlayers.reduce((acc, p) => {
+          acc[p.id] = typeof p.courseHandicap === 'number' ? p.courseHandicap : 0;
+          return acc;
+        }, {} as { [pid: string]: number });
+
+        if (handicapMode === 'relative') {
+          // "Low man = 0": subtract lowest course handicap so the best player gets 0
+          const minHcp = Math.min(...allPlayerIds.map(pid => courseHandicaps[pid] ?? 0));
+          allPlayerIds.forEach(pid => {
+            const relativeHcp = (courseHandicaps[pid] ?? 0) - minHcp;
+            strokes[pid] = calculateStrokesReceived(relativeHcp, hole.handicapIndex);
+          });
+        } else {
+          // "Everyone gets a Stroke" (absolute): use full course handicap
+          allPlayerIds.forEach(pid => {
+            strokes[pid] = calculateStrokesReceived(courseHandicaps[pid] ?? 0, hole.handicapIndex);
+          });
+          // Cancel strokes if everyone gets one on this hole
+          const allGet = allPlayerIds.every(pid => strokes[pid] > 0);
+          if (allGet) {
+            const minStroke = Math.min(...allPlayerIds.map(pid => strokes[pid]));
+            allPlayerIds.forEach(pid => { strokes[pid] -= minStroke; });
+          }
+        }
+      } else {
+        allPlayerIds.forEach(pid => { strokes[pid] = 0; });
+      }
 
       const getNet = (pid: string) => holeScores[pid]! - (strokes[pid] || 0);
 
