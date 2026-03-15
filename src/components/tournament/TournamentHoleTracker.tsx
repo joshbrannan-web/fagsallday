@@ -226,10 +226,10 @@ const TournamentHoleTracker: React.FC<Props> = ({
       <div className="grid grid-cols-[44px_1fr_1fr_72px] px-3 py-1.5 bg-muted/30 border-b border-border">
         <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">Hole</span>
         <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamA?.color }}>
-          {teamA?.name.split(" ")[0]}
+          {teamA?.name}
         </span>
         <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamB?.color }}>
-          {teamB?.name.split(" ")[0]}
+          {teamB?.name}
         </span>
         <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider text-right">Result</span>
       </div>

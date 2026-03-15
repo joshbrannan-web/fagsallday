@@ -1,27 +1,60 @@
 
 
-# Fix: Show Full Team Name in Hole-by-Hole Headers
+# Revised Plan: Admin Live View with Full Control
 
-## Problem
-When team names start with "Team" (e.g. "Team Brannan", "Team Berry"), the `split(" ")[0]` logic extracts only the word "Team" -- making both column headers show the identical, meaningless label "TEAM".
+## What the Previous Plan Was Missing
 
-This affects three locations:
-1. **`TournamentHoleTracker.tsx`** — "My Game" tab, default 2v2 team view (lines 228-232)
-2. **`TournamentHoleTracker.tsx`** — 1v1 sub-matchup view already uses player first names (OK as-is)
-3. **`GroupMatchesScoreboard.tsx`** — Leaderboards tab, expanded hole-by-hole in combined team view (lines 397-401)
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-The 1v1 sub-matchup views in both files use player names, which are fine. Only the team-header columns are affected.
+## What the Admin Actually Needs
 
-## Fix
-In both files, replace `name.split(" ")[0]` with the full team name for the column headers. The columns are flexible (`1fr`) so full names fit fine.
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-**`src/components/tournament/TournamentHoleTracker.tsx`** (lines 229, 231):
-- Change `{teamA?.name.split(" ")[0]}` to `{teamA?.name}`
-- Change `{teamB?.name.split(" ")[0]}` to `{teamB?.name}`
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-**`src/components/scoreboards/GroupMatchesScoreboard.tsx`** (lines 398, 401):
-- Change `{teamA.name.split(' ')[0]}` to `{teamA.name}`
-- Change `{teamB.name.split(' ')[0]}` to `{teamB.name}`
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-Four single-line changes total across two files.
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+
+## Files
+
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
+
+## Summary
+
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+
+4 files (1 new), 0 database changes.
 
