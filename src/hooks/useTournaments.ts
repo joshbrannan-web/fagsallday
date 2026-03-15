@@ -183,6 +183,17 @@ export const useTournaments = () => {
         }
       }
 
+      // Auto-create default "Live Group Matches" scoreboard
+      await supabase.from('tournament_scoreboards').insert({
+        tournament_id: tournamentId,
+        name: 'Live Group Matches',
+        scoreboard_type: 'group_matches',
+        display_order: 0,
+        sort_metric: 'total_points',
+        sort_direction: 'desc',
+        show_round_breakdown: false,
+      });
+
       await fetchTournaments();
       return tData.join_code;
     } catch (err: any) {
