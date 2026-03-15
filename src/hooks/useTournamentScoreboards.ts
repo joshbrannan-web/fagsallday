@@ -261,22 +261,24 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     fetchAll();
   }, [fetchAll]);
 
+  // Keep group IDs ref in sync
+  useEffect(() => {
+    allGroupIdsRef.current = Object.values(groups).flat().map((g: any) => g.id);
+  }, [groups]);
+
   // Realtime subscriptions
   useEffect(() => {
     if (!tournamentId) return;
-
-    const allGroupIds = Object.values(groups).flat().map((g: any) => g.id);
-    if (allGroupIds.length === 0) return;
 
     const channel = supabase
       .channel(`scoreboards-${tournamentId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_hole_scores' }, (payload) => {
         const row = payload.new as any;
         if (payload.eventType === 'DELETE') {
-          fetchScoresAndResults(allGroupIds);
+          fetchScoresAndResults(allGroupIdsRef.current);
           return;
         }
-        if (row && allGroupIds.includes(row.tournament_group_id)) {
+        if (row && allGroupIdsRef.current.includes(row.tournament_group_id)) {
           setHoleScores(prev => {
             const idx = prev.findIndex((s: any) => s.id === row.id);
             if (idx >= 0) { const next = [...prev]; next[idx] = row; return next; }
@@ -288,10 +290,10 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_hole_results' }, (payload) => {
         const row = payload.new as any;
         if (payload.eventType === 'DELETE') {
-          fetchScoresAndResults(allGroupIds);
+          fetchScoresAndResults(allGroupIdsRef.current);
           return;
         }
-        if (row && allGroupIds.includes(row.tournament_group_id)) {
+        if (row && allGroupIdsRef.current.includes(row.tournament_group_id)) {
           setHoleResults(prev => {
             const idx = prev.findIndex((r: any) => r.id === row.id);
             if (idx >= 0) { const next = [...prev]; next[idx] = row; return next; }
@@ -310,7 +312,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [tournamentId, groups, fetchAll, fetchScoresAndResults]);
+  }, [tournamentId, fetchAll, fetchScoresAndResults]);
 
   return {
     scoreboards, rounds, teams, players, games, holePoints,
