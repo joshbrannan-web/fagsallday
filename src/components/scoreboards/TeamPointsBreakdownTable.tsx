@@ -17,7 +17,7 @@ interface Props {
 }
 
 const TeamPointsBreakdownTable: React.FC<Props> = ({
-  teams, rounds, groups, groupPlayers, players, holeResults, joinCode, teamScoringMethod,
+  teams, rounds, groups, groupPlayers, players, holeResults, joinCode, teamScoringMethod, customRoundPoints,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
