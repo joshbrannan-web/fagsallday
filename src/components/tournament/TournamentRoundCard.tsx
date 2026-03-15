@@ -20,6 +20,7 @@ interface Props {
   isSelected: boolean;
   onSelect: () => void;
   disabled?: boolean;
+  secondBallTiebreaker?: boolean;
 }
 
 const statusBadge = (status: string) => {
