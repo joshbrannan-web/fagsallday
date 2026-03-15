@@ -79,6 +79,7 @@ const CreateTournamentWizard: React.FC = () => {
       endDate: basicInfo.endDate,
       numRounds: basicInfo.numRounds,
       teamScoringMethod: basicInfo.teamScoringMethod,
+      customRoundPoints: basicInfo.customRoundPoints,
       teams: teams.map((t, i) => ({ name: t.name, color: t.color, displayOrder: i })),
       players: players.map(p => ({
         displayName: p.displayName,

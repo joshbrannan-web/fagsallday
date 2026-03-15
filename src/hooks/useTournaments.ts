@@ -99,6 +99,7 @@ export const useTournaments = () => {
           num_rounds: input.numRounds,
           status: 'setup',
           team_scoring_method: input.teamScoringMethod || 'cumulative',
+          custom_round_points: input.customRoundPoints ?? 3,
         } as any)
         .select()
         .single();

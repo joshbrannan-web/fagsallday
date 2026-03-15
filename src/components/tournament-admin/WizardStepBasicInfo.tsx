@@ -87,8 +87,24 @@ const WizardStepBasicInfo: React.FC<Props> = ({ data, onChange }) => {
           <SelectContent>
             <SelectItem value="cumulative">Cumulative Points</SelectItem>
             <SelectItem value="round_win">Round Win (1pt)</SelectItem>
+            <SelectItem value="custom_pts_per_round">Custom Pts per Round</SelectItem>
           </SelectContent>
         </Select>
+        {data.teamScoringMethod === 'custom_pts_per_round' && (
+          <div className="mt-2">
+            <Label htmlFor="customPts">Points per Round Win</Label>
+            <Input
+              id="customPts"
+              type="number"
+              min={1}
+              max={100}
+              value={data.customRoundPoints}
+              onChange={e => update('customRoundPoints', Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+              className="w-24 mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Tied rounds award half this value.</p>
+          </div>
+        )}
       </div>
     </div>
   );
