@@ -76,6 +76,7 @@ const WizardStepBasicInfo: React.FC<Props> = ({ data, onChange }) => {
             <PopoverContent className="text-sm space-y-2 max-w-xs">
               <p><strong>Cumulative Points:</strong> Every hole's points add up across all rounds to form the grand total.</p>
               <p><strong>Round Win (1pt):</strong> Each completed round awards 1 point to the winning team. Tied rounds award ½ point each.</p>
+              <p><strong>Custom Pts per Round:</strong> Same as Round Win but you set how many points a round win is worth.</p>
             </PopoverContent>
           </Popover>
         </div>
