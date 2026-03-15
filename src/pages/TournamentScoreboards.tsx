@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trophy, Loader2 } from 'lucide-react';
+import { ArrowLeft, Trophy, Loader2, Calendar, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useTournamentScoreboards } from '@/hooks/useTournamentScoreboards';
 import ScoreboardSelector from '@/components/scoreboards/ScoreboardSelector';
 import ScoreboardRenderer from '@/components/scoreboards/ScoreboardRenderer';
 import TournamentLiveToast from '@/components/scoreboards/TournamentLiveToast';
+import { GAME_TYPE_LABELS } from '@/components/tournament/TournamentRoundCard';
 
 const TournamentScoreboards: React.FC = () => {
   const { joinCode } = useParams<{ joinCode: string }>();
@@ -61,13 +63,14 @@ const TournamentScoreboards: React.FC = () => {
 
   const {
     scoreboards, teams, rounds, players, groups, groupPlayers,
-    holeResults, holeScores, games, isLoading, isLive, newHoleResult,
+    holeResults, holeScores, games, isLoading, isLive, newHoleResult, customRoundPoints,
   } = useTournamentScoreboards(tournamentId);
 
-  // Default selected scoreboard
+  // Default selected scoreboard — prefer group_matches
   useEffect(() => {
     if (scoreboards.length > 0 && !selectedId) {
-      setSelectedId(scoreboards[0].id);
+      const groupMatchesSb = scoreboards.find((s: any) => s.scoreboard_type === 'group_matches');
+      setSelectedId(groupMatchesSb?.id || scoreboards[0].id);
     }
   }, [scoreboards, selectedId]);
 
@@ -106,6 +109,7 @@ const TournamentScoreboards: React.FC = () => {
     holeResults, holeScores, games,
     tournamentStatus: tournament.status,
     teamScoringMethod: (tournament as any).team_scoring_method || 'cumulative',
+    customRoundPoints: customRoundPoints,
   };
 
   return (
@@ -196,6 +200,88 @@ const TournamentScoreboards: React.FC = () => {
             <p>No scoreboards configured yet.</p>
           </div>
         ) : null}
+
+        {/* Rounds & Matchups Section */}
+        {rounds.length > 0 && (
+          <div className="space-y-3 mt-6">
+            <h2 className="text-lg font-bold">Rounds & Matchups</h2>
+            {rounds.map((round: any) => {
+              const game = games[round.id];
+              const roundGroups = groups[round.id] || [];
+              const course = round.course_data as any;
+              const courseName = course?.name || 'TBD';
+              const gameType = game?.game_type;
+
+              return (
+                <Card key={round.id}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">
+                        Round {round.round_number}{round.name ? ` — ${round.name}` : ''}
+                      </h3>
+                      <Badge variant={round.status === 'active' ? 'default' : round.status === 'completed' ? 'secondary' : 'outline'}>
+                        {round.status === 'active' ? 'In Progress' : round.status === 'completed' ? 'Complete' : 'Not Started'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      {round.round_date && (
+                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(round.round_date).toLocaleDateString()}</span>
+                      )}
+                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{courseName}</span>
+                    </div>
+                    {gameType && (
+                      <p className="text-sm font-medium text-[hsl(var(--brand-gold))]">
+                        {GAME_TYPE_LABELS[gameType] || gameType}
+                        {gameType === 'match_play_best_ball' && game && (
+                          <span className="text-xs font-normal text-muted-foreground ml-2">
+                            • 2nd Ball: {game.second_ball_tiebreaker ? 'On' : 'Off'}
+                          </span>
+                        )}
+                      </p>
+                    )}
+
+                    {/* Groups/Pairings */}
+                    {roundGroups.length > 0 && (
+                      <div className="space-y-1 pt-1">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pairings</p>
+                        {roundGroups.map((group: any) => {
+                          const gps = groupPlayers[group.id] || [];
+                          const matchup = group.team_matchup as any;
+                          const teamAPlayers = gps
+                            .filter((gp: any) => matchup ? gp.team_id === matchup.teamAId : false)
+                            .map((gp: any) => players.find((p: any) => p.id === gp.tournament_player_id))
+                            .filter(Boolean);
+                          const teamBPlayers = gps
+                            .filter((gp: any) => matchup ? gp.team_id === matchup.teamBId : false)
+                            .map((gp: any) => players.find((p: any) => p.id === gp.tournament_player_id))
+                            .filter(Boolean);
+
+                          const teamA = matchup ? teams.find((t: any) => t.id === matchup.teamAId) : null;
+                          const teamB = matchup ? teams.find((t: any) => t.id === matchup.teamBId) : null;
+
+                          return (
+                            <div key={group.id} className="flex items-center gap-2 text-sm py-1 px-2 bg-muted/30 rounded">
+                              <span className="text-xs text-muted-foreground font-mono">G{group.group_number}</span>
+                              <div className="flex items-center gap-1">
+                                {teamA && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamA.color }} />}
+                                <span>{teamAPlayers.map((p: any) => p.display_name.split(' ')[0]).join(', ') || '—'}</span>
+                              </div>
+                              <span className="text-muted-foreground text-xs">vs</span>
+                              <div className="flex items-center gap-1">
+                                {teamB && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamB.color }} />}
+                                <span>{teamBPlayers.map((p: any) => p.display_name.split(' ')[0]).join(', ') || '—'}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

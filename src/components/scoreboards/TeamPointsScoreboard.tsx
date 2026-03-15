@@ -12,7 +12,8 @@ interface Props {
   tournamentStatus: string;
   games: Record<string, any>;
   joinCode: string;
-  teamScoringMethod?: 'cumulative' | 'round_win';
+  teamScoringMethod?: 'cumulative' | 'round_win' | 'custom_pts_per_round';
+  customRoundPoints?: number;
 }
 
 const TeamPointsScoreboard: React.FC<Props> = (props) => {
@@ -26,6 +27,7 @@ const TeamPointsScoreboard: React.FC<Props> = (props) => {
         tournamentStatus={props.tournamentStatus}
         games={props.games}
         teamScoringMethod={props.teamScoringMethod}
+        customRoundPoints={props.customRoundPoints}
       />
       <TeamPointsBreakdownTable
         teams={props.teams}
@@ -36,6 +38,7 @@ const TeamPointsScoreboard: React.FC<Props> = (props) => {
         holeResults={props.holeResults}
         joinCode={props.joinCode}
         teamScoringMethod={props.teamScoringMethod}
+        customRoundPoints={props.customRoundPoints}
       />
     </div>
   );

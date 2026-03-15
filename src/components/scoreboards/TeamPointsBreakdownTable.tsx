@@ -12,11 +12,12 @@ interface Props {
   players: any[];
   holeResults: any[];
   joinCode: string;
-  teamScoringMethod?: 'cumulative' | 'round_win';
+  teamScoringMethod?: 'cumulative' | 'round_win' | 'custom_pts_per_round';
+  customRoundPoints?: number;
 }
 
 const TeamPointsBreakdownTable: React.FC<Props> = ({
-  teams, rounds, groups, groupPlayers, players, holeResults, joinCode, teamScoringMethod,
+  teams, rounds, groups, groupPlayers, players, holeResults, joinCode, teamScoringMethod, customRoundPoints,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
@@ -82,13 +83,13 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
             roundB += pts[teamB.id] || 0;
           });
 
-          // In round_win mode, show 1/0.5/0 for completed rounds
-          const isRoundWin = teamScoringMethod === 'round_win';
+          const isRoundWin = teamScoringMethod === 'round_win' || teamScoringMethod === 'custom_pts_per_round';
+          const rwValue = teamScoringMethod === 'custom_pts_per_round' ? (customRoundPoints || 3) : 1;
           const isCompleted = round.status === 'completed';
           let displayA = roundA, displayB = roundB;
           if (isRoundWin && isCompleted) {
-            displayA = roundA > roundB ? 1 : roundA === roundB ? 0.5 : 0;
-            displayB = roundB > roundA ? 1 : roundA === roundB ? 0.5 : 0;
+            displayA = roundA > roundB ? rwValue : roundA === roundB ? rwValue / 2 : 0;
+            displayB = roundB > roundA ? rwValue : roundA === roundB ? rwValue / 2 : 0;
           }
 
           return (

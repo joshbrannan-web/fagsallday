@@ -1,58 +1,60 @@
 
 
-# Plan: Five Tournament Enhancements
+# Revised Plan: Admin Live View with Full Control
 
-## 1. Custom Pts per Round — Team Scoring Option
+## What the Previous Plan Was Missing
 
-Add a third team scoring method `custom_pts_per_round` where the admin sets how many points a round win is worth.
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-**Changes:**
-- **DB migration**: ALTER `tournaments.team_scoring_method` to allow `'custom_pts_per_round'`. Add column `custom_round_points numeric default 3` to `tournaments`.
-- **`src/types/tournament.ts`**: Extend `teamScoringMethod` union to include `'custom_pts_per_round'`. Add `customRoundPoints?: number` to `Tournament`.
-- **`src/components/tournament-admin/WizardStepBasicInfo.tsx`**: Add third `SelectItem` for `custom_pts_per_round`. Show numeric input for points value when selected (default 3). Update `BasicInfoData` interface.
-- **`src/components/tournament-admin/CreateTournamentWizard.tsx`**: Add `customRoundPoints` to state, pass to `createTournament`.
-- **`src/hooks/useTournaments.ts`**: Map `customRoundPoints` in create and read.
-- **`src/components/scoreboards/RyderCupGraphic.tsx`** + **`TeamPointsBreakdownTable.tsx`**: Handle `custom_pts_per_round` similar to `round_win` but use the custom point value instead of 1.
-- **`src/hooks/useTournamentScoreboards.ts`**: Fetch and expose `custom_round_points`.
+## What the Admin Actually Needs
 
-## 2. Show 2nd Ball Tiebreaker On/Off with Best Ball 2v2
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-Anywhere Best Ball 2v2 game type is displayed, append "(2nd Ball: On/Off)".
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-**Changes:**
-- **`src/components/tournament/TournamentRoundCard.tsx`**: Accept `secondBallTiebreaker` prop. When `gameType === 'match_play_best_ball'`, append `• 2nd Ball: On/Off` to the label.
-- **`src/components/tournament-admin/WizardStepReview.tsx`**: Show 2nd ball tiebreaker status for `match_play_best_ball` rounds.
-- **`src/components/tournament/TournamentBuildRoundWizard.tsx`**: Where game type is shown during build, include 2nd ball status.
-- **`src/pages/TournamentScoreboards.tsx`** (new rounds section — see item 3): Include 2nd ball status.
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-## 3. Tournament Detail Page — Show Rounds, Games, Groups & Pairings
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-When a player clicks "View Tournament", show rounds/games info and group pairings below the scoreboards.
+## Files
 
-**Changes:**
-- **`src/pages/TournamentScoreboards.tsx`**: After the scoreboard section, add a "Rounds & Matchups" section:
-  - For each round, show round name, date, course, game type (with 2nd ball indicator for best ball).
-  - Fetch `tournament_groups` and `tournament_group_players` for each round.
-  - Display groups with player names and team color dots, showing who is paired against whom (using `team_matchup` data).
-- Use existing `GAME_TYPE_LABELS` from `TournamentRoundCard.tsx`.
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
 
-## 4. Live Group Matches as Default Leaderboard
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
 
-Make "Live Group Matches" the default selected scoreboard in the in-round Leaderboard tab.
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
 
-**Changes:**
-- **`src/components/tournament/TournamentTabPanel.tsx`** (lines 77-81): When setting the default `selectedScoreboardId`, prefer the scoreboard with `scoreboard_type === 'group_matches'` if one exists. Fall back to first scoreboard.
-- **`src/hooks/useTournaments.ts`** (`createTournament`): Auto-create a `group_matches` scoreboard with `display_order: 0` (lowest) when creating a tournament, so it always exists and appears first.
-- **`src/components/tournament-admin/ScoreboardManager.tsx`**: When generating suggestions, keep `group_matches` suggestion but it will already be auto-created.
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
 
-## 5. Tournament Icon on "Resume Round" Button
+## Summary
 
-If the active round is a tournament round, show a Trophy icon next to "Resume Round" on the home page.
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
 
-**Changes:**
-- **`src/components/Landing.tsx`** (lines 203-213): Check `currentRound?.gameData?.['_TOURNAMENT_META']`. If present, add a `<Trophy>` icon next to the Play icon in the Resume Round button. Change text to "Resume Tournament Round" or add a small trophy badge.
-
----
-
-**Files touched**: ~10 files, 1 DB migration.
+4 files (1 new), 0 database changes.
 

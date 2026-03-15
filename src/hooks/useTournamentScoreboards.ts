@@ -16,7 +16,8 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   const [isLive, setIsLive] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [newHoleResult, setNewHoleResult] = useState<any | null>(null);
-  const [teamScoringMethod, setTeamScoringMethod] = useState<'cumulative' | 'round_win'>('cumulative');
+  const [teamScoringMethod, setTeamScoringMethod] = useState<'cumulative' | 'round_win' | 'custom_pts_per_round'>('cumulative');
+  const [customRoundPoints, setCustomRoundPoints] = useState<number>(3);
   const isInitialLoad = useRef(true);
 
   // Fetch all core data
@@ -39,6 +40,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     setPlayers(playersRes.data || []);
     setIsLive(roundsData.some((r: any) => r.status === 'active'));
     setTeamScoringMethod(((tRes.data as any)?.team_scoring_method as any) || 'cumulative');
+    setCustomRoundPoints(((tRes.data as any)?.custom_round_points as number) ?? 3);
 
     // Fetch games keyed by round_id
     const roundIds = roundsData.map((r: any) => r.id);
@@ -154,6 +156,6 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   return {
     scoreboards, rounds, teams, players, games, holePoints,
     groups, groupPlayers, holeScores, holeResults,
-    isLoading, isLive, lastUpdated, newHoleResult, teamScoringMethod,
+    isLoading, isLive, lastUpdated, newHoleResult, teamScoringMethod, customRoundPoints,
   };
 };

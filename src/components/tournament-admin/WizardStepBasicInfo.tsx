@@ -12,7 +12,8 @@ interface BasicInfoData {
   startDate: string;
   endDate: string;
   numRounds: number;
-  teamScoringMethod: 'cumulative' | 'round_win';
+  teamScoringMethod: 'cumulative' | 'round_win' | 'custom_pts_per_round';
+  customRoundPoints: number;
 }
 
 interface Props {
@@ -75,6 +76,7 @@ const WizardStepBasicInfo: React.FC<Props> = ({ data, onChange }) => {
             <PopoverContent className="text-sm space-y-2 max-w-xs">
               <p><strong>Cumulative Points:</strong> Every hole's points add up across all rounds to form the grand total.</p>
               <p><strong>Round Win (1pt):</strong> Each completed round awards 1 point to the winning team. Tied rounds award ½ point each.</p>
+              <p><strong>Custom Pts per Round:</strong> Same as Round Win but you set how many points a round win is worth.</p>
             </PopoverContent>
           </Popover>
         </div>
@@ -85,8 +87,24 @@ const WizardStepBasicInfo: React.FC<Props> = ({ data, onChange }) => {
           <SelectContent>
             <SelectItem value="cumulative">Cumulative Points</SelectItem>
             <SelectItem value="round_win">Round Win (1pt)</SelectItem>
+            <SelectItem value="custom_pts_per_round">Custom Pts per Round</SelectItem>
           </SelectContent>
         </Select>
+        {data.teamScoringMethod === 'custom_pts_per_round' && (
+          <div className="mt-2">
+            <Label htmlFor="customPts">Points per Round Win</Label>
+            <Input
+              id="customPts"
+              type="number"
+              min={1}
+              max={100}
+              value={data.customRoundPoints}
+              onChange={e => update('customRoundPoints', Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+              className="w-24 mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Tied rounds award half this value.</p>
+          </div>
+        )}
       </div>
     </div>
   );

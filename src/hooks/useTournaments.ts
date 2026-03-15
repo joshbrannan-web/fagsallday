@@ -31,6 +31,7 @@ const mapRow = (r: any): Tournament => ({
   createdAt: r.created_at || '',
   updatedAt: r.updated_at || '',
   teamScoringMethod: r.team_scoring_method || 'cumulative',
+  customRoundPoints: r.custom_round_points ?? 3,
 });
 
 export interface CreateTournamentData {
@@ -39,7 +40,8 @@ export interface CreateTournamentData {
   startDate?: string;
   endDate?: string;
   numRounds: number;
-  teamScoringMethod?: 'cumulative' | 'round_win';
+  teamScoringMethod?: 'cumulative' | 'round_win' | 'custom_pts_per_round';
+  customRoundPoints?: number;
   teams: { name: string; color: string; displayOrder: number }[];
   players: { displayName: string; handicapIndex: number; teamIndex: number; userId?: string }[];
   rounds: {
@@ -97,6 +99,7 @@ export const useTournaments = () => {
           num_rounds: input.numRounds,
           status: 'setup',
           team_scoring_method: input.teamScoringMethod || 'cumulative',
+          custom_round_points: input.customRoundPoints ?? 3,
         } as any)
         .select()
         .single();
@@ -179,6 +182,17 @@ export const useTournaments = () => {
           if (hpErr) throw hpErr;
         }
       }
+
+      // Auto-create default "Live Group Matches" scoreboard
+      await supabase.from('tournament_scoreboards').insert({
+        tournament_id: tournamentId,
+        name: 'Live Group Matches',
+        scoreboard_type: 'group_matches',
+        display_order: 0,
+        sort_metric: 'total_points',
+        sort_direction: 'desc',
+        show_round_breakdown: false,
+      });
 
       await fetchTournaments();
       return tData.join_code;

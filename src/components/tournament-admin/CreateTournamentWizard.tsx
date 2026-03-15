@@ -21,7 +21,8 @@ const CreateTournamentWizard: React.FC = () => {
 
   const [basicInfo, setBasicInfo] = useState({
     name: '', description: '', startDate: '', endDate: '', numRounds: 2,
-    teamScoringMethod: 'cumulative' as 'cumulative' | 'round_win',
+    teamScoringMethod: 'cumulative' as 'cumulative' | 'round_win' | 'custom_pts_per_round',
+    customRoundPoints: 3,
   });
   const [teams, setTeams] = useState<TeamData[]>([
     { name: 'Team A', color: '#1d4ed8' },
@@ -78,6 +79,7 @@ const CreateTournamentWizard: React.FC = () => {
       endDate: basicInfo.endDate,
       numRounds: basicInfo.numRounds,
       teamScoringMethod: basicInfo.teamScoringMethod,
+      customRoundPoints: basicInfo.customRoundPoints,
       teams: teams.map((t, i) => ({ name: t.name, color: t.color, displayOrder: i })),
       players: players.map(p => ({
         displayName: p.displayName,

@@ -20,6 +20,7 @@ interface Props {
   isSelected: boolean;
   onSelect: () => void;
   disabled?: boolean;
+  secondBallTiebreaker?: boolean;
 }
 
 const statusBadge = (status: string) => {
@@ -40,7 +41,7 @@ const GAME_TYPE_LABELS: Record<string, string> = {
   tournament_sixes: 'Tournament Sixes',
 };
 
-const TournamentRoundCard: React.FC<Props> = ({ round, gameType, rulesText, isSelected, onSelect, disabled }) => {
+const TournamentRoundCard: React.FC<Props> = ({ round, gameType, rulesText, isSelected, onSelect, disabled, secondBallTiebreaker }) => {
   const course = round.course_data as any;
   const courseName = course?.name || 'TBD';
 
@@ -65,6 +66,11 @@ const TournamentRoundCard: React.FC<Props> = ({ round, gameType, rulesText, isSe
         {gameType && (
           <p className="text-sm font-medium text-[hsl(var(--brand-gold))]">
             {GAME_TYPE_LABELS[gameType] || gameType}
+            {gameType === 'match_play_best_ball' && (
+              <span className="text-xs font-normal text-muted-foreground ml-2">
+                • 2nd Ball: {secondBallTiebreaker ? 'On' : 'Off'}
+              </span>
+            )}
           </p>
         )}
         {rulesText && (

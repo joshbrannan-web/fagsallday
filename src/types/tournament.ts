@@ -55,7 +55,8 @@ export interface Tournament {
   endDate?: string;
   createdAt: string;
   updatedAt: string;
-  teamScoringMethod?: 'cumulative' | 'round_win';
+  teamScoringMethod?: 'cumulative' | 'round_win' | 'custom_pts_per_round';
+  customRoundPoints?: number;
 }
 
 export interface TournamentTeam {

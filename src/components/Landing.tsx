@@ -208,8 +208,12 @@ const Landing: React.FC = () => {
                   }}
                   className="w-full bg-success text-success-foreground font-bold py-4 px-6 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg animate-pulse-subtle"
                 >
-                  <Play className="w-5 h-5 fill-current" />
-                  Resume Round
+                  {(currentRound?.gameData as any)?.['_TOURNAMENT_META'] ? (
+                    <Trophy className="w-5 h-5" />
+                  ) : (
+                    <Play className="w-5 h-5 fill-current" />
+                  )}
+                  {(currentRound?.gameData as any)?.['_TOURNAMENT_META'] ? 'Resume Tournament Round' : 'Resume Round'}
                 </button>
               )}
 
