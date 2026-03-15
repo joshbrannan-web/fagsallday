@@ -10,7 +10,8 @@ interface Props {
   holeResults: any[];
   tournamentStatus: string;
   games: Record<string, any>;
-  teamScoringMethod?: 'cumulative' | 'round_win';
+  teamScoringMethod?: 'cumulative' | 'round_win' | 'custom_pts_per_round';
+  customRoundPoints?: number;
 }
 
 const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, tournamentStatus, games, teamScoringMethod }) => {
