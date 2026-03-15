@@ -94,9 +94,157 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
       supabase.from('tournament_hole_scores').select('*').in('tournament_group_id', groupIds),
       supabase.from('tournament_hole_results').select('*').in('tournament_group_id', groupIds),
     ]);
-    setHoleScores(scoresRes.data || []);
-    setHoleResults(resultsRes.data || []);
+    const fetchedScores = scoresRes.data || [];
+    const fetchedResults = resultsRes.data || [];
+    setHoleScores(fetchedScores);
+    setHoleResults(fetchedResults);
     setLastUpdated(new Date());
+    return { scores: fetchedScores, results: fetchedResults };
+  }, []);
+
+  // Backfill missing hole results for groups that have scores but no results
+  const backfillMissingResults = useCallback(async (
+    fetchedScores: any[],
+    fetchedResults: any[],
+    allGroups: Record<string, any[]>,
+    allGames: Record<string, any>,
+    allPlayers: any[],
+    allGroupPlayers: Record<string, any[]>,
+    allRounds: any[],
+    allHolePoints: any[],
+    allTeams: any[],
+  ) => {
+    const allGroupsList = Object.values(allGroups).flat();
+    const groupsToBackfill = allGroupsList.filter((g: any) => {
+      const hasScores = fetchedScores.some((s: any) => s.tournament_group_id === g.id && s.gross_score !== null);
+      const holesScored = new Set(fetchedScores.filter((s: any) => s.tournament_group_id === g.id && s.gross_score !== null).map((s: any) => s.hole_number));
+      const holesWithResults = new Set(fetchedResults.filter((r: any) => r.tournament_group_id === g.id).map((r: any) => r.hole_number));
+      return hasScores && holesScored.size > holesWithResults.size;
+    });
+
+    if (groupsToBackfill.length === 0) return;
+
+    for (const group of groupsToBackfill) {
+      const gameData = allGames[group.tournament_round_id];
+      if (!gameData) continue;
+
+      const round = allRounds.find((r: any) => r.id === group.tournament_round_id);
+      if (!round) continue;
+
+      const gps = allGroupPlayers[group.id] || [];
+      if (gps.length === 0) continue;
+
+      // Build TournamentGame
+      const tournamentGame: TournamentGame = {
+        id: gameData.id,
+        tournamentRoundId: gameData.tournament_round_id,
+        gameType: gameData.game_type as any,
+        defaultPointsPerHole: gameData.default_points_per_hole,
+        halvedHoleRule: gameData.halved_hole_rule as any,
+        secondBallTiebreaker: gameData.second_ball_tiebreaker ?? false,
+        useHandicaps: gameData.use_handicaps ?? true,
+        handicapAllowancePercent: gameData.handicap_allowance_percent ?? 100,
+        maxScorePerHole: gameData.max_score_per_hole ?? undefined,
+        sixesConfig: gameData.sixes_config as any,
+        rulesText: gameData.rules_text ?? undefined,
+        sixesFormat: gameData.sixes_format ?? 'match_play',
+        sixesSegmentPoints: gameData.sixes_segment_points ?? [1, 1, 1],
+      };
+
+      // Build team assignments
+      const teamAssignments: Record<string, string> = {};
+      gps.forEach((gp: any) => { teamAssignments[gp.tournament_player_id] = gp.team_id; });
+
+      // Build players list (only group players)
+      const groupPlayerIds = new Set(gps.map((gp: any) => gp.tournament_player_id));
+      const players: TournamentPlayer[] = allPlayers
+        .filter((p: any) => groupPlayerIds.has(p.id))
+        .map((p: any) => ({
+          id: p.id,
+          tournamentId: p.tournament_id,
+          userId: p.user_id ?? undefined,
+          displayName: p.display_name,
+          handicapIndex: p.handicap_index,
+          handicapOverride: p.handicap_override ?? undefined,
+          teamId: p.team_id ?? undefined,
+        }));
+
+      // Build scores map
+      const scoresMap: Record<string, Record<number, number>> = {};
+      fetchedScores
+        .filter((s: any) => s.tournament_group_id === group.id && s.gross_score !== null)
+        .forEach((s: any) => {
+          if (!scoresMap[s.tournament_player_id]) scoresMap[s.tournament_player_id] = {};
+          scoresMap[s.tournament_player_id][s.hole_number] = s.gross_score;
+        });
+
+      // Build course holes
+      const cd = round.course_data as any;
+      const courseHoles: CourseHole[] = (cd?.holes || []).map((h: any, i: number) => ({
+        number: i + 1,
+        par: h.par || 4,
+        handicapIndex: h.handicapIndex || (i + 1),
+      }));
+
+      // Build hole point overrides
+      const hpOverrides: TournamentHolePoints[] = allHolePoints
+        .filter((hp: any) => hp.tournament_game_id === gameData.id)
+        .map((hp: any) => ({
+          id: hp.id,
+          tournamentGameId: hp.tournament_game_id,
+          holeNumber: hp.hole_number,
+          points: hp.points,
+        }));
+
+      // Build team names
+      const teamNames: Record<string, string> = {};
+      allTeams.forEach((t: any) => { teamNames[t.id] = t.name; });
+
+      // Extract subMatchups
+      const tm = group.team_matchup as any;
+      const subMatchups = tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+
+      try {
+        const engineInput: EngineInput = {
+          game: tournamentGame,
+          holePointOverrides: hpOverrides,
+          players,
+          teamAssignments,
+          scores: scoresMap,
+          courseHoles,
+          teamNames,
+          subMatchups,
+        };
+        const result = calcTournamentHoleResults(engineInput);
+
+        const upsertPayload = result.holeResults.map(hr => ({
+          tournament_group_id: group.id,
+          hole_number: hr.holeNumber,
+          team_points: hr.teamPoints,
+          player_points: hr.playerPoints,
+          points_value: hr.pointsValue,
+          result_label: hr.resultLabel,
+          updated_at: new Date().toISOString(),
+        }));
+
+        if (upsertPayload.length > 0) {
+          const { data: upserted } = await supabase
+            .from('tournament_hole_results')
+            .upsert(upsertPayload, { onConflict: 'tournament_group_id,hole_number' })
+            .select();
+
+          if (upserted) {
+            setHoleResults(prev => {
+              const existing = prev.filter((r: any) => r.tournament_group_id !== group.id);
+              return [...existing, ...upserted];
+            });
+            setLastUpdated(new Date());
+          }
+        }
+      } catch (e) {
+        console.error('Backfill engine error for group', group.id, e);
+      }
+    }
   }, []);
 
   // Initial load
