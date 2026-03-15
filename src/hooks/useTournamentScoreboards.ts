@@ -77,10 +77,18 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
           gpMap[gp.tournament_group_id].push(gp);
         });
         setGroupPlayers(gpMap);
-        setHolePoints(hpRes.data || []);
+        const hpData = hpRes.data || [];
+        setHolePoints(hpData);
 
-        // Fetch scores and results
-        await fetchScoresAndResults(groupIds);
+        // Fetch scores and results, then backfill missing results
+        const fetched = await fetchScoresAndResults(groupIds);
+        if (fetched) {
+          await backfillMissingResults(
+            fetched.scores, fetched.results,
+            groupsByRound, gamesMap, playersRes.data || [],
+            gpMap, roundsData, hpData, teamsRes.data || [],
+          );
+        }
       }
     }
 
