@@ -2,6 +2,16 @@ import { Round } from '@/types';
 
 const OFFLINE_ROUND_KEY = 'fg_offline_round';
 const SYNC_QUEUE_KEY = 'fg_sync_queue';
+const TOURNAMENT_SYNC_QUEUE_KEY = 'fg_tournament_sync_queue';
+
+export interface TournamentSyncQueueItem {
+  id: string;
+  tournamentGroupId: string;
+  tournamentPlayerId: string;
+  holeNumber: number;
+  grossScore: number;
+  timestamp: number;
+}
 
 export interface SyncQueueItem {
   id: string;
@@ -109,5 +119,63 @@ export const offlineStorage = {
   // Get count of pending items
   getPendingSyncCount: (): number => {
     return offlineStorage.getSyncQueue().length;
-  }
+  },
+
+  // ── Tournament Score Sync Queue ──
+
+  addTournamentScore: (tournamentGroupId: string, tournamentPlayerId: string, holeNumber: number, grossScore: number) => {
+    try {
+      const queue = offlineStorage.getTournamentSyncQueue();
+      // Deduplicate: replace existing entry for same group+player+hole
+      const filtered = queue.filter(
+        item => !(item.tournamentGroupId === tournamentGroupId && item.tournamentPlayerId === tournamentPlayerId && item.holeNumber === holeNumber)
+      );
+      const newItem = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        tournamentGroupId,
+        tournamentPlayerId,
+        holeNumber,
+        grossScore,
+        timestamp: Date.now(),
+      };
+      filtered.push(newItem);
+      localStorage.setItem(TOURNAMENT_SYNC_QUEUE_KEY, JSON.stringify(filtered));
+      return newItem;
+    } catch (error) {
+      console.error('Failed to add tournament score to sync queue:', error);
+      return null;
+    }
+  },
+
+  getTournamentSyncQueue: (): TournamentSyncQueueItem[] => {
+    try {
+      const queue = localStorage.getItem(TOURNAMENT_SYNC_QUEUE_KEY);
+      return queue ? JSON.parse(queue) : [];
+    } catch (error) {
+      console.error('Failed to get tournament sync queue:', error);
+      return [];
+    }
+  },
+
+  removeTournamentSyncItems: (ids: string[]) => {
+    try {
+      const queue = offlineStorage.getTournamentSyncQueue();
+      const filtered = queue.filter(item => !ids.includes(item.id));
+      localStorage.setItem(TOURNAMENT_SYNC_QUEUE_KEY, JSON.stringify(filtered));
+    } catch (error) {
+      console.error('Failed to remove from tournament sync queue:', error);
+    }
+  },
+
+  clearTournamentSyncQueue: () => {
+    try {
+      localStorage.removeItem(TOURNAMENT_SYNC_QUEUE_KEY);
+    } catch (error) {
+      console.error('Failed to clear tournament sync queue:', error);
+    }
+  },
+
+  getPendingTournamentSyncCount: (): number => {
+    return offlineStorage.getTournamentSyncQueue().length;
+  },
 };

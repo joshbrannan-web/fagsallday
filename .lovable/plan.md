@@ -1,64 +1,60 @@
 
 
-# Offline-Resilient Tournament Score Sync
+# Revised Plan: Admin Live View with Full Control
 
-## Problem
-Tournament scores are synced via direct `supabase.upsert()` in `useTournamentOverlay.syncScore`. When a group is offline, these calls fail silently. The existing offline sync queue (`fg_sync_queue`) only handles `rounds` table updates — it has no awareness of `tournament_hole_scores`.
+## What the Previous Plan Was Missing
 
-When the group comes back online, the bulk-sync effect in `ActiveRound.tsx` (lines 337-351) re-pushes all scores from the local round state, which partially covers reconnection. But if the app restarts while offline, the local round state is only in `fg_offline_round` (the `rounds` table cache), and the tournament player mapping / group ID would need to be re-derived from the URL.
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-## Current Coverage
-- **Local round scores**: Cached in `fg_offline_round`, sync queue targets `rounds` table — works.
-- **Tournament scores on reconnect (same session)**: The bulk-sync `useEffect` in `ActiveRound` re-pushes all scores when `tournamentOverlay.isLoading` resolves — partially works.
-- **Tournament scores on reconnect (app restart)**: Round recovery restores the cached round, navigates to `/active` with tournament params in URL. The bulk-sync effect fires again once overlay loads — partially works but fragile.
+## What the Admin Actually Needs
 
-## What's Missing
-1. `syncScore` fails silently offline — no retry, no queue.
-2. No dedicated tournament score queue in localStorage.
-3. No visibility into pending tournament syncs in the UI.
-4. The backfill in `useTournamentScoreboards` covers the leaderboard side, but individual group results still need scores in the DB.
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-## Fix: Tournament-Aware Offline Queue
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-### 1. `src/services/offlineStorage.ts` — Add tournament sync queue
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-Add a separate `fg_tournament_sync_queue` with methods:
-- `addTournamentScore(groupId, playerId, holeNumber, grossScore)`
-- `getTournamentSyncQueue()`
-- `removeTournamentSyncItems(ids)`
-- `clearTournamentSyncQueue()`
-- `getPendingTournamentSyncCount()`
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-Each item stores: `{ id, tournamentGroupId, tournamentPlayerId, holeNumber, grossScore, timestamp }`.
+## Files
 
-### 2. `src/hooks/useTournamentOverlay.ts` — Queue on failure
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
 
-Update `syncScore` to:
-1. Attempt the upsert.
-2. On failure (network error), queue the score via `offlineStorage.addTournamentScore()`.
-3. Log a warning instead of silently failing.
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
 
-### 3. `src/hooks/useTournamentOverlay.ts` — Drain queue on reconnect
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
 
-Add a new effect that watches `isOnline` (from `useOnlineStatus`). When transitioning to online:
-1. Read `getTournamentSyncQueue()`.
-2. For each item, upsert to `tournament_hole_scores`.
-3. Remove successful items from the queue.
-4. Call `reload()` to re-run the engine with fresh data.
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
 
-### 4. `src/components/ConnectionStatusBar.tsx` — Show tournament pending count
-
-Include `getPendingTournamentSyncCount()` in the pending count display so users see tournament scores waiting to sync.
-
-### 5. `src/components/ActiveRound.tsx` — No changes needed
-
-The existing bulk-sync effect already re-pushes all scores from local round state when the overlay finishes loading. Combined with the new queue drain, this provides double coverage.
-
-## Summary of Changes
+## Summary
 
 | File | Change |
-|------|--------|
-| `offlineStorage.ts` | Add tournament sync queue (~30 lines) |
-| `useTournamentOverlay.ts` | Try/catch in `syncScore`, queue on fail; add reconnect drain effect (~25 lines) |
-| `ConnectionStatusBar.tsx` | Include tournament pending count (~2 lines) |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+
+4 files (1 new), 0 database changes.
 
