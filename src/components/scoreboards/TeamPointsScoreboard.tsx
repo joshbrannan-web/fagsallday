@@ -38,6 +38,7 @@ const TeamPointsScoreboard: React.FC<Props> = (props) => {
         holeResults={props.holeResults}
         joinCode={props.joinCode}
         teamScoringMethod={props.teamScoringMethod}
+        customRoundPoints={props.customRoundPoints}
       />
     </div>
   );

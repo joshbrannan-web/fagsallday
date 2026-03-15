@@ -135,8 +135,8 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
               let displayA = rA;
               let displayB = rB;
               if (isRoundWin && isCompleted) {
-                displayA = rA > rB ? 1 : rA === rB ? 0.5 : 0;
-                displayB = rB > rA ? 1 : rA === rB ? 0.5 : 0;
+                displayA = rA > rB ? roundWinValue : rA === rB ? roundWinValue / 2 : 0;
+                displayB = rB > rA ? roundWinValue : rA === rB ? roundWinValue / 2 : 0;
               }
 
               return (
