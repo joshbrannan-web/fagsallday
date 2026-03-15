@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { calcTournamentHoleResults, type EngineInput, type CourseHole } from '@/services/tournamentEngine';
+import type { TournamentPlayer, TournamentGame, TournamentHolePoints } from '@/types/tournament';
 
 export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   const [scoreboards, setScoreboards] = useState<any[]>([]);
