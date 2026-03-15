@@ -12,7 +12,8 @@ interface BasicInfoData {
   startDate: string;
   endDate: string;
   numRounds: number;
-  teamScoringMethod: 'cumulative' | 'round_win';
+  teamScoringMethod: 'cumulative' | 'round_win' | 'custom_pts_per_round';
+  customRoundPoints: number;
 }
 
 interface Props {
