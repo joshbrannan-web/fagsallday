@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trophy, Loader2 } from 'lucide-react';
+import { ArrowLeft, Trophy, Loader2, Calendar, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useTournamentScoreboards } from '@/hooks/useTournamentScoreboards';
 import ScoreboardSelector from '@/components/scoreboards/ScoreboardSelector';
 import ScoreboardRenderer from '@/components/scoreboards/ScoreboardRenderer';
 import TournamentLiveToast from '@/components/scoreboards/TournamentLiveToast';
+import { GAME_TYPE_LABELS } from '@/components/tournament/TournamentRoundCard';
 
 const TournamentScoreboards: React.FC = () => {
   const { joinCode } = useParams<{ joinCode: string }>();
