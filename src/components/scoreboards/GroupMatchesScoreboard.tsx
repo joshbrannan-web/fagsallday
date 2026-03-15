@@ -398,7 +398,7 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                               {teamA.name}
                             </span>
                             <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamB.color }}>
-                              {teamB.name.split(' ')[0]}
+                              {teamB.name}
                             </span>
                             <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider text-right">
                               Result
