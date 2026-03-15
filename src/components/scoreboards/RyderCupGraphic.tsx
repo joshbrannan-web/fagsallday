@@ -31,14 +31,13 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
   teamIds.forEach(id => { totals[id] = 0; });
 
   if (isRoundWin) {
-    // Round Win mode: 1pt per round win, 0.5 each if tied
     completedRounds.forEach((r: any) => {
       const rTotals = perRound[r.id] || {};
       const rA = rTotals[teamA.id] || 0;
       const rB = rTotals[teamB.id] || 0;
-      if (rA > rB) { totals[teamA.id] += 1; }
-      else if (rB > rA) { totals[teamB.id] += 1; }
-      else { totals[teamA.id] += 0.5; totals[teamB.id] += 0.5; }
+      if (rA > rB) { totals[teamA.id] += roundWinValue; }
+      else if (rB > rA) { totals[teamB.id] += roundWinValue; }
+      else { totals[teamA.id] += roundWinValue / 2; totals[teamB.id] += roundWinValue / 2; }
     });
   } else {
     completedRounds.forEach((r: any) => {
