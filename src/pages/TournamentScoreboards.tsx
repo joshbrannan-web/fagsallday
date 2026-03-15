@@ -66,10 +66,11 @@ const TournamentScoreboards: React.FC = () => {
     holeResults, holeScores, games, isLoading, isLive, newHoleResult, customRoundPoints,
   } = useTournamentScoreboards(tournamentId);
 
-  // Default selected scoreboard
+  // Default selected scoreboard — prefer group_matches
   useEffect(() => {
     if (scoreboards.length > 0 && !selectedId) {
-      setSelectedId(scoreboards[0].id);
+      const groupMatchesSb = scoreboards.find((s: any) => s.scoreboard_type === 'group_matches');
+      setSelectedId(groupMatchesSb?.id || scoreboards[0].id);
     }
   }, [scoreboards, selectedId]);
 
