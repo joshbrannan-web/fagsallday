@@ -116,8 +116,10 @@ const RoundSummary: React.FC = () => {
   const location = useLocation();
   const tournamentState = (location.state as any) || {};
   const { currentRound, roundTotals, finishRound, updateGameDataBatch, updateRoundCourse, lockRound, unlockRound, deleteRound, clearLoadedRound } = useApp();
-  const tournamentGroupId = tournamentState?.tournamentGroupId
+  const metaTournamentGroupId = tournamentState?.tournamentGroupId
     || (currentRound?.gameData as any)?.['_TOURNAMENT_META']?.tournamentGroupId;
+  const [resolvedTournamentGroupId, setResolvedTournamentGroupId] = useState<string | null>(metaTournamentGroupId || null);
+  const tournamentGroupId = resolvedTournamentGroupId;
   const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, number>>({});
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');

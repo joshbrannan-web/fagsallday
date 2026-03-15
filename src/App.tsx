@@ -427,7 +427,10 @@ const AppContent: FC = () => {
 
   const changeGames = async (newGames: GameSettings[], initialGameData?: Record<string, any>) => {
     if (!currentRound) return;
-    const updates = { games: newGames, scores: {} as Record<number, Record<string, number>>, gameData: initialGameData || {} };
+    // Preserve _TOURNAMENT_META when changing games so tournament context isn't lost
+    const existingMeta = (currentRound.gameData as any)?.['_TOURNAMENT_META'];
+    const mergedGameData = { ...(initialGameData || {}), ...(existingMeta ? { _TOURNAMENT_META: existingMeta } : {}) };
+    const updates = { games: newGames, scores: {} as Record<number, Record<string, number>>, gameData: mergedGameData };
     if (isAuthenticated) {
       await updateRound(currentRound.id, updates);
     } else {
