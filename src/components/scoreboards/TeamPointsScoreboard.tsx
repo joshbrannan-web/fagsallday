@@ -27,6 +27,7 @@ const TeamPointsScoreboard: React.FC<Props> = (props) => {
         tournamentStatus={props.tournamentStatus}
         games={props.games}
         teamScoringMethod={props.teamScoringMethod}
+        customRoundPoints={props.customRoundPoints}
       />
       <TeamPointsBreakdownTable
         teams={props.teams}
