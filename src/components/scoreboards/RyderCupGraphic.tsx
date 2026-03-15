@@ -14,13 +14,14 @@ interface Props {
   customRoundPoints?: number;
 }
 
-const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, tournamentStatus, games, teamScoringMethod }) => {
+const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, tournamentStatus, games, teamScoringMethod, customRoundPoints }) => {
   if (teams.length < 2) return null;
 
   const teamA = teams[0];
   const teamB = teams[1];
   const teamIds = [teamA.id, teamB.id];
-  const isRoundWin = teamScoringMethod === 'round_win';
+  const isRoundWin = teamScoringMethod === 'round_win' || teamScoringMethod === 'custom_pts_per_round';
+  const roundWinValue = teamScoringMethod === 'custom_pts_per_round' ? (customRoundPoints || 3) : 1;
 
   const perRound = calcTeamTotalsPerRound(rounds, groups, holeResults, teamIds);
 
