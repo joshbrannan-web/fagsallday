@@ -58,6 +58,7 @@ export const useTournamentOverlay = (
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
   const [allHoleScores, setAllHoleScores] = useState<Record<string, Record<number, number>>>({});
   const [subMatchups, setSubMatchups] = useState<{ playerA: string; playerB: string }[] | undefined>(undefined);
+  const isOnline = useOnlineStatus();
 
   // Animation trigger
   const previousHoleCount = useRef(0);
