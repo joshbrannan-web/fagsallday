@@ -2,6 +2,16 @@ import { Round } from '@/types';
 
 const OFFLINE_ROUND_KEY = 'fg_offline_round';
 const SYNC_QUEUE_KEY = 'fg_sync_queue';
+const TOURNAMENT_SYNC_QUEUE_KEY = 'fg_tournament_sync_queue';
+
+export interface TournamentSyncQueueItem {
+  id: string;
+  tournamentGroupId: string;
+  tournamentPlayerId: string;
+  holeNumber: number;
+  grossScore: number;
+  timestamp: number;
+}
 
 export interface SyncQueueItem {
   id: string;
