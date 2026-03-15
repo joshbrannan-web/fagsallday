@@ -220,6 +220,21 @@ const Landing: React.FC = () => {
               {(() => {
                 const sharedActiveRound = roundHistory.find(r => r.isShared && r.status === 'ACTIVE');
                 if (!sharedActiveRound) return null;
+                const sharedMeta = (sharedActiveRound?.gameData as any)?.['_TOURNAMENT_META'];
+                if (sharedMeta) {
+                  return (
+                    <button
+                      onClick={() => {
+                        loadPastRound(sharedActiveRound);
+                        navigate('/active', { state: { tournamentGroupId: sharedMeta.tournamentGroupId, tournamentName: sharedMeta.tournamentName, tournamentRoundName: sharedMeta.roundName, playerMapping: sharedMeta.playerMapping, teamMatchup: sharedMeta.teamMatchup, preferredTab: 'betting' } });
+                      }}
+                      className="w-full bg-success text-success-foreground font-bold py-4 px-6 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg animate-pulse-subtle"
+                    >
+                      <Trophy className="w-5 h-5" />
+                      Resume Tournament Round
+                    </button>
+                  );
+                }
                 return (
                   <button
                     onClick={() => {
