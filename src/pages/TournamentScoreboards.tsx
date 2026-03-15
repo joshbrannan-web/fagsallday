@@ -106,6 +106,7 @@ const TournamentScoreboards: React.FC = () => {
     holeResults, holeScores, games,
     tournamentStatus: tournament.status,
     teamScoringMethod: (tournament as any).team_scoring_method || 'cumulative',
+    customRoundPoints: customRoundPoints,
   };
 
   return (
