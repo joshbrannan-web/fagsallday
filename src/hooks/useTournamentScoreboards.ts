@@ -21,6 +21,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   const [teamScoringMethod, setTeamScoringMethod] = useState<'cumulative' | 'round_win' | 'custom_pts_per_round'>('cumulative');
   const [customRoundPoints, setCustomRoundPoints] = useState<number>(3);
   const isInitialLoad = useRef(true);
+  const allGroupIdsRef = useRef<string[]>([]);
 
   // Fetch all core data
   const fetchAll = useCallback(async () => {
