@@ -116,8 +116,10 @@ const RoundSummary: React.FC = () => {
   const location = useLocation();
   const tournamentState = (location.state as any) || {};
   const { currentRound, roundTotals, finishRound, updateGameDataBatch, updateRoundCourse, lockRound, unlockRound, deleteRound, clearLoadedRound } = useApp();
-  const tournamentGroupId = tournamentState?.tournamentGroupId
+  const metaTournamentGroupId = tournamentState?.tournamentGroupId
     || (currentRound?.gameData as any)?.['_TOURNAMENT_META']?.tournamentGroupId;
+  const [resolvedTournamentGroupId, setResolvedTournamentGroupId] = useState<string | null>(metaTournamentGroupId || null);
+  const tournamentGroupId = resolvedTournamentGroupId;
   const [adjustedAmounts, setAdjustedAmounts] = useState<Record<string, number>>({});
   const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -129,6 +131,24 @@ const RoundSummary: React.FC = () => {
   const [editingCourse, setEditingCourse] = useState(false);
   const [editCourseName, setEditCourseName] = useState('');
   const [editCourseLocation, setEditCourseLocation] = useState('');
+
+  // Fallback: if no tournament meta, check DB for linked tournament_groups
+  useEffect(() => {
+    if (metaTournamentGroupId || !currentRound) return;
+    let cancelled = false;
+    const lookup = async () => {
+      const { data } = await supabase
+        .from('tournament_groups')
+        .select('id')
+        .eq('round_id', currentRound.id)
+        .maybeSingle();
+      if (!cancelled && data) {
+        setResolvedTournamentGroupId(data.id);
+      }
+    };
+    lookup();
+    return () => { cancelled = true; };
+  }, [currentRound?.id, metaTournamentGroupId]);
 
   // Initialize adjusted amounts from calculated totals
   useEffect(() => {
@@ -180,7 +200,19 @@ const RoundSummary: React.FC = () => {
   })();
 
   const handleDeleteRound = async () => {
+    // If we know it's a tournament round, show tournament delete confirmation
     if (tournamentGroupId) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+    // Fallback: check DB in case tournament_groups references this round (metadata missing)
+    const { data: linkedGroup } = await supabase
+      .from('tournament_groups')
+      .select('id')
+      .eq('round_id', currentRound.id)
+      .maybeSingle();
+    if (linkedGroup) {
+      setResolvedTournamentGroupId(linkedGroup.id);
       setShowDeleteConfirm(true);
       return;
     }
