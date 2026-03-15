@@ -64,6 +64,9 @@ const WizardStepReview: React.FC<Props> = ({ basicInfo, teams, players, rounds }
             <p className="text-sm font-medium">{r.name}</p>
             <p className="text-xs text-muted-foreground">
               {GAME_LABELS[r.gameType] || r.gameType}
+              {r.gameType === 'match_play_best_ball' && (
+                <span className="ml-1">• 2nd Ball: {r.secondBallTiebreaker ? 'On' : 'Off'}</span>
+              )}
               {r.roundDate && ` • ${r.roundDate}`}
             </p>
             {r.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{r.notes}</p>}

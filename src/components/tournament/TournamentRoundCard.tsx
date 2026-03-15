@@ -66,6 +66,11 @@ const TournamentRoundCard: React.FC<Props> = ({ round, gameType, rulesText, isSe
         {gameType && (
           <p className="text-sm font-medium text-[hsl(var(--brand-gold))]">
             {GAME_TYPE_LABELS[gameType] || gameType}
+            {gameType === 'match_play_best_ball' && (
+              <span className="text-xs font-normal text-muted-foreground ml-2">
+                • 2nd Ball: {secondBallTiebreaker ? 'On' : 'Off'}
+              </span>
+            )}
           </p>
         )}
         {rulesText && (

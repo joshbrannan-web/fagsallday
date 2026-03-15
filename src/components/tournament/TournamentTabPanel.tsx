@@ -76,7 +76,9 @@ const TournamentTabPanel: React.FC<Props> = ({
 
   useEffect(() => {
     if (sbData.scoreboards.length > 0 && !selectedScoreboardId) {
-      setSelectedScoreboardId(sbData.scoreboards[0].id);
+      // Prefer group_matches scoreboard as default
+      const groupMatchesSb = sbData.scoreboards.find((sb: any) => sb.scoreboard_type === 'group_matches');
+      setSelectedScoreboardId(groupMatchesSb?.id || sbData.scoreboards[0].id);
     }
   }, [sbData.scoreboards, selectedScoreboardId]);
 
