@@ -348,6 +348,11 @@ const TournamentBuildRoundWizard: React.FC = () => {
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Tournament Game</p>
             <p className="font-semibold text-[hsl(var(--brand-gold))]">
               {GAME_TYPE_LABELS[setup.tournamentGame.game_type] || setup.tournamentGame.game_type}
+              {['match_play_best_ball', 'match_play_gross_best_ball'].includes(setup.tournamentGame.game_type) && (
+                <span className="text-sm font-normal text-muted-foreground ml-1">
+                  (2nd Ball: {setup.tournamentGame.second_ball_tiebreaker ? 'On' : 'Off'})
+                </span>
+              )}
             </p>
           </div>
           {setup.tournamentGame.rules_text && (
