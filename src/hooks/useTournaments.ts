@@ -31,6 +31,7 @@ const mapRow = (r: any): Tournament => ({
   createdAt: r.created_at || '',
   updatedAt: r.updated_at || '',
   teamScoringMethod: r.team_scoring_method || 'cumulative',
+  customRoundPoints: r.custom_round_points ?? 3,
 });
 
 export interface CreateTournamentData {
