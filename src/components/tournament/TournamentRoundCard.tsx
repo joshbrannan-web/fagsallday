@@ -41,7 +41,7 @@ const GAME_TYPE_LABELS: Record<string, string> = {
   tournament_sixes: 'Tournament Sixes',
 };
 
-const TournamentRoundCard: React.FC<Props> = ({ round, gameType, rulesText, isSelected, onSelect, disabled }) => {
+const TournamentRoundCard: React.FC<Props> = ({ round, gameType, rulesText, isSelected, onSelect, disabled, secondBallTiebreaker }) => {
   const course = round.course_data as any;
   const courseName = course?.name || 'TBD';
 
