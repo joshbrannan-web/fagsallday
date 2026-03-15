@@ -807,6 +807,7 @@ export type Database = {
         Row: {
           created_at: string | null
           created_by: string
+          custom_round_points: number | null
           description: string | null
           end_date: string | null
           id: string
@@ -821,6 +822,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           created_by: string
+          custom_round_points?: number | null
           description?: string | null
           end_date?: string | null
           id?: string
@@ -835,6 +837,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           created_by?: string
+          custom_round_points?: number | null
           description?: string | null
           end_date?: string | null
           id?: string
