@@ -61,7 +61,7 @@ const TournamentScoreboards: React.FC = () => {
 
   const {
     scoreboards, teams, rounds, players, groups, groupPlayers,
-    holeResults, holeScores, games, isLoading, isLive, newHoleResult,
+    holeResults, holeScores, games, isLoading, isLive, newHoleResult, customRoundPoints,
   } = useTournamentScoreboards(tournamentId);
 
   // Default selected scoreboard
