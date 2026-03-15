@@ -358,7 +358,7 @@ export const useTournamentOverlay = (
     return () => { supabase.removeChannel(channel); };
   }, [tournamentGroupId, reload]);
 
-  // Sync score to tournament_hole_scores and run engine
+  // Sync score to tournament_hole_scores and run engine (with offline queue fallback)
   const syncScore = useCallback(async (
     holeNumber: number,
     roundPlayerId: string,
@@ -368,18 +368,64 @@ export const useTournamentOverlay = (
     const tournamentPlayerId = playerMapping[roundPlayerId];
     if (!tournamentPlayerId) return;
 
-    await supabase.from('tournament_hole_scores').upsert({
-      tournament_group_id: tournamentGroupId,
-      tournament_player_id: tournamentPlayerId,
-      hole_number: holeNumber,
-      gross_score: grossScore,
-      is_super_user_override: false,
-    }, {
-      onConflict: 'tournament_group_id,tournament_player_id,hole_number',
-    });
+    try {
+      const { error } = await supabase.from('tournament_hole_scores').upsert({
+        tournament_group_id: tournamentGroupId,
+        tournament_player_id: tournamentPlayerId,
+        hole_number: holeNumber,
+        gross_score: grossScore,
+        is_super_user_override: false,
+      }, {
+        onConflict: 'tournament_group_id,tournament_player_id,hole_number',
+      });
 
-    // Realtime subscription will trigger reload for all clients including this one
+      if (error) throw error;
+    } catch (err) {
+      console.warn('Tournament score sync failed, queuing for later:', err);
+      offlineStorage.addTournamentScore(tournamentGroupId, tournamentPlayerId, holeNumber, grossScore);
+    }
   }, [tournamentGroupId, playerMapping, tournamentGame]);
+
+  // Drain tournament sync queue when coming back online
+  const wasOfflineRef = useRef(false);
+  useEffect(() => {
+    if (!isOnline) {
+      wasOfflineRef.current = true;
+      return;
+    }
+    if (!wasOfflineRef.current) return;
+    wasOfflineRef.current = false;
+
+    const drainQueue = async () => {
+      const queue = offlineStorage.getTournamentSyncQueue();
+      if (queue.length === 0) return;
+
+      const successIds: string[] = [];
+      for (const item of queue) {
+        try {
+          const { error } = await supabase.from('tournament_hole_scores').upsert({
+            tournament_group_id: item.tournamentGroupId,
+            tournament_player_id: item.tournamentPlayerId,
+            hole_number: item.holeNumber,
+            gross_score: item.grossScore,
+            is_super_user_override: false,
+          }, {
+            onConflict: 'tournament_group_id,tournament_player_id,hole_number',
+          });
+          if (!error) successIds.push(item.id);
+        } catch (e) {
+          console.warn('Failed to drain tournament sync item:', e);
+        }
+      }
+
+      if (successIds.length > 0) {
+        offlineStorage.removeTournamentSyncItems(successIds);
+        reload();
+      }
+    };
+
+    drainQueue();
+  }, [isOnline, reload]);
 
   // Compute segment totals for sum-of-strokes sixes
   const segmentTotals: SegmentTotal[] | null = (() => {
