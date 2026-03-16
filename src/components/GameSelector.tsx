@@ -67,7 +67,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
 
   return (
     <div className="space-y-4">
-      {GAME_LIBRARY.map((game) => {
+      {availableGames.map((game) => {
         const isSelected = selectedGames.find((g) => g.type === game.type);
         const isDisabled = players.length < game.minPlayers || players.length > game.maxPlayers;
         const selectedGame = selectedGames.find((g) => g.type === game.type);
