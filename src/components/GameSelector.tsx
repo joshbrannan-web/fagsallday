@@ -522,6 +522,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                     {/* Team Banker-specific: Rotation Mode + 2nd Ball Tiebreaker */}
                     {game.type === GameType.TEAM_BANKER && (
                       <div className="space-y-4">
+                        {!isTournamentMode ? (
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">Rotation Mode</Label>
                           <RadioGroup
@@ -547,6 +548,9 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                             </div>
                           </RadioGroup>
                         </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Fixed to 18-hole teams in tournament mode.</p>
+                        )}
 
                         <div className="flex items-center justify-between pt-2 border-t border-border/50">
                           <div>

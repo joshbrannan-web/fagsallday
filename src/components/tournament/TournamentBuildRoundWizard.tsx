@@ -301,6 +301,7 @@ const TournamentBuildRoundWizard: React.FC = () => {
           players={mappedPlayers}
           selectedGames={sideGames}
           onGamesChange={setup.setSideGames}
+          isTournamentMode
         />
       </div>
     );
