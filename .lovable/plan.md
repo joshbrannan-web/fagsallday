@@ -1,60 +1,56 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Move Tournament Offline Drain to App.tsx
 
-## What the Previous Plan Was Missing
+## Problem
+The tournament score drain logic lives in `useTournamentOverlay`, which only mounts when `ActiveRound` with a tournament overlay is visible. If the user navigates away (e.g., to scoreboards) after coming back online, queued scores never flush.
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Changes
 
-## What the Admin Actually Needs
+### 1. `src/App.tsx` — Add tournament drain effect (after line 235)
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+Add a new `useEffect` that mirrors the existing round sync pattern (lines 200-235) but for tournament scores:
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+```ts
+// Drain tournament sync queue when coming back online
+useEffect(() => {
+  if (!isOnline || !isAuthenticated) return;
+  
+  const drainTournamentQueue = async () => {
+    const queue = offlineStorage.getTournamentSyncQueue();
+    if (queue.length === 0) return;
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+    const successIds: string[] = [];
+    for (const item of queue) {
+      try {
+        const { error } = await supabase.from('tournament_hole_scores').upsert({
+          tournament_group_id: item.tournamentGroupId,
+          tournament_player_id: item.tournamentPlayerId,
+          hole_number: item.holeNumber,
+          gross_score: item.grossScore,
+          is_super_user_override: false,
+        }, { onConflict: 'tournament_group_id,tournament_player_id,hole_number' });
+        if (!error) successIds.push(item.id);
+      } catch (e) {
+        console.warn('Failed to drain tournament sync item:', e);
+      }
+    }
+    if (successIds.length > 0) {
+      offlineStorage.removeTournamentSyncItems(successIds);
+      toast.success(`Synced ${successIds.length} tournament scores`);
+    }
+  };
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+  drainTournamentQueue();
+}, [isOnline, isAuthenticated]);
+```
 
-## Files
+### 2. `src/hooks/useTournamentOverlay.ts` — Remove drain logic (lines 389-428)
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+Delete the `wasOfflineRef` declaration and the entire drain `useEffect` (lines 389-428). The drain is now handled globally in App.tsx. Keep the `isOnline` import since it's no longer needed — actually check if `useOnlineStatus` is still used elsewhere in the hook... it's only used for the drain, so remove that import and the `isOnline` variable too (line 10 import, line 39 usage).
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
-
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
-
-## Summary
-
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
-
-4 files (1 new), 0 database changes.
+Wait — `isOnline` is only referenced in the drain effect. Remove:
+- Line 10: `import { useOnlineStatus } from '@/hooks/useOnlineStatus';`  
+- Line 39: `const isOnline = useOnlineStatus();`
+- Lines 389-428: the entire drain effect + `wasOfflineRef`
 
