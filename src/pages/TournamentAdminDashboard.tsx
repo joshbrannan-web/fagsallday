@@ -278,6 +278,7 @@ const TournamentAdminDashboard: React.FC = () => {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            </div>
 
             {/* Active rounds force-delete warning */}
             <AlertDialog open={activeRoundWarning.open} onOpenChange={(o) => !o && setActiveRoundWarning({ open: false, count: 0 })}>
