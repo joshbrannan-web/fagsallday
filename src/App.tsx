@@ -234,6 +234,38 @@ const AppContent: FC = () => {
     }
   }, [isOnline, isAuthenticated, user]);
 
+  // Drain tournament sync queue when coming back online
+  useEffect(() => {
+    if (!isOnline || !isAuthenticated) return;
+
+    const drainTournamentQueue = async () => {
+      const queue = offlineStorage.getTournamentSyncQueue();
+      if (queue.length === 0) return;
+
+      const successIds: string[] = [];
+      for (const item of queue) {
+        try {
+          const { error } = await supabase.from('tournament_hole_scores').upsert({
+            tournament_group_id: item.tournamentGroupId,
+            tournament_player_id: item.tournamentPlayerId,
+            hole_number: item.holeNumber,
+            gross_score: item.grossScore,
+            is_super_user_override: false,
+          }, { onConflict: 'tournament_group_id,tournament_player_id,hole_number' });
+          if (!error) successIds.push(item.id);
+        } catch (e) {
+          console.warn('Failed to drain tournament sync item:', e);
+        }
+      }
+      if (successIds.length > 0) {
+        offlineStorage.removeTournamentSyncItems(successIds);
+        toast.success(`Synced ${successIds.length} tournament scores`);
+      }
+    };
+
+    drainTournamentQueue();
+  }, [isOnline, isAuthenticated]);
+
   // Cache the active round for offline recovery
   useEffect(() => {
     if (currentRound && currentRound.status === 'ACTIVE') {
