@@ -28,6 +28,16 @@ interface AdminRoundProviderProps {
   roundId: string;
   children: React.ReactNode;
 }
+const reconstructRound = (data: any): Round => ({
+  id: data.id,
+  course: data.course_data as Course,
+  players: data.players_data as Player[],
+  games: data.games_data as GameSettings[],
+  scores: data.scores as { [holeNumber: number]: { [playerId: string]: number | null } },
+  gameData: data.game_data as { [gameId: string]: { [holeNumber: number]: any } },
+  status: data.status as 'SETUP' | 'ACTIVE' | 'COMPLETE',
+  startTime: new Date(data.start_time).getTime(),
+});
 
 export const AdminRoundProvider: React.FC<AdminRoundProviderProps> = ({ roundId, children }) => {
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
