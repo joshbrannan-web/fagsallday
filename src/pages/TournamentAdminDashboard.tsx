@@ -263,8 +263,13 @@ const TournamentAdminDashboard: React.FC = () => {
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={async () => {
                         setDeletingTournament(true);
-                        const success = await deleteTournament();
-                        if (success) navigate('/tournament-admin');
+                        const result = await deleteTournament();
+                        if (result.blocked) {
+                          setActiveRoundWarning({ open: true, count: result.activeCount || 0 });
+                          setDeletingTournament(false);
+                          return;
+                        }
+                        if (result.success) navigate('/tournament-admin');
                         setDeletingTournament(false);
                       }}
                     >

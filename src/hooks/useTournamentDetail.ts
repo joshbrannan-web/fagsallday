@@ -206,12 +206,46 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else { toast.success('Tournament updated'); await fetchAll(); }
   };
 
-  const deleteTournament = async (): Promise<boolean> => {
-    if (!tournamentId) return false;
+  const deleteTournament = async (force?: boolean): Promise<{ success: boolean; blocked?: boolean; activeCount?: number }> => {
+    if (!tournamentId) return { success: false };
+
+    // 1. Collect round_ids from tournament_groups linked to this tournament's rounds
+    const roundIds = rounds.map((r: any) => r.id);
+    let linkedRoundIds: string[] = [];
+
+    if (roundIds.length > 0) {
+      const { data: linkedGroups } = await supabase
+        .from('tournament_groups')
+        .select('round_id')
+        .in('tournament_round_id', roundIds);
+
+      linkedRoundIds = (linkedGroups || [])
+        .map((g: any) => g.round_id)
+        .filter(Boolean) as string[];
+    }
+
+    // 2. Check for active player rounds
+    if (linkedRoundIds.length > 0) {
+      const { data: activeRounds } = await supabase
+        .from('rounds')
+        .select('id')
+        .in('id', linkedRoundIds)
+        .eq('status', 'ACTIVE');
+
+      if (activeRounds?.length && !force) {
+        return { success: false, blocked: true, activeCount: activeRounds.length };
+      }
+
+      // 3. Delete linked rounds before cascade removes the group references
+      const { error: roundsErr } = await supabase.from('rounds').delete().in('id', linkedRoundIds);
+      if (roundsErr) console.error('Failed to clean up linked rounds:', roundsErr);
+    }
+
+    // 4. Delete the tournament (cascade handles tournament tables)
     const { error } = await supabase.from('tournaments').delete().eq('id', tournamentId);
-    if (error) { toast.error('Failed to delete tournament'); return false; }
+    if (error) { toast.error('Failed to delete tournament'); return { success: false }; }
     toast.success('Tournament deleted');
-    return true;
+    return { success: true };
   };
 
   const addRound = async (roundNumber: number) => {
