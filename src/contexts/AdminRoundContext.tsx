@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Round, Player, Course, GameSettings } from '../types';
 import { calculateRoundTotals } from '../services/gameEngine';
 import { supabase } from '@/integrations/supabase/client';
-import { Json } from '@/integrations/supabase/types';
+
 
 export interface AdminRoundState {
   currentRound: Round | null;
