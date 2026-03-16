@@ -278,7 +278,33 @@ const TournamentAdminDashboard: React.FC = () => {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            </div>
+
+            {/* Active rounds force-delete warning */}
+            <AlertDialog open={activeRoundWarning.open} onOpenChange={(o) => !o && setActiveRoundWarning({ open: false, count: 0 })}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>⚠️ Active Rounds Detected</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {activeRoundWarning.count} player {activeRoundWarning.count === 1 ? 'round is' : 'rounds are'} currently in progress as part of this tournament. Deleting will immediately end {activeRoundWarning.count === 1 ? 'that round' : 'those rounds'} and remove all scoring data. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={async () => {
+                      setDeletingTournament(true);
+                      setActiveRoundWarning({ open: false, count: 0 });
+                      const result = await deleteTournament(true);
+                      if (result.success) navigate('/tournament-admin');
+                      setDeletingTournament(false);
+                    }}
+                  >
+                    Delete Anyway
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </SheetContent>
       </Sheet>
