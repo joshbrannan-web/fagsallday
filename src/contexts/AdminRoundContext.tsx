@@ -50,18 +50,7 @@ export const AdminRoundProvider: React.FC<AdminRoundProviderProps> = ({ roundId,
         if (fetchError) throw fetchError;
         if (!data) throw new Error('Round not found');
 
-        // Reconstruct Round object from database columns
-        const round: Round = {
-          id: data.id,
-          course: data.course_data as unknown as Course,
-          players: data.players_data as unknown as Player[],
-          games: data.games_data as unknown as GameSettings[],
-          scores: data.scores as unknown as { [holeNumber: number]: { [playerId: string]: number | null } },
-          gameData: data.game_data as unknown as { [gameId: string]: { [holeNumber: number]: any } },
-          status: data.status as 'SETUP' | 'ACTIVE' | 'COMPLETE',
-          startTime: new Date(data.start_time).getTime()
-        };
-
+        const round = reconstructRound(data);
         setCurrentRound(round);
         setRoundTotals(calculateRoundTotals(round));
       } catch (err: any) {
@@ -75,6 +64,33 @@ export const AdminRoundProvider: React.FC<AdminRoundProviderProps> = ({ roundId,
     if (roundId) {
       fetchRound();
     }
+  }, [roundId]);
+
+  // Realtime subscription for live updates
+  useEffect(() => {
+    if (!roundId) return;
+
+    const channel = supabase
+      .channel(`admin-round-${roundId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rounds',
+          filter: `id=eq.${roundId}`,
+        },
+        (payload) => {
+          const round = reconstructRound(payload.new);
+          setCurrentRound(round);
+          setRoundTotals(calculateRoundTotals(round));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [roundId]);
 
   // Read-only stubs - do nothing

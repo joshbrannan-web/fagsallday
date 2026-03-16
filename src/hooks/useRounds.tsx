@@ -166,10 +166,10 @@ export const useRounds = () => {
           event: 'UPDATE',
           schema: 'public',
           table: 'rounds',
+          filter: `id=in.(${sharedActiveIds.join(',')})`,
         },
         (payload) => {
           const updated = payload.new as DbRound;
-          if (!sharedActiveIds.includes(updated.id)) return;
           
           const players = (updated.players_data as Player[]);
           const ownerName = players?.[0]?.name || 'Unknown';
