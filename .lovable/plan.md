@@ -1,32 +1,60 @@
 
 
-# Optimize Realtime Subscriptions for Tournament Round Sync
+# Revised Plan: Admin Live View with Full Control
 
-## Analysis
+## What the Previous Plan Was Missing
 
-**1. `useRounds.tsx` — realtime subscription (lines 153-189)**
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-Currently the subscription listens to ALL updates on the `rounds` table and then filters client-side with `sharedActiveIds.includes(updated.id)`. This means every round update by any user hits every connected client. Adding a server-side filter will eliminate unnecessary payload delivery.
+## What the Admin Actually Needs
 
-**2. `AdminRoundContext.tsx` — no subscription at all**
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-The admin round context does a single fetch on mount and has no realtime subscription. This means the admin live view does NOT auto-update when scores change — it shows a snapshot. This is a separate concern from the `useRounds` optimization but worth adding for admin live monitoring.
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-## Will this speed up tournament sync?
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-**Yes, but modestly.** The `useRounds` filter change reduces unnecessary network traffic — instead of receiving every `rounds` table update and discarding irrelevant ones client-side, the database only sends updates for rounds the user is actually in. During a tournament with many active groups, this prevents each client from processing updates meant for other groups.
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-The bigger win for tournament scoring sync is actually in the `tournament_hole_scores` and `tournament_hole_results` realtime channels (already filtered per-tournament in `useTournamentOverlay` and `useTournamentScoreboards`). The `rounds` table subscription is secondary — it syncs the side-game JSONB blob, not the tournament engine scores.
+## Files
 
-## Changes
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
 
-### 1. `src/hooks/useRounds.tsx` — Add server-side filter to realtime subscription
-- Add `filter: \`id=in.(${sharedActiveIds.join(',')})\`` to the `.on()` config
-- Remove the now-redundant client-side `sharedActiveIds.includes()` check (keep as safety fallback)
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
 
-### 2. `src/contexts/AdminRoundContext.tsx` — Add realtime subscription for the viewed round
-- Subscribe to `postgres_changes` on the `rounds` table filtered to `id=eq.${roundId}`
-- On UPDATE, merge the new data into state and recalculate totals
-- Clean up channel on unmount
-- This enables admins to see live score updates without refreshing
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
+
+## Summary
+
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+
+4 files (1 new), 0 database changes.
 
