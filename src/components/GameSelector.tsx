@@ -21,10 +21,24 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
   const availableGames = isTournamentMode
     ? GAME_LIBRARY.filter(g => g.type !== GameType.SIXES && g.type !== GameType.STOCKTON_6)
     : GAME_LIBRARY;
+
+  const handleGamesChange = (games: GameSettings[]) => {
+    if (isTournamentMode) {
+      const sanitized = games.map(g =>
+        g.type === GameType.TEAM_BANKER
+          ? { ...g, config: { ...g.config, teamBanker: { ...g.config.teamBanker, mode: 'eighteen' as const } } }
+          : g
+      );
+      onGamesChange(sanitized);
+    } else {
+      onGamesChange(games);
+    }
+  };
+
   const handleToggleGame = (game: GameLibraryItem) => {
     const exists = selectedGames.find((g) => g.type === game.type);
     if (exists) {
-      onGamesChange(selectedGames.filter((g) => g.type !== game.type));
+      handleGamesChange(selectedGames.filter((g) => g.type !== game.type));
     } else {
       if (players.length < game.minPlayers || players.length > game.maxPlayers) {
         toast.error(`${game.name} requires ${game.minPlayers}-${game.maxPlayers} players`);
@@ -34,11 +48,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
       if (game.type === GameType.FBO) {
         gameConfig.fboPlayers = players.map((p) => p.id);
       }
-      // In tournament mode, force Team Banker to 18-hole mode
-      if (isTournamentMode && game.type === GameType.TEAM_BANKER) {
-        gameConfig.teamBanker = { ...gameConfig.teamBanker, mode: 'eighteen' };
-      }
-      onGamesChange([
+      handleGamesChange([
         ...selectedGames,
         {
           id: `${game.type}-${Date.now()}`,
@@ -52,17 +62,17 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
   };
 
   const handleUpdateGameStake = (gameId: string, stake: number) => {
-    onGamesChange(selectedGames.map((g) => (g.id === gameId ? { ...g, unitStake: stake } : g)));
+    handleGamesChange(selectedGames.map((g) => (g.id === gameId ? { ...g, unitStake: stake } : g)));
   };
 
   const handleUpdateGameConfig = (gameId: string, configKey: string, value: boolean) => {
-    onGamesChange(
+    handleGamesChange(
       selectedGames.map((g) => (g.id === gameId ? { ...g, config: { ...g.config, [configKey]: value } } : g)),
     );
   };
 
   const updateGameConfigDeep = (gameId: string, updater: (g: GameSettings) => GameSettings) => {
-    onGamesChange(selectedGames.map((g) => (g.id === gameId ? updater(g) : g)));
+    handleGamesChange(selectedGames.map((g) => (g.id === gameId ? updater(g) : g)));
   };
 
   return (
