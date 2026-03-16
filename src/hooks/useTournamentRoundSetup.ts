@@ -244,61 +244,25 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         linkedUserId: tp.user_id || undefined,
       }));
 
-      // Create the round
-      const { data: newRound, error: roundError } = await supabase
-        .from('rounds')
-        .insert({
-          user_id: user.id,
-          course_data: courseData as any,
-          players_data: players as any,
-          games_data: sideGames as any,
-          scores: {},
-          game_data: {
-            _TOURNAMENT_META: {
-              tournamentId: tournament.id,
-              tournamentName: tournament.name,
-              roundNumber: selectedRound.round_number,
-              roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
-              displayName: `${tournament.name} — Round ${selectedRound.round_number}`,
-            },
-          } as any,
-          status: 'ACTIVE',
-        })
-        .select('id')
-        .single();
-
-      if (roundError || !newRound) throw roundError;
-
-      // Insert round_participants for linked players
-      const participantInserts = players
-        .filter(p => p.linkedUserId)
-        .map(p => ({
-          round_id: newRound.id,
-          user_id: p.linkedUserId!,
-          player_name: p.name,
-        }));
-      if (participantInserts.length > 0) {
-        await supabase.from('round_participants').insert(participantInserts);
-      }
-
       // Build team matchup
       const teamIds = [...new Set(Object.values(teamAssignments).filter(Boolean))];
       const teamMatchup = teamIds.length === 2
         ? { teamAId: teamIds[0], teamBId: teamIds[1] }
         : null;
 
+      // Build player mapping
+      const pMapping = selectedPlayers.reduce((acc, tp, i) => {
+        acc[(i + 1).toString()] = tp.id;
+        return acc;
+      }, {} as Record<string, string>);
+
+      // Resolve activeGroupId BEFORE creating the round
       let activeGroupId: string;
 
       if (selectedGroupId) {
-        // Use pre-set group from admin — update it to active with round_id
-        const { error: updateErr } = await supabase
-          .from('tournament_groups')
-          .update({ status: 'active', round_id: newRound.id })
-          .eq('id', selectedGroupId);
-        if (updateErr) throw updateErr;
         activeGroupId = selectedGroupId;
       } else {
-        // Create new group (fallback when no admin pairings)
+        // Create new group with round_id: null (will update after round INSERT)
         const { count } = await supabase
           .from('tournament_groups')
           .select('id', { count: 'exact', head: true })
@@ -310,7 +274,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
             tournament_round_id: selectedRound.id,
             group_number: (count || 0) + 1,
             team_matchup: teamMatchup as any,
-            round_id: newRound.id,
+            round_id: null,
             status: 'active',
           })
           .select('id')
@@ -328,26 +292,59 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         await supabase.from('tournament_group_players').insert(gpInserts);
       }
 
-      // Build player mapping for the overlay
-      const pMapping = selectedPlayers.reduce((acc, tp, i) => {
-        acc[(i + 1).toString()] = tp.id;
-        return acc;
-      }, {} as Record<string, string>);
+      // INSERT round with COMPLETE _TOURNAMENT_META (tournamentGroupId included)
+      const { data: newRound, error: roundError } = await supabase
+        .from('rounds')
+        .insert({
+          user_id: user.id,
+          course_data: courseData as any,
+          players_data: players as any,
+          games_data: sideGames as any,
+          scores: {},
+          game_data: {
+            _TOURNAMENT_META: {
+              tournamentId: tournament.id,
+              tournamentName: tournament.name,
+              roundNumber: selectedRound.round_number,
+              roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
+              displayName: `${tournament.name} — Round ${selectedRound.round_number}`,
+              tournamentGroupId: activeGroupId,
+              playerMapping: pMapping,
+              teamMatchup,
+            },
+          } as any,
+          status: 'ACTIVE',
+        })
+        .select('id')
+        .single();
 
-      await supabase.from('rounds').update({
-        game_data: {
-          _TOURNAMENT_META: {
-            tournamentId: tournament.id,
-            tournamentName: tournament.name,
-            roundNumber: selectedRound.round_number,
-            roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
-            tournamentGroupId: activeGroupId,
-            displayName: `${tournament.name} — Round ${selectedRound.round_number}`,
-            playerMapping: pMapping,
-            teamMatchup,
-          },
-        } as any,
-      }).eq('id', newRound.id);
+      if (roundError || !newRound) throw roundError;
+
+      // Link the group to the round
+      if (selectedGroupId) {
+        const { error: updateErr } = await supabase
+          .from('tournament_groups')
+          .update({ status: 'active', round_id: newRound.id })
+          .eq('id', selectedGroupId);
+        if (updateErr) throw updateErr;
+      } else {
+        await supabase
+          .from('tournament_groups')
+          .update({ round_id: newRound.id })
+          .eq('id', activeGroupId);
+      }
+
+      // Insert round_participants for linked players
+      const participantInserts = players
+        .filter(p => p.linkedUserId)
+        .map(p => ({
+          round_id: newRound.id,
+          user_id: p.linkedUserId!,
+          player_name: p.name,
+        }));
+      if (participantInserts.length > 0) {
+        await supabase.from('round_participants').insert(participantInserts);
+      }
 
       // Auto-activate tournament round if still pending
       if (selectedRound.status === 'pending') {

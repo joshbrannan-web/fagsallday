@@ -41,6 +41,9 @@ const ActiveRound: React.FC = () => {
   const tournamentState = (location.state as any) || {};
   const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
   const tournamentGroupId = (tournamentState.tournamentGroupId || meta?.tournamentGroupId) as string | undefined;
+  if (meta && !tournamentGroupId) {
+    console.warn('[Tournament] Missing tournamentGroupId in _TOURNAMENT_META — scores will not be tracked in tournament leaderboard');
+  }
   const tournamentPlayerMapping = (tournamentState.playerMapping || meta?.playerMapping) as Record<string, string> | undefined;
   const tournamentName = tournamentState.tournamentName || meta?.tournamentName;
   const tournamentRoundName = tournamentState.tournamentRoundName || meta?.roundName;
