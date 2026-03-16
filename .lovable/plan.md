@@ -1,60 +1,81 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Revised Plan: Hard Reset on Sign-Out — With Active Round Protection
 
-## What the Previous Plan Was Missing
+## The Risk
+The original plan purges everything (SW, caches, localStorage) during `signOut()`. If a player is mid-round, this destroys their cached scores and sync queue. Even though auto-logout timers already skip sign-out when a round is active, a **manual** sign-out does not.
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Revised Approach
 
-## What the Admin Actually Needs
+Split sign-out into two paths:
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+### Path A — No active round (normal sign-out)
+Full hard reset: unregister SW, purge Cache Storage, clear all localStorage, hard reload. This is the original plan and ensures users get the latest version on next sign-in.
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+### Path B — Active round in progress
+1. **Preserve round data**: Do NOT clear `fg_offline_round` or `fg_sync_queue`.
+2. **Still sign out of auth** (clear session tokens).
+3. **Skip** SW unregister and cache purge — the player may be offline and needs cached assets to keep the app running.
+4. **Show a warning toast**: "You have an active round. Your scores are saved locally — sign back in to sync."
+5. On next sign-in, the existing round recovery logic (`RoundRecovery` component) will detect the cached round and offer to resume or discard it. The sync manager will process the queue.
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+### Changes — `src/hooks/useAuth.tsx`
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+```ts
+const signOut = async () => {
+  const cached = offlineStorage.getCachedRound();
+  const hasActiveRound = cached && cached.status === 'ACTIVE';
 
-## Files
+  // Always clear auth state
+  setUser(null);
+  setSession(null);
+  setProfile(null);
+  try { await supabase.auth.signOut(); } catch {}
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+  if (hasActiveRound) {
+    // Preserve round data + sync queue, just clear session keys
+    localStorage.removeItem('fg_current_round');
+    localStorage.removeItem('fg_history');
+    localStorage.removeItem('fg_saved_courses');
+    localStorage.removeItem('fg_session_start');
+    localStorage.removeItem('fg_last_activity');
+    toast.warning('Active round preserved locally. Sign back in to sync your scores.', { duration: 8000 });
+  } else {
+    // Full hard reset
+    offlineStorage.clearCachedRound();
+    offlineStorage.clearSyncQueue();
+    offlineStorage.clearTournamentSyncQueue();
+    localStorage.removeItem('fg_current_round');
+    localStorage.removeItem('fg_history');
+    localStorage.removeItem('fg_saved_courses');
+    localStorage.removeItem('fg_session_start');
+    localStorage.removeItem('fg_last_activity');
+    localStorage.removeItem('fg_build_hash');
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+    // Unregister service worker
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    // Purge all cached assets
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map(n => caches.delete(n)));
+    }
+    // Hard reload to fetch fresh assets
+    window.location.reload();
+  }
+};
+```
 
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
-
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
+### No other file changes needed
+- `main.tsx` already re-registers the SW on load, so it will be reinstalled after the hard reload.
+- `useVersionCheck.ts` will see no `fg_build_hash` and simply store the current one — no spurious sign-out.
+- Round recovery on sign-in already handles the "active round in localStorage" case.
 
 ## Summary
-
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
-
-4 files (1 new), 0 database changes.
+| Scenario | Round data | SW + Cache | Reload |
+|---|---|---|---|
+| Sign out, no active round | Cleared | Purged + unregistered | Yes |
+| Sign out, active round | Preserved | Kept | No |
 
