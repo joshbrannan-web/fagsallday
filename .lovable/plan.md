@@ -1,60 +1,63 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Delete Tournament: Clean Up Linked Rounds + Active Round Warning
 
-## What the Previous Plan Was Missing
+## Problem
+When a tournament is deleted, the cascade removes tournament tables (groups, scores, etc.) but leaves orphaned rows in the `rounds` table. If a player is mid-round, those rounds become broken (tournament metadata points to deleted groups).
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Approach
 
-## What the Admin Actually Needs
+### 1. Enhance `deleteTournament` in `useTournamentDetail.ts`
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+Before deleting the tournament, the function will:
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+1. **Collect all `round_id` values** from `tournament_groups` for this tournament's rounds (join through `tournament_rounds`).
+2. **Check for active rounds** — query the `rounds` table for any of those `round_id`s with `status = 'ACTIVE'`.
+3. **If active rounds exist**: Show a warning dialog/toast and return `false` (abort deletion) unless the admin confirms force-delete. The function will accept an optional `force` parameter.
+4. **Delete linked rounds** from the `rounds` table using the collected IDs (before the cascade deletes the groups and nullifies the `round_id` references).
+5. **Then delete the tournament** (cascade handles the rest).
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+### 2. Update delete UI in `TournamentAdminDashboard.tsx`
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+- Add a two-stage confirmation flow:
+  - First call `deleteTournament()` without force. If it returns `'active_rounds'`, show an enhanced warning mentioning active rounds.
+  - On second confirmation, call `deleteTournament(true)` to force-delete.
+- Alternatively, `deleteTournament` can check for active rounds and return a result object `{ success, activeRoundCount }` so the UI can show the appropriate warning.
 
-## Files
+### Technical Detail
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+```ts
+// In deleteTournament:
+const { data: linkedGroups } = await supabase
+  .from('tournament_groups')
+  .select('round_id, tournament_round_id')
+  .in('tournament_round_id', roundIds);
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+const roundIdsToDelete = linkedGroups
+  ?.map(g => g.round_id)
+  .filter(Boolean) || [];
 
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+if (roundIdsToDelete.length > 0) {
+  // Check for active rounds
+  const { data: activeRounds } = await supabase
+    .from('rounds')
+    .select('id')
+    .in('id', roundIdsToDelete)
+    .eq('status', 'ACTIVE');
 
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
+  if (activeRounds?.length && !force) {
+    return { blocked: true, activeCount: activeRounds.length };
+  }
 
-## Summary
+  // Delete linked rounds before cascade
+  await supabase.from('rounds').delete().in('id', roundIdsToDelete);
+}
 
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+// Now delete tournament (cascade handles the rest)
+await supabase.from('tournaments').delete().eq('id', tournamentId);
+```
 
-4 files (1 new), 0 database changes.
+### Files Changed
+- `src/hooks/useTournamentDetail.ts` — enhanced `deleteTournament` with round cleanup and active-round check
+- `src/pages/TournamentAdminDashboard.tsx` — two-stage delete confirmation when active rounds are detected
 
