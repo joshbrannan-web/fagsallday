@@ -278,21 +278,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    // Always clear local state, even if server call fails
+    const cached = offlineStorage.getCachedRound();
+    const hasActiveRound = cached && cached.status === 'ACTIVE';
+
+    // Always clear auth state
     setUser(null);
     setSession(null);
     setProfile(null);
-    offlineStorage.clearCachedRound();
-    localStorage.removeItem('fg_current_round');
-    localStorage.removeItem('fg_history');
-    localStorage.removeItem('fg_saved_courses');
-    localStorage.removeItem('fg_session_start');
-    localStorage.removeItem('fg_last_activity');
+    try { await supabase.auth.signOut(); } catch {}
 
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.warn('Sign out server call failed:', e);
+    if (hasActiveRound) {
+      // Preserve round data + sync queue, just clear session keys
+      localStorage.removeItem('fg_current_round');
+      localStorage.removeItem('fg_history');
+      localStorage.removeItem('fg_saved_courses');
+      localStorage.removeItem('fg_session_start');
+      localStorage.removeItem('fg_last_activity');
+      toast.warning('Active round preserved locally. Sign back in to sync your scores.', { duration: 8000 });
+    } else {
+      // Full hard reset — clear everything
+      offlineStorage.clearCachedRound();
+      offlineStorage.clearSyncQueue();
+      offlineStorage.clearTournamentSyncQueue();
+      localStorage.removeItem('fg_current_round');
+      localStorage.removeItem('fg_history');
+      localStorage.removeItem('fg_saved_courses');
+      localStorage.removeItem('fg_session_start');
+      localStorage.removeItem('fg_last_activity');
+      localStorage.removeItem('fg_build_hash');
+
+      // Unregister service worker so next load fetches fresh SW
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      // Purge all cached assets
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map(n => caches.delete(n)));
+      }
+      // Hard reload to fetch fresh assets
+      window.location.reload();
     }
   };
 
