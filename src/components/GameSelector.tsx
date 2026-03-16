@@ -17,7 +17,10 @@ interface GameSelectorProps {
   isTournamentMode?: boolean;
 }
 
-const GameSelector = ({ players, selectedGames, onGamesChange }: GameSelectorProps) => {
+const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode = false }: GameSelectorProps) => {
+  const availableGames = isTournamentMode
+    ? GAME_LIBRARY.filter(g => g.type !== GameType.SIXES && g.type !== GameType.STOCKTON_6)
+    : GAME_LIBRARY;
   const handleToggleGame = (game: GameLibraryItem) => {
     const exists = selectedGames.find((g) => g.type === game.type);
     if (exists) {
