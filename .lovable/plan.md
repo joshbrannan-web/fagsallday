@@ -1,43 +1,60 @@
 
 
-# Fix: Ensure tournamentGroupId is Always in _TOURNAMENT_META at INSERT Time
+# Revised Plan: Admin Live View with Full Control
 
-## Problem
-The round is INSERTed with a partial `_TOURNAMENT_META` (no `tournamentGroupId`), then a second UPDATE adds it. If the UPDATE fails, `useTournamentOverlay` gets `tournamentGroupId: undefined` on reload, breaking tournament scoring entirely.
+## What the Previous Plan Was Missing
 
-## Changes
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-### 1. `src/hooks/useTournamentRoundSetup.ts` — Reorder operations in `startRound`
+## What the Admin Actually Needs
 
-Restructure the `startRound` callback (lines 232-390) so the group is resolved **before** the round INSERT:
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-1. Build `players` array and `teamMatchup` (unchanged)
-2. Build `pMapping` (move up from line 332)
-3. Resolve `activeGroupId`:
-   - If `selectedGroupId`: use it directly (don't update its `round_id` yet)
-   - If no `selectedGroupId`: create the group with `round_id: null`, get its ID
-4. INSERT the round with the **complete** `_TOURNAMENT_META` including `tournamentGroupId`, `playerMapping`, `teamMatchup` — single write, no follow-up UPDATE needed
-5. After round INSERT succeeds, update the group's `round_id` to the new round ID
-6. If no `selectedGroupId`, insert group players (unchanged)
-7. Insert `round_participants` (unchanged)
-8. Remove the second `rounds.update` call entirely (lines 337-350)
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-### 2. `src/components/ActiveRound.tsx` — Add diagnostic guard
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-After line 43 (`const tournamentGroupId = ...`), add:
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-```ts
-if (meta?._TOURNAMENT_META && !tournamentGroupId) {
-  console.warn('[Tournament] Missing tournamentGroupId in _TOURNAMENT_META — scores will not be tracked in tournament leaderboard');
-}
-```
+## Files
 
-Wait — looking at line 42-43, `meta` is already `_TOURNAMENT_META` (it reads `gameData?.['_TOURNAMENT_META']`), so the guard should check `if (meta && !tournamentGroupId)`.
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
 
 ## Summary
 
 | File | Change |
-|------|--------|
-| `useTournamentRoundSetup.ts` | Reorder: resolve group → INSERT round with full meta → update group's round_id. Eliminates second UPDATE. |
-| `ActiveRound.tsx` | Add console.warn when tournament meta exists but tournamentGroupId is missing (~3 lines) |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+
+4 files (1 new), 0 database changes.
 
