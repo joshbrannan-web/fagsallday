@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { calcTournamentHoleResults, type EngineInput, type RoundResult, type CourseHole } from '@/services/tournamentEngine';
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints, MatchState } from '@/types/tournament';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
 
 export interface SegmentTotal {
