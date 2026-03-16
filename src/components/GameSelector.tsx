@@ -14,6 +14,7 @@ interface GameSelectorProps {
   players: Player[];
   selectedGames: GameSettings[];
   onGamesChange: (games: GameSettings[]) => void;
+  isTournamentMode?: boolean;
 }
 
 const GameSelector = ({ players, selectedGames, onGamesChange }: GameSelectorProps) => {
