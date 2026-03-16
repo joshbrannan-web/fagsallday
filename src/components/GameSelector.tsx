@@ -14,9 +14,13 @@ interface GameSelectorProps {
   players: Player[];
   selectedGames: GameSettings[];
   onGamesChange: (games: GameSettings[]) => void;
+  isTournamentMode?: boolean;
 }
 
-const GameSelector = ({ players, selectedGames, onGamesChange }: GameSelectorProps) => {
+const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode = false }: GameSelectorProps) => {
+  const availableGames = isTournamentMode
+    ? GAME_LIBRARY.filter(g => g.type !== GameType.SIXES && g.type !== GameType.STOCKTON_6)
+    : GAME_LIBRARY;
   const handleToggleGame = (game: GameLibraryItem) => {
     const exists = selectedGames.find((g) => g.type === game.type);
     if (exists) {
@@ -29,6 +33,10 @@ const GameSelector = ({ players, selectedGames, onGamesChange }: GameSelectorPro
       const gameConfig = { ...game.config };
       if (game.type === GameType.FBO) {
         gameConfig.fboPlayers = players.map((p) => p.id);
+      }
+      // In tournament mode, force Team Banker to 18-hole mode
+      if (isTournamentMode && game.type === GameType.TEAM_BANKER) {
+        gameConfig.teamBanker = { ...gameConfig.teamBanker, mode: 'eighteen' };
       }
       onGamesChange([
         ...selectedGames,
@@ -59,7 +67,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange }: GameSelectorPro
 
   return (
     <div className="space-y-4">
-      {GAME_LIBRARY.map((game) => {
+      {availableGames.map((game) => {
         const isSelected = selectedGames.find((g) => g.type === game.type);
         const isDisabled = players.length < game.minPlayers || players.length > game.maxPlayers;
         const selectedGame = selectedGames.find((g) => g.type === game.type);
@@ -514,6 +522,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange }: GameSelectorPro
                     {/* Team Banker-specific: Rotation Mode + 2nd Ball Tiebreaker */}
                     {game.type === GameType.TEAM_BANKER && (
                       <div className="space-y-4">
+                        {!isTournamentMode ? (
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">Rotation Mode</Label>
                           <RadioGroup
@@ -539,6 +548,9 @@ const GameSelector = ({ players, selectedGames, onGamesChange }: GameSelectorPro
                             </div>
                           </RadioGroup>
                         </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Fixed to 18-hole teams in tournament mode.</p>
+                        )}
 
                         <div className="flex items-center justify-between pt-2 border-t border-border/50">
                           <div>
