@@ -34,6 +34,10 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
       if (game.type === GameType.FBO) {
         gameConfig.fboPlayers = players.map((p) => p.id);
       }
+      // In tournament mode, force Team Banker to 18-hole mode
+      if (isTournamentMode && game.type === GameType.TEAM_BANKER) {
+        gameConfig.teamBanker = { ...gameConfig.teamBanker, mode: 'eighteen' };
+      }
       onGamesChange([
         ...selectedGames,
         {
