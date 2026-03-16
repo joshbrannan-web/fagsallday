@@ -244,6 +244,9 @@ export const useRounds = () => {
     if (updates.course !== undefined) {
       offlineStorage.addToSyncQueue({ roundId, type: 'course', data: { course_data: updates.course } });
     }
+    if (updates.games !== undefined) {
+      offlineStorage.addToSyncQueue({ roundId, type: 'games', data: { games_data: updates.games } });
+    }
   };
 
   const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>) => {

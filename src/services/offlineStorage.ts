@@ -16,7 +16,7 @@ export interface TournamentSyncQueueItem {
 export interface SyncQueueItem {
   id: string;
   roundId: string;
-  type: 'scores' | 'gameData' | 'status' | 'course';
+  type: 'scores' | 'gameData' | 'status' | 'course' | 'games';
   data: any;
   timestamp: number;
 }
@@ -43,7 +43,7 @@ export const offlineStorage = {
   },
 
   // Update cached round locally
-  updateCachedRound: (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status'>>) => {
+  updateCachedRound: (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'games'>>) => {
     try {
       const cached = offlineStorage.getCachedRound();
       if (cached && cached.id === roundId) {
