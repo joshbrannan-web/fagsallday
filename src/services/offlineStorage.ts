@@ -16,7 +16,7 @@ export interface TournamentSyncQueueItem {
 export interface SyncQueueItem {
   id: string;
   roundId: string;
-  type: 'scores' | 'gameData' | 'status' | 'course';
+  type: 'scores' | 'gameData' | 'status' | 'course' | 'games';
   data: any;
   timestamp: number;
 }
