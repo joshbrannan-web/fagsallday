@@ -36,6 +36,7 @@ const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals, isLoading, refetchRounds } = useApp();
+  const isReadOnly = currentRound?.isShared === true;
   
   // Tournament mode state — fall back to persisted _TOURNAMENT_META when location.state is lost
   const tournamentState = (location.state as any) || {};
