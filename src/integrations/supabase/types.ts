@@ -954,6 +954,24 @@ export type Database = {
         Args: { p_linked_user_id: string }
         Returns: undefined
       }
+      patch_round_game_data: {
+        Args: {
+          p_game_id: string
+          p_hole: number
+          p_round_id: string
+          p_updates: Json
+        }
+        Returns: undefined
+      }
+      patch_round_scores: {
+        Args: {
+          p_hole: number
+          p_player_id: string
+          p_round_id: string
+          p_score: number
+        }
+        Returns: undefined
+      }
       search_users_by_name: {
         Args: { search_term: string }
         Returns: {
