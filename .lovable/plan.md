@@ -1,60 +1,34 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Fix: Team Banker in Tournament Mode Always Uses 18-Hole Mode
 
-## What the Previous Plan Was Missing
+## Problem
+When a player selects Team Banker in tournament mode, the Team Setup screen shows "Stretch 1: Holes 1-6" (sixes mode) instead of "Full Round: Holes 1-18". The `GameSelector` correctly forces `mode: 'eighteen'` on the config object, but `TeamSetupStep` reads it via `teamBankerGame.config?.teamBanker?.mode ?? 'sixes'` — the fallback to `'sixes'` fires when the nested config path isn't fully populated.
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Fix
 
-## What the Admin Actually Needs
+### `src/components/TeamSetupStep.tsx`
+- **Line 160**: Change the `_META_MODE` fallback from `'sixes'` to read from the game config with a smarter chain: `teamBankerGame.config?.teamBanker?.mode ?? 'eighteen'` when in tournament context, or detect it from the mode value already on the config. The simplest fix: since `GameSelector` already forces `mode: 'eighteen'` for tournament, just ensure `TeamSetupStep` reads it correctly. Change line 160 from:
+  ```ts
+  _META_MODE: teamBankerGame.config?.teamBanker?.mode ?? 'sixes',
+  ```
+  to:
+  ```ts
+  _META_MODE: teamBankerGame.config?.teamBanker?.mode ?? 'sixes',
+  ```
+  Actually the real issue is the config may not have `.teamBanker` populated at all. The fix is to also default properly.
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+### Concrete changes:
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+1. **`src/components/TeamSetupStep.tsx` line 160** — The `_META_MODE` is written to `gameData` and controls the engine. Keep the fallback but it should already work if `GameSelector` set it. Need to verify the config is actually being passed through. The real fix: the `TeamSetupStep` UI header also displays stretch info — it likely reads mode independently and defaults to sixes. Check and fix any UI label that says "Stretch 1: Holes 1-6" to respect the actual mode.
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+2. **`src/components/teamBanker/TeamBankerTeamSetup.tsx`** — This is the component shown in `ActiveRound` at stretch start. It receives `mode` from `getTeamBankerMode()` which reads `gameData[gameId][1]._META_MODE`. If the round hasn't written `_META_MODE` yet (setup screen is shown *before* confirmation writes the metadata), the mode defaults to `'sixes'`. The fix: pass the mode from the game config as a fallback when no metadata exists yet.
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+3. **`src/components/ActiveRound.tsx` ~line 994** — When showing TeamBankerTeamSetup before any metadata is written, `getTeamBankerMode` returns `'sixes'` because `gameData` is empty. Override the mode with the game's config value: `tbGame.config?.teamBanker?.mode ?? 'sixes'`. For tournament rounds, `GameSelector` already set this to `'eighteen'`.
 
-## Files
-
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
-
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
-
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
-
-## Summary
-
+### Files Changed
 | File | Change |
 |---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
-
-4 files (1 new), 0 database changes.
+| `src/components/ActiveRound.tsx` | When showing Team Banker setup, use `tbGame.config?.teamBanker?.mode` as the mode source instead of relying solely on `getTeamBankerMode` (which reads from gameData that hasn't been written yet) |
+| `src/components/TeamSetupStep.tsx` | Ensure `_META_MODE` written to gameData uses the config value correctly (line 160 — already reads from config, just verify the path is populated) |
 
