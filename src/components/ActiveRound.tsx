@@ -1102,7 +1102,7 @@ const ActiveRound: React.FC = () => {
             round={currentRound}
             game={sixesGame}
             activeHole={activeHole}
-            onTriggerPress={(teamDormie) => handleSixesPress(sixesGame.id, teamDormie)}
+            onTriggerPress={isReadOnly ? undefined : (teamDormie) => handleSixesPress(sixesGame.id, teamDormie)}
           />
         )}
 
@@ -1124,27 +1124,35 @@ const ActiveRound: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                {currentRound.players.map(p => {
-                  const playerHolePnL = holePnL[activeHole]?.[p.id] || 0;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => handleBankerSelect(game.id, p.id)}
-                      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all whitespace-nowrap ${bankerId === p.id ? 'bg-brand-gold text-brand-dark border-brand-gold shadow-md scale-105' : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${bankerId === p.id ? 'bg-brand-dark' : 'bg-muted-foreground/50'}`}></div>
-                        <span className="font-bold text-sm">{p.name}</span>
-                      </div>
-                      <span className={`text-xs font-mono font-bold ${playerHolePnL > 0 ? 'text-success' : playerHolePnL < 0 ? 'text-destructive' : bankerId === p.id ? 'text-brand-dark/50' : 'text-muted-foreground/50'}`}>
-                        {playerHolePnL !== 0 ? (playerHolePnL > 0 ? `+$${playerHolePnL}` : `-$${Math.abs(playerHolePnL)}`) : '$0'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {bankerId && (
+              {!isReadOnly && (
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                  {currentRound.players.map(p => {
+                    const playerHolePnL = holePnL[activeHole]?.[p.id] || 0;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => handleBankerSelect(game.id, p.id)}
+                        className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all whitespace-nowrap ${bankerId === p.id ? 'bg-brand-gold text-brand-dark border-brand-gold shadow-md scale-105' : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${bankerId === p.id ? 'bg-brand-dark' : 'bg-muted-foreground/50'}`}></div>
+                          <span className="font-bold text-sm">{p.name}</span>
+                        </div>
+                        <span className={`text-xs font-mono font-bold ${playerHolePnL > 0 ? 'text-success' : playerHolePnL < 0 ? 'text-destructive' : bankerId === p.id ? 'text-brand-dark/50' : 'text-muted-foreground/50'}`}>
+                          {playerHolePnL !== 0 ? (playerHolePnL > 0 ? `+$${playerHolePnL}` : `-$${Math.abs(playerHolePnL)}`) : '$0'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {isReadOnly && bankerId && (
+                <div className="text-sm text-muted-foreground">
+                  Banker: <span className="font-bold text-foreground">{currentRound.players.find(p => p.id === bankerId)?.name}</span>
+                  {bankerMult > 1 && <span className="ml-2 font-bold text-brand-gold">{bankerMult}x</span>}
+                </div>
+              )}
+              {!isReadOnly && bankerId && (
                 <div className="mt-3 pt-3 border-t border-border">
                   <div className="mb-2">
                     <span className="text-xs font-bold text-muted-foreground uppercase">Banker Power</span>
@@ -1215,94 +1223,96 @@ const ActiveRound: React.FC = () => {
                 </div>
               </div>
               
-              <div>
-                <div className="text-xs font-bold text-muted-foreground uppercase mb-2">
-                  {downPlayer.name}'s Power Pick
+              {!isReadOnly && (
+                <div>
+                  <div className="text-xs font-bold text-muted-foreground uppercase mb-2">
+                    {downPlayer.name}'s Power Pick
+                  </div>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4].map(mult => {
+                      const isActive = bankerMult === mult;
+                      const label = mult === 1 ? 'Standard' : (mult === 2 ? 'Double' : (mult === 3 ? 'Triple' : 'PreQuad'));
+                      return (
+                        <button
+                          key={mult}
+                          onClick={() => handleBankerPressAll(game.id, mult)}
+                          className={`flex-1 py-2.5 rounded-lg text-xs font-bold border-2 transition-all ${
+                            isActive 
+                              ? 'bg-destructive text-destructive-foreground border-destructive shadow-lg scale-105' 
+                              : 'bg-card text-muted-foreground border-border hover:border-destructive/50 hover:bg-destructive/5'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4].map(mult => {
-                    const isActive = bankerMult === mult;
-                    const label = mult === 1 ? 'Standard' : (mult === 2 ? 'Double' : (mult === 3 ? 'Triple' : 'PreQuad'));
-                    return (
-                      <button
-                        key={mult}
-                        onClick={() => handleBankerPressAll(game.id, mult)}
-                        className={`flex-1 py-2.5 rounded-lg text-xs font-bold border-2 transition-all ${
-                          isActive 
-                            ? 'bg-destructive text-destructive-foreground border-destructive shadow-lg scale-105' 
-                            : 'bg-card text-muted-foreground border-border hover:border-destructive/50 hover:bg-destructive/5'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              )}
               
-              {/* Player Stake Adjustments - stores actual stake, not delta */}
-              <div className="mt-4 pt-3 border-t border-border/50">
-                <div className="text-xs font-bold text-muted-foreground uppercase mb-2">
-                  Adjust Player Stakes vs Banker (Base Bet)
-                </div>
-                <div className="space-y-2">
-                  {currentRound.players.filter(p => p.id !== holeData['_META_BANKER_ID']).map(player => {
-                    const stakeKey = `_STAKE_${player.id}`;
-                    const defaultStake = game.unitStake * bankerMult;
-                    // If no custom stake is set, use the default
-                    const currentStake = holeData[stakeKey] !== undefined ? holeData[stakeKey] : defaultStake;
-                    const isCustom = currentStake !== defaultStake;
-                    
-                    const handleStakeChange = (delta: number) => {
-                      const newStake = Math.max(1, currentStake + delta);
-                      updateGameData(game.id, activeHole, stakeKey, newStake);
-                    };
-                    
-                    return (
-                      <div key={player.id} className="flex items-center justify-between bg-card rounded-lg p-2 border border-border">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm text-foreground">{player.name}</span>
-                          <span className="text-xs text-muted-foreground">Base Bet</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleStakeChange(-5)}
-                            className="w-7 h-7 rounded bg-muted hover:bg-destructive/20 text-muted-foreground hover:text-destructive font-bold text-xs transition-colors"
-                          >
-                            -5
-                          </button>
-                          <button
-                            onClick={() => handleStakeChange(-1)}
-                            className="w-7 h-7 rounded bg-muted hover:bg-destructive/20 text-muted-foreground hover:text-destructive font-bold text-xs transition-colors"
-                          >
-                            -1
-                          </button>
-                          <div className={`min-w-[60px] text-center px-2 py-1 rounded font-bold text-sm ${
-                            isCustom ? 'bg-primary/20 text-primary' : 'bg-muted text-foreground'
-                          }`}>
-                            ${currentStake}
+              {!isReadOnly && (
+                <div className="mt-4 pt-3 border-t border-border/50">
+                  <div className="text-xs font-bold text-muted-foreground uppercase mb-2">
+                    Adjust Player Stakes vs Banker (Base Bet)
+                  </div>
+                  <div className="space-y-2">
+                    {currentRound.players.filter(p => p.id !== holeData['_META_BANKER_ID']).map(player => {
+                      const stakeKey = `_STAKE_${player.id}`;
+                      const defaultStake = game.unitStake * bankerMult;
+                      const currentStake = holeData[stakeKey] !== undefined ? holeData[stakeKey] : defaultStake;
+                      const isCustom = currentStake !== defaultStake;
+                      
+                      const handleStakeChange = (delta: number) => {
+                        const newStake = Math.max(1, currentStake + delta);
+                        updateGameData(game.id, activeHole, stakeKey, newStake);
+                      };
+                      
+                      return (
+                        <div key={player.id} className="flex items-center justify-between bg-card rounded-lg p-2 border border-border">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm text-foreground">{player.name}</span>
+                            <span className="text-xs text-muted-foreground">Base Bet</span>
                           </div>
-                          <button
-                            onClick={() => handleStakeChange(1)}
-                            className="w-7 h-7 rounded bg-muted hover:bg-success/20 text-muted-foreground hover:text-success font-bold text-xs transition-colors"
-                          >
-                            +1
-                          </button>
-                          <button
-                            onClick={() => handleStakeChange(5)}
-                            className="w-7 h-7 rounded bg-muted hover:bg-success/20 text-muted-foreground hover:text-success font-bold text-xs transition-colors"
-                          >
-                            +5
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleStakeChange(-5)}
+                              className="w-7 h-7 rounded bg-muted hover:bg-destructive/20 text-muted-foreground hover:text-destructive font-bold text-xs transition-colors"
+                            >
+                              -5
+                            </button>
+                            <button
+                              onClick={() => handleStakeChange(-1)}
+                              className="w-7 h-7 rounded bg-muted hover:bg-destructive/20 text-muted-foreground hover:text-destructive font-bold text-xs transition-colors"
+                            >
+                              -1
+                            </button>
+                            <div className={`min-w-[60px] text-center px-2 py-1 rounded font-bold text-sm ${
+                              isCustom ? 'bg-primary/20 text-primary' : 'bg-muted text-foreground'
+                            }`}>
+                              ${currentStake}
+                            </div>
+                            <button
+                              onClick={() => handleStakeChange(1)}
+                              className="w-7 h-7 rounded bg-muted hover:bg-success/20 text-muted-foreground hover:text-success font-bold text-xs transition-colors"
+                            >
+                              +1
+                            </button>
+                            <button
+                              onClick={() => handleStakeChange(5)}
+                              className="w-7 h-7 rounded bg-muted hover:bg-success/20 text-muted-foreground hover:text-success font-bold text-xs transition-colors"
+                            >
+                              +5
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground text-center">
+                    Default: ${game.unitStake} × {bankerMult}x = ${game.unitStake * bankerMult}
+                  </div>
                 </div>
-                <div className="mt-2 text-xs text-muted-foreground text-center">
-                  Default: ${game.unitStake} × {bankerMult}x = ${game.unitStake * bankerMult}
-                </div>
-              </div>
+              )}
             </div>
           );
         })}
@@ -1375,7 +1385,7 @@ const ActiveRound: React.FC = () => {
               </div>
               
               {/* All Wolf options visible at once - once selected, they disappear */}
-              {!isActuallyConfirmed && (
+              {!isActuallyConfirmed && !isReadOnly && (
                 <div className="space-y-4">
                   {/* Blind Lone Wolf - Premium option at top */}
                   <button 
@@ -1412,6 +1422,11 @@ const ActiveRound: React.FC = () => {
                   >
                     Lone Wolf (1v3)
                   </button>
+                </div>
+              )}
+              {!isActuallyConfirmed && isReadOnly && (
+                <div className="text-sm text-muted-foreground text-center py-2">
+                  Waiting for wolf to choose...
                 </div>
               )}
               
@@ -1548,8 +1563,8 @@ const ActiveRound: React.FC = () => {
           );
         })()}
 
-        {/* FBO Press UI - shown when presses enabled and player is dormie (or dormie on active press) */}
-        {fboGames.filter(g => g.config.fbo?.allowPresses).map(fboGame => {
+        {/* FBO Press UI - hidden for read-only */}
+        {!isReadOnly && fboGames.filter(g => g.config.fbo?.allowPresses).map(fboGame => {
           const isHeadToHead = fboGame.config.fbo?.gameMode === 'headToHead';
           const matchups = fboGame.config.fbo?.headToHeadMatchups || [];
           
@@ -1970,8 +1985,8 @@ const ActiveRound: React.FC = () => {
           );
         })}
 
-        {/* Stockton 6's Dots Input */}
-        {stockton6Game && (() => {
+        {/* Stockton 6's Dots Input — hidden for read-only */}
+        {!isReadOnly && stockton6Game && (() => {
           const stretch = getStretchForHole(activeHole);
           const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
           if (!teamAssignment) return null;
@@ -2282,29 +2297,33 @@ const ActiveRound: React.FC = () => {
                     <div className="flex justify-between items-center mb-2 px-1">
                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Team Banker (${currentBet}/player)</span>
                     </div>
-                    <div className="flex gap-1">
-                      {[2, 3, 4].map(mult => {
-                        const isActive = playerMult === mult;
-                        const label = mult === 2 ? 'Double' : (mult === 3 ? 'Triple' : 'PreQuad');
-                        return (
-                          <button
-                            key={mult}
-                            onClick={() => {
-                              updateGameData(tbGame.id, activeHole, p.id, isActive ? 1 : mult);
-                            }}
-                            className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border hover:border-primary'}`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {!isReadOnly && (
+                      <div className="flex gap-1">
+                        {[2, 3, 4].map(mult => {
+                          const isActive = playerMult === mult;
+                          const label = mult === 2 ? 'Double' : (mult === 3 ? 'Triple' : 'PreQuad');
+                          return (
+                            <button
+                              key={mult}
+                              onClick={() => {
+                                updateGameData(tbGame.id, activeHole, p.id, isActive ? 1 : mult);
+                              }}
+                              className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border hover:border-primary'}`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {isReadOnly && playerMult > 1 && (
+                      <div className="text-xs font-bold text-primary">{playerMult}x</div>
+                    )}
                   </div>
                 );
               })()}
 
-              {/* Banker Game Controls */}
-              {bankerData && !bankerData.isBanker && (
+              {!isReadOnly && bankerData && !bankerData.isBanker && (
                 <div className="border-t border-border bg-brand-gold/5 p-2">
                   <div className="flex justify-between items-center mb-2 px-1">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vs Banker (${bankerData.totalBet})</span>
@@ -2341,13 +2360,15 @@ const ActiveRound: React.FC = () => {
                     <div className="flex items-center gap-3">
                       <button 
                         onClick={() => handleOpenBetChange(game.id, p.id, -5)}
-                        className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-destructive font-bold active:bg-destructive/10"
+                        disabled={isReadOnly}
+                        className={`w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-destructive font-bold active:bg-destructive/10 ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}
                       >
                         -5
                       </button>
                       <button 
                         onClick={() => handleOpenBetChange(game.id, p.id, -1)}
-                        className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground font-bold active:bg-muted"
+                        disabled={isReadOnly}
+                        className={`w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground font-bold active:bg-muted ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}
                       >
                         -1
                       </button>
@@ -2358,13 +2379,15 @@ const ActiveRound: React.FC = () => {
                       </div>
                       <button 
                         onClick={() => handleOpenBetChange(game.id, p.id, 1)}
-                        className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground font-bold active:bg-muted"
+                        disabled={isReadOnly}
+                        className={`w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground font-bold active:bg-muted ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}
                       >
                         +1
                       </button>
                       <button 
                         onClick={() => handleOpenBetChange(game.id, p.id, 5)}
-                        className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-success font-bold active:bg-success/10"
+                        disabled={isReadOnly}
+                        className={`w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-success font-bold active:bg-success/10 ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}
                       >
                         +5
                       </button>
