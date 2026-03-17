@@ -991,7 +991,9 @@ const ActiveRound: React.FC = () => {
         const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
         if (isReadOnly || !tbGame || !teamBankerNeedsSetup) return null;
         
-        const mode = getTeamBankerMode(currentRound.gameData, tbGame.id);
+        const mode = getTeamBankerMode(currentRound.gameData, tbGame.id) === 'sixes' && tbGame.config?.teamBanker?.mode
+          ? (tbGame.config.teamBanker.mode as 'sixes' | 'threes' | 'eighteen')
+          : getTeamBankerMode(currentRound.gameData, tbGame.id);
         const stretch = getTeamBankerStretchForHole(activeHole, mode);
         
         // Get Stretch 1 settings to carry forward (use normalized reader to fix legacy swapped metadata)
