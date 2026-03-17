@@ -2297,23 +2297,28 @@ const ActiveRound: React.FC = () => {
                     <div className="flex justify-between items-center mb-2 px-1">
                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Team Banker (${currentBet}/player)</span>
                     </div>
-                    <div className="flex gap-1">
-                      {[2, 3, 4].map(mult => {
-                        const isActive = playerMult === mult;
-                        const label = mult === 2 ? 'Double' : (mult === 3 ? 'Triple' : 'PreQuad');
-                        return (
-                          <button
-                            key={mult}
-                            onClick={() => {
-                              updateGameData(tbGame.id, activeHole, p.id, isActive ? 1 : mult);
-                            }}
-                            className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border hover:border-primary'}`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {!isReadOnly && (
+                      <div className="flex gap-1">
+                        {[2, 3, 4].map(mult => {
+                          const isActive = playerMult === mult;
+                          const label = mult === 2 ? 'Double' : (mult === 3 ? 'Triple' : 'PreQuad');
+                          return (
+                            <button
+                              key={mult}
+                              onClick={() => {
+                                updateGameData(tbGame.id, activeHole, p.id, isActive ? 1 : mult);
+                              }}
+                              className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-colors ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border hover:border-primary'}`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {isReadOnly && playerMult > 1 && (
+                      <div className="text-xs font-bold text-primary">{playerMult}x</div>
+                    )}
                   </div>
                 );
               })()}
