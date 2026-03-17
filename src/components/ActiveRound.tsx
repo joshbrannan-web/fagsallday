@@ -986,7 +986,7 @@ const ActiveRound: React.FC = () => {
       {/* Team Banker Team Setup - Show at stretch starts if teams not set */}
       {(() => {
         const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
-        if (!tbGame || !teamBankerNeedsSetup) return null;
+        if (isReadOnly || !tbGame || !teamBankerNeedsSetup) return null;
         
         const mode = getTeamBankerMode(currentRound.gameData, tbGame.id);
         const stretch = getTeamBankerStretchForHole(activeHole, mode);
