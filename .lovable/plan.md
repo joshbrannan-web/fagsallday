@@ -1,49 +1,60 @@
 
 
-# Fix Tournament Score Race Condition with Atomic RPC Calls
+# Revised Plan: Admin Live View with Full Control
 
-## Problem
-`updateScore`, `updateGameData`, and `updateGameDataBatch` in `App.tsx` read the full `scores`/`game_data` JSON blob from local state, mutate it client-side, then write the entire blob back via `useRounds.updateRound`. With 4-8 groups writing simultaneously to the same round, last-write-wins causes silent data loss.
+## What the Previous Plan Was Missing
 
-## Solution
-Two PostgreSQL RPC functions (`patch_round_scores`, `patch_round_game_data`) that use `jsonb_set` to atomically update only the changed JSON path. Then wire `App.tsx` to call these RPCs directly for score/gameData changes instead of the full-blob `updateRound`.
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-## Step 1 — Database Migrations
+## What the Admin Actually Needs
 
-**Migration 1: `patch_round_scores`**
-- Creates a `SECURITY DEFINER` function that uses `jsonb_set` to set `scores -> hole -> playerId` to the new score value
-- Single atomic UPDATE, no read-modify-write
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-**Migration 2: `patch_round_game_data`**  
-- Creates a `SECURITY DEFINER` function that reads the current hole-level data, merges the updates via `||`, and writes back with `jsonb_set`
-- Handles missing intermediate keys by defaulting to `'{}'::jsonb`
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-Both functions as specified in the user's request.
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-## Step 2 — Wire `App.tsx` to Use RPCs
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-Replace the three mutation functions to call RPCs when authenticated:
+## Files
 
-**`updateScore` (line 340-349)**
-- Keep optimistic local state update (unchanged)
-- Replace `await updateRound(currentRound.id, { scores: newScores })` with `await supabase.rpc('patch_round_scores', { p_round_id, p_hole, p_player_id, p_score })`
-- On RPC failure, fall back to offline queue
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
 
-**`updateGameData` (line 352-363)**
-- Keep optimistic local state update
-- Replace `await updateRound(...)` with `await supabase.rpc('patch_round_game_data', { p_round_id, p_game_id, p_hole, p_updates: { [key]: value } })`
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
 
-**`updateGameDataBatch` (line 365-376)**
-- Keep optimistic local state update
-- Replace `await updateRound(...)` with `await supabase.rpc('patch_round_game_data', { p_round_id, p_game_id, p_hole, p_updates: updates })`
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
 
-## Step 3 — Offline Fallback
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
 
-In `useRounds.tsx`, the existing `queueUpdatesForSync` and offline cache remain unchanged — they're the fallback when RPC calls fail or the device is offline. The optimistic local update in `App.tsx` ensures the UI stays responsive regardless.
+## Summary
 
-## Files Changed
-1. **2 database migrations** — create `patch_round_scores` and `patch_round_game_data` functions
-2. **`src/App.tsx`** — replace 3 function bodies (~30 lines changed)
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
 
-No new files. No schema changes. No RLS changes needed (SECURITY DEFINER bypasses RLS).
+4 files (1 new), 0 database changes.
 
