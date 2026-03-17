@@ -658,7 +658,7 @@ const ActiveRound: React.FC = () => {
 
   // 6's Press handler
   const handleSixesPress = (gameId: string, teamDormie: 'A' | 'B') => {
-    const sixesGame = currentRound.games.find(g => g.id === gameId);
+    if (isReadOnly) return;
     if (!sixesGame) return;
     
     // Get mode from Stretch 1 metadata (where it's always stored)
