@@ -1563,9 +1563,8 @@ const ActiveRound: React.FC = () => {
           );
         })()}
 
-        {/* FBO Press UI - shown when presses enabled and player is dormie (or dormie on active press) — hidden for read-only */}
-        {!isReadOnly &&
-        {fboGames.filter(g => g.config.fbo?.allowPresses).map(fboGame => {
+        {/* FBO Press UI - hidden for read-only */}
+        {!isReadOnly && fboGames.filter(g => g.config.fbo?.allowPresses).map(fboGame => {
           const isHeadToHead = fboGame.config.fbo?.gameMode === 'headToHead';
           const matchups = fboGame.config.fbo?.headToHeadMatchups || [];
           
