@@ -1986,8 +1986,7 @@ const ActiveRound: React.FC = () => {
         })}
 
         {/* Stockton 6's Dots Input — hidden for read-only */}
-        {!isReadOnly &&
-        {stockton6Game && (() => {
+        {!isReadOnly && stockton6Game && (() => {
           const stretch = getStretchForHole(activeHole);
           const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
           if (!teamAssignment) return null;
