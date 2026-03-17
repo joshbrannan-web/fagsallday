@@ -1102,7 +1102,7 @@ const ActiveRound: React.FC = () => {
             round={currentRound}
             game={sixesGame}
             activeHole={activeHole}
-            onTriggerPress={(teamDormie) => handleSixesPress(sixesGame.id, teamDormie)}
+            onTriggerPress={isReadOnly ? undefined : (teamDormie) => handleSixesPress(sixesGame.id, teamDormie)}
           />
         )}
 
