@@ -339,22 +339,27 @@ const AppContent: FC = () => {
 
   const updateScore = async (holeNumber: number, playerId: string, score: number) => {
     if (!currentRound) return;
+
+    // Optimistic local update — same as before
     const newScores = { ...currentRound.scores };
     if (!newScores[holeNumber]) newScores[holeNumber] = {};
     newScores[holeNumber] = { ...newScores[holeNumber], [playerId]: score };
+
     if (isAuthenticated) {
-      // Optimistic local update
-      await updateRound(currentRound.id, { scores: newScores });
-      // Atomic DB patch — only touches scores[hole][player]
+      // Update local state immediately
+      setLocalCurrentRound(prev => prev ? { ...prev, scores: newScores } : null);
+      // Atomic surgical write — only touches [holeNumber][playerId], no race condition
       try {
-        await supabase.rpc('patch_round_scores', {
+        const { error } = await supabase.rpc('patch_round_scores', {
           p_round_id: currentRound.id,
           p_hole: holeNumber,
           p_player_id: playerId,
           p_score: score,
         });
-      } catch (err) {
-        console.warn('patch_round_scores RPC failed, relying on optimistic update:', err);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Error patching score, falling back to full update:', error);
+        await updateRound(currentRound.id, { scores: newScores });
       }
     } else {
       setLocalCurrentRound(prev => prev ? { ...prev, scores: newScores } : null);
@@ -363,21 +368,26 @@ const AppContent: FC = () => {
 
   const updateGameData = async (gameId: string, holeNumber: number, key: string, value: any) => {
     if (!currentRound) return;
+
+    // Optimistic local update — same as before
     const newGameData = { ...currentRound.gameData };
     if (!newGameData[gameId]) newGameData[gameId] = {};
     if (!newGameData[gameId][holeNumber]) newGameData[gameId][holeNumber] = {};
     newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], [key]: value };
+
     if (isAuthenticated) {
-      await updateRound(currentRound.id, { gameData: newGameData });
+      setLocalCurrentRound(prev => prev ? { ...prev, gameData: newGameData } : null);
       try {
-        await supabase.rpc('patch_round_game_data', {
+        const { error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
           p_game_id: gameId,
           p_hole: holeNumber,
           p_updates: { [key]: value },
         });
-      } catch (err) {
-        console.warn('patch_round_game_data RPC failed, relying on optimistic update:', err);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Error patching game data, falling back to full update:', error);
+        await updateRound(currentRound.id, { gameData: newGameData });
       }
     } else {
       setLocalCurrentRound(prev => prev ? { ...prev, gameData: newGameData } : null);
@@ -386,21 +396,26 @@ const AppContent: FC = () => {
 
   const updateGameDataBatch = async (gameId: string, holeNumber: number, updates: Record<string, any>) => {
     if (!currentRound) return;
+
+    // Optimistic local update — same as before
     const newGameData = { ...currentRound.gameData };
     if (!newGameData[gameId]) newGameData[gameId] = {};
     if (!newGameData[gameId][holeNumber]) newGameData[gameId][holeNumber] = {};
     newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], ...updates };
+
     if (isAuthenticated) {
-      await updateRound(currentRound.id, { gameData: newGameData });
+      setLocalCurrentRound(prev => prev ? { ...prev, gameData: newGameData } : null);
       try {
-        await supabase.rpc('patch_round_game_data', {
+        const { error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
           p_game_id: gameId,
           p_hole: holeNumber,
           p_updates: updates,
         });
-      } catch (err) {
-        console.warn('patch_round_game_data RPC failed, relying on optimistic update:', err);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Error patching game data batch, falling back to full update:', error);
+        await updateRound(currentRound.id, { gameData: newGameData });
       }
     } else {
       setLocalCurrentRound(prev => prev ? { ...prev, gameData: newGameData } : null);
