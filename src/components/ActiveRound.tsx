@@ -852,12 +852,21 @@ const ActiveRound: React.FC = () => {
             </button>
           </div>
           {activeHole === 18 ? (
-            <button 
-              onClick={handleNextHole}
-              className="bg-brand-gold p-3 rounded-xl shadow-lg animate-pulse"
-            >
-              <Flag className="w-6 h-6 text-brand-dark" />
-            </button>
+            isReadOnly ? (
+              <button 
+                disabled
+                className="bg-muted p-3 rounded-xl opacity-30"
+              >
+                <Flag className="w-6 h-6 text-muted-foreground" />
+              </button>
+            ) : (
+              <button 
+                onClick={handleNextHole}
+                className="bg-brand-gold p-3 rounded-xl shadow-lg animate-pulse"
+              >
+                <Flag className="w-6 h-6 text-brand-dark" />
+              </button>
+            )
           ) : (
             <button 
               onClick={handleNextHole}
