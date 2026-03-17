@@ -553,7 +553,7 @@ const ActiveRound: React.FC = () => {
 
   // FBO Press handler (supports double/triple press and overall segment, and H2H mode with opponentId)
   const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back' | 'overall', pressLevel: number = 1, opponentId?: string) => {
-    const fboGame = currentRound.games.find(g => g.id === gameId);
+    if (isReadOnly) return;
     if (!fboGame) return;
     
     // For H2H mode, use the matchup's unit value if available
