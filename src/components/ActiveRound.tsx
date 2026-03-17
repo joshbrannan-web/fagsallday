@@ -2323,8 +2323,7 @@ const ActiveRound: React.FC = () => {
                 );
               })()}
 
-              {/* Banker Game Controls */}
-              {bankerData && !bankerData.isBanker && (
+              {!isReadOnly && bankerData && !bankerData.isBanker && (
                 <div className="border-t border-border bg-brand-gold/5 p-2">
                   <div className="flex justify-between items-center mb-2 px-1">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Vs Banker (${bankerData.totalBet})</span>
