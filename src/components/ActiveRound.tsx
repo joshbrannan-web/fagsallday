@@ -187,7 +187,7 @@ const ActiveRound: React.FC = () => {
     if (!currentRound) return false;
     const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
     if (!tbGame) return false;
-    const mode = getTeamBankerMode(currentRound.gameData, tbGame.id);
+    const mode = currentRound.gameData?.[tbGame.id]?.[1]?._META_MODE ?? tbGame.config?.teamBanker?.mode ?? 'sixes';
     if (!isTeamBankerStretchStartHole(activeHole, mode)) return false;
     const stretch = getTeamBankerStretchForHole(activeHole, mode);
     const assignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, stretch, mode);
