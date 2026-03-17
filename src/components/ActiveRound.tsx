@@ -933,7 +933,7 @@ const ActiveRound: React.FC = () => {
       })()}
 
       {/* 6's Team Setup - Show at stretch starts if teams not set */}
-      {sixesGame && sixesNeedsSetup && (() => {
+      {!isReadOnly && sixesGame && sixesNeedsSetup && (() => {
         const mode = getSixesMode(currentRound.gameData, sixesGame.id);
         const stretch = getSixesStretchForHole(activeHole, mode);
         
