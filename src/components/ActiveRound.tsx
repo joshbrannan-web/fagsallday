@@ -721,6 +721,15 @@ const ActiveRound: React.FC = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Read-Only Banner */}
+      {isReadOnly && (
+        <div className="bg-brand-gold/15 border-b border-brand-gold/30 px-4 py-2 text-center">
+          <span className="text-xs font-bold text-brand-gold uppercase tracking-wider">
+            👁 Viewing Round — Read Only
+          </span>
+        </div>
+      )}
+
       {/* Top Bar: Hole Nav */}
       <div className="bg-brand-dark text-primary-foreground p-4 pb-2 shadow-lg sticky top-0 z-20">
         <div className="flex items-center justify-center mb-3 relative">
