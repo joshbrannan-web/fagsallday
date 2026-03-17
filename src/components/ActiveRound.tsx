@@ -478,6 +478,7 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleScoreClick = (pid: string, displayScore: number) => {
+    if (isReadOnly) return;
     const player = currentRound.players.find(p => p.id === pid)!;
     const validation = validateHoleInput(displayScore, courseHole!.par, player);
     if (validation.severity === 'warning') {
