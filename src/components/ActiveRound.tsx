@@ -437,6 +437,7 @@ const ActiveRound: React.FC = () => {
   // Voice Input Logic
   const handleVoiceInput = () => {
     if (isReadOnly) return;
+    if (!('webkitSpeechRecognition' in window)) {
       alert("Voice not supported in this browser. Try Chrome.");
       return;
     }
