@@ -392,6 +392,16 @@ const AppContent: FC = () => {
     newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], ...updates };
     if (isAuthenticated) {
       await updateRound(currentRound.id, { gameData: newGameData });
+      try {
+        await supabase.rpc('patch_round_game_data', {
+          p_round_id: currentRound.id,
+          p_game_id: gameId,
+          p_hole: holeNumber,
+          p_updates: updates,
+        });
+      } catch (err) {
+        console.warn('patch_round_game_data RPC failed, relying on optimistic update:', err);
+      }
     } else {
       setLocalCurrentRound(prev => prev ? { ...prev, gameData: newGameData } : null);
     }
