@@ -890,7 +890,7 @@ const ActiveRound: React.FC = () => {
       </div>
 
       {/* Stockton 6's Team Setup - Show at stretch starts if teams not set */}
-      {stockton6Game && stockton6NeedsSetup && (() => {
+      {!isReadOnly && stockton6Game && stockton6NeedsSetup && (() => {
         const stretch = getStretchForHole(activeHole) as 1 | 2 | 3;
         
         // Gather previous stretch teams for auto-rotation
