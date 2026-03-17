@@ -1377,7 +1377,7 @@ const ActiveRound: React.FC = () => {
               </div>
               
               {/* All Wolf options visible at once - once selected, they disappear */}
-              {!isActuallyConfirmed && (
+              {!isActuallyConfirmed && !isReadOnly && (
                 <div className="space-y-4">
                   {/* Blind Lone Wolf - Premium option at top */}
                   <button 
@@ -1414,6 +1414,11 @@ const ActiveRound: React.FC = () => {
                   >
                     Lone Wolf (1v3)
                   </button>
+                </div>
+              )}
+              {!isActuallyConfirmed && isReadOnly && (
+                <div className="text-sm text-muted-foreground text-center py-2">
+                  Waiting for wolf to choose...
                 </div>
               )}
               
