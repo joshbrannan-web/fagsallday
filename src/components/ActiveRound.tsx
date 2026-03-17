@@ -36,6 +36,7 @@ const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals, isLoading, refetchRounds } = useApp();
+  const isReadOnly = currentRound?.isShared === true;
   
   // Tournament mode state — fall back to persisted _TOURNAMENT_META when location.state is lost
   const tournamentState = (location.state as any) || {};
@@ -244,7 +245,7 @@ const ActiveRound: React.FC = () => {
 
   // Auto-select birdie dot when player scores exactly par - 1 on Stockton 6's
   useEffect(() => {
-    if (!currentRound) return;
+    if (!currentRound || isReadOnly) return;
     
     const stockton6Games = currentRound.games.filter(g => g.type === GameType.STOCKTON_6);
     const stockton6Game = stockton6Games[0];
@@ -278,7 +279,7 @@ const ActiveRound: React.FC = () => {
 
   // Auto-calculate FBO dots when scores change (based on lowest net score)
   useEffect(() => {
-    if (!currentRound) return;
+    if (!currentRound || isReadOnly) return;
     
     const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
     if (fboGames.length === 0) return;
@@ -339,7 +340,7 @@ const ActiveRound: React.FC = () => {
 
   // Tournament mode: sync scores to tournament_hole_scores whenever scores change
   useEffect(() => {
-    if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound) return;
+    if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound || isReadOnly) return;
     if (tournamentOverlay.isLoading) return; // Wait for overlay to be ready
     // Bulk-sync all holes, not just activeHole
     Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
@@ -397,7 +398,7 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleNextHole = () => {
-    if (!canAdvanceHole()) {
+    if (!isReadOnly && !canAdvanceHole()) {
       const missingPlayer = currentRound.players.find(p => {
         const score = currentRound.scores[activeHole]?.[p.id];
         return !(typeof score === 'number' && score > 0);
@@ -411,6 +412,7 @@ const ActiveRound: React.FC = () => {
       return;
     }
     if (activeHole === 18) {
+      if (isReadOnly) return; // Read-only users can't finish
       navigate('/summary');
     } else {
       setActiveHole(h => h + 1);
@@ -434,6 +436,7 @@ const ActiveRound: React.FC = () => {
 
   // Voice Input Logic
   const handleVoiceInput = () => {
+    if (isReadOnly) return;
     if (!('webkitSpeechRecognition' in window)) {
       alert("Voice not supported in this browser. Try Chrome.");
       return;
@@ -464,6 +467,7 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleScoreChange = (pid: string, delta: number) => {
+    if (isReadOnly) return;
     const current = currentRound.scores[activeHole]?.[pid] || courseHole!.par;
     const newScore = Math.max(1, current + delta);
     const player = currentRound.players.find(p => p.id === pid)!;
@@ -475,6 +479,7 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleScoreClick = (pid: string, displayScore: number) => {
+    if (isReadOnly) return;
     const player = currentRound.players.find(p => p.id === pid)!;
     const validation = validateHoleInput(displayScore, courseHole!.par, player);
     if (validation.severity === 'warning') {
@@ -484,35 +489,36 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleStrokeToggle = (pid: string, autoStrokes: number) => {
+    if (isReadOnly) return;
     const manualStrokes = currentRound.gameData?.['MANUAL_STROKES']?.[activeHole]?.[pid];
     
-    // If manual strokes are set, toggle: if currently stroking, set to 0; if not, set to 1
-    // If no manual override exists, set opposite of auto-calculated
     if (manualStrokes !== undefined && manualStrokes !== null) {
-      // Already has manual override - toggle between 0 and 1
       const newValue = manualStrokes > 0 ? 0 : 1;
       updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
     } else {
-      // No manual override yet - set to opposite of auto-calculated
       const newValue = autoStrokes > 0 ? 0 : 1;
       updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
     }
   };
 
   const handleOpenBetChange = (gameId: string, pid: string, delta: number) => {
+    if (isReadOnly) return;
     const current = currentRound.gameData?.[gameId]?.[activeHole]?.[pid] || 0;
     updateGameData(gameId, activeHole, pid, current + delta);
   };
 
   const handleBankerSelect = (gameId: string, bankerId: string) => {
+    if (isReadOnly) return;
     updateGameData(gameId, activeHole, '_META_BANKER_ID', bankerId);
   };
 
   const handleBankerMultiplier = (gameId: string, pid: string, mult: number) => {
+    if (isReadOnly) return;
     updateGameData(gameId, activeHole, pid, mult);
   };
 
   const handleBankerPressAll = (gameId: string, currentMult: number) => {
+    if (isReadOnly) return;
     updateGameData(gameId, activeHole, '_META_BANKER_MULT', currentMult);
   };
 
@@ -547,6 +553,7 @@ const ActiveRound: React.FC = () => {
 
   // FBO Press handler (supports double/triple press and overall segment, and H2H mode with opponentId)
   const handleFBOPress = (gameId: string, playerId: string, segment: 'front' | 'back' | 'overall', pressLevel: number = 1, opponentId?: string) => {
+    if (isReadOnly) return;
     const fboGame = currentRound.games.find(g => g.id === gameId);
     if (!fboGame) return;
     
@@ -603,6 +610,7 @@ const ActiveRound: React.FC = () => {
     segment: 'front' | 'back' | 'overall', 
     opponentId?: string
   ) => {
+    if (isReadOnly) return;
     const fboGameData = currentRound.gameData?.[gameId] || {};
     const existingPresses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
     
@@ -652,7 +660,7 @@ const ActiveRound: React.FC = () => {
 
   // 6's Press handler
   const handleSixesPress = (gameId: string, teamDormie: 'A' | 'B') => {
-    const sixesGame = currentRound.games.find(g => g.id === gameId);
+    if (isReadOnly) return;
     if (!sixesGame) return;
     
     // Get mode from Stretch 1 metadata (where it's always stored)
@@ -717,6 +725,15 @@ const ActiveRound: React.FC = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Read-Only Banner */}
+      {isReadOnly && (
+        <div className="bg-brand-gold/15 border-b border-brand-gold/30 px-4 py-2 text-center">
+          <span className="text-xs font-bold text-brand-gold uppercase tracking-wider">
+            👁 Viewing Round — Read Only
+          </span>
+        </div>
+      )}
+
       {/* Top Bar: Hole Nav */}
       <div className="bg-brand-dark text-primary-foreground p-4 pb-2 shadow-lg sticky top-0 z-20">
         <div className="flex items-center justify-center mb-3 relative">
@@ -725,7 +742,7 @@ const ActiveRound: React.FC = () => {
             <button className="p-2" onClick={() => navigate('/summary')}><Menu className="w-5 h-5" /></button>
           </div>
           <div className="absolute right-0 flex items-center gap-1">
-            {currentRound.players.length >= 2 && (
+            {!isReadOnly && currentRound.players.length >= 2 && (
               <button
                 className="p-2"
                 onClick={handleShareRoundLink}
@@ -840,12 +857,21 @@ const ActiveRound: React.FC = () => {
             </button>
           </div>
           {activeHole === 18 ? (
-            <button 
-              onClick={handleNextHole}
-              className="bg-brand-gold p-3 rounded-xl shadow-lg animate-pulse"
-            >
-              <Flag className="w-6 h-6 text-brand-dark" />
-            </button>
+            isReadOnly ? (
+              <button 
+                disabled
+                className="bg-muted p-3 rounded-xl opacity-30"
+              >
+                <Flag className="w-6 h-6 text-muted-foreground" />
+              </button>
+            ) : (
+              <button 
+                onClick={handleNextHole}
+                className="bg-brand-gold p-3 rounded-xl shadow-lg animate-pulse"
+              >
+                <Flag className="w-6 h-6 text-brand-dark" />
+              </button>
+            )
           ) : (
             <button 
               onClick={handleNextHole}
@@ -867,7 +893,7 @@ const ActiveRound: React.FC = () => {
       </div>
 
       {/* Stockton 6's Team Setup - Show at stretch starts if teams not set */}
-      {stockton6Game && stockton6NeedsSetup && (() => {
+      {!isReadOnly && stockton6Game && stockton6NeedsSetup && (() => {
         const stretch = getStretchForHole(activeHole) as 1 | 2 | 3;
         
         // Gather previous stretch teams for auto-rotation
@@ -910,7 +936,7 @@ const ActiveRound: React.FC = () => {
       })()}
 
       {/* 6's Team Setup - Show at stretch starts if teams not set */}
-      {sixesGame && sixesNeedsSetup && (() => {
+      {!isReadOnly && sixesGame && sixesNeedsSetup && (() => {
         const mode = getSixesMode(currentRound.gameData, sixesGame.id);
         const stretch = getSixesStretchForHole(activeHole, mode);
         
@@ -963,7 +989,7 @@ const ActiveRound: React.FC = () => {
       {/* Team Banker Team Setup - Show at stretch starts if teams not set */}
       {(() => {
         const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
-        if (!tbGame || !teamBankerNeedsSetup) return null;
+        if (isReadOnly || !tbGame || !teamBankerNeedsSetup) return null;
         
         const mode = getTeamBankerMode(currentRound.gameData, tbGame.id);
         const stretch = getTeamBankerStretchForHole(activeHole, mode);
@@ -2209,15 +2235,17 @@ const ActiveRound: React.FC = () => {
               </div>
 
               {/* Score Controls */}
-              <div className="grid grid-cols-3 divide-x divide-border bg-muted/50 h-16">
+              <div className={`grid grid-cols-3 divide-x divide-border bg-muted/50 h-16 ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}>
                 <button 
                   onClick={() => handleScoreChange(p.id, -1)}
+                  disabled={isReadOnly}
                   className="flex items-center justify-center active:bg-muted"
                 >
                   <span className="text-3xl text-primary font-light">-</span>
                 </button>
                 <button 
                   onClick={() => handleScoreClick(p.id, typeof displayScore === 'number' ? displayScore : courseHole?.par || 0)}
+                  disabled={isReadOnly}
                   className="flex items-center justify-center bg-card active:bg-muted"
                 >
                   <span className={`text-3xl font-bold ${!hasScore ? 'text-muted-foreground' : 'text-foreground'}`}>
@@ -2226,6 +2254,7 @@ const ActiveRound: React.FC = () => {
                 </button>
                 <button 
                   onClick={() => handleScoreChange(p.id, 1)}
+                  disabled={isReadOnly}
                   className="flex items-center justify-center active:bg-muted"
                 >
                   <span className="text-3xl text-primary font-light">+</span>
