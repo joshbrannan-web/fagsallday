@@ -1124,27 +1124,35 @@ const ActiveRound: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                {currentRound.players.map(p => {
-                  const playerHolePnL = holePnL[activeHole]?.[p.id] || 0;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => handleBankerSelect(game.id, p.id)}
-                      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all whitespace-nowrap ${bankerId === p.id ? 'bg-brand-gold text-brand-dark border-brand-gold shadow-md scale-105' : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${bankerId === p.id ? 'bg-brand-dark' : 'bg-muted-foreground/50'}`}></div>
-                        <span className="font-bold text-sm">{p.name}</span>
-                      </div>
-                      <span className={`text-xs font-mono font-bold ${playerHolePnL > 0 ? 'text-success' : playerHolePnL < 0 ? 'text-destructive' : bankerId === p.id ? 'text-brand-dark/50' : 'text-muted-foreground/50'}`}>
-                        {playerHolePnL !== 0 ? (playerHolePnL > 0 ? `+$${playerHolePnL}` : `-$${Math.abs(playerHolePnL)}`) : '$0'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {bankerId && (
+              {!isReadOnly && (
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                  {currentRound.players.map(p => {
+                    const playerHolePnL = holePnL[activeHole]?.[p.id] || 0;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => handleBankerSelect(game.id, p.id)}
+                        className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all whitespace-nowrap ${bankerId === p.id ? 'bg-brand-gold text-brand-dark border-brand-gold shadow-md scale-105' : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${bankerId === p.id ? 'bg-brand-dark' : 'bg-muted-foreground/50'}`}></div>
+                          <span className="font-bold text-sm">{p.name}</span>
+                        </div>
+                        <span className={`text-xs font-mono font-bold ${playerHolePnL > 0 ? 'text-success' : playerHolePnL < 0 ? 'text-destructive' : bankerId === p.id ? 'text-brand-dark/50' : 'text-muted-foreground/50'}`}>
+                          {playerHolePnL !== 0 ? (playerHolePnL > 0 ? `+$${playerHolePnL}` : `-$${Math.abs(playerHolePnL)}`) : '$0'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {isReadOnly && bankerId && (
+                <div className="text-sm text-muted-foreground">
+                  Banker: <span className="font-bold text-foreground">{currentRound.players.find(p => p.id === bankerId)?.name}</span>
+                  {bankerMult > 1 && <span className="ml-2 font-bold text-brand-gold">{bankerMult}x</span>}
+                </div>
+              )}
+              {!isReadOnly && bankerId && (
                 <div className="mt-3 pt-3 border-t border-border">
                   <div className="mb-2">
                     <span className="text-xs font-bold text-muted-foreground uppercase">Banker Power</span>
