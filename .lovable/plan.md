@@ -1,60 +1,60 @@
 
 
-# Revised Plan: Admin Live View with Full Control
-
-## What the Previous Plan Was Missing
-
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
-
-## What the Admin Actually Needs
-
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
-
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
-
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
-
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
-
-## Files
-
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
-
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
-
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
+# Read-Only Tournament Round for Non-Owner Players
 
 ## Summary
+Add `isReadOnly` guard to `ActiveRound.tsx` so shared tournament rounds allow full viewing (including Tournament tab with leaderboards) but prevent all score mutations.
 
+## Changes — Single File: `src/components/ActiveRound.tsx`
+
+### 1. Derive `isReadOnly` flag (after line 38)
+```ts
+const isReadOnly = currentRound?.isShared === true;
+```
+
+### 2. Read-only banner (inside the return, after the Home Confirmation Dialog ~line 718)
+When `isReadOnly`, show a sticky banner below the top bar:
+```
+"Viewing [ownerName]'s Round — Read Only"
+```
+Amber/gold background, small text, similar to the existing Scorecard read-only banner.
+
+### 3. Disable score mutations
+- **Score +/- buttons** (~lines 2212-2233): Add `disabled={isReadOnly}` and `opacity-50` styling when read-only. Wrap `onClick` handlers with `if (isReadOnly) return`.
+- **`handleScoreClick`** (~line 477): Early return if `isReadOnly`.
+- **`handleScoreChange`** (~line 466): Early return if `isReadOnly`.
+- **Voice input button**: Hide entirely when `isReadOnly` (`{!isReadOnly && ...}`).
+
+### 4. Disable game data mutations
+- **Banker select/multiplier buttons**, **Open Betting +/- buttons**, **Team Banker multiplier buttons**, **Stockton 6 / Sixes / Team Banker team setup panels**, **FBO press buttons**: Wrap each section's render with `!isReadOnly &&` or add `disabled={isReadOnly}` where appropriate. The game status displays (FBO dots, banker info, sixes stretch summaries) remain visible.
+
+### 5. Guard tournament score sync (~lines 341-354)
+Add `isReadOnly` to the early return:
+```ts
+if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound || isReadOnly) return;
+```
+
+### 6. Navigation adjustments
+- **Next hole button** (~lines 399-418): When `isReadOnly`, skip the `canAdvanceHole()` validation — just navigate freely between holes. Remove the toast error for missing scores.
+- **Hole 18 / Finish flow**: When `isReadOnly`, replace the Flag/finish button with a simple "next hole" button (or disable it at hole 18). The "Go to Summary" menu item can still work (summary is read-only already).
+- **Home button**: Keep as-is (navigates home).
+- **Share round link button**: Hide when `isReadOnly` (non-owner shouldn't share).
+
+### 7. Tournament Tab — No changes needed
+The Tournament tab (`TournamentTabPanel`) including leaderboards (`ScoreboardSelector` + `ScoreboardRenderer`) renders identically for all users. The `useTournamentScoreboards` hook fetches data directly from the database, not from local round state, so non-owners see the same live leaderboards.
+
+## What stays functional for read-only users
+- Hole navigation (prev/next/jump-to-hole picker)
+- Betting ↔ Tournament tab toggle
+- All Tournament tab content: Match Status, Players, Hole Tracker, Full Scorecard, Leaderboards
+- Betting tab: View scores, P&L totals, game status (read-only)
+- Bottom drawer: Round totals summary (read-only)
+- Scorecard page link
+
+## Files
 | File | Change |
 |---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+| `src/components/ActiveRound.tsx` | Add `isReadOnly` flag, read-only banner, guard all mutations, free hole navigation |
 
-4 files (1 new), 0 database changes.
+1 file modified, 0 new files, 0 database changes.
 
