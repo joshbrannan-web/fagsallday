@@ -279,7 +279,7 @@ const ActiveRound: React.FC = () => {
 
   // Auto-calculate FBO dots when scores change (based on lowest net score)
   useEffect(() => {
-    if (!currentRound) return;
+    if (!currentRound || isReadOnly) return;
     
     const fboGames = currentRound.games.filter(g => g.type === GameType.FBO);
     if (fboGames.length === 0) return;
