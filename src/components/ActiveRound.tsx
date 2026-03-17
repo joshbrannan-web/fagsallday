@@ -245,7 +245,7 @@ const ActiveRound: React.FC = () => {
 
   // Auto-select birdie dot when player scores exactly par - 1 on Stockton 6's
   useEffect(() => {
-    if (!currentRound) return;
+    if (!currentRound || isReadOnly) return;
     
     const stockton6Games = currentRound.games.filter(g => g.type === GameType.STOCKTON_6);
     const stockton6Game = stockton6Games[0];
