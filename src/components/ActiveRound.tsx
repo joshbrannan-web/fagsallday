@@ -507,14 +507,17 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleBankerSelect = (gameId: string, bankerId: string) => {
+    if (isReadOnly) return;
     updateGameData(gameId, activeHole, '_META_BANKER_ID', bankerId);
   };
 
   const handleBankerMultiplier = (gameId: string, pid: string, mult: number) => {
+    if (isReadOnly) return;
     updateGameData(gameId, activeHole, pid, mult);
   };
 
   const handleBankerPressAll = (gameId: string, currentMult: number) => {
+    if (isReadOnly) return;
     updateGameData(gameId, activeHole, '_META_BANKER_MULT', currentMult);
   };
 
