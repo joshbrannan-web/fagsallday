@@ -609,7 +609,7 @@ const ActiveRound: React.FC = () => {
     segment: 'front' | 'back' | 'overall', 
     opponentId?: string
   ) => {
-    const fboGameData = currentRound.gameData?.[gameId] || {};
+    if (isReadOnly) return;
     const existingPresses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
     
     // Filter out the press to remove
