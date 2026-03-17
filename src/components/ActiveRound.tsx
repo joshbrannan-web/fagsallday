@@ -501,6 +501,7 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleOpenBetChange = (gameId: string, pid: string, delta: number) => {
+    if (isReadOnly) return;
     const current = currentRound.gameData?.[gameId]?.[activeHole]?.[pid] || 0;
     updateGameData(gameId, activeHole, pid, current + delta);
   };
