@@ -737,7 +737,7 @@ const ActiveRound: React.FC = () => {
             <button className="p-2" onClick={() => navigate('/summary')}><Menu className="w-5 h-5" /></button>
           </div>
           <div className="absolute right-0 flex items-center gap-1">
-            {currentRound.players.length >= 2 && (
+            {!isReadOnly && currentRound.players.length >= 2 && (
               <button
                 className="p-2"
                 onClick={handleShareRoundLink}
