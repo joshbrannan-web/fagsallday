@@ -466,6 +466,7 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleScoreChange = (pid: string, delta: number) => {
+    if (isReadOnly) return;
     const current = currentRound.scores[activeHole]?.[pid] || courseHole!.par;
     const newScore = Math.max(1, current + delta);
     const player = currentRound.players.find(p => p.id === pid)!;
