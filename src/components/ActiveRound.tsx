@@ -488,16 +488,13 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleStrokeToggle = (pid: string, autoStrokes: number) => {
+    if (isReadOnly) return;
     const manualStrokes = currentRound.gameData?.['MANUAL_STROKES']?.[activeHole]?.[pid];
     
-    // If manual strokes are set, toggle: if currently stroking, set to 0; if not, set to 1
-    // If no manual override exists, set opposite of auto-calculated
     if (manualStrokes !== undefined && manualStrokes !== null) {
-      // Already has manual override - toggle between 0 and 1
       const newValue = manualStrokes > 0 ? 0 : 1;
       updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
     } else {
-      // No manual override yet - set to opposite of auto-calculated
       const newValue = autoStrokes > 0 ? 0 : 1;
       updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
     }
