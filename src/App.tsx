@@ -340,15 +340,13 @@ const AppContent: FC = () => {
   const updateScore = async (holeNumber: number, playerId: string, score: number) => {
     if (!currentRound) return;
 
-    // Optimistic local update — same as before
     const newScores = { ...currentRound.scores };
     if (!newScores[holeNumber]) newScores[holeNumber] = {};
     newScores[holeNumber] = { ...newScores[holeNumber], [playerId]: score };
 
     if (isAuthenticated) {
-      // Update local state immediately
-      setLocalCurrentRound(prev => prev ? { ...prev, scores: newScores } : null);
-      // Atomic surgical write — only touches [holeNumber][playerId], no race condition
+      // Optimistic update — updates dbCurrentRound immediately, no await so it doesn't fire its own DB write
+      updateRound(currentRound.id, { scores: newScores });
       try {
         const { error } = await supabase.rpc('patch_round_scores', {
           p_round_id: currentRound.id,
@@ -369,14 +367,13 @@ const AppContent: FC = () => {
   const updateGameData = async (gameId: string, holeNumber: number, key: string, value: any) => {
     if (!currentRound) return;
 
-    // Optimistic local update — same as before
     const newGameData = { ...currentRound.gameData };
     if (!newGameData[gameId]) newGameData[gameId] = {};
     if (!newGameData[gameId][holeNumber]) newGameData[gameId][holeNumber] = {};
     newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], [key]: value };
 
     if (isAuthenticated) {
-      setLocalCurrentRound(prev => prev ? { ...prev, gameData: newGameData } : null);
+      updateRound(currentRound.id, { gameData: newGameData });
       try {
         const { error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
@@ -397,14 +394,13 @@ const AppContent: FC = () => {
   const updateGameDataBatch = async (gameId: string, holeNumber: number, updates: Record<string, any>) => {
     if (!currentRound) return;
 
-    // Optimistic local update — same as before
     const newGameData = { ...currentRound.gameData };
     if (!newGameData[gameId]) newGameData[gameId] = {};
     if (!newGameData[gameId][holeNumber]) newGameData[gameId][holeNumber] = {};
     newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], ...updates };
 
     if (isAuthenticated) {
-      setLocalCurrentRound(prev => prev ? { ...prev, gameData: newGameData } : null);
+      updateRound(currentRound.id, { gameData: newGameData });
       try {
         const { error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
