@@ -343,7 +343,19 @@ const AppContent: FC = () => {
     if (!newScores[holeNumber]) newScores[holeNumber] = {};
     newScores[holeNumber] = { ...newScores[holeNumber], [playerId]: score };
     if (isAuthenticated) {
+      // Optimistic local update
       await updateRound(currentRound.id, { scores: newScores });
+      // Atomic DB patch — only touches scores[hole][player]
+      try {
+        await supabase.rpc('patch_round_scores', {
+          p_round_id: currentRound.id,
+          p_hole: holeNumber,
+          p_player_id: playerId,
+          p_score: score,
+        });
+      } catch (err) {
+        console.warn('patch_round_scores RPC failed, relying on optimistic update:', err);
+      }
     } else {
       setLocalCurrentRound(prev => prev ? { ...prev, scores: newScores } : null);
     }
