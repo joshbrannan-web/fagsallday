@@ -2231,15 +2231,17 @@ const ActiveRound: React.FC = () => {
               </div>
 
               {/* Score Controls */}
-              <div className="grid grid-cols-3 divide-x divide-border bg-muted/50 h-16">
+              <div className={`grid grid-cols-3 divide-x divide-border bg-muted/50 h-16 ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}>
                 <button 
                   onClick={() => handleScoreChange(p.id, -1)}
+                  disabled={isReadOnly}
                   className="flex items-center justify-center active:bg-muted"
                 >
                   <span className="text-3xl text-primary font-light">-</span>
                 </button>
                 <button 
                   onClick={() => handleScoreClick(p.id, typeof displayScore === 'number' ? displayScore : courseHole?.par || 0)}
+                  disabled={isReadOnly}
                   className="flex items-center justify-center bg-card active:bg-muted"
                 >
                   <span className={`text-3xl font-bold ${!hasScore ? 'text-muted-foreground' : 'text-foreground'}`}>
@@ -2248,6 +2250,7 @@ const ActiveRound: React.FC = () => {
                 </button>
                 <button 
                   onClick={() => handleScoreChange(p.id, 1)}
+                  disabled={isReadOnly}
                   className="flex items-center justify-center active:bg-muted"
                 >
                   <span className="text-3xl text-primary font-light">+</span>
