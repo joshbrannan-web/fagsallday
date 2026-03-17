@@ -398,7 +398,7 @@ const ActiveRound: React.FC = () => {
   };
 
   const handleNextHole = () => {
-    if (!canAdvanceHole()) {
+    if (!isReadOnly && !canAdvanceHole()) {
       const missingPlayer = currentRound.players.find(p => {
         const score = currentRound.scores[activeHole]?.[p.id];
         return !(typeof score === 'number' && score > 0);
@@ -412,6 +412,7 @@ const ActiveRound: React.FC = () => {
       return;
     }
     if (activeHole === 18) {
+      if (isReadOnly) return; // Read-only users can't finish
       navigate('/summary');
     } else {
       setActiveHole(h => h + 1);
