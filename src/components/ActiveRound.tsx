@@ -194,6 +194,14 @@ const ActiveRound: React.FC = () => {
     return !assignment;
   }, [currentRound, activeHole]);
 
+      {/* Read-Only Banner */}
+      {isReadOnly && (
+        <div className="bg-[hsl(var(--brand-gold))]/15 border-b border-[hsl(var(--brand-gold))]/30 px-4 py-2 text-center">
+          <span className="text-xs font-bold text-[hsl(var(--brand-gold))] uppercase tracking-wider">
+            👁 Viewing Round — Read Only
+          </span>
+        </div>
+      )}
 
   // Get which team a player is on for the current hole (6's, Stockton 6's, or Team Banker)
   const getPlayerTeamColor = (playerId: string): 'A' | 'B' | null => {
