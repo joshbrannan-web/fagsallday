@@ -611,6 +611,7 @@ const ActiveRound: React.FC = () => {
     opponentId?: string
   ) => {
     if (isReadOnly) return;
+    const fboGameData = currentRound.gameData?.[gameId] || {};
     const existingPresses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
     
     // Filter out the press to remove
