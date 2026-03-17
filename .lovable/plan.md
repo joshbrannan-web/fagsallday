@@ -1,60 +1,47 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Make Betting Tab Fully Read-Only for Non-Owner Players
 
-## What the Previous Plan Was Missing
+## Problem
+The mutation handlers are guarded with `if (isReadOnly) return`, but the betting game UI still renders interactive buttons (Banker selection, multiplier buttons, FBO press buttons, Wolf selection, Stockton 6 dot toggles, Bloody Banker stake adjustments, Sixes press button). Users can tap them — they just silently fail. This is confusing.
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Approach
+Hide or visually disable all interactive betting UI sections when `isReadOnly` is true. The status/display sections (P&L, point totals, team assignments) remain visible.
 
-## What the Admin Actually Needs
+## Changes — Single File: `src/components/ActiveRound.tsx`
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+### 1. Banker Selection Panel (~line 1110-1171)
+Wrap the entire banker game section's interactive parts: hide the player-selection buttons row and the "Banker Power" multiplier buttons when `isReadOnly`. Keep the header label and current banker name visible as a static display.
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+### 2. Bloody Banker "Down Player" Panel (~line 1173-1308)
+Hide the multiplier buttons (Standard/Double/Triple/PreQuad) and the per-player stake adjustment buttons when `isReadOnly`. Keep the status display (who's down, by how much).
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+### 3. Wolf Game UI (~line 1311-1438)
+Hide the entire unconfirmed selection panel (Blind Lone Wolf button, partner selection grid, Lone Wolf button) when `isReadOnly`. The confirmed state display (wolf team vs opponents) remains visible.
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+### 4. FBO Press UI — Both H2H and Pool modes (~line 1551-1971)
+Hide the entire FBO press sections when `isReadOnly`. These are purely action-oriented (press/decline), not informational.
 
-## Files
+### 5. Sixes Status Bar press trigger (~line 1100-1107)
+The `SixesStatusBar` receives an `onTriggerPress` callback. Pass a no-op or conditionally hide the press button. Since the handler is already guarded, simplest fix: pass `undefined` for `onTriggerPress` when `isReadOnly`.
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+### 6. Stockton 6 Dots Input (~line 1973-2065)
+Hide the entire `Stockton6DotsInput` component when `isReadOnly` — the birdie/greenie toggle buttons are purely interactive.
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
-
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
+### 7. Open Betting +/- buttons
+Already checked — these are in the player cards. The `handleOpenBetChange` handler is guarded. Add `disabled` styling and `pointer-events-none` to the Open Betting +/- buttons when `isReadOnly`, matching how the score +/- buttons are handled.
 
 ## Summary
-
-| File | Change |
+| Section | Action |
 |---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+| Banker select buttons | Hide when `isReadOnly` |
+| Banker multiplier buttons | Hide when `isReadOnly` |
+| Bloody Banker multiplier + stake adj | Hide when `isReadOnly` |
+| Wolf selection buttons | Hide when `isReadOnly` |
+| FBO Press sections (H2H + Pool) | Hide when `isReadOnly` |
+| Sixes press trigger | Pass no-op when `isReadOnly` |
+| Stockton 6 dots | Hide when `isReadOnly` |
+| Open Betting +/- | Add disabled styling when `isReadOnly` |
 
-4 files (1 new), 0 database changes.
+1 file modified, 0 new files, 0 database changes.
 
