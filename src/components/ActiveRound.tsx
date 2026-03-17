@@ -2360,13 +2360,15 @@ const ActiveRound: React.FC = () => {
                     <div className="flex items-center gap-3">
                       <button 
                         onClick={() => handleOpenBetChange(game.id, p.id, -5)}
-                        className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-destructive font-bold active:bg-destructive/10"
+                        disabled={isReadOnly}
+                        className={`w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-destructive font-bold active:bg-destructive/10 ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}
                       >
                         -5
                       </button>
                       <button 
                         onClick={() => handleOpenBetChange(game.id, p.id, -1)}
-                        className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground font-bold active:bg-muted"
+                        disabled={isReadOnly}
+                        className={`w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground font-bold active:bg-muted ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}
                       >
                         -1
                       </button>
@@ -2377,13 +2379,15 @@ const ActiveRound: React.FC = () => {
                       </div>
                       <button 
                         onClick={() => handleOpenBetChange(game.id, p.id, 1)}
-                        className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground font-bold active:bg-muted"
+                        disabled={isReadOnly}
+                        className={`w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground font-bold active:bg-muted ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}
                       >
                         +1
                       </button>
                       <button 
                         onClick={() => handleOpenBetChange(game.id, p.id, 5)}
-                        className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-success font-bold active:bg-success/10"
+                        disabled={isReadOnly}
+                        className={`w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-success font-bold active:bg-success/10 ${isReadOnly ? 'opacity-50 pointer-events-none' : ''}`}
                       >
                         +5
                       </button>
