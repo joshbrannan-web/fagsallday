@@ -132,11 +132,13 @@ export const useRounds = () => {
           setCurrentRound(loadedRound);
         } else {
           loadedRoundIdRef.current = null;
-          const activeRound = allRounds.find(r => r.status === 'ACTIVE' && !r.isShared);
+          const activeRound = allRounds.find(r => r.status === 'ACTIVE' && !r.isShared)
+                           || allRounds.find(r => r.status === 'ACTIVE' && r.isShared);
           setCurrentRound(activeRound || null);
         }
       } else {
-        const activeRound = allRounds.find(r => r.status === 'ACTIVE' && !r.isShared);
+        const activeRound = allRounds.find(r => r.status === 'ACTIVE' && !r.isShared)
+                         || allRounds.find(r => r.status === 'ACTIVE' && r.isShared);
         setCurrentRound(activeRound || null);
       }
     } catch (error) {
@@ -358,7 +360,8 @@ export const useRounds = () => {
 
   const clearLoadedRound = () => {
     loadedRoundIdRef.current = null;
-    const activeRound = rounds.find(r => r.status === 'ACTIVE' && !r.isShared);
+    const activeRound = rounds.find(r => r.status === 'ACTIVE' && !r.isShared)
+                     || rounds.find(r => r.status === 'ACTIVE' && r.isShared);
     setCurrentRound(activeRound || null);
   };
 
