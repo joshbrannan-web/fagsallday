@@ -291,54 +291,81 @@ export const useRounds = () => {
   const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>) => {
     if (!user) return false;
 
-    // 1. ALWAYS update local state immediately (optimistic update)
-    setRounds(prev => prev.map(r => 
+    // 1. Always update local state immediately (optimistic update)
+    setRounds(prev => prev.map(r =>
       r.id === roundId ? { ...r, ...updates } : r
     ));
-
     if (currentRound?.id === roundId) {
       setCurrentRound(prev => prev ? { ...prev, ...updates } : null);
     }
 
-    // 2. Cache the updated round locally for offline access
+    // 2. Cache locally for offline access
     offlineStorage.updateCachedRound(roundId, updates);
 
-    // 3. If online, sync to Supabase
-    if (navigator.onLine) {
-      try {
-        const dbUpdates: any = {};
-        if (updates.scores !== undefined) dbUpdates.scores = updates.scores;
-        if (updates.gameData !== undefined) dbUpdates.game_data = updates.gameData;
-        if (updates.status !== undefined) dbUpdates.status = updates.status;
-        if (updates.course !== undefined) dbUpdates.course_data = updates.course;
-        if (updates.games !== undefined) dbUpdates.games_data = updates.games;
+    // 3. Determine whether this is a deferred (scores/gameData/games) or immediate (status/course) update
+    const hasDeferred = updates.scores !== undefined || updates.gameData !== undefined || updates.games !== undefined;
+    const hasImmediate = updates.status !== undefined || updates.course !== undefined;
 
-        const { error } = await supabase
-          .from('rounds')
-          .update(dbUpdates)
-          .eq('id', roundId)
-          .eq('user_id', user.id);
-
-        if (error) throw error;
-      } catch (error: any) {
-        // Detect auth errors vs network errors
-        const isAuthError = error?.code === 'PGRST301' ||
-          error?.message?.includes('JWT') ||
-          error?.message?.includes('token') ||
-          error?.status === 401 ||
-          error?.status === 403;
-
-        if (isAuthError) {
-          toast.warning('Session expired — your scores are saved locally. Please sign in to sync.', { duration: 10000 });
-        } else {
-          console.error('Error syncing to server, queuing for later:', error);
-        }
-
-        // Queue for offline sync regardless (data is preserved locally)
-        queueUpdatesForSync(roundId, updates);
+    if (hasDeferred) {
+      // Accumulate into pending payload (last write wins per key)
+      if (updates.scores !== undefined) {
+        pendingDbUpdatesRef.current.scores = updates.scores;
       }
-    } else {
-      queueUpdatesForSync(roundId, updates);
+      if (updates.gameData !== undefined) {
+        pendingDbUpdatesRef.current.game_data = updates.gameData;
+      }
+      if (updates.games !== undefined) {
+        pendingDbUpdatesRef.current.games_data = updates.games;
+      }
+
+      // Reset the debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        flushPendingUpdates(roundId);
+      }, 3000);
+    }
+
+    if (hasImmediate) {
+      // Flush any pending deferred updates first so status change lands after latest scores
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      await flushPendingUpdates(roundId);
+
+      // Now write the immediate fields
+      if (navigator.onLine) {
+        try {
+          const dbUpdates: any = {};
+          if (updates.status !== undefined) dbUpdates.status = updates.status;
+          if (updates.course !== undefined) dbUpdates.course_data = updates.course;
+
+          const { error } = await supabase
+            .from('rounds')
+            .update(dbUpdates)
+            .eq('id', roundId)
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+        } catch (error) {
+          console.error('Error syncing status/course to server, queuing for later:', error);
+          if (updates.status !== undefined) {
+            offlineStorage.addToSyncQueue({ roundId, type: 'status', data: { status: updates.status } });
+          }
+          if (updates.course !== undefined) {
+            offlineStorage.addToSyncQueue({ roundId, type: 'course', data: { course_data: updates.course } });
+          }
+        }
+      } else {
+        if (updates.status !== undefined) {
+          offlineStorage.addToSyncQueue({ roundId, type: 'status', data: { status: updates.status } });
+        }
+        if (updates.course !== undefined) {
+          offlineStorage.addToSyncQueue({ roundId, type: 'course', data: { course_data: updates.course } });
+        }
+      }
     }
 
     return true;
