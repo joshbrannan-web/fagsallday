@@ -108,9 +108,22 @@ const RoundRecovery: FC<{
     run();
   }, [isLoading, currentRound]);
 
-  const handleResume = () => {
+  const handleResume = async () => {
     if (!recoveryRound) return;
     if (isAuthenticated) {
+      const { data: existingRound } = await supabase
+        .from('rounds')
+        .select('id')
+        .eq('id', recoveryRound.id)
+        .maybeSingle();
+
+      if (!existingRound) {
+        offlineStorage.clearCachedRound();
+        setShowRecoveryDialog(false);
+        setRecoveryRound(null);
+        toast.info('That round no longer exists.');
+        return;
+      }
       loadPastRound(recoveryRound);
     } else {
       setLocalCurrentRound(recoveryRound);
