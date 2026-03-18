@@ -72,6 +72,17 @@ serve(async (req) => {
 
     const roundIds = tournamentRounds.map((r: any) => r.id);
 
+    // Clear tournament_groups.round_id references that point to these rounds
+    const { error: unlinkError } = await supabaseAdmin
+      .from('tournament_groups')
+      .update({ round_id: null })
+      .in('round_id', roundIds);
+
+    if (unlinkError) {
+      console.error('Error unlinking tournament groups:', unlinkError);
+      // Non-fatal: some groups may not reference these rounds
+    }
+
     const { error: deleteError } = await supabaseAdmin
       .from('rounds')
       .delete()
