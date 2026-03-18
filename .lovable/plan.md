@@ -1,60 +1,51 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Add "2 Man Score" Tournament Game Type
 
-## What the Previous Plan Was Missing
+## Overview
+A new 2v2 team format where both players' scores on each hole are **summed** (not best-ball). The team with the lower combined score wins the hole. Supports Gross or Net scoring with standard match play points.
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Files to Change
 
-## What the Admin Actually Needs
+### 1. `src/types/tournament.ts`
+- Add `'two_man_score'` to `TournamentGameType` union
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+### 2. `src/components/tournament-admin/RoundConfigCard.tsx`
+- Add entry to `TOURNAMENT_GAME_DETAILS` with name "2 Man Score (2v2)" and description
+- Add entry to `GAME_TYPES` array
+- The existing handicap controls (`useHandicaps`, `handicapAllowancePercent`) already handle the Gross vs Net choice — when `useHandicaps` is off, it's Gross; when on, it's Net with the existing handicap mode (relative/allowance slider)
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+### 3. `src/components/tournament-admin/WizardStepReview.tsx`
+- Add `two_man_score: '2 Man Score (2v2)'` to `GAME_LABELS`
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+### 4. `src/components/tournament/TournamentRoundCard.tsx`
+- Add `two_man_score: '2 Man Score 2v2'` to `GAME_TYPE_LABELS` (exported, also used by TournamentBuildRoundWizard)
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+### 5. `src/services/tournamentEngine.ts`
+- Add `calcTwoManScore(input: EngineInput): RoundResult` function
+  - Logic: For each hole, sum all players' (net or gross) scores per team. Lower sum wins the hole's points. Halved-hole rule applies on ties. Max score capping applies.
+  - Very similar to `calcMatchPlayBestBall` but uses **sum** instead of **min**
+- Add `'two_man_score'` case to `calcTournamentHoleResults` dispatch
 
-## Files
+### 6. `src/components/tournament/TournamentHoleTracker.tsx`
+- Update `getTeamScore` in the default 2v2 view: for `two_man_score` game type, show the **sum** of team player scores instead of `Math.min`. This requires passing `gameType` into the score display logic (the prop already exists).
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+### 7. `src/components/tournament-admin/RoundPairingsEditor.tsx`
+- No change needed — `two_man_score` is a 2v2 format (not 1v1), so it doesn't go in `ONE_V_ONE_TYPES`
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+## Engine Function: `calcTwoManScore`
 
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+```text
+For each hole:
+  1. Get all players' gross scores (capped at max)
+  2. Calculate net scores if handicaps enabled (using matchPlayStrokeDifference)
+  3. Sum team A's scores, sum team B's scores
+  4. Lower sum wins → gets hole points
+  5. Equal sums → halved hole rule applies
+```
 
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
+This reuses all existing utilities (`matchPlayStrokeDifference`, `maxScoreForHole`, `holePointValue`, `halvedPoints`, `calcMatchState`).
 
-## Summary
-
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
-
-4 files (1 new), 0 database changes.
+## No Database Migration Needed
+The `tournament_games.game_type` column is `text` (not an enum), so `'two_man_score'` works without schema changes.
 
