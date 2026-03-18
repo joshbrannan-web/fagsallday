@@ -72,6 +72,41 @@ export const useRounds = () => {
   const pendingDbUpdatesRef = useRef<Record<string, any>>({});
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const flushPendingUpdates = useCallback(async (roundId: string) => {
+    if (!user) return;
+    const payload = pendingDbUpdatesRef.current;
+    if (Object.keys(payload).length === 0) return;
+
+    pendingDbUpdatesRef.current = {};
+
+    if (navigator.onLine) {
+      try {
+        const { error } = await supabase
+          .from('rounds')
+          .update(payload)
+          .eq('id', roundId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+      } catch (error) {
+        console.error('Error syncing to server, queuing for later:', error);
+        if (payload.scores !== undefined) {
+          offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: payload.scores } });
+        }
+        if (payload.game_data !== undefined) {
+          offlineStorage.addToSyncQueue({ roundId, type: 'gameData', data: { game_data: payload.game_data } });
+        }
+      }
+    } else {
+      if (payload.scores !== undefined) {
+        offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: payload.scores } });
+      }
+      if (payload.game_data !== undefined) {
+        offlineStorage.addToSyncQueue({ roundId, type: 'gameData', data: { game_data: payload.game_data } });
+      }
+    }
+  }, [user]);
+
   const fetchRounds = useCallback(async () => {
     if (!user) {
       setRounds([]);
