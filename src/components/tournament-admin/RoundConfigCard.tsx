@@ -64,6 +64,7 @@ const GAME_TYPES: { value: TournamentGameType; label: string }[] = [
   { value: 'alternate_shot_foursomes', label: 'Alternate Shot — Foursomes' },
   { value: 'tournament_sixes', label: 'Tournament Sixes' },
   { value: 'blind_gross_best_ball', label: 'Blind Gross Best Ball' },
+  { value: 'two_man_score', label: '2 Man Score (2v2)' },
 ];
 
 export interface RoundConfigData {

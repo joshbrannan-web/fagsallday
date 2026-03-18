@@ -16,7 +16,8 @@ export type TournamentGameType =
   | 'alternate_shot_twosomes'
   | 'alternate_shot_foursomes'
   | 'tournament_sixes'
-  | 'blind_gross_best_ball';
+  | 'blind_gross_best_ball'
+  | 'two_man_score';
 
 export type ScoreboardType =
   | 'team_points'

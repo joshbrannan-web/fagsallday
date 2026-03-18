@@ -39,6 +39,7 @@ const GAME_TYPE_LABELS: Record<string, string> = {
   alternate_shot_twosomes: 'Alternate Shot (2)',
   alternate_shot_foursomes: 'Alternate Shot (4)',
   tournament_sixes: 'Tournament Sixes',
+  two_man_score: '2 Man Score 2v2',
 };
 
 const TournamentRoundCard: React.FC<Props> = ({ round, gameType, rulesText, isSelected, onSelect, disabled, secondBallTiebreaker }) => {
