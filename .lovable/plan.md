@@ -1,66 +1,60 @@
 
 
-# Fix: Stale Tournament Round Showing After Tournament Deletion
+# Revised Plan: Admin Live View with Full Control
 
-## Problem
-Josh Brannan sees "Resume Tournament Round" on the home screen even after the tournament admin deleted the tournament. The round record still exists in the `rounds` table (owned by Josh via `user_id`), so `useRounds.fetchRounds()` returns it as an ACTIVE round. The `RoundRecovery` component never runs its verification because `currentRound` is already set from the DB fetch.
+## What the Previous Plan Was Missing
 
-**Root cause**: The `delete-tournament-rounds` edge function may not have been invoked for this tournament (it was deleted before the wiring was added), OR the PostgREST JSON path filter didn't match. Either way, the round persists in the DB.
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-## Two-Part Fix
+## What the Admin Actually Needs
 
-### 1. Immediate data fix — Delete the orphaned round
-Query the `rounds` table for ACTIVE rounds with `_TOURNAMENT_META` pointing to a tournament that no longer exists, and delete them. This cleans up the current state.
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-Use `supabase--read_query` to find orphaned rounds:
-```sql
-SELECT r.id, r.user_id, r.game_data->'_TOURNAMENT_META'->>'tournamentId' as tid
-FROM rounds r
-WHERE r.status = 'ACTIVE'
-  AND r.game_data->'_TOURNAMENT_META'->>'tournamentId' IS NOT NULL
-  AND NOT EXISTS (
-    SELECT 1 FROM tournaments t 
-    WHERE t.id = (r.game_data->'_TOURNAMENT_META'->>'tournamentId')::uuid
-  );
-```
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-Then delete those orphaned rounds via a migration.
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-### 2. Defensive check in Landing.tsx
-Add a lightweight check: when `currentRound` has `_TOURNAMENT_META` and status is `ACTIVE`, verify the tournament still exists. If not, silently finish/clear the round.
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-**File changed**: `src/components/Landing.tsx`
-- Add a `useEffect` that runs when `currentRound` has tournament metadata
-- Query `tournaments` table for the referenced `tournamentId`
-- If not found, call `finishRound()` or `deleteRound(currentRound.id)` to clean up
-- This acts as a self-healing mechanism for any future orphaned rounds
+## Files
 
-### Technical Detail
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
 
-In `Landing.tsx`, after the existing `useEffect` for `clearLoadedRound`:
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
 
-```typescript
-useEffect(() => {
-  if (!user || !currentRound || currentRound.status !== 'ACTIVE') return;
-  const meta = (currentRound.gameData as any)?._TOURNAMENT_META;
-  if (!meta?.tournamentId) return;
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
 
-  const checkTournament = async () => {
-    const { data } = await supabase
-      .from('tournaments')
-      .select('id')
-      .eq('id', meta.tournamentId)
-      .maybeSingle();
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
 
-    if (!data) {
-      // Tournament was deleted — clean up the orphaned round
-      await deleteRound(currentRound.id);
-      offlineStorage.clearCachedRound();
-    }
-  };
-  checkTournament();
-}, [user, currentRound]);
-```
+## Summary
 
-This ensures that even if the edge function misses a round, the player's app self-heals on next visit.
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+
+4 files (1 new), 0 database changes.
 

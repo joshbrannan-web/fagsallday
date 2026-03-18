@@ -11,6 +11,7 @@ import OnboardingOverlay from './OnboardingOverlay';
 import GhinPrompt from './GhinPrompt';
 import WhatsNewDialog from './WhatsNewDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { offlineStorage } from '@/services/offlineStorage';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -22,7 +23,7 @@ import {
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
-  const { currentRound, clearLoadedRound, isLoading: appLoading, roundHistory, loadPastRound } = useApp();
+  const { currentRound, clearLoadedRound, isLoading: appLoading, roundHistory, loadPastRound, deleteRound } = useApp();
   const { user, profile, signOut, isLoading: authLoading } = useAuth();
   const { isAdmin } = useAdminAuth();
   const { isTournamentAdmin, requestStatus, requestAccess } = useTournamentAdmin();
@@ -32,6 +33,27 @@ const Landing: React.FC = () => {
   React.useEffect(() => {
     clearLoadedRound();
   }, []);
+
+  // Self-healing: if currentRound references a deleted tournament, clean it up
+  useEffect(() => {
+    if (!user || !currentRound || currentRound.status !== 'ACTIVE') return;
+    const meta = (currentRound.gameData as any)?._TOURNAMENT_META;
+    if (!meta?.tournamentId) return;
+
+    const checkTournament = async () => {
+      const { data } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('id', meta.tournamentId)
+        .maybeSingle();
+
+      if (!data) {
+        await deleteRound(currentRound.id);
+        offlineStorage.clearCachedRound();
+      }
+    };
+    checkTournament();
+  }, [user, currentRound]);
 
   // Post-signup claim flow: auto-link invited players
   useEffect(() => {
