@@ -69,6 +69,8 @@ export const useRounds = () => {
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const loadedRoundIdRef = useRef<string | null>(null);
+  const pendingDbUpdatesRef = useRef<Record<string, any>>({});
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchRounds = useCallback(async () => {
     if (!user) {
