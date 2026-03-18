@@ -71,28 +71,41 @@ const RoundRecovery: FC<{
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isLoading || recoveryChecked.current || currentRound) return;
-    if (!isAuthenticated) return;
-    recoveryChecked.current = true;
+    const run = async () => {
+      if (isLoading || recoveryChecked.current || currentRound) return;
+      if (!isAuthenticated) return;
+      recoveryChecked.current = true;
 
-    const cached = offlineStorage.getCachedRound();
-    if (!cached || cached.status !== 'ACTIVE') return;
+      const cached = offlineStorage.getCachedRound();
+      if (!cached || cached.status !== 'ACTIVE') return;
 
-    const ageMs = Date.now() - (cached.startTime || 0);
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+      const ageMs = Date.now() - (cached.startTime || 0);
+      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
-    if (ageMs < TWENTY_FOUR_HOURS) {
-      if (isAuthenticated) {
-        loadPastRound(cached);
+      if (ageMs < TWENTY_FOUR_HOURS) {
+        if (isAuthenticated) {
+          const { data: existingRound } = await supabase
+            .from('rounds')
+            .select('id')
+            .eq('id', cached.id)
+            .maybeSingle();
+
+          if (!existingRound) {
+            offlineStorage.clearCachedRound();
+            return;
+          }
+          loadPastRound(cached);
+        } else {
+          setLocalCurrentRound(cached);
+        }
+        toast.success('Resuming your round...');
+        navigate('/active');
       } else {
-        setLocalCurrentRound(cached);
+        setRecoveryRound(cached);
+        setShowRecoveryDialog(true);
       }
-      toast.success('Resuming your round...');
-      navigate('/active');
-    } else {
-      setRecoveryRound(cached);
-      setShowRecoveryDialog(true);
-    }
+    };
+    run();
   }, [isLoading, currentRound]);
 
   const handleResume = () => {
