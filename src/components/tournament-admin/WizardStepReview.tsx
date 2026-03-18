@@ -16,6 +16,7 @@ const GAME_LABELS: Record<string, string> = {
   alternate_shot_foursomes: 'Alternate Shot — Foursomes',
   tournament_sixes: 'Tournament Sixes',
   blind_gross_best_ball: 'Blind Gross Best Ball',
+  two_man_score: '2 Man Score (2v2)',
 };
 
 interface Props {

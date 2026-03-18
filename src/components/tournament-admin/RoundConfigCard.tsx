@@ -46,6 +46,10 @@ const TOURNAMENT_GAME_DETAILS: Record<TournamentGameType, { name: string; descri
     name: 'Blind Gross Best Ball',
     description: 'Same as Gross Best Ball (6/6/6) but team assignments are revealed after the round. Players play their own ball without knowing who their teammates are. Holes 1–6: best 2 of 4, Holes 7–12: best 3 of 4, Holes 13–18: all 4. Adds an element of surprise!',
   },
+  two_man_score: {
+    name: '2 Man Score (2v2)',
+    description: 'Two teams of 2 players. On each hole, both players\' scores are summed — the team with the lower combined score wins the hole. Supports gross or net scoring. If totals are tied, the halved-hole rule applies. A classic team match play format.',
+  },
 };
 import CoursePicker from '@/components/CoursePicker';
 import type { Course } from '@/types';
@@ -60,6 +64,7 @@ const GAME_TYPES: { value: TournamentGameType; label: string }[] = [
   { value: 'alternate_shot_foursomes', label: 'Alternate Shot — Foursomes' },
   { value: 'tournament_sixes', label: 'Tournament Sixes' },
   { value: 'blind_gross_best_ball', label: 'Blind Gross Best Ball' },
+  { value: 'two_man_score', label: '2 Man Score (2v2)' },
 ];
 
 export interface RoundConfigData {

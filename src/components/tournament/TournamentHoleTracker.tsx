@@ -218,6 +218,10 @@ const TournamentHoleTracker: React.FC<Props> = ({
       .map(([pid]) => pid);
     const vals = playerIds.map((pid) => scores[pid]).filter((v): v is number => v !== undefined);
     if (vals.length === 0) return undefined;
+    // For two_man_score, show combined sum; otherwise show best ball
+    if (gameType === 'two_man_score') {
+      return vals.reduce((a, b) => a + b, 0);
+    }
     return Math.min(...vals);
   };
 
