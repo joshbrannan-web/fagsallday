@@ -11,6 +11,7 @@ import OnboardingOverlay from './OnboardingOverlay';
 import GhinPrompt from './GhinPrompt';
 import WhatsNewDialog from './WhatsNewDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { offlineStorage } from '@/services/offlineStorage';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
