@@ -206,42 +206,39 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else { toast.success('Tournament updated'); await fetchAll(); }
   };
 
-  const deleteTournament = async (force?: boolean): Promise<{ success: boolean; blocked?: boolean; activeCount?: number }> => {
+  const deleteTournament = async (): Promise<{ success: boolean }> => {
     if (!tournamentId) return { success: false };
 
-    // 1. Collect round_ids from tournament_groups linked to this tournament's rounds
-    const roundIds = rounds.map((r: any) => r.id);
-    let linkedRoundIds: string[] = [];
+    // Step 1: Delete all rounds belonging to this tournament via edge function
+    const { data: deleteResult, error: deleteRoundsError } = await supabase.functions.invoke(
+      'delete-tournament-rounds',
+      { body: { tournamentId } }
+    );
 
-    if (roundIds.length > 0) {
-      const { data: linkedGroups } = await supabase
-        .from('tournament_groups')
-        .select('round_id')
-        .in('tournament_round_id', roundIds);
-
-      linkedRoundIds = (linkedGroups || [])
-        .map((g: any) => g.round_id)
-        .filter(Boolean) as string[];
+    if (deleteRoundsError) {
+      console.error('Failed to delete tournament rounds:', deleteRoundsError);
+      toast.error('Failed to clean up tournament rounds. Tournament not deleted.');
+      return { success: false };
     }
 
-    // 2. Check for active player rounds
-    if (linkedRoundIds.length > 0) {
-      const { data: activeRounds } = await supabase
-        .from('rounds')
-        .select('id')
-        .in('id', linkedRoundIds)
-        .eq('status', 'ACTIVE');
+    console.log(`Cleaned up ${deleteResult?.deleted ?? 0} tournament rounds`);
 
-      if (activeRounds?.length && !force) {
-        return { success: false, blocked: true, activeCount: activeRounds.length };
+    // Step 2: Clear this admin's own offline cache if it belongs to this tournament
+    try {
+      const cachedRoundRaw = localStorage.getItem('fg_offline_round');
+      if (cachedRoundRaw) {
+        const cachedRound = JSON.parse(cachedRoundRaw);
+        const cachedTournamentId = cachedRound?.gameData?._TOURNAMENT_META?.tournamentId;
+        if (cachedTournamentId === tournamentId) {
+          localStorage.removeItem('fg_offline_round');
+          localStorage.removeItem('fg_sync_queue');
+        }
       }
-
-      // 3. Delete linked rounds before cascade removes the group references
-      const { error: roundsErr } = await supabase.from('rounds').delete().in('id', linkedRoundIds);
-      if (roundsErr) console.error('Failed to clean up linked rounds:', roundsErr);
+    } catch {
+      // non-critical, ignore
     }
 
-    // 4. Delete the tournament (cascade handles tournament tables)
+    // Step 3: Delete the tournament record (cascade handles tournament tables)
     const { error } = await supabase.from('tournaments').delete().eq('id', tournamentId);
     if (error) { toast.error('Failed to delete tournament'); return { success: false }; }
     toast.success('Tournament deleted');
