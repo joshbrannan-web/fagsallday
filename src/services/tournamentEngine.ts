@@ -811,6 +811,91 @@ function calcSixesSumOfStrokes(input: EngineInput): RoundResult {
   };
 }
 
+// ── 8. TWO MAN SCORE (2v2 Combined) ─────────────────────────
+
+export function calcTwoManScore(input: EngineInput): RoundResult {
+  const { game, holePointOverrides, players, teamAssignments, scores, courseHoles } = input;
+  const [teamAId, teamBId] = getTeamIds(teamAssignments);
+  const teamPlayers = splitByTeam(players, teamAssignments);
+
+  const teamTotals: Record<string, number> = { [teamAId]: 0, [teamBId]: 0 };
+  const playerTotals: Record<string, number> = {};
+  players.forEach(p => { playerTotals[p.id] = 0; });
+  const holeResults: HoleResult[] = [];
+
+  for (const hole of courseHoles) {
+    const max = maxScoreForHole(game, hole.par);
+    const sd = matchPlayStrokeDifference(players, game, hole.handicapIndex);
+
+    const getTeamSum = (tid: string): number | null => {
+      const nets = (teamPlayers[tid] || []).map(p => {
+        const g = scores[p.id]?.[hole.number];
+        if (g === undefined) return null;
+        return netScore(Math.min(g, max), sd[p.id]);
+      });
+      if (nets.includes(null)) return null;
+      return (nets as number[]).reduce((s, v) => s + v, 0);
+    };
+
+    const aSum = getTeamSum(teamAId);
+    const bSum = getTeamSum(teamBId);
+    if (aSum === null || bSum === null) continue;
+
+    const pv = holePointValue(hole.number, game, holePointOverrides);
+    let aPts = 0, bPts = 0, label = '';
+
+    const nameA = input.teamNames?.[teamAId] || 'Team A';
+    const nameB = input.teamNames?.[teamBId] || 'Team B';
+
+    if (aSum < bSum) {
+      aPts = pv; label = `${nameA} wins (${aSum} vs ${bSum})`;
+    } else if (bSum < aSum) {
+      bPts = pv; label = `${nameB} wins (${bSum} vs ${aSum})`;
+    } else {
+      const hp = halvedPoints(pv, game.halvedHoleRule);
+      aPts = hp; bPts = hp;
+      label = hp > 0 ? 'Halved' : 'No points';
+    }
+
+    teamTotals[teamAId] += aPts;
+    teamTotals[teamBId] += bPts;
+    (teamPlayers[teamAId] || []).forEach(p => { playerTotals[p.id] += aPts; });
+    (teamPlayers[teamBId] || []).forEach(p => { playerTotals[p.id] += bPts; });
+
+    const grossScores: Record<string, number> = {};
+    const netScoresMap: Record<string, number> = {};
+    players.forEach(p => {
+      const g = scores[p.id]?.[hole.number];
+      if (g !== undefined) {
+        grossScores[p.id] = Math.min(g, max);
+        netScoresMap[p.id] = netScore(grossScores[p.id], sd[p.id]);
+      }
+    });
+
+    const holePlayerPoints: Record<string, number> = {};
+    (teamPlayers[teamAId] || []).forEach(p => { holePlayerPoints[p.id] = aPts; });
+    (teamPlayers[teamBId] || []).forEach(p => { holePlayerPoints[p.id] = bPts; });
+
+    holeResults.push({
+      holeNumber: hole.number,
+      teamPoints: { [teamAId]: aPts, [teamBId]: bPts },
+      playerPoints: holePlayerPoints,
+      pointsValue: pv,
+      resultLabel: label,
+      grossScores,
+      netScores: netScoresMap,
+    });
+  }
+
+  return {
+    groupId: '',
+    holeResults,
+    teamTotals,
+    playerTotals,
+    matchState: calcMatchState(holeResults, teamAId, teamBId, courseHoles.length),
+  };
+}
+
 // ── MAIN DISPATCH ────────────────────────────────────────────
 
 export function calcTournamentHoleResults(input: EngineInput): RoundResult {
@@ -830,6 +915,8 @@ export function calcTournamentHoleResults(input: EngineInput): RoundResult {
       return calcAlternateShot(input);
     case 'tournament_sixes':
       return calcTournamentSixes(input);
+    case 'two_man_score':
+      return calcTwoManScore(input);
     default:
       throw new Error(`Unknown tournament game type: ${input.game.gameType}`);
   }
