@@ -264,11 +264,6 @@ const TournamentAdminDashboard: React.FC = () => {
                       onClick={async () => {
                         setDeletingTournament(true);
                         const result = await deleteTournament();
-                        if (result.blocked) {
-                          setActiveRoundWarning({ open: true, count: result.activeCount || 0 });
-                          setDeletingTournament(false);
-                          return;
-                        }
                         if (result.success) navigate('/tournament-admin');
                         setDeletingTournament(false);
                       }}
