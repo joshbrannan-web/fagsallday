@@ -23,7 +23,7 @@ import {
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
-  const { currentRound, clearLoadedRound, isLoading: appLoading, roundHistory, loadPastRound } = useApp();
+  const { currentRound, clearLoadedRound, isLoading: appLoading, roundHistory, loadPastRound, deleteRound } = useApp();
   const { user, profile, signOut, isLoading: authLoading } = useAuth();
   const { isAdmin } = useAdminAuth();
   const { isTournamentAdmin, requestStatus, requestAccess } = useTournamentAdmin();
