@@ -132,7 +132,8 @@ export const useRounds = () => {
           setCurrentRound(loadedRound);
         } else {
           loadedRoundIdRef.current = null;
-          const activeRound = allRounds.find(r => r.status === 'ACTIVE' && !r.isShared);
+          const activeRound = allRounds.find(r => r.status === 'ACTIVE' && !r.isShared)
+                           || allRounds.find(r => r.status === 'ACTIVE' && r.isShared);
           setCurrentRound(activeRound || null);
         }
       } else {
