@@ -34,6 +34,27 @@ const Landing: React.FC = () => {
     clearLoadedRound();
   }, []);
 
+  // Self-healing: if currentRound references a deleted tournament, clean it up
+  useEffect(() => {
+    if (!user || !currentRound || currentRound.status !== 'ACTIVE') return;
+    const meta = (currentRound.gameData as any)?._TOURNAMENT_META;
+    if (!meta?.tournamentId) return;
+
+    const checkTournament = async () => {
+      const { data } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('id', meta.tournamentId)
+        .maybeSingle();
+
+      if (!data) {
+        await deleteRound(currentRound.id);
+        offlineStorage.clearCachedRound();
+      }
+    };
+    checkTournament();
+  }, [user, currentRound]);
+
   // Post-signup claim flow: auto-link invited players
   useEffect(() => {
     if (!user) return;
