@@ -20,6 +20,7 @@ import {
 import PlayerListAdmin from '@/components/tournament-admin/PlayerListAdmin';
 import TeamListAdmin from '@/components/tournament-admin/TeamListAdmin';
 import RoundConfigCard, { RoundConfigData, defaultRoundConfig } from '@/components/tournament-admin/RoundConfigCard';
+import RoundResultsDashboard from '@/components/tournament-admin/RoundResultsDashboard';
 import RoundPairingsEditor from '@/components/tournament-admin/RoundPairingsEditor';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
