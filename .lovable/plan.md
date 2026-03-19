@@ -1,32 +1,60 @@
 
 
-# Auto-Add Tournament Members When Players Are Added
+# Revised Plan: Admin Live View with Full Control
 
-## Problem
-When the tournament admin adds players (with linked `user_id`s) to a tournament, those players are only inserted into `tournament_players` — not `tournament_members`. Since all tournament RLS policies use `is_tournament_member()`, these players cannot see any tournament data.
+## What the Previous Plan Was Missing
 
-## Changes
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-### 1. `src/hooks/useTournaments.ts` — Tournament creation (line ~136)
-After inserting players during tournament creation, also insert `tournament_members` rows for every player that has a `user_id`. Add after the players insert block:
-```typescript
-const memberInserts = input.players
-  .filter(p => p.userId)
-  .map(p => ({ tournament_id: tournamentId, user_id: p.userId! }));
-if (memberInserts.length > 0) {
-  await supabase.from('tournament_members').insert(memberInserts);
-}
-```
+## What the Admin Actually Needs
 
-### 2. `src/hooks/useTournamentDetail.ts` — Adding individual player (line ~90)
-After inserting a single player via `addPlayer`, also upsert a `tournament_members` row if the player has a `user_id`.
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-### 3. `src/hooks/useTournamentRoundSetup.ts` — Starting a round (line ~347)
-After inserting `round_participants`, also upsert linked players into `tournament_members` to catch any edge cases.
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-### 4. Data fix — Backfill existing tournament
-Run an INSERT to add all existing `tournament_players` with `user_id` values as `tournament_members` for the current tournament, so Clark and the others get immediate access.
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-### Unique constraint check
-The `tournament_members` table needs a unique constraint on `(tournament_id, user_id)` to support safe upserts. Will verify and add via migration if missing.
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+
+## Files
+
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
+
+## Summary
+
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+
+4 files (1 new), 0 database changes.
 

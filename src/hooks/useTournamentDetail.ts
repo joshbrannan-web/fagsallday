@@ -88,8 +88,15 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
 
   const addPlayer = async (data: { display_name: string; handicap_index: number; team_id: string; user_id?: string }) => {
     const { error } = await supabase.from('tournament_players').insert({ ...data, tournament_id: tournamentId });
-    if (error) toast.error('Failed to add player');
-    else await fetchAll();
+    if (error) { toast.error('Failed to add player'); return; }
+    // Auto-add as tournament member if linked to a user
+    if (data.user_id && tournamentId) {
+      await supabase.from('tournament_members').upsert(
+        { tournament_id: tournamentId, user_id: data.user_id },
+        { onConflict: 'tournament_id,user_id' }
+      );
+    }
+    await fetchAll();
   };
 
   const removePlayer = async (playerId: string) => {

@@ -135,6 +135,16 @@ export const useTournaments = () => {
         .insert(playerInserts);
       if (playersErr) throw playersErr;
 
+      // Auto-add linked players as tournament members so they pass RLS checks
+      const memberInserts = input.players
+        .filter(p => p.userId)
+        .map(p => ({ tournament_id: tournamentId, user_id: p.userId! }));
+      if (memberInserts.length > 0) {
+        await supabase.from('tournament_members').upsert(memberInserts, {
+          onConflict: 'tournament_id,user_id',
+        });
+      }
+
       // 4. Insert rounds + games + hole points
       for (const round of input.rounds) {
         const { data: roundData, error: roundErr } = await supabase
