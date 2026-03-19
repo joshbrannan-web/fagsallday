@@ -39,6 +39,7 @@ export const useTournamentOverlay = (
   roundName?: string,
   playerMapping?: Record<string, string>,
   teamMatchup?: { teamAId: string; teamBId: string } | null,
+  isReadOnly?: boolean,
 ) => {
   const [state, setState] = useState<OverlayState>({
     tournamentName: tournamentName || '',
