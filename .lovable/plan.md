@@ -1,60 +1,62 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Round Complete Dashboard for Tournament Admin
 
-## What the Previous Plan Was Missing
+## Overview
+Create a new "Results" tab on the existing Tournament Admin Dashboard that displays completed round data: scores, points, team totals, and winning/losing teams — all in a clean, mobile-friendly layout.
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Approach
+Rather than a separate page, add a 5th tab ("Results") to the existing `TournamentAdminDashboard.tsx` Tabs component. This tab fetches `tournament_hole_scores` and `tournament_hole_results` for completed rounds and uses existing `scoreboardCalculations.ts` helpers to compute totals.
 
-## What the Admin Actually Needs
+## Changes
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+### 1. New: `src/components/tournament-admin/RoundResultsDashboard.tsx`
+A self-contained component that receives tournament data props and renders:
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+- **Round-by-round accordion** — each completed round expands to show:
+  - Game type, course, date
+  - **Team Scoreboard** — team totals for the round with color indicators, winner highlighted with a trophy icon
+  - **Player Leaderboard** — table of all players in that round showing: name, team (color dot), gross score, net score, points earned, sorted by points desc
+  - **Group Breakdown** — collapsible per-group sections showing hole-by-hole results
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+- **Tournament Grand Totals** card at the top:
+  - Team standings across all completed rounds with cumulative points
+  - Visual bar or progress indicator showing relative team positions
+  - "Leading" / "Trailing" labels
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+- Data fetching: on mount, queries `tournament_hole_scores` and `tournament_hole_results` for all groups in completed rounds. Uses `calcTeamTotals`, `calcTeamTotalsPerRound`, `calcPlayerGrossPerRound`, `calcPlayerNetPerRound`, `calcPlayerPointsPerRound` from `scoreboardCalculations.ts`.
 
-## Files
+### 2. `src/pages/TournamentAdminDashboard.tsx`
+- Add "Results" as a 5th tab in the TabsList (change `grid-cols-4` to `grid-cols-5`)
+- Add `<TabsContent value="results">` rendering `<RoundResultsDashboard>` with the existing state props (tournament, teams, players, rounds, games, groups, groupPlayers)
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+### 3. No database changes needed
+All data already exists in `tournament_hole_scores`, `tournament_hole_results`, `tournament_groups`, etc. The existing RLS policies allow the tournament creator to read all this data.
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+## Technical Detail
 
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+```text
+TournamentAdminDashboard
+  └── Tabs: Overview | Rounds | Players | Teams | Results
+                                                    │
+                                          RoundResultsDashboard
+                                            ├── Grand Totals Card (cumulative team points)
+                                            └── Per completed round:
+                                                 ├── Team Results (winner/loser + points)
+                                                 ├── Player Table (gross, net, points)
+                                                 └── Group Details (expandable)
+```
 
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
-
-## Summary
+Data flow:
+- Component fetches `tournament_hole_scores` and `tournament_hole_results` via Supabase
+- Filters to groups belonging to completed rounds only
+- Uses `scoreboardCalculations.ts` pure functions for all math
+- No new database tables, functions, or RLS policies required
 
 | File | Change |
 |---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+| `src/components/tournament-admin/RoundResultsDashboard.tsx` | New — full results dashboard component |
+| `src/pages/TournamentAdminDashboard.tsx` | Add Results tab |
 
-4 files (1 new), 0 database changes.
+2 files (1 new), 0 database changes.
 
