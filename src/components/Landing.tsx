@@ -253,7 +253,7 @@ const Landing: React.FC = () => {
                       className="w-full bg-success text-success-foreground font-bold py-4 px-6 rounded-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 text-lg animate-pulse-subtle"
                     >
                       <Trophy className="w-5 h-5" />
-                      Resume Tournament Round
+                      View Tournament Round
                     </button>
                   );
                 }
