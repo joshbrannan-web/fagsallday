@@ -20,6 +20,7 @@ import {
 import PlayerListAdmin from '@/components/tournament-admin/PlayerListAdmin';
 import TeamListAdmin from '@/components/tournament-admin/TeamListAdmin';
 import RoundConfigCard, { RoundConfigData, defaultRoundConfig } from '@/components/tournament-admin/RoundConfigCard';
+import RoundResultsDashboard from '@/components/tournament-admin/RoundResultsDashboard';
 import RoundPairingsEditor from '@/components/tournament-admin/RoundPairingsEditor';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -311,11 +312,12 @@ const TournamentAdminDashboard: React.FC = () => {
       </Sheet>
 
       <Tabs defaultValue="overview" className="max-w-lg mx-auto">
-        <TabsList className="w-full grid grid-cols-4">
+        <TabsList className="w-full grid grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="rounds">Rounds</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
+          <TabsTrigger value="results">Results</TabsTrigger>
         </TabsList>
 
         {/* ─── Overview Tab ─── */}
@@ -520,6 +522,18 @@ const TournamentAdminDashboard: React.FC = () => {
             onUpdatePlayer={updatePlayer}
             onAddTeam={addTeam}
             onDeleteTeam={deleteTeam}
+          />
+        </TabsContent>
+
+        <TabsContent value="results" className="mt-4">
+          <RoundResultsDashboard
+            tournament={tournament}
+            teams={teams}
+            players={players}
+            rounds={rounds}
+            games={games}
+            groups={groups}
+            groupPlayers={groupPlayers}
           />
         </TabsContent>
       </Tabs>
