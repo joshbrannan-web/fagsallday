@@ -524,6 +524,18 @@ const TournamentAdminDashboard: React.FC = () => {
             onDeleteTeam={deleteTeam}
           />
         </TabsContent>
+
+        <TabsContent value="results" className="mt-4">
+          <RoundResultsDashboard
+            tournament={tournament}
+            teams={teams}
+            players={players}
+            rounds={rounds}
+            games={games}
+            groups={groups}
+            groupPlayers={groupPlayers}
+          />
+        </TabsContent>
       </Tabs>
 
       {/* Pairings Editor */}
