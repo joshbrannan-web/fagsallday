@@ -1,59 +1,60 @@
 
 
-# Analysis: Admin Changing Game Type Mid-Tournament
+# Revised Plan: Admin Live View with Full Control
 
-## What Currently Works
+## What the Previous Plan Was Missing
 
-When the admin edits Round 3's game configuration before any player starts it:
+The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
 
-1. **Database updates correctly** — `saveRoundEdits` in `TournamentAdminDashboard.tsx` updates both `tournament_rounds` (name, date, course, notes) and `tournament_games` (game_type, points, handicaps, etc.)
-2. **Players see updated config** — `useTournamentRoundSetup.selectRound()` fetches fresh data from `tournament_games` and `tournament_rounds` when a player opens the Build Round Wizard. They will see the new game type, rules, and settings.
-3. **Scoring engine adapts** — The tournament engine reads `game_type` from the `tournament_games` table at scoring time, so results will be calculated correctly for the new format.
+## What the Admin Actually Needs
 
-## Identified Gap: Stale Admin Pairings
+The admin should be able to:
+1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
+2. **Edit any player's score** on any hole — with super-user override marking
+3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
+4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
 
-There is **one significant gap**. If the admin:
-1. Creates Round 3 as **Best Ball (4-player groups)**
-2. Sets up pairings (groups of 4 players each)
-3. Later changes Round 3 to **Individual Match Play (2-player groups)**
+## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
 
-The **existing pairings are NOT deleted or adjusted**. The `saveRoundEdits` function only updates the `tournament_rounds` and `tournament_games` rows — it does not touch `tournament_groups` or `tournament_group_players`.
+Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
+- **Top**: Admin Mode banner (sticky, amber/gold)
+- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
+- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
+- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
 
-This means:
-- Groups of 4 players remain in the database
-- The player wizard expects 2-player groups for the new game type (`requiredPlayerCount` = 2)
-- Players selecting a pre-set group would get 4 players auto-populated into a 2-player format — causing a mismatch
+This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
 
-### Other items that DO work correctly
-- **Hole point overrides** — Not updated during edits (the `holePointOverrides` field in `saveRoundEdits` is skipped), but these are fetched fresh by the player wizard via `tournament_hole_points`
-- **Side games** — Selected by each player independently in the wizard, unaffected by admin changes
-- **Course data** — Updated in `tournament_rounds.course_data` and fetched fresh
+## Files
 
-## Proposed Fix
+### 1. New: `src/pages/TournamentAdminLiveView.tsx`
+- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+- Access guard via `useTournamentAdmin`
+- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
+- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
+- Uses `useTournamentDetail(tournamentId)` for teams/players data
+- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
+- Two collapsible sections:
+  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
+  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
+- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
 
-When the admin saves a round edit that **changes the game type**, and the new game type has a **different required player count** than the old one, automatically delete all existing groups and group players for that round. This prevents stale pairings from causing player count mismatches.
+### 2. `src/App.tsx`
+- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
 
-### Changes
+### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
+- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
 
-**`src/pages/TournamentAdminDashboard.tsx`** — In `saveRoundEdits`, after detecting a game type change with a different player count:
-- Query `tournament_groups` for the round
-- Delete `tournament_group_players` for those groups
-- Delete `tournament_groups` for the round
-- Show a toast warning: "Pairings cleared — new game format requires different group sizes"
+### 4. `src/pages/TournamentAdminScorecard.tsx`
+- Add "View Live" button in the header next to the back button
 
-**`src/components/tournament-admin/RoundConfigCard.tsx`** — No changes needed (it's purely a form component)
+## Summary
 
-### Technical Detail
+| File | Change |
+|---|---|
+| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
+| `src/App.tsx` | Add route |
+| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
+| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
 
-```text
-saveRoundEdits()
-  ├── update tournament_rounds (name, date, course, notes)
-  ├── update tournament_games (game_type, points, rules...)
-  └── IF game_type changed AND player count differs:
-        ├── DELETE tournament_group_players WHERE group IN round's groups
-        ├── DELETE tournament_groups WHERE tournament_round_id = roundId
-        └── toast.warning("Pairings cleared...")
-```
-
-This is a ~15 line addition to `saveRoundEdits`. The player count mapping already exists in `useTournamentRoundSetup.ts` as `GAME_TYPE_PLAYER_COUNT` and can be duplicated or imported.
+4 files (1 new), 0 database changes.
 
