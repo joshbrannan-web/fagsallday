@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournamentDetail } from '@/hooks/useTournamentDetail';
