@@ -1362,9 +1362,17 @@ const Scorecard: React.FC = () => {
 
       {isReadOnly ? (
         <div className="p-4 bg-card border-t border-border flex gap-3">
-          <Button onClick={() => navigate('/')} className="flex-1">
+          <Button variant="outline" onClick={() => navigate('/')} className="flex-1">
             <Home className="w-4 h-4 mr-2" /> Return to Home
           </Button>
+          {firstIncompleteHole !== null && (
+            <Button onClick={() => {
+              const m = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
+              navigate('/active', { state: { startHole: firstIncompleteHole, preferredTab: 'betting', ...(m ? { tournamentGroupId: m.tournamentGroupId, tournamentName: m.tournamentName, tournamentRoundName: m.roundName, playerMapping: m.playerMapping, teamMatchup: m.teamMatchup } : {}) } });
+            }} className="flex-1">
+              <Play className="w-4 h-4 mr-2" /> Return to Hole
+            </Button>
+          )}
         </div>
       ) : (
         <div className="p-4 bg-card border-t border-border flex gap-3">

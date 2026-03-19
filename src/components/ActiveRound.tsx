@@ -55,6 +55,7 @@ const ActiveRound: React.FC = () => {
     tournamentRoundName,
     tournamentPlayerMapping,
     teamMatchup,
+    isReadOnly,
   );
 
   // Initialize active hole from navigation state if available

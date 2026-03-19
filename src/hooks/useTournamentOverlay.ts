@@ -39,6 +39,7 @@ export const useTournamentOverlay = (
   roundName?: string,
   playerMapping?: Record<string, string>,
   teamMatchup?: { teamAId: string; teamBId: string } | null,
+  isReadOnly?: boolean,
 ) => {
   const [state, setState] = useState<OverlayState>({
     tournamentName: tournamentName || '',
@@ -159,7 +160,7 @@ export const useTournamentOverlay = (
           updated_at: new Date().toISOString(),
         }));
 
-      if (upsertPayload.length > 0) {
+      if (upsertPayload.length > 0 && !isReadOnly) {
         await supabase.from('tournament_hole_results').upsert(
           upsertPayload,
           { onConflict: 'tournament_group_id,hole_number' },
