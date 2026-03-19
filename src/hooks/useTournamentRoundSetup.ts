@@ -346,6 +346,16 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         await supabase.from('round_participants').insert(participantInserts);
       }
 
+      // Ensure linked players are tournament members (catches edge cases)
+      const memberUpserts = players
+        .filter(p => p.linkedUserId)
+        .map(p => ({ tournament_id: tournament.id, user_id: p.linkedUserId! }));
+      if (memberUpserts.length > 0) {
+        await supabase.from('tournament_members').upsert(memberUpserts, {
+          onConflict: 'tournament_id,user_id',
+        });
+      }
+
       // Auto-activate tournament round if still pending
       if (selectedRound.status === 'pending') {
         await supabase
