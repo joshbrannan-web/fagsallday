@@ -1,60 +1,42 @@
 
 
-# Revised Plan: Admin Live View with Full Control
+# Fix Non-Owner Tournament Round Experience
 
-## What the Previous Plan Was Missing
+## Issues
+1. **Button text**: Shared tournament round button says "Resume Tournament Round" — should say "View Tournament Round"
+2. **Scorecard footer**: Non-owner sees only "Return to Home" — should also see "Return to Hole" button (like owner)
+3. **Tournament tab empty**: When non-owner Clark clicks Tournament tab, no data loads
 
-The previous plan only rendered `TournamentTabPanel`, which is a **read-only display** — it shows match status, hole tracker, and player summaries but has **no score editing, no round deletion, no controls**. The actual player score-entry experience lives in `ActiveRound.tsx` (2500 lines) and depends on a local round context that the admin does not have.
+## Root Cause Analysis
 
-## What the Admin Actually Needs
+### Issue 3 (Tournament tab empty for non-owner)
+The `useTournamentOverlay` hook queries tournament tables (`tournament_groups`, `tournament_rounds`, `tournament_teams`, etc.) which all have RLS requiring `is_tournament_member(tournament_id)`. If the non-owner (Clark) was added as a `round_participant` but never joined the tournament via `tournament_members`, all queries return empty/null and the overlay shows nothing.
 
-The admin should be able to:
-1. **View the live match status** (team totals, hole-by-hole results, player summary) — same as a player sees
-2. **Edit any player's score** on any hole — with super-user override marking
-3. **Trigger engine recalculation** after score changes (already exists in `useTournamentScorecard`)
-4. **Delete all group data** (scores, results, group players, group) to effectively reset/delete a group's round
+Additionally, the `reload()` function in `useTournamentOverlay` tries to **upsert** to `tournament_hole_results` (line 162-167) even for read-only users, which would fail silently. The reload should skip this write for non-owners.
 
-## Approach: Combine TournamentTabPanel + GroupScorecardAdmin
+**Fix**: The overlay data loading itself should work if the user is a tournament member. Need to verify Clark's membership and potentially add a guard so the upsert is skipped for read-only views. If membership is the issue, the round-sharing flow should auto-add the participant as a tournament member.
 
-Rather than trying to replicate `ActiveRound.tsx` (which is tightly coupled to local round state), build a new admin page that combines:
-- **Top**: Admin Mode banner (sticky, amber/gold)
-- **Tournament view**: `TournamentTabPanel` for the live match visualization (read-only display of match status, hole tracker, player summary)
-- **Admin scorecard**: `GroupScorecardAdmin` for score editing (tap any cell to override scores, with engine recalc)
-- **Danger zone**: Button to delete the group's round data (scores, results, group players, group record)
+## Changes
 
-This gives the admin everything a player can see PLUS admin-only edit and delete capabilities, all on one page.
+### 1. `src/components/Landing.tsx` (line 256)
+Change "Resume Tournament Round" to "View Tournament Round" for the shared round button (the `sharedActiveRound` with `sharedMeta` block).
 
-## Files
+### 2. `src/components/Scorecard.tsx` (lines 1363-1368)
+Update the `isReadOnly` footer to include a "Return to Hole" button alongside "Return to Home" — same as the owner's footer but without "Share Image". The button navigates back to `/active` with the tournament state.
 
-### 1. New: `src/pages/TournamentAdminLiveView.tsx`
-- Route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
-- Access guard via `useTournamentAdmin`
-- Uses `useTournamentOverlay(groupId)` for live match data → feeds `TournamentTabPanel`
-- Uses `useTournamentScorecard(groupId)` for score editing → feeds `GroupScorecardAdmin`
-- Uses `useTournamentDetail(tournamentId)` for teams/players data
-- Sticky amber banner: "Admin Mode — Viewing as Player" with Shield icon
-- Two collapsible sections:
-  - **Match View** — `TournamentTabPanel` (live status, hole tracker, player summary)
-  - **Score Editor** — `GroupScorecardAdmin` (tap-to-edit any score)
-- **Delete Group Round** button at bottom — deletes `tournament_hole_results`, `tournament_hole_scores`, `tournament_group_players`, and `tournament_groups` records for this group, then navigates back to admin dashboard
+### 3. `src/hooks/useTournamentOverlay.ts` (lines 150-167)
+Guard the `tournament_hole_results` upsert in the `reload()` function so it only runs when the user is the round owner (not read-only). Accept an optional `isReadOnly` parameter and skip the write when true.
 
-### 2. `src/App.tsx`
-- Add route: `/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live`
+### 4. `src/components/ActiveRound.tsx` (line 52-58)
+Pass `isReadOnly` to `useTournamentOverlay` so it knows to skip writes.
 
-### 3. `src/pages/TournamentAdminDashboard.tsx` (lines 326-335)
-- Add a second button "View Live" next to "View Scorecard" in the Live Activity section, navigating to the new live view route
+## Technical Details
 
-### 4. `src/pages/TournamentAdminScorecard.tsx`
-- Add "View Live" button in the header next to the back button
+**Landing.tsx change** — single text change on line 256.
 
-## Summary
+**Scorecard.tsx change** — replace the read-only footer block (lines 1363-1368) to include both "Return to Home" and "Return to Hole" buttons side by side, with Return to Hole navigating to `/active` with tournament state from `_TOURNAMENT_META`.
 
-| File | Change |
-|---|---|
-| `src/pages/TournamentAdminLiveView.tsx` | New — admin banner + TournamentTabPanel + GroupScorecardAdmin + delete group |
-| `src/App.tsx` | Add route |
-| `src/pages/TournamentAdminDashboard.tsx` | Add "View Live" button in Live Activity |
-| `src/pages/TournamentAdminScorecard.tsx` | Add "View Live" button in header |
+**useTournamentOverlay.ts change** — add `isReadOnly?: boolean` parameter, wrap the upsert block in `if (!isReadOnly)`.
 
-4 files (1 new), 0 database changes.
+**ActiveRound.tsx change** — pass `isReadOnly` as 6th argument to `useTournamentOverlay`.
 
