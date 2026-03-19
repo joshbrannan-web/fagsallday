@@ -114,6 +114,18 @@ const TournamentAdminDashboard: React.FC = () => {
     setEditingRoundId(roundId);
   };
 
+  const GAME_TYPE_PLAYER_COUNT: Record<string, number> = {
+    match_play_individual: 2,
+    match_play_best_ball: 4,
+    match_play_gross_best_ball: 4,
+    blind_gross_best_ball: 4,
+    scramble_2: 2,
+    scramble_4: 4,
+    alternate_shot_twosomes: 2,
+    alternate_shot_foursomes: 4,
+    tournament_sixes: 4,
+  };
+
   const saveRoundEdits = async () => {
     if (!editingRoundId || !roundConfigDraft) return;
     setSavingRound(true);
@@ -128,6 +140,9 @@ const TournamentAdminDashboard: React.FC = () => {
     });
 
     if (game) {
+      const oldPlayerCount = GAME_TYPE_PLAYER_COUNT[game.game_type] || 4;
+      const newPlayerCount = GAME_TYPE_PLAYER_COUNT[d.gameType] || 4;
+
       await updateGame(game.id, {
         game_type: d.gameType,
         default_points_per_hole: d.defaultPointsPerHole,
@@ -138,6 +153,21 @@ const TournamentAdminDashboard: React.FC = () => {
         second_ball_tiebreaker: d.secondBallTiebreaker,
         sixes_config: d.sixesConfig,
       });
+
+      // Clear stale pairings if game type changed to a different player count
+      if (game.game_type !== d.gameType && oldPlayerCount !== newPlayerCount) {
+        const { data: groups } = await supabase
+          .from('tournament_groups')
+          .select('id')
+          .eq('tournament_round_id', editingRoundId);
+
+        const groupIds = (groups || []).map(g => g.id);
+        if (groupIds.length > 0) {
+          await supabase.from('tournament_group_players').delete().in('tournament_group_id', groupIds);
+          await supabase.from('tournament_groups').delete().eq('tournament_round_id', editingRoundId);
+          toast.warning('Pairings cleared — new game format requires different group sizes');
+        }
+      }
     }
 
     toast.success('Round updated');
