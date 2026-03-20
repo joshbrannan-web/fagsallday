@@ -339,11 +339,10 @@ const ActiveRound: React.FC = () => {
     }
   }, [activeHole]);
 
-  // Tournament mode: sync scores to tournament_hole_scores whenever scores change
+  // Tournament mode: sync scores locally to overlay engine (no DB writes during play)
   useEffect(() => {
     if (!tournamentGroupId || !tournamentPlayerMapping || !currentRound || isReadOnly) return;
-    if (tournamentOverlay.isLoading) return; // Wait for overlay to be ready
-    // Bulk-sync all holes, not just activeHole
+    if (tournamentOverlay.isLoading) return;
     Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
       const holeNum = Number(holeStr);
       currentRound.players.forEach(player => {

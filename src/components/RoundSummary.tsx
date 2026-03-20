@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { formatMoney, calculatePerGameTotals, calculateSettlement } from '../services/gameEngine';
-import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image, Trash2, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image, Trash2, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
 import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
 import GreenFeeSplitDialog from './GreenFeeSplitDialog';
 import TournamentRoundSummary from './tournament/TournamentRoundSummary';
 import { supabase } from '@/integrations/supabase/client';
+import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
