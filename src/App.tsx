@@ -260,16 +260,16 @@ const AppContent: FC = () => {
     }
   }, [isOnline, isAuthenticated, user]);
 
-  // Drain tournament sync queue when coming back online
+  // Drain tournament sync queues every 30s while online (scores + results)
   useEffect(() => {
     if (!isOnline || !isAuthenticated) return;
 
-    const drainTournamentQueue = async () => {
-      const queue = offlineStorage.getTournamentSyncQueue();
-      if (queue.length === 0) return;
+    const drainAllTournamentQueues = async () => {
+      let syncedCount = 0;
 
-      const successIds: string[] = [];
-      for (const item of queue) {
+      // 1. Drain score queue
+      const scoreQueue = offlineStorage.getTournamentSyncQueue();
+      for (const item of scoreQueue) {
         try {
           const { error } = await supabase.from('tournament_hole_scores').upsert({
             tournament_group_id: item.tournamentGroupId,
@@ -278,18 +278,44 @@ const AppContent: FC = () => {
             gross_score: item.grossScore,
             is_super_user_override: false,
           }, { onConflict: 'tournament_group_id,tournament_player_id,hole_number' });
-          if (!error) successIds.push(item.id);
+          if (!error) {
+            offlineStorage.removeTournamentSyncItems([item.id]);
+            syncedCount++;
+          } else {
+            offlineStorage.incrementTournamentScoreRetry(item.id);
+          }
         } catch (e) {
-          console.warn('Failed to drain tournament sync item:', e);
+          offlineStorage.incrementTournamentScoreRetry(item.id);
         }
       }
-      if (successIds.length > 0) {
-        offlineStorage.removeTournamentSyncItems(successIds);
-        toast.success(`Synced ${successIds.length} tournament scores`);
+
+      // 2. Drain result queue
+      const resultQueue = offlineStorage.getTournamentResultQueue();
+      for (const item of resultQueue) {
+        try {
+          const { error } = await supabase.from('tournament_hole_results').upsert(
+            item.payload,
+            { onConflict: 'tournament_group_id,hole_number' },
+          );
+          if (!error) {
+            offlineStorage.removeTournamentResultItems([item.id]);
+            syncedCount++;
+          } else {
+            offlineStorage.incrementTournamentResultRetry(item.id);
+          }
+        } catch (e) {
+          offlineStorage.incrementTournamentResultRetry(item.id);
+        }
+      }
+
+      if (syncedCount > 0) {
+        toast.success(`Synced ${syncedCount} tournament changes`);
       }
     };
 
-    drainTournamentQueue();
+    drainAllTournamentQueues(); // Run immediately
+    const interval = setInterval(drainAllTournamentQueues, 30_000); // Then every 30s
+    return () => clearInterval(interval);
   }, [isOnline, isAuthenticated]);
 
   // Cache the active round for offline recovery

@@ -397,20 +397,34 @@ const ActiveRound: React.FC = () => {
     });
   };
 
-  const handleNextHole = () => {
+  const handleNextHole = async () => {
     if (!isReadOnly && !canAdvanceHole()) {
       const missingPlayer = currentRound.players.find(p => {
         const score = currentRound.scores[activeHole]?.[p.id];
         return !(typeof score === 'number' && score > 0);
       });
       if (missingPlayer) {
-        playerCardRefs.current[missingPlayer.id]?.scrollIntoView({ 
-          behavior: 'smooth', block: 'center' 
+        playerCardRefs.current[missingPlayer.id]?.scrollIntoView({
+          behavior: 'smooth', block: 'center'
         });
       }
       toast.error('Enter scores for all players before moving on');
       return;
     }
+
+    // Per-hole sync: batch-sync completed hole + any dirty previous holes to DB
+    if (tournamentGroupId && !isReadOnly) {
+      const completedHole = activeHole;
+      // Fire and forget — don't block hole advancement on network
+      tournamentOverlay.batchSyncHole(completedHole).catch(() => {});
+      // Re-sync any previously completed holes that were edited
+      for (const dirtyHole of tournamentOverlay.getDirtyHoles()) {
+        if (dirtyHole !== completedHole) {
+          tournamentOverlay.batchSyncHole(dirtyHole).catch(() => {});
+        }
+      }
+    }
+
     if (activeHole === 18) {
       if (isReadOnly) return; // Read-only users can't finish
       navigate('/summary');
