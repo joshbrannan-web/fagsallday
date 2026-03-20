@@ -1,62 +1,71 @@
 
 
-# Round Complete Dashboard for Tournament Admin
+# Defer Tournament Sync to Round Completion
 
-## Overview
-Create a new "Results" tab on the existing Tournament Admin Dashboard that displays completed round data: scores, points, team totals, and winning/losing teams — all in a clean, mobile-friendly layout.
+## Problem
+Live tournament syncing (`syncScore` on every keystroke, realtime subscriptions, and hole-result upserts during play) causes failures that block groups from entering scores.
 
-## Approach
-Rather than a separate page, add a 5th tab ("Results") to the existing `TournamentAdminDashboard.tsx` Tabs component. This tab fetches `tournament_hole_scores` and `tournament_hole_results` for completed rounds and uses existing `scoreboardCalculations.ts` helpers to compute totals.
+## Solution
+Remove all live tournament database writes during an active round. Instead, batch-sync all scores and computed results to the tournament tables only when the round owner clicks "Complete Round" in `RoundSummary`.
 
 ## Changes
 
-### 1. New: `src/components/tournament-admin/RoundResultsDashboard.tsx`
-A self-contained component that receives tournament data props and renders:
+### 1. `src/hooks/useTournamentOverlay.ts` — Remove live writes, keep local engine
 
-- **Round-by-round accordion** — each completed round expands to show:
-  - Game type, course, date
-  - **Team Scoreboard** — team totals for the round with color indicators, winner highlighted with a trophy icon
-  - **Player Leaderboard** — table of all players in that round showing: name, team (color dot), gross score, net score, points earned, sorted by points desc
-  - **Group Breakdown** — collapsible per-group sections showing hole-by-hole results
+- **Remove the realtime subscription** (lines 348-359) — the `overlay-${tournamentGroupId}` channel that triggers `reload()` on every score change
+- **Remove the `tournament_hole_results` upsert** inside `reload()` (lines 150-168) — stop persisting results on every score change
+- **Change `syncScore`** to be local-only: instead of upserting to `tournament_hole_scores`, just update the local `allHoleScores` state and re-run the engine. This keeps the tournament tab UI (match tracker, points) working locally without any DB writes
+- **Add a new `batchSyncAllScores` function** that:
+  1. Upserts all scores from `allHoleScores` to `tournament_hole_scores`
+  2. Re-runs the engine and upserts all computed results to `tournament_hole_results`
+  3. Returns success/failure so the caller can handle errors
+- **Expose `batchSyncAllScores`** in the return object
 
-- **Tournament Grand Totals** card at the top:
-  - Team standings across all completed rounds with cumulative points
-  - Visual bar or progress indicator showing relative team positions
-  - "Leading" / "Trailing" labels
+### 2. `src/components/ActiveRound.tsx` — Remove bulk-sync effect
 
-- Data fetching: on mount, queries `tournament_hole_scores` and `tournament_hole_results` for all groups in completed rounds. Uses `calcTeamTotals`, `calcTeamTotalsPerRound`, `calcPlayerGrossPerRound`, `calcPlayerNetPerRound`, `calcPlayerPointsPerRound` from `scoreboardCalculations.ts`.
+- **Remove the `useEffect` at lines 342-356** that bulk-syncs scores to `tournament_hole_scores` whenever `currentRound.scores` changes. This is the main source of live DB writes during play.
 
-### 2. `src/pages/TournamentAdminDashboard.tsx`
-- Add "Results" as a 5th tab in the TabsList (change `grid-cols-4` to `grid-cols-5`)
-- Add `<TabsContent value="results">` rendering `<RoundResultsDashboard>` with the existing state props (tournament, teams, players, rounds, games, groups, groupPlayers)
+### 3. `src/components/RoundSummary.tsx` — Add batch sync on completion
 
-### 3. No database changes needed
-All data already exists in `tournament_hole_scores`, `tournament_hole_results`, `tournament_groups`, etc. The existing RLS policies allow the tournament creator to read all this data.
+- In `handleFinish()`, before setting status to `submitted`, call `tournamentOverlay.batchSyncAllScores()` using the overlay hook
+- The overlay hook needs to be accessible here — it's already used via `TournamentRoundSummary`. We'll either:
+  - Pass `batchSyncAllScores` down from `ActiveRound` via navigation state, OR
+  - Instantiate `useTournamentOverlay` in `RoundSummary` directly (it already has `tournamentGroupId` from location state)
+- Best approach: instantiate `useTournamentOverlay` in `RoundSummary` with the same params, call `batchSyncAllScores()` in `handleFinish`, show a loading spinner during sync, and handle errors with a retry toast
 
-## Technical Detail
+### 4. `src/services/offlineStorage.ts` — Keep tournament offline queue
+
+The offline queue (`fg_tournament_sync_queue`) becomes less relevant since we're not writing during play, but keep it as a safety net for the batch sync in case it partially fails.
+
+## Flow After Changes
 
 ```text
-TournamentAdminDashboard
-  └── Tabs: Overview | Rounds | Players | Teams | Results
-                                                    │
-                                          RoundResultsDashboard
-                                            ├── Grand Totals Card (cumulative team points)
-                                            └── Per completed round:
-                                                 ├── Team Results (winner/loser + points)
-                                                 ├── Player Table (gross, net, points)
-                                                 └── Group Details (expandable)
+During Round:
+  Player enters score → updateScore (local round) → engine runs locally
+  Tournament tab shows live match status from local calculation
+  NO database writes to tournament tables
+
+On "Complete Round":
+  handleFinish() in RoundSummary
+    ├── batchSyncAllScores()
+    │     ├── Upsert ALL scores → tournament_hole_scores
+    │     └── Upsert ALL results → tournament_hole_results
+    ├── Update tournament_groups.status = 'submitted'
+    ├── finishRound() (marks betting round complete)
+    └── Navigate home
 ```
 
-Data flow:
-- Component fetches `tournament_hole_scores` and `tournament_hole_results` via Supabase
-- Filters to groups belonging to completed rounds only
-- Uses `scoreboardCalculations.ts` pure functions for all math
-- No new database tables, functions, or RLS policies required
+## What Still Works
+- Tournament tab in ActiveRound still shows live match status (calculated locally from round scores)
+- Tournament overlay animations (hole completion banners) still work locally
+- Admin scoreboards update once the group completes their round
+- Segment totals for Sixes still compute locally
 
 | File | Change |
 |---|---|
-| `src/components/tournament-admin/RoundResultsDashboard.tsx` | New — full results dashboard component |
-| `src/pages/TournamentAdminDashboard.tsx` | Add Results tab |
+| `src/hooks/useTournamentOverlay.ts` | Remove realtime sub + live upserts, add `batchSyncAllScores`, make `syncScore` local-only |
+| `src/components/ActiveRound.tsx` | Remove bulk-sync useEffect |
+| `src/components/RoundSummary.tsx` | Call `batchSyncAllScores()` in `handleFinish` before submission |
 
-2 files (1 new), 0 database changes.
+3 files changed, 0 database changes.
 
