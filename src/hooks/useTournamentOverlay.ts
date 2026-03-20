@@ -147,25 +147,8 @@ export const useTournamentOverlay = (
         matchState: result.matchState,
       }));
 
-      // Persist computed results to tournament_hole_results so scoreboards stay in sync
-      const upsertPayload = result.holeResults
-        .filter(hr => hr.resultLabel && hr.resultLabel !== '')
-        .map(hr => ({
-          tournament_group_id: tournamentGroupId,
-          hole_number: hr.holeNumber,
-          team_points: hr.teamPoints,
-          player_points: hr.playerPoints,
-          points_value: hr.pointsValue,
-          result_label: hr.resultLabel,
-          updated_at: new Date().toISOString(),
-        }));
-
-      if (upsertPayload.length > 0 && !isReadOnly) {
-        await supabase.from('tournament_hole_results').upsert(
-          upsertPayload,
-          { onConflict: 'tournament_group_id,hole_number' },
-        );
-      }
+      // Results are computed locally only — no DB writes during play
+      // batchSyncAllScores() handles persisting on round completion
     } catch (e) {
       console.error('Tournament engine error:', e);
     }
