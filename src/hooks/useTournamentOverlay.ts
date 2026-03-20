@@ -328,18 +328,7 @@ export const useTournamentOverlay = (
     load();
   }, [tournamentGroupId]);
 
-  // Realtime subscription (#67, #68)
-  useEffect(() => {
-    if (!tournamentGroupId) return;
-    const channel = supabase
-      .channel(`overlay-${tournamentGroupId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'tournament_hole_scores',
-        filter: `tournament_group_id=eq.${tournamentGroupId}`,
-      }, () => reload())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [tournamentGroupId, reload]);
+  // Realtime subscription removed — tournament data syncs only on round completion
 
   // Sync score to tournament_hole_scores and run engine (with offline queue fallback)
   const syncScore = useCallback(async (
