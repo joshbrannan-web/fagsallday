@@ -539,6 +539,7 @@ export const useTournamentOverlay = (
     ...state,
     isLoading,
     syncScore,
+    batchSyncAllScores,
     tournamentGame,
     tournamentPlayers,
     teamAssignments,
