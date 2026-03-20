@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { formatMoney, calculatePerGameTotals, calculateSettlement } from '../services/gameEngine';
-import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image, Trash2, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Home, Trophy, Share2, Edit2, Check, X, Lock, Unlock, MapPin, Image, Trash2, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
 import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
 import GreenFeeSplitDialog from './GreenFeeSplitDialog';
 import TournamentRoundSummary from './tournament/TournamentRoundSummary';
 import { supabase } from '@/integrations/supabase/client';
+import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -126,6 +127,17 @@ const RoundSummary: React.FC = () => {
   const scorecardImageRef = useRef<ScorecardImageHandle>(null);
   const [showGreenFeeDialog, setShowGreenFeeDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSyncingTournament, setIsSyncingTournament] = useState(false);
+  
+  // Tournament overlay for batch sync on completion
+  const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
+  const tournamentOverlay = useTournamentOverlay(
+    tournamentGroupId || undefined,
+    meta?.tournamentName || tournamentState?.tournamentName,
+    meta?.roundName || tournamentState?.tournamentRoundName,
+    meta?.playerMapping || tournamentState?.playerMapping,
+    meta?.teamMatchup || tournamentState?.teamMatchup,
+  );
   
   // Course editing state
   const [editingCourse, setEditingCourse] = useState(false);
@@ -318,8 +330,30 @@ const RoundSummary: React.FC = () => {
       await updateGameDataBatch('_META', 0, { _FINAL_ADJUSTMENTS: adjustedAmounts });
     }
     
-    // Submit tournament group if applicable
-    if (tournamentGroupId) {
+    // Batch sync tournament scores on completion
+    if (tournamentGroupId && tournamentOverlay.batchSyncAllScores) {
+      setIsSyncingTournament(true);
+      // Feed current round scores into overlay before syncing
+      const playerMapping = meta?.playerMapping || tournamentState?.playerMapping;
+      if (playerMapping && currentRound) {
+        Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
+          const holeNum = Number(holeStr);
+          currentRound.players.forEach(player => {
+            const score = holeScores[player.id];
+            if (typeof score === 'number' && score > 0) {
+              tournamentOverlay.syncScore(holeNum, player.id, score);
+            }
+          });
+        });
+      }
+      await new Promise(r => setTimeout(r, 200));
+      const success = await tournamentOverlay.batchSyncAllScores();
+      setIsSyncingTournament(false);
+      if (!success) {
+        toast.error('Failed to sync tournament scores. Please try again.');
+        return;
+      }
+      
       await supabase.from('tournament_groups').update({
         status: 'submitted',
         submitted_at: new Date().toISOString(),
