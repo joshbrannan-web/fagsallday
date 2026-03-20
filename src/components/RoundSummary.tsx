@@ -330,8 +330,30 @@ const RoundSummary: React.FC = () => {
       await updateGameDataBatch('_META', 0, { _FINAL_ADJUSTMENTS: adjustedAmounts });
     }
     
-    // Submit tournament group if applicable
-    if (tournamentGroupId) {
+    // Batch sync tournament scores on completion
+    if (tournamentGroupId && tournamentOverlay.batchSyncAllScores) {
+      setIsSyncingTournament(true);
+      // Feed current round scores into overlay before syncing
+      const playerMapping = meta?.playerMapping || tournamentState?.playerMapping;
+      if (playerMapping && currentRound) {
+        Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
+          const holeNum = Number(holeStr);
+          currentRound.players.forEach(player => {
+            const score = holeScores[player.id];
+            if (typeof score === 'number' && score > 0) {
+              tournamentOverlay.syncScore(holeNum, player.id, score);
+            }
+          });
+        });
+      }
+      await new Promise(r => setTimeout(r, 200));
+      const success = await tournamentOverlay.batchSyncAllScores();
+      setIsSyncingTournament(false);
+      if (!success) {
+        toast.error('Failed to sync tournament scores. Please try again.');
+        return;
+      }
+      
       await supabase.from('tournament_groups').update({
         status: 'submitted',
         submitted_at: new Date().toISOString(),
