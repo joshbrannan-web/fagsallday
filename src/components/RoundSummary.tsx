@@ -127,6 +127,17 @@ const RoundSummary: React.FC = () => {
   const scorecardImageRef = useRef<ScorecardImageHandle>(null);
   const [showGreenFeeDialog, setShowGreenFeeDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSyncingTournament, setIsSyncingTournament] = useState(false);
+  
+  // Tournament overlay for batch sync on completion
+  const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
+  const tournamentOverlay = useTournamentOverlay(
+    tournamentGroupId || undefined,
+    meta?.tournamentName || tournamentState?.tournamentName,
+    meta?.roundName || tournamentState?.tournamentRoundName,
+    meta?.playerMapping || tournamentState?.playerMapping,
+    meta?.teamMatchup || tournamentState?.teamMatchup,
+  );
   
   // Course editing state
   const [editingCourse, setEditingCourse] = useState(false);
