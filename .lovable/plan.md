@@ -1,71 +1,55 @@
 
 
-# Defer Tournament Sync to Round Completion
+# Remaining Sync Gaps and Recommended Fixes
 
-## Problem
-Live tournament syncing (`syncScore` on every keystroke, realtime subscriptions, and hole-result upserts during play) causes failures that block groups from entering scores.
+## Gaps Found
 
-## Solution
-Remove all live tournament database writes during an active round. Instead, batch-sync all scores and computed results to the tournament tables only when the round owner clicks "Complete Round" in `RoundSummary`.
+### 1. Realtime subscription still active in `useTournamentOverlay.ts` (lines 331-354)
+The plan said to **remove** the realtime subscription during play, but it's still there. The `overlay-${tournamentGroupId}` channel listens for `tournament_hole_scores` and `tournament_hole_results` changes and triggers `reload()`, which re-fetches all scores from the DB. During play, this can **overwrite local scores** with stale DB data if another group member's per-hole sync fires. This is the most critical remaining gap — it can cause score loss mid-round.
 
-## Changes
+### 2. Per-hole sync in `ActiveRound.tsx` still fires during play (lines 415-426)
+`handleNextHole` calls `batchSyncHole()` on every hole advancement. This contradicts the "defer all writes to round completion" design. These writes during play are the exact pattern that caused the original sync storm. If connectivity is spotty, they'll fail silently and create orphaned partial data in the DB that conflicts with the full batch sync on completion.
 
-### 1. `src/hooks/useTournamentOverlay.ts` — Remove live writes, keep local engine
+### 3. `batchSyncAllScores` doesn't check for admin overrides (lines 549-620)
+Unlike `batchSyncHole` (which checks `is_super_user_override`), `batchSyncAllScores` blindly upserts all scores with `is_super_user_override: false`. If an admin corrected a score during the round, the batch sync on completion will **overwrite the admin's correction**.
 
-- **Remove the realtime subscription** (lines 348-359) — the `overlay-${tournamentGroupId}` channel that triggers `reload()` on every score change
-- **Remove the `tournament_hole_results` upsert** inside `reload()` (lines 150-168) — stop persisting results on every score change
-- **Change `syncScore`** to be local-only: instead of upserting to `tournament_hole_scores`, just update the local `allHoleScores` state and re-run the engine. This keeps the tournament tab UI (match tracker, points) working locally without any DB writes
-- **Add a new `batchSyncAllScores` function** that:
-  1. Upserts all scores from `allHoleScores` to `tournament_hole_scores`
-  2. Re-runs the engine and upserts all computed results to `tournament_hole_results`
-  3. Returns success/failure so the caller can handle errors
-- **Expose `batchSyncAllScores`** in the return object
+### 4. Race condition in `handleFinish` — `syncScore` then `batchSyncAllScores` (lines 337-350)
+`handleFinish` calls `syncScore` in a loop (which updates React state), waits 200ms, then calls `batchSyncAllScores`. But React state updates are batched and may not have flushed in 200ms. The `allHoleScores` ref inside `batchSyncAllScores` could be stale, causing incomplete score uploads.
 
-### 2. `src/components/ActiveRound.tsx` — Remove bulk-sync effect
+### 5. Scoreboard subscriptions depend on `groups` state (line 335)
+`useTournamentScoreboards` recreates all realtime channels every time `groups` changes. If `groups` reference changes on re-render (object identity), this causes channel churn — unsubscribing and resubscribing rapidly. This is mitigated by the per-group filter but still wasteful.
 
-- **Remove the `useEffect` at lines 342-356** that bulk-syncs scores to `tournament_hole_scores` whenever `currentRound.scores` changes. This is the main source of live DB writes during play.
+### 6. No verification that batch sync actually persisted all rows
+`batchSyncAllScores` checks for Supabase errors but doesn't verify row count. An RLS-blocked upsert returns empty data (not an error). If a non-creator hits an edge case where `is_group_member` returns false (e.g., group_players record was deleted mid-round), the sync silently fails.
 
-### 3. `src/components/RoundSummary.tsx` — Add batch sync on completion
+## Recommended Fixes
 
-- In `handleFinish()`, before setting status to `submitted`, call `tournamentOverlay.batchSyncAllScores()` using the overlay hook
-- The overlay hook needs to be accessible here — it's already used via `TournamentRoundSummary`. We'll either:
-  - Pass `batchSyncAllScores` down from `ActiveRound` via navigation state, OR
-  - Instantiate `useTournamentOverlay` in `RoundSummary` directly (it already has `tournamentGroupId` from location state)
-- Best approach: instantiate `useTournamentOverlay` in `RoundSummary` with the same params, call `batchSyncAllScores()` in `handleFinish`, show a loading spinner during sync, and handle errors with a retry toast
+| # | Fix | File | Effort |
+|---|-----|------|--------|
+| 1 | **Remove the realtime subscription** from `useTournamentOverlay.ts` entirely (lines 331-354). It serves no purpose during deferred-sync play and risks overwriting local state. | `useTournamentOverlay.ts` | Small |
+| 2 | **Remove per-hole `batchSyncHole` calls** from `handleNextHole` in `ActiveRound.tsx` (lines 415-426). All writes should happen only in `batchSyncAllScores` on completion. | `ActiveRound.tsx` | Small |
+| 3 | **Add admin override check to `batchSyncAllScores`** — before upserting, query `tournament_hole_scores` for `is_super_user_override = true` rows and exclude those player/hole combos from the payload. | `useTournamentOverlay.ts` | Small |
+| 4 | **Fix the race condition in `handleFinish`** — instead of calling `syncScore` + 200ms delay, pass `currentRound.scores` directly to `batchSyncAllScores` as a parameter, so it doesn't depend on React state timing. | `useTournamentOverlay.ts`, `RoundSummary.tsx` | Medium |
+| 5 | **Add row-count verification after batch upsert** — compare upserted count vs expected count; if mismatch, warn and retry. | `useTournamentOverlay.ts` | Small |
+| 6 | **Remove `batchSyncHole` and related dirty-hole tracking** (`syncedHolesRef`, `dirtyHolesRef`, `getDirtyHoles`, `markHoleDirty`) since they're no longer needed with pure end-of-round sync. | `useTournamentOverlay.ts` | Small |
 
-### 4. `src/services/offlineStorage.ts` — Keep tournament offline queue
-
-The offline queue (`fg_tournament_sync_queue`) becomes less relevant since we're not writing during play, but keep it as a safety net for the batch sync in case it partially fails.
-
-## Flow After Changes
+## Summary of Changes
 
 ```text
-During Round:
-  Player enters score → updateScore (local round) → engine runs locally
-  Tournament tab shows live match status from local calculation
-  NO database writes to tournament tables
+useTournamentOverlay.ts:
+  - Delete realtime subscription (lines 331-354)
+  - Delete batchSyncHole + dirty-hole refs
+  - Add admin override check to batchSyncAllScores
+  - Accept optional scores parameter in batchSyncAllScores
+  - Add row-count verification after upserts
 
-On "Complete Round":
-  handleFinish() in RoundSummary
-    ├── batchSyncAllScores()
-    │     ├── Upsert ALL scores → tournament_hole_scores
-    │     └── Upsert ALL results → tournament_hole_results
-    ├── Update tournament_groups.status = 'submitted'
-    ├── finishRound() (marks betting round complete)
-    └── Navigate home
+ActiveRound.tsx:
+  - Remove batchSyncHole calls from handleNextHole (lines 415-426)
+
+RoundSummary.tsx:
+  - Pass currentRound.scores directly to batchSyncAllScores
+  - Remove the syncScore loop + 200ms delay hack
 ```
 
-## What Still Works
-- Tournament tab in ActiveRound still shows live match status (calculated locally from round scores)
-- Tournament overlay animations (hole completion banners) still work locally
-- Admin scoreboards update once the group completes their round
-- Segment totals for Sixes still compute locally
-
-| File | Change |
-|---|---|
-| `src/hooks/useTournamentOverlay.ts` | Remove realtime sub + live upserts, add `batchSyncAllScores`, make `syncScore` local-only |
-| `src/components/ActiveRound.tsx` | Remove bulk-sync useEffect |
-| `src/components/RoundSummary.tsx` | Call `batchSyncAllScores()` in `handleFinish` before submission |
-
-3 files changed, 0 database changes.
+3 files changed, 0 database changes. All changes are removals or hardening of existing code.
 
