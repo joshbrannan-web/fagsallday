@@ -262,6 +262,23 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                       <p className="text-xs text-muted-foreground py-2">All players are already assigned to groups</p>
                     )}
                   </div>
+                  {/* Group Leader selector */}
+                  {selectedIds.length >= 2 && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-medium flex items-center gap-1"><Crown className="w-3 h-3" /> Group Leader (Scorekeeper)</span>
+                      <Select value={leaderId} onValueChange={setLeaderId}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select scorekeeper…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedIds.map(id => {
+                            const p = getPlayer(id);
+                            return <SelectItem key={id} value={id}>{p?.display_name || id}</SelectItem>;
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <Button
                     size="sm"
                     className="w-full"
