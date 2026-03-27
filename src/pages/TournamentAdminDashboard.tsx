@@ -107,6 +107,7 @@ const TournamentAdminDashboard: React.FC = () => {
   const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
   const [roundConfigDraft, setRoundConfigDraft] = useState<RoundConfigData | null>(null);
   const [savingRound, setSavingRound] = useState(false);
+  const [expandedScoreRoundId, setExpandedScoreRoundId] = useState<string | null>(null);
 
   const startEditRound = (roundId: string) => {
     const round = rounds.find((r: any) => r.id === roundId);
