@@ -330,24 +330,28 @@ const RoundSummary: React.FC = () => {
       await updateGameDataBatch('_META', 0, { _FINAL_ADJUSTMENTS: adjustedAmounts });
     }
     
-    // Batch sync tournament scores on completion
+    // Batch sync tournament scores on completion — pass scores directly to avoid React state race
     if (tournamentGroupId && tournamentOverlay.batchSyncAllScores) {
       setIsSyncingTournament(true);
-      // Feed current round scores into overlay before syncing
+
+      // Build tournament scores map directly from round scores (no React state dependency)
       const playerMapping = meta?.playerMapping || tournamentState?.playerMapping;
+      const directScores: Record<string, Record<number, number>> = {};
       if (playerMapping && currentRound) {
         Object.entries(currentRound.scores).forEach(([holeStr, holeScores]) => {
           const holeNum = Number(holeStr);
           currentRound.players.forEach(player => {
             const score = holeScores[player.id];
-            if (typeof score === 'number' && score > 0) {
-              tournamentOverlay.syncScore(holeNum, player.id, score);
+            const tournamentPlayerId = playerMapping[player.id];
+            if (typeof score === 'number' && score > 0 && tournamentPlayerId) {
+              if (!directScores[tournamentPlayerId]) directScores[tournamentPlayerId] = {};
+              directScores[tournamentPlayerId][holeNum] = score;
             }
           });
         });
       }
-      await new Promise(r => setTimeout(r, 200));
-      const success = await tournamentOverlay.batchSyncAllScores();
+
+      const success = await tournamentOverlay.batchSyncAllScores(directScores);
       setIsSyncingTournament(false);
       if (!success) {
         toast.error('Failed to sync tournament scores. Please try again.');
