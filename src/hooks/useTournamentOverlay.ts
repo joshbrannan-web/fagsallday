@@ -410,13 +410,29 @@ export const useTournamentOverlay = (
   // batchSyncHole and dirty-hole tracking removed — all writes deferred to batchSyncAllScores
 
   // Batch sync all scores and results to DB — called only on round completion
-  const batchSyncAllScores = useCallback(async (): Promise<boolean> => {
+  // Accepts optional externalScores to avoid race conditions with React state
+  const batchSyncAllScores = useCallback(async (
+    externalScores?: Record<string, Record<number, number>>,
+  ): Promise<boolean> => {
     if (!tournamentGroupId || !tournamentGame || tournamentPlayers.length === 0 || courseHoles.length === 0) {
       return true;
     }
 
+    const scoresToSync = externalScores || allHoleScores;
+
     try {
-      // 1. Upsert all scores to tournament_hole_scores
+      // 1. Check for admin overrides — exclude those player/hole combos
+      const { data: overridden } = await supabase
+        .from('tournament_hole_scores')
+        .select('tournament_player_id, hole_number')
+        .eq('tournament_group_id', tournamentGroupId)
+        .eq('is_super_user_override', true);
+
+      const overrideSet = new Set(
+        (overridden || []).map(o => `${o.tournament_player_id}_${o.hole_number}`)
+      );
+
+      // 2. Build score payload, skipping admin-overridden scores
       const scorePayload: {
         tournament_group_id: string;
         tournament_player_id: string;
@@ -425,12 +441,14 @@ export const useTournamentOverlay = (
         is_super_user_override: boolean;
       }[] = [];
 
-      Object.entries(allHoleScores).forEach(([playerId, holes]) => {
+      Object.entries(scoresToSync).forEach(([playerId, holes]) => {
         Object.entries(holes).forEach(([holeStr, score]) => {
+          const holeNum = Number(holeStr);
+          if (overrideSet.has(`${playerId}_${holeNum}`)) return; // skip admin override
           scorePayload.push({
             tournament_group_id: tournamentGroupId,
             tournament_player_id: playerId,
-            hole_number: Number(holeStr),
+            hole_number: holeNum,
             gross_score: score,
             is_super_user_override: false,
           });
@@ -438,20 +456,27 @@ export const useTournamentOverlay = (
       });
 
       if (scorePayload.length > 0) {
-        const { error: scoreErr } = await supabase.from('tournament_hole_scores').upsert(
+        const { data: scoreData, error: scoreErr } = await supabase.from('tournament_hole_scores').upsert(
           scorePayload,
           { onConflict: 'tournament_group_id,tournament_player_id,hole_number' },
-        );
+        ).select('id');
         if (scoreErr) throw scoreErr;
+
+        // 3. Verify row count
+        const expectedCount = scorePayload.length;
+        const actualCount = scoreData?.length ?? 0;
+        if (actualCount < expectedCount) {
+          console.warn(`Score sync mismatch: expected ${expectedCount}, got ${actualCount}. Some rows may have been blocked by RLS.`);
+        }
       }
 
-      // 2. Re-run engine and upsert results
+      // 4. Re-run engine and upsert results (using scoresToSync which includes admin overrides from DB)
       const teamNameMap: Record<string, string> = {};
       Object.entries(state.teams).forEach(([id, t]) => { teamNameMap[id] = t.name; });
 
       const engineInput: EngineInput = {
         game: tournamentGame, holePointOverrides, players: tournamentPlayers,
-        teamAssignments, scores: allHoleScores, courseHoles,
+        teamAssignments, scores: scoresToSync, courseHoles,
         teamNames: teamNameMap, subMatchups,
       };
       const result = calcTournamentHoleResults(engineInput);
@@ -469,11 +494,17 @@ export const useTournamentOverlay = (
         }));
 
       if (resultPayload.length > 0) {
-        const { error: resultErr } = await supabase.from('tournament_hole_results').upsert(
+        const { data: resultData, error: resultErr } = await supabase.from('tournament_hole_results').upsert(
           resultPayload,
           { onConflict: 'tournament_group_id,hole_number' },
-        );
+        ).select('id');
         if (resultErr) throw resultErr;
+
+        const expectedResults = resultPayload.length;
+        const actualResults = resultData?.length ?? 0;
+        if (actualResults < expectedResults) {
+          console.warn(`Result sync mismatch: expected ${expectedResults}, got ${actualResults}.`);
+        }
       }
 
       return true;
