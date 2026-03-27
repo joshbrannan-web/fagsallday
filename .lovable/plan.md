@@ -1,55 +1,50 @@
 
 
-# Remaining Sync Gaps and Recommended Fixes
+# Tournament Admin Enhancements — 4 Features
 
-## Gaps Found
+## 1. Admin Score Editor (Batch Save)
 
-### 1. Realtime subscription still active in `useTournamentOverlay.ts` (lines 331-354)
-The plan said to **remove** the realtime subscription during play, but it's still there. The `overlay-${tournamentGroupId}` channel listens for `tournament_hole_scores` and `tournament_hole_results` changes and triggers `reload()`, which re-fetches all scores from the DB. During play, this can **overwrite local scores** with stale DB data if another group member's per-hole sync fires. This is the most critical remaining gap — it can cause score loss mid-round.
+**Current state**: `GroupScorecardAdmin` auto-saves each cell on blur via `overrideScore()`. The user wants a batch-save pattern instead.
 
-### 2. Per-hole sync in `ActiveRound.tsx` still fires during play (lines 415-426)
-`handleNextHole` calls `batchSyncHole()` on every hole advancement. This contradicts the "defer all writes to round completion" design. These writes during play are the exact pattern that caused the original sync storm. If connectivity is spotty, they'll fail silently and create orphaned partial data in the DB that conflicts with the full batch sync on completion.
+**Changes**:
+- **`src/components/tournament-admin/GroupScorecardAdmin.tsx`** — Replace single-cell auto-save with a local draft state (`pendingEdits: Map<key, number>`). Remove `onBlur={saveEdit}`. Add a "Save All" button that calls `onOverrideScore` for each pending edit, then clears the draft. Show a dirty-state indicator (badge count or highlight changed cells).
+- **`src/pages/TournamentAdminScorecard.tsx`** — Update to pass a batch-save handler instead of per-cell. The handler loops through all changed scores, calls `overrideScore` for each, then triggers engine recalculation once at the end.
+- **`src/hooks/useTournamentScorecard.ts`** — Add a `batchOverrideScores(edits: {playerId, hole, score}[])` function that upserts all scores in one call, then runs the engine once. This replaces calling `overrideScore` N times.
 
-### 3. `batchSyncAllScores` doesn't check for admin overrides (lines 549-620)
-Unlike `batchSyncHole` (which checks `is_super_user_override`), `batchSyncAllScores` blindly upserts all scores with `is_super_user_override: false`. If an admin corrected a score during the round, the batch sync on completion will **overwrite the admin's correction**.
+## 2. Auto-Link Players on Tournament Add
 
-### 4. Race condition in `handleFinish` — `syncScore` then `batchSyncAllScores` (lines 337-350)
-`handleFinish` calls `syncScore` in a loop (which updates React state), waits 200ms, then calls `batchSyncAllScores`. But React state updates are batched and may not have flushed in 200ms. The `allHoleScores` ref inside `batchSyncAllScores` could be stale, causing incomplete score uploads.
+**Current state**: `PlayerListAdmin.handleAdd()` calls `onAddPlayer` which inserts into `tournament_players`. No cross-linking between players' "My Players" lists.
 
-### 5. Scoreboard subscriptions depend on `groups` state (line 335)
-`useTournamentScoreboards` recreates all realtime channels every time `groups` changes. If `groups` reference changes on re-render (object identity), this causes channel churn — unsubscribing and resubscribing rapidly. This is mitigated by the per-group filter but still wasteful.
+**Changes**:
+- **`src/hooks/useTournamentDetail.ts` → `addPlayer()`** — After inserting the tournament player, if the new player has a `user_id`, loop through all OTHER tournament players that also have a `user_id` and call `supabase.rpc('link_players_bidirectional')` for each pair. This ensures all linked players in the tournament see each other in "My Players".
+- Same logic runs during tournament creation in **`src/hooks/useTournaments.ts`** → `createTournament()` — after all players are inserted, cross-link all pairs with `user_id`s.
 
-### 6. No verification that batch sync actually persisted all rows
-`batchSyncAllScores` checks for Supabase errors but doesn't verify row count. An RLS-blocked upsert returns empty data (not an error). If a non-creator hits an edge case where `is_group_member` returns false (e.g., group_players record was deleted mid-round), the sync silently fails.
+## 3. Group Leader / Designated Scorekeeper
 
-## Recommended Fixes
+**Current state**: The first person to start a round via the wizard becomes the `rounds.user_id` (owner). Other players who join the same group see a read-only view. There's no way for the admin to designate who should be the owner.
 
-| # | Fix | File | Effort |
-|---|-----|------|--------|
-| 1 | **Remove the realtime subscription** from `useTournamentOverlay.ts` entirely (lines 331-354). It serves no purpose during deferred-sync play and risks overwriting local state. | `useTournamentOverlay.ts` | Small |
-| 2 | **Remove per-hole `batchSyncHole` calls** from `handleNextHole` in `ActiveRound.tsx` (lines 415-426). All writes should happen only in `batchSyncAllScores` on completion. | `ActiveRound.tsx` | Small |
-| 3 | **Add admin override check to `batchSyncAllScores`** — before upserting, query `tournament_hole_scores` for `is_super_user_override = true` rows and exclude those player/hole combos from the payload. | `useTournamentOverlay.ts` | Small |
-| 4 | **Fix the race condition in `handleFinish`** — instead of calling `syncScore` + 200ms delay, pass `currentRound.scores` directly to `batchSyncAllScores` as a parameter, so it doesn't depend on React state timing. | `useTournamentOverlay.ts`, `RoundSummary.tsx` | Medium |
-| 5 | **Add row-count verification after batch upsert** — compare upserted count vs expected count; if mismatch, warn and retry. | `useTournamentOverlay.ts` | Small |
-| 6 | **Remove `batchSyncHole` and related dirty-hole tracking** (`syncedHolesRef`, `dirtyHolesRef`, `getDirtyHoles`, `markHoleDirty`) since they're no longer needed with pure end-of-round sync. | `useTournamentOverlay.ts` | Small |
+**Changes**:
+- **Database migration** — Add `leader_player_id UUID` column to `tournament_groups` table (nullable, references a tournament_player_id conceptually but no FK needed).
+- **`src/components/tournament-admin/RoundPairingsEditor.tsx`** — After selecting players for a group, add a "Group Leader" dropdown (select one of the selected players). Pass the selected leader ID to `onAddGroup`. Display the leader with a small crown/star icon in the existing group cards.
+- **`src/hooks/useTournamentDetail.ts` → `addGroup()`** — Accept optional `leaderPlayerId` param, include it in the group insert.
+- **`src/hooks/useTournamentRoundSetup.ts` → `startRound()`** — When a pre-assigned group is selected, check if `group.leader_player_id` is set. If the current user's tournament player ID does NOT match the leader, block round creation and show a toast: "Only the designated scorekeeper can start this round. Ask [leader name] to start scoring." This prevents non-leaders from taking ownership.
 
-## Summary of Changes
+## 4. 1v1 Games with Groups of 2 or 4
 
-```text
-useTournamentOverlay.ts:
-  - Delete realtime subscription (lines 331-354)
-  - Delete batchSyncHole + dirty-hole refs
-  - Add admin override check to batchSyncAllScores
-  - Accept optional scores parameter in batchSyncAllScores
-  - Add row-count verification after upserts
+**Current state**: Already implemented. `RoundPairingsEditor` supports selecting 2 or 4 players for 1v1 game types. When 4 are selected, a matchup assignment step appears. When 2 are selected, it saves directly. This feature is already working as described — no changes needed.
 
-ActiveRound.tsx:
-  - Remove batchSyncHole calls from handleNextHole (lines 415-426)
+## Summary
 
-RoundSummary.tsx:
-  - Pass currentRound.scores directly to batchSyncAllScores
-  - Remove the syncScore loop + 200ms delay hack
-```
+| File | Change |
+|------|--------|
+| `src/components/tournament-admin/GroupScorecardAdmin.tsx` | Batch edit with local draft state + Save All button |
+| `src/pages/TournamentAdminScorecard.tsx` | Wire up batch save handler |
+| `src/hooks/useTournamentScorecard.ts` | Add `batchOverrideScores()` |
+| `src/hooks/useTournamentDetail.ts` | Cross-link players in `addPlayer()` |
+| `src/hooks/useTournaments.ts` | Cross-link players in `createTournament()` |
+| `src/components/tournament-admin/RoundPairingsEditor.tsx` | Add group leader selector |
+| `src/hooks/useTournamentRoundSetup.ts` | Block non-leader from starting pre-assigned group rounds |
+| **Migration** | Add `leader_player_id` column to `tournament_groups` |
 
-3 files changed, 0 database changes. All changes are removals or hardening of existing code.
+3 new features, 7 files changed (+ 1 migration), 1 feature already complete.
 
