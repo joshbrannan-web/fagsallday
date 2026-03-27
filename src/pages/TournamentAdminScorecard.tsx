@@ -68,7 +68,7 @@ const TournamentAdminScorecard: React.FC = () => {
           teams={teams}
           scores={scores}
           results={results}
-          onOverrideScore={overrideScore}
+          onBatchSave={batchOverrideScores}
         />
       </div>
     </div>

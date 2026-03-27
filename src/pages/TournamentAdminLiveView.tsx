@@ -144,7 +144,7 @@ const TournamentAdminLiveView: React.FC = () => {
                 teams={teams}
                 scores={scores}
                 results={results}
-                onOverrideScore={overrideScore}
+                onBatchSave={batchOverrideScores}
               />
             </CollapsibleContent>
           </Collapsible>
