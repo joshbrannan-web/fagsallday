@@ -109,7 +109,7 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
 
   const handleSaveGroup = async (subMatchups?: SubMatchup[]) => {
     setSaving(true);
-    await onAddGroup(roundId, selectedIds, subMatchups);
+    await onAddGroup(roundId, selectedIds, subMatchups, leaderId || undefined);
     resetForm();
     setSaving(false);
   };
