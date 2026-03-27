@@ -341,11 +341,6 @@ export const useTournamentOverlay = (
     const tournamentPlayerId = playerMapping[roundPlayerId];
     if (!tournamentPlayerId) return;
 
-    // Mark hole dirty if it was previously synced (score edit on completed hole)
-    if (syncedHolesRef.current.has(holeNumber)) {
-      dirtyHolesRef.current.add(holeNumber);
-    }
-
     // Update local state only
     setAllHoleScores(prev => {
       const updated = { ...prev };
