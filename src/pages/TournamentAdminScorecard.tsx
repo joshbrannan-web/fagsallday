@@ -16,7 +16,7 @@ const TournamentAdminScorecard: React.FC = () => {
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { teams, players, isLoading: detailLoading } = useTournamentDetail(tournamentId);
   const { groups, groupPlayers } = useTournamentGroups(roundId);
-  const { scores, results, isLoading: scorecardLoading, overrideScore } = useTournamentScorecard(groupId);
+  const { scores, results, isLoading: scorecardLoading, batchOverrideScores } = useTournamentScorecard(groupId);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
@@ -68,7 +68,7 @@ const TournamentAdminScorecard: React.FC = () => {
           teams={teams}
           scores={scores}
           results={results}
-          onOverrideScore={overrideScore}
+          onBatchSave={batchOverrideScores}
         />
       </div>
     </div>

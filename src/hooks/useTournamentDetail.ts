@@ -87,14 +87,23 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   };
 
   const addPlayer = async (data: { display_name: string; handicap_index: number; team_id: string; user_id?: string }) => {
-    const { error } = await supabase.from('tournament_players').insert({ ...data, tournament_id: tournamentId });
-    if (error) { toast.error('Failed to add player'); return; }
+    const { data: inserted, error } = await supabase.from('tournament_players').insert({ ...data, tournament_id: tournamentId }).select('id').single();
+    if (error || !inserted) { toast.error('Failed to add player'); return; }
     // Auto-add as tournament member if linked to a user
     if (data.user_id && tournamentId) {
       await supabase.from('tournament_members').upsert(
         { tournament_id: tournamentId, user_id: data.user_id },
         { onConflict: 'tournament_id,user_id' }
       );
+      // Cross-link with all other tournament players that have user_ids
+      const otherLinkedPlayers = players.filter((p: any) => p.user_id && p.user_id !== data.user_id);
+      for (const other of otherLinkedPlayers) {
+        try {
+          await supabase.rpc('link_players_bidirectional', { p_linked_user_id: other.user_id });
+        } catch (e) {
+          console.warn('Failed to cross-link player:', e);
+        }
+      }
     }
     await fetchAll();
   };
@@ -163,7 +172,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else await fetchAll();
   };
 
-  const addGroup = async (roundId: string, playerIds: string[], subMatchups?: { playerA: string; playerB: string }[]) => {
+  const addGroup = async (roundId: string, playerIds: string[], subMatchups?: { playerA: string; playerB: string }[], leaderPlayerId?: string) => {
     // Use DB count to avoid stale closure issues with rapid sequential calls
     const { count } = await supabase
       .from('tournament_groups')
@@ -183,6 +192,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
         group_number: nextGroupNumber,
         team_matchup: teamMatchup as any,
         status: 'pending',
+        leader_player_id: leaderPlayerId || null,
       })
       .select('id')
       .single();

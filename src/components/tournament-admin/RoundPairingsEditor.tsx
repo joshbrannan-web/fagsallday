@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Plus, Trash2, X } from 'lucide-react';
+import { Users, Plus, Trash2, X, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Card } from '@/components/ui/card';
@@ -29,6 +29,7 @@ interface Group {
   tournament_round_id: string;
   status: string;
   team_matchup: any;
+  leader_player_id?: string | null;
 }
 
 interface GroupPlayer {
@@ -55,7 +56,7 @@ interface RoundPairingsEditorProps {
   groups: Group[];
   groupPlayers: GroupPlayer[];
   gameType?: string;
-  onAddGroup: (roundId: string, playerIds: string[], subMatchups?: SubMatchup[]) => Promise<void>;
+  onAddGroup: (roundId: string, playerIds: string[], subMatchups?: SubMatchup[], leaderPlayerId?: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
 }
 
@@ -69,6 +70,7 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
   const [matchupStep, setMatchupStep] = useState(false);
   const [match1A, setMatch1A] = useState<string>('');
   const [match1B, setMatch1B] = useState<string>('');
+  const [leaderId, setLeaderId] = useState<string>('');
 
   const is1v1 = gameType ? ONE_V_ONE_TYPES.includes(gameType) : false;
   const needs1v1Step = is1v1 && selectedIds.length === 4;
@@ -107,7 +109,7 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
 
   const handleSaveGroup = async (subMatchups?: SubMatchup[]) => {
     setSaving(true);
-    await onAddGroup(roundId, selectedIds, subMatchups);
+    await onAddGroup(roundId, selectedIds, subMatchups, leaderId || undefined);
     resetForm();
     setSaving(false);
   };
@@ -130,6 +132,7 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
     setMatchupStep(false);
     setMatch1A('');
     setMatch1B('');
+    setLeaderId('');
   };
 
   const getTeam = (teamId: string | null) => teams.find(t => t.id === teamId);
@@ -182,17 +185,21 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {gPlayers.map(gp => (
-                    <Badge key={gp.id} variant="secondary" className="flex items-center gap-1">
-                      {gp.team && (
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: gp.team.color }} />
-                      )}
-                      {gp.player?.display_name || 'Unknown'}
-                      <span className="text-[10px] text-muted-foreground ml-0.5">
-                        ({gp.player?.handicap_override ?? gp.player?.handicap_index ?? 0})
-                      </span>
-                    </Badge>
-                  ))}
+                  {gPlayers.map(gp => {
+                    const isLeader = group.leader_player_id === gp.tournament_player_id;
+                    return (
+                      <Badge key={gp.id} variant="secondary" className="flex items-center gap-1">
+                        {isLeader && <Crown className="w-3 h-3 text-primary" />}
+                        {gp.team && (
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: gp.team.color }} />
+                        )}
+                        {gp.player?.display_name || 'Unknown'}
+                        <span className="text-[10px] text-muted-foreground ml-0.5">
+                          ({gp.player?.handicap_override ?? gp.player?.handicap_index ?? 0})
+                        </span>
+                      </Badge>
+                    );
+                  })}
                 </div>
                 {/* Sub-matchup display */}
                 {subMatchups.length > 0 && (
@@ -255,6 +262,23 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                       <p className="text-xs text-muted-foreground py-2">All players are already assigned to groups</p>
                     )}
                   </div>
+                  {/* Group Leader selector */}
+                  {selectedIds.length >= 2 && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-medium flex items-center gap-1"><Crown className="w-3 h-3" /> Group Leader (Scorekeeper)</span>
+                      <Select value={leaderId} onValueChange={setLeaderId}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Select scorekeeper…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedIds.map(id => {
+                            const p = getPlayer(id);
+                            return <SelectItem key={id} value={id}>{p?.display_name || id}</SelectItem>;
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <Button
                     size="sm"
                     className="w-full"

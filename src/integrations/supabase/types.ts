@@ -425,6 +425,7 @@ export type Database = {
           created_at: string | null
           group_number: number
           id: string
+          leader_player_id: string | null
           round_id: string | null
           status: string
           submitted_at: string | null
@@ -435,6 +436,7 @@ export type Database = {
           created_at?: string | null
           group_number: number
           id?: string
+          leader_player_id?: string | null
           round_id?: string | null
           status?: string
           submitted_at?: string | null
@@ -445,6 +447,7 @@ export type Database = {
           created_at?: string | null
           group_number?: number
           id?: string
+          leader_player_id?: string | null
           round_id?: string | null
           status?: string
           submitted_at?: string | null

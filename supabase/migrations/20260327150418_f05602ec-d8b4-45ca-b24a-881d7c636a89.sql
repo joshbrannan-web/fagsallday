@@ -1,0 +1,1 @@
+ALTER TABLE public.tournament_groups ADD COLUMN leader_player_id UUID DEFAULT NULL;

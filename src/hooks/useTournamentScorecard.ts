@@ -41,7 +41,6 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         .single();
       if (!group) return;
 
-      // Extract subMatchups from team_matchup JSONB
       const tm = group.team_matchup as any;
       const extractedSubMatchups: { playerA: string; playerB: string }[] | undefined =
         tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
@@ -152,45 +151,8 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
     return () => { supabase.removeChannel(channel); };
   }, [groupId, fetchData]);
 
-  const overrideScore = async (playerId: string, holeNumber: number, grossScore: number) => {
-    // Upsert score
-    const existing = scores.find((s: any) => s.tournament_player_id === playerId && s.hole_number === holeNumber);
-    if (existing) {
-      const { error } = await supabase
-        .from('tournament_hole_scores')
-        .update({ gross_score: grossScore, is_super_user_override: true, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
-      if (error) { toast.error('Failed to update score'); return; }
-    } else {
-      const { error } = await supabase
-        .from('tournament_hole_scores')
-        .insert({
-          tournament_group_id: groupId,
-          tournament_player_id: playerId,
-          hole_number: holeNumber,
-          gross_score: grossScore,
-          is_super_user_override: true,
-        });
-      if (error) { toast.error('Failed to save score'); return; }
-    }
-
-    toast.success('Score updated');
-
-    // Run engine recalculation
+  const runEngineRecalc = async (scoresMap: Record<string, Record<number, number>>) => {
     if (!tournamentGame || !groupId) return;
-
-    // Build scores map from current state + override
-    const scoresMap: Record<string, Record<number, number>> = {};
-    scores.forEach((s: any) => {
-      if (s.gross_score !== null) {
-        if (!scoresMap[s.tournament_player_id]) scoresMap[s.tournament_player_id] = {};
-        scoresMap[s.tournament_player_id][s.hole_number] = s.gross_score;
-      }
-    });
-    // Apply override
-    if (!scoresMap[playerId]) scoresMap[playerId] = {};
-    scoresMap[playerId][holeNumber] = grossScore;
-
     try {
       const engineInput: EngineInput = {
         game: tournamentGame,
@@ -226,5 +188,82 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
     }
   };
 
-  return { scores, results, isLoading, overrideScore, refetch: fetchData };
+  const overrideScore = async (playerId: string, holeNumber: number, grossScore: number) => {
+    const existing = scores.find((s: any) => s.tournament_player_id === playerId && s.hole_number === holeNumber);
+    if (existing) {
+      const { error } = await supabase
+        .from('tournament_hole_scores')
+        .update({ gross_score: grossScore, is_super_user_override: true, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+      if (error) { toast.error('Failed to update score'); return; }
+    } else {
+      const { error } = await supabase
+        .from('tournament_hole_scores')
+        .insert({
+          tournament_group_id: groupId,
+          tournament_player_id: playerId,
+          hole_number: holeNumber,
+          gross_score: grossScore,
+          is_super_user_override: true,
+        });
+      if (error) { toast.error('Failed to save score'); return; }
+    }
+
+    toast.success('Score updated');
+
+    // Build scores map and run engine
+    const scoresMap: Record<string, Record<number, number>> = {};
+    scores.forEach((s: any) => {
+      if (s.gross_score !== null) {
+        if (!scoresMap[s.tournament_player_id]) scoresMap[s.tournament_player_id] = {};
+        scoresMap[s.tournament_player_id][s.hole_number] = s.gross_score;
+      }
+    });
+    if (!scoresMap[playerId]) scoresMap[playerId] = {};
+    scoresMap[playerId][holeNumber] = grossScore;
+
+    await runEngineRecalc(scoresMap);
+  };
+
+  const batchOverrideScores = async (edits: { playerId: string; hole: number; score: number }[]) => {
+    if (!groupId || edits.length === 0) return;
+
+    // Build upsert payload
+    const upsertPayload = edits.map(edit => {
+      const existing = scores.find((s: any) => s.tournament_player_id === edit.playerId && s.hole_number === edit.hole);
+      return {
+        ...(existing?.id ? { id: existing.id } : {}),
+        tournament_group_id: groupId,
+        tournament_player_id: edit.playerId,
+        hole_number: edit.hole,
+        gross_score: edit.score,
+        is_super_user_override: true,
+        updated_at: new Date().toISOString(),
+      };
+    });
+
+    const { error } = await supabase
+      .from('tournament_hole_scores')
+      .upsert(upsertPayload, { onConflict: 'tournament_group_id,tournament_player_id,hole_number' });
+
+    if (error) { throw error; }
+
+    // Build full scores map with edits applied
+    const scoresMap: Record<string, Record<number, number>> = {};
+    scores.forEach((s: any) => {
+      if (s.gross_score !== null) {
+        if (!scoresMap[s.tournament_player_id]) scoresMap[s.tournament_player_id] = {};
+        scoresMap[s.tournament_player_id][s.hole_number] = s.gross_score;
+      }
+    });
+    edits.forEach(edit => {
+      if (!scoresMap[edit.playerId]) scoresMap[edit.playerId] = {};
+      scoresMap[edit.playerId][edit.hole] = edit.score;
+    });
+
+    await runEngineRecalc(scoresMap);
+    await fetchData();
+  };
+
+  return { scores, results, isLoading, overrideScore, batchOverrideScores, refetch: fetchData };
 };

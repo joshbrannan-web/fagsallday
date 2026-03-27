@@ -231,6 +231,19 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
 
   const startRound = useCallback(async () => {
     if (!user || !tournament || !selectedRound || !tournamentGame) return;
+
+    // Check group leader enforcement for pre-assigned groups
+    if (selectedGroupId) {
+      const selectedGroup = roundGroups.find((g: any) => g.id === selectedGroupId);
+      if (selectedGroup?.leader_player_id) {
+        const leaderPlayer = allPlayers.find(p => p.id === selectedGroup.leader_player_id);
+        if (leaderPlayer?.user_id !== user.id) {
+          toast.error(`Only the designated scorekeeper (${leaderPlayer?.display_name || 'leader'}) can start this round.`);
+          return;
+        }
+      }
+    }
+
     setIsStarting(true);
 
     try {
@@ -390,7 +403,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
     } finally {
       setIsStarting(false);
     }
-  }, [user, tournament, selectedRound, tournamentGame, selectedPlayers, teamAssignments, sideGames, teams, navigate, selectedGroupId]);
+  }, [user, tournament, selectedRound, tournamentGame, selectedPlayers, teamAssignments, sideGames, teams, navigate, selectedGroupId, roundGroups, allPlayers]);
 
   return {
     tournament,
