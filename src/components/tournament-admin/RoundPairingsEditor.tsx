@@ -185,17 +185,21 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {gPlayers.map(gp => (
-                    <Badge key={gp.id} variant="secondary" className="flex items-center gap-1">
-                      {gp.team && (
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: gp.team.color }} />
-                      )}
-                      {gp.player?.display_name || 'Unknown'}
-                      <span className="text-[10px] text-muted-foreground ml-0.5">
-                        ({gp.player?.handicap_override ?? gp.player?.handicap_index ?? 0})
-                      </span>
-                    </Badge>
-                  ))}
+                  {gPlayers.map(gp => {
+                    const isLeader = group.leader_player_id === gp.tournament_player_id;
+                    return (
+                      <Badge key={gp.id} variant="secondary" className="flex items-center gap-1">
+                        {isLeader && <Crown className="w-3 h-3 text-primary" />}
+                        {gp.team && (
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: gp.team.color }} />
+                        )}
+                        {gp.player?.display_name || 'Unknown'}
+                        <span className="text-[10px] text-muted-foreground ml-0.5">
+                          ({gp.player?.handicap_override ?? gp.player?.handicap_index ?? 0})
+                        </span>
+                      </Badge>
+                    );
+                  })}
                 </div>
                 {/* Sub-matchup display */}
                 {subMatchups.length > 0 && (
