@@ -1,3 +1,4 @@
+// Cache-bust: force full reload after dep optimization
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
