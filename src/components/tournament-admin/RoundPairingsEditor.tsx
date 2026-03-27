@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Plus, Trash2, X } from 'lucide-react';
+import { Users, Plus, Trash2, X, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Card } from '@/components/ui/card';
@@ -29,6 +29,7 @@ interface Group {
   tournament_round_id: string;
   status: string;
   team_matchup: any;
+  leader_player_id?: string | null;
 }
 
 interface GroupPlayer {
@@ -55,7 +56,7 @@ interface RoundPairingsEditorProps {
   groups: Group[];
   groupPlayers: GroupPlayer[];
   gameType?: string;
-  onAddGroup: (roundId: string, playerIds: string[], subMatchups?: SubMatchup[]) => Promise<void>;
+  onAddGroup: (roundId: string, playerIds: string[], subMatchups?: SubMatchup[], leaderPlayerId?: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
 }
 
