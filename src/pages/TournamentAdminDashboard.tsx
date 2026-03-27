@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournamentDetail } from '@/hooks/useTournamentDetail';
-import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -107,6 +107,7 @@ const TournamentAdminDashboard: React.FC = () => {
   const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
   const [roundConfigDraft, setRoundConfigDraft] = useState<RoundConfigData | null>(null);
   const [savingRound, setSavingRound] = useState(false);
+  const [expandedScoreRoundId, setExpandedScoreRoundId] = useState<string | null>(null);
 
   const startEditRound = (roundId: string) => {
     const round = rounds.find((r: any) => r.id === roundId);
@@ -494,6 +495,48 @@ const TournamentAdminDashboard: React.FC = () => {
                         ⚠️ This round is active. Changes apply immediately.
                       </div>
                     )}
+                    {(r.status === 'completed' || r.status === 'active') && (() => {
+                      const roundGroups = groups.filter((g: any) => g.tournament_round_id === r.id);
+                      if (roundGroups.length === 0) return null;
+                      return (
+                        <div className="pt-2 border-t border-border">
+                          <button
+                            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                            onClick={() => setExpandedScoreRoundId(prev => prev === r.id ? null : r.id)}
+                          >
+                            {expandedScoreRoundId === r.id ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                            Edit Scores ({roundGroups.length} group{roundGroups.length !== 1 ? 's' : ''})
+                          </button>
+                          {expandedScoreRoundId === r.id && (
+                            <div className="mt-2 space-y-2">
+                              {roundGroups.map((g: any) => {
+                                const gPlayers = groupPlayers
+                                  .filter((gp: any) => gp.tournament_group_id === g.id)
+                                  .map((gp: any) => {
+                                    const p = players.find((pl: any) => pl.id === gp.tournament_player_id);
+                                    return p?.display_name || 'Unknown';
+                                  });
+                                return (
+                                  <div key={g.id} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
+                                    <div>
+                                      <span className="text-sm font-medium">Group {g.group_number}</span>
+                                      <p className="text-xs text-muted-foreground">{gPlayers.join(', ')}</p>
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => navigate(`/tournament-admin/${tournamentId}/round/${r.id}/group/${g.id}`)}
+                                    >
+                                      <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </Card>
