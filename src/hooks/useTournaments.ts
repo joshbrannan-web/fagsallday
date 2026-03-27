@@ -136,13 +136,29 @@ export const useTournaments = () => {
       if (playersErr) throw playersErr;
 
       // Auto-add linked players as tournament members so they pass RLS checks
-      const memberInserts = input.players
-        .filter(p => p.userId)
-        .map(p => ({ tournament_id: tournamentId, user_id: p.userId! }));
+      const linkedPlayers = input.players.filter(p => p.userId);
+      const memberInserts = linkedPlayers.map(p => ({ tournament_id: tournamentId, user_id: p.userId! }));
       if (memberInserts.length > 0) {
         await supabase.from('tournament_members').upsert(memberInserts, {
           onConflict: 'tournament_id,user_id',
         });
+      }
+
+      // Cross-link all players with user_ids so they appear in each other's My Players
+      if (linkedPlayers.length > 1) {
+        const userIds = linkedPlayers.map(p => p.userId!);
+        for (let i = 0; i < userIds.length; i++) {
+          for (let j = i + 1; j < userIds.length; j++) {
+            try {
+              // Each RPC call links from caller→target; we need both directions
+              // link_players_bidirectional creates a saved_player for the target user pointing to caller
+              // So we call it once per pair — the RPC runs as the current user
+              await supabase.rpc('link_players_bidirectional', { p_linked_user_id: userIds[j] });
+            } catch (e) {
+              console.warn('Failed to cross-link players:', e);
+            }
+          }
+        }
       }
 
       // 4. Insert rounds + games + hole points

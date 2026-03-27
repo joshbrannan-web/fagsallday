@@ -70,6 +70,7 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
   const [matchupStep, setMatchupStep] = useState(false);
   const [match1A, setMatch1A] = useState<string>('');
   const [match1B, setMatch1B] = useState<string>('');
+  const [leaderId, setLeaderId] = useState<string>('');
 
   const is1v1 = gameType ? ONE_V_ONE_TYPES.includes(gameType) : false;
   const needs1v1Step = is1v1 && selectedIds.length === 4;
