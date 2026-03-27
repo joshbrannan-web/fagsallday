@@ -132,6 +132,7 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
     setMatchupStep(false);
     setMatch1A('');
     setMatch1B('');
+    setLeaderId('');
   };
 
   const getTeam = (teamId: string | null) => teams.find(t => t.id === teamId);
