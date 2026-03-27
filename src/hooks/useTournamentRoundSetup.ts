@@ -403,7 +403,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
     } finally {
       setIsStarting(false);
     }
-  }, [user, tournament, selectedRound, tournamentGame, selectedPlayers, teamAssignments, sideGames, teams, navigate, selectedGroupId]);
+  }, [user, tournament, selectedRound, tournamentGame, selectedPlayers, teamAssignments, sideGames, teams, navigate, selectedGroupId, roundGroups, allPlayers]);
 
   return {
     tournament,
