@@ -172,7 +172,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else await fetchAll();
   };
 
-  const addGroup = async (roundId: string, playerIds: string[], subMatchups?: { playerA: string; playerB: string }[]) => {
+  const addGroup = async (roundId: string, playerIds: string[], subMatchups?: { playerA: string; playerB: string }[], leaderPlayerId?: string) => {
     // Use DB count to avoid stale closure issues with rapid sequential calls
     const { count } = await supabase
       .from('tournament_groups')
@@ -192,6 +192,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
         group_number: nextGroupNumber,
         team_matchup: teamMatchup as any,
         status: 'pending',
+        leader_player_id: leaderPlayerId || null,
       })
       .select('id')
       .single();
