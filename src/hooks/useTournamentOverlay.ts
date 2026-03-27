@@ -328,30 +328,8 @@ export const useTournamentOverlay = (
     load();
   }, [tournamentGroupId]);
 
-  // Debounced realtime subscription — picks up other clients' per-hole syncs
-  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!tournamentGroupId) return;
-    const debouncedReload = () => {
-      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
-      reloadTimerRef.current = setTimeout(() => reload(), 3000);
-    };
-    const channel = supabase
-      .channel(`overlay-${tournamentGroupId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'tournament_hole_scores',
-        filter: `tournament_group_id=eq.${tournamentGroupId}`,
-      }, debouncedReload)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'tournament_hole_results',
-        filter: `tournament_group_id=eq.${tournamentGroupId}`,
-      }, debouncedReload)
-      .subscribe();
-    return () => {
-      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
-      supabase.removeChannel(channel);
-    };
-  }, [tournamentGroupId, reload]);
+  // Realtime subscription removed — all tournament DB writes are deferred
+  // to round completion via batchSyncAllScores(). No live sync during play.
 
   // Sync score locally only — no DB writes during play
   const syncScore = useCallback(async (
