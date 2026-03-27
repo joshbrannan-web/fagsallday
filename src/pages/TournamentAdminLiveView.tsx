@@ -24,7 +24,7 @@ const TournamentAdminLiveView: React.FC = () => {
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { teams, players, tournament, rounds, isLoading: detailLoading } = useTournamentDetail(tournamentId);
   const { groups, groupPlayers } = useTournamentGroups(roundId);
-  const { scores, results, isLoading: scorecardLoading, overrideScore } = useTournamentScorecard(groupId);
+  const { scores, results, isLoading: scorecardLoading, batchOverrideScores } = useTournamentScorecard(groupId);
 
   // Get tournament/round names for overlay
   const round = rounds.find((r: any) => r.id === roundId);
