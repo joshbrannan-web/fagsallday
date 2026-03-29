@@ -412,7 +412,17 @@ const ActiveRound: React.FC = () => {
       return;
     }
 
-    // All tournament DB writes deferred to batchSyncAllScores on round completion
+    // Per-hole tournament sync — fire-and-forget, never blocks hole advancement
+    if (tournamentGroupId && !isReadOnly) {
+      const completedHole = activeHole;
+      tournamentOverlay.batchSyncHole(completedHole).catch(() => {});
+      // Also re-sync any dirty holes
+      for (const dirtyHole of tournamentOverlay.getDirtyHoles()) {
+        if (dirtyHole !== completedHole) {
+          tournamentOverlay.batchSyncHole(dirtyHole).catch(() => {});
+        }
+      }
+    }
 
     if (activeHole === 18) {
       if (isReadOnly) return; // Read-only users can't finish

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { calcTournamentHoleResults, type EngineInput, type CourseHole } from '@/services/tournamentEngine';
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints } from '@/types/tournament';
@@ -266,6 +266,13 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     allGroupIdsRef.current = Object.values(groups).flat().map((g: any) => g.id);
   }, [groups]);
 
+  // Debounced fetchAll for Realtime callbacks
+  const fetchAllTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedFetchAll = useCallback(() => {
+    if (fetchAllTimerRef.current) clearTimeout(fetchAllTimerRef.current);
+    fetchAllTimerRef.current = setTimeout(() => fetchAll(), 3000);
+  }, [fetchAll]);
+
   // Realtime subscriptions — per-group filtered channels to avoid receiving database-wide events
   useEffect(() => {
     if (!tournamentId) return;
@@ -326,13 +333,16 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     const roundChannel = supabase
       .channel(`scoreboard-rounds-${tournamentId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_rounds', filter: `tournament_id=eq.${tournamentId}` }, () => {
-        fetchAll();
+        debouncedFetchAll();
       })
       .subscribe();
     channels.push(roundChannel);
 
-    return () => { channels.forEach(ch => supabase.removeChannel(ch)); };
-  }, [tournamentId, groups, fetchAll, fetchScoresAndResults]);
+    return () => {
+      if (fetchAllTimerRef.current) clearTimeout(fetchAllTimerRef.current);
+      channels.forEach(ch => supabase.removeChannel(ch));
+    };
+  }, [tournamentId, groups, fetchAll, fetchScoresAndResults, debouncedFetchAll]);
 
   return {
     scoreboards, rounds, teams, players, games, holePoints,
