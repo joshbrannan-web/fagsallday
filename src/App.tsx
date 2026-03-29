@@ -270,6 +270,9 @@ const AppContent: FC = () => {
       // 1. Drain score queue
       const scoreQueue = offlineStorage.getTournamentSyncQueue();
       for (const item of scoreQueue) {
+        // Skip items that haven't waited long enough based on retry count
+        const backoffMs = Math.min(30000 * Math.pow(2, item.retryCount ?? 0), 300000);
+        if (Date.now() - item.timestamp < backoffMs) continue;
         try {
           const { error } = await supabase.from('tournament_hole_scores').upsert({
             tournament_group_id: item.tournamentGroupId,
@@ -292,6 +295,9 @@ const AppContent: FC = () => {
       // 2. Drain result queue
       const resultQueue = offlineStorage.getTournamentResultQueue();
       for (const item of resultQueue) {
+        // Skip items that haven't waited long enough based on retry count
+        const backoffMs = Math.min(30000 * Math.pow(2, item.retryCount ?? 0), 300000);
+        if (Date.now() - item.timestamp < backoffMs) continue;
         try {
           const { error } = await supabase.from('tournament_hole_results').upsert(
             item.payload,
