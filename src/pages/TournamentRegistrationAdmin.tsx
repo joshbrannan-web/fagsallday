@@ -254,9 +254,13 @@ const TournamentRegistrationAdmin: React.FC = () => {
                     <ExternalLink className="w-4 h-4 mr-2" /> Open Google Sheet
                   </a>
                 </Button>
-              ) : (
+              ) : selectedConfig.google_refresh_token ? (
                 <Button variant="outline" size="sm" onClick={handleCreateSheet} disabled={creatingSheet}>
                   <Plus className="w-4 h-4 mr-2" /> {creatingSheet ? 'Creating…' : 'Create Google Sheet'}
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={handleConnectGoogle}>
+                  <Unplug className="w-4 h-4 mr-2" /> Connect Google Sheets
                 </Button>
               )}
             </CardContent>

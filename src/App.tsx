@@ -678,6 +678,7 @@ const AppContent: FC = () => {
         <Route path="/register/:shareCode" element={<TournamentRegistration />} />
         <Route path="/tournament-admin/registrations" element={<TournamentRegistrationAdmin />} />
         <Route path="/tournament-admin/registrations/:configId" element={<TournamentRegistrationAdmin />} />
+        <Route path="/google-sheets-callback" element={<GoogleSheetsCallback />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppContext.Provider>
