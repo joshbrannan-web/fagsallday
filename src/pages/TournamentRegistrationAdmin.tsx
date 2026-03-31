@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Copy, ExternalLink, Plus, Users, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Plus, Users, Link as LinkIcon, Unplug } from 'lucide-react';
 import { toast } from 'sonner';
 import RegistrationConfigForm from '@/components/tournament-admin/RegistrationConfigForm';
 import RegistrationEntryList from '@/components/tournament-admin/RegistrationEntryList';
