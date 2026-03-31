@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournaments } from '@/hooks/useTournaments';
-import { Trophy, ArrowLeft, Plus } from 'lucide-react';
+import { Trophy, ArrowLeft, Plus, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import TournamentCard from '@/components/tournament-admin/TournamentCard';
@@ -34,11 +34,18 @@ const TournamentAdmin: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background p-4 pb-24 animate-fade-in">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-4">
         <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <h1 className="text-xl font-bold">Tournament Admin</h1>
+        <h1 className="text-xl font-bold flex-1">Tournament Admin</h1>
+      </div>
+
+      <div className="max-w-lg mx-auto mb-6">
+        <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate('/tournament-admin/registrations')}>
+          <ClipboardList className="w-4 h-4" />
+          Registrations
+        </Button>
       </div>
 
       {tournaments.length === 0 ? (

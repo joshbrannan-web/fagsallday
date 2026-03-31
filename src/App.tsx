@@ -23,6 +23,8 @@ import Tournament from './pages/Tournament';
 import TournamentScoreboards from './pages/TournamentScoreboards';
 import TournamentGroupScorecard from './pages/TournamentGroupScorecard';
 import TournamentBuildRoundWizard from './components/tournament/TournamentBuildRoundWizard';
+import TournamentRegistration from './pages/TournamentRegistration';
+import TournamentRegistrationAdmin from './pages/TournamentRegistrationAdmin';
 import CreateTournamentWizard from './components/tournament-admin/CreateTournamentWizard';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
@@ -672,6 +674,9 @@ const AppContent: FC = () => {
         <Route path="/tournament/:joinCode/scoreboards" element={<TournamentScoreboards />} />
         <Route path="/tournament/:joinCode/round/:roundId/group/:groupId" element={<TournamentGroupScorecard />} />
         <Route path="/tournament/:joinCode/build-round" element={<TournamentBuildRoundWizard />} />
+        <Route path="/register/:shareCode" element={<TournamentRegistration />} />
+        <Route path="/tournament-admin/registrations" element={<TournamentRegistrationAdmin />} />
+        <Route path="/tournament-admin/registrations/:configId" element={<TournamentRegistrationAdmin />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppContext.Provider>
