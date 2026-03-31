@@ -680,6 +680,121 @@ export type Database = {
           },
         ]
       }
+      tournament_registration_configs: {
+        Row: {
+          amount: number
+          amount_label: string
+          created_at: string
+          created_by: string
+          description: string | null
+          event_dates: string
+          google_sheet_id: string | null
+          google_sheet_url: string | null
+          id: string
+          is_open: boolean
+          location: string
+          name: string
+          share_code: string
+          tournament_id: string | null
+          venmo_link: string
+        }
+        Insert: {
+          amount?: number
+          amount_label?: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          event_dates?: string
+          google_sheet_id?: string | null
+          google_sheet_url?: string | null
+          id?: string
+          is_open?: boolean
+          location?: string
+          name: string
+          share_code?: string
+          tournament_id?: string | null
+          venmo_link?: string
+        }
+        Update: {
+          amount?: number
+          amount_label?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          event_dates?: string
+          google_sheet_id?: string | null
+          google_sheet_url?: string | null
+          id?: string
+          is_open?: boolean
+          location?: string
+          name?: string
+          share_code?: string
+          tournament_id?: string | null
+          venmo_link?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_registration_configs_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_registration_entries: {
+        Row: {
+          config_id: string
+          created_at: string
+          email: string
+          full_name: string
+          ghin_number: string | null
+          handicap_index: number | null
+          id: string
+          notes: string | null
+          payment_amount: number | null
+          payment_confirmed: boolean
+          phone: string | null
+          user_id: string | null
+        }
+        Insert: {
+          config_id: string
+          created_at?: string
+          email: string
+          full_name: string
+          ghin_number?: string | null
+          handicap_index?: number | null
+          id?: string
+          notes?: string | null
+          payment_amount?: number | null
+          payment_confirmed?: boolean
+          phone?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          config_id?: string
+          created_at?: string
+          email?: string
+          full_name?: string
+          ghin_number?: string | null
+          handicap_index?: number | null
+          id?: string
+          notes?: string | null
+          payment_amount?: number | null
+          payment_confirmed?: boolean
+          phone?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_registration_entries_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_registration_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tournament_rounds: {
         Row: {
           course_data: Json
@@ -926,6 +1041,7 @@ export type Database = {
         Returns: boolean
       }
       generate_join_code: { Args: never; Returns: string }
+      generate_registration_share_code: { Args: never; Returns: string }
       get_saved_players_with_profiles: {
         Args: { p_user_id: string }
         Returns: {
