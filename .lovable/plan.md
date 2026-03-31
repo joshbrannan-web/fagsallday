@@ -1,30 +1,32 @@
 
 
-# Fix Venmo Link Navigation
+# Make Google Sheets Accessible via Link
 
-## Problem
-The "Pay via Venmo" button doesn't navigate to Venmo because the stored URL likely lacks the `https://` protocol prefix (e.g., user enters `venmo.com/u/Username` instead of `https://venmo.com/u/Username`). The browser then treats it as a relative route within the app.
+## What
+When the `create-registration-sheet` edge function creates a new Google Sheet, it will also set "anyone with the link can edit" permissions. This removes the need for email matching between the admin's login and Google account.
 
-## Fix
+## Change
 
-### 1. `src/pages/TournamentRegistration.tsx`
-Add a helper function that ensures the venmo_link always starts with `https://`:
-
-```ts
-const ensureUrl = (url: string) =>
-  url.match(/^https?:\/\//) ? url : `https://${url}`;
-```
-
-Use `ensureUrl(config.venmo_link)` in both `<a href=...>` tags (lines ~157 and ~198).
-
-### 2. `src/components/tournament-admin/RegistrationConfigForm.tsx`
-Add the same normalization when submitting the form, so newly created configs store the full URL:
+### `supabase/functions/create-registration-sheet/index.ts`
+After creating the spreadsheet (and after the existing email-sharing block), add a second Drive API permissions call:
 
 ```ts
-venmo_link: venmoLink.trim().match(/^https?:\/\//) 
-  ? venmoLink.trim() 
-  : `https://${venmoLink.trim()}`
+// Make sheet accessible to anyone with the link
+await fetch(
+  `https://www.googleapis.com/drive/v3/files/${sheetData.spreadsheetId}/permissions`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      role: "writer",
+      type: "anyone",
+    }),
+  }
+);
 ```
 
-This is a 2-file change — no database or backend modifications needed.
+This is a single-file, ~10-line addition. The existing email-based sharing stays as a fallback. No database or frontend changes needed.
 
