@@ -97,24 +97,32 @@ Deno.serve(async (req) => {
 
     let serviceAccount: any;
     try {
-      let raw = serviceAccountKey.trim();
-      // Strip surrounding single or double quotes if present
-      if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
-        raw = raw.slice(1, -1);
+      const raw = serviceAccountKey
+        .trim()
+        .replace(/^['"]|['"]$/g, "")
+        .replace(/\\n/g, "\n")
+        .replace(/\\"/g, '"');
+
+      const parsed = JSON.parse(raw);
+      serviceAccount = typeof parsed === "string" ? JSON.parse(parsed) : parsed;
+
+      if (
+        !serviceAccount ||
+        typeof serviceAccount !== "object" ||
+        typeof serviceAccount.client_email !== "string" ||
+        typeof serviceAccount.private_key !== "string"
+      ) {
+        throw new Error("Service account JSON missing required fields");
       }
-      // Handle escaped newlines (common when pasting from terminal)
-      raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"');
-      // Try parsing; if result is a string, parse again (double-encoded)
-      let parsed = JSON.parse(raw);
-      if (typeof parsed === 'string') {
-        parsed = JSON.parse(parsed);
-      }
-      serviceAccount = parsed;
+
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
     } catch (parseErr) {
       console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY:", parseErr);
-      console.error("First 50 chars:", serviceAccountKey.substring(0, 50));
       return new Response(
-        JSON.stringify({ error: "Invalid service account key format" }),
+        JSON.stringify({
+          error:
+            "Invalid service account key format. Please save the full Google service-account JSON object in GOOGLE_SERVICE_ACCOUNT_KEY.",
+        }),
         { status: 500, headers: corsHeaders }
       );
     }
