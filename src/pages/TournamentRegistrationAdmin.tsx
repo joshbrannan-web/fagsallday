@@ -161,7 +161,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
   };
 
   const copyShareLink = (shareCode: string) => {
-    const url = `${window.location.origin}${window.location.pathname}#/register/${shareCode}`;
+    const url = `https://fagsallday.com/#/register/${shareCode}`;
     navigator.clipboard.writeText(url);
     toast.success('Link copied to clipboard!');
   };
