@@ -146,21 +146,29 @@ const TournamentRegistrationAdmin: React.FC = () => {
     toast.success('Link copied to clipboard!');
   };
 
+  const handleConnectGoogle = () => {
+    if (!selectedConfig) return;
+    const clientId = import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID;
+    if (!clientId) {
+      toast.error('Google OAuth not configured');
+      return;
+    }
+    const redirectUri = `${window.location.origin}${window.location.pathname}#/google-sheets-callback`;
+    const state = btoa(JSON.stringify({ config_id: selectedConfig.id }));
+    const scopes = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}&access_type=offline&prompt=consent`;
+    window.location.href = url;
+  };
+
   const handleCreateSheet = async () => {
     if (!user || !selectedConfig) return;
     setCreatingSheet(true);
     try {
       const { data: sheetData, error: sheetError } = await supabase.functions.invoke(
         'create-registration-sheet',
-        { body: { title: selectedConfig.name, admin_email: user.email } }
+        { body: { title: selectedConfig.name, config_id: selectedConfig.id } }
       );
       if (sheetError || !sheetData?.sheet_id) throw sheetError || new Error('No sheet returned');
-
-      const { error: updateError } = await supabase
-        .from('tournament_registration_configs')
-        .update({ google_sheet_id: sheetData.sheet_id, google_sheet_url: sheetData.sheet_url })
-        .eq('id', selectedConfig.id);
-      if (updateError) throw updateError;
 
       const updated = { ...selectedConfig, google_sheet_id: sheetData.sheet_id, google_sheet_url: sheetData.sheet_url };
       setSelectedConfig(updated);
