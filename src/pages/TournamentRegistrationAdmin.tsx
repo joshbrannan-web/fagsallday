@@ -29,6 +29,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<any>(null);
+  const [creatingSheet, setCreatingSheet] = useState(false);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
