@@ -1,32 +1,25 @@
 
 
-# Make Google Sheets Accessible via Link
+# Fix Registration Share Link to Use Production URL
 
-## What
-When the `create-registration-sheet` edge function creates a new Google Sheet, it will also set "anyone with the link can edit" permissions. This removes the need for email matching between the admin's login and Google account.
+## Problem
+When you copy the registration share link from the admin panel, it uses `window.location.origin` which resolves to the Lovable preview URL (e.g., `id-preview--*.lovable.app`). That URL requires a Lovable login, so anyone you share it with gets blocked.
 
-## Change
+## Fix
 
-### `supabase/functions/create-registration-sheet/index.ts`
-After creating the spreadsheet (and after the existing email-sharing block), add a second Drive API permissions call:
+### `src/pages/TournamentRegistrationAdmin.tsx`
 
-```ts
-// Make sheet accessible to anyone with the link
-await fetch(
-  `https://www.googleapis.com/drive/v3/files/${sheetData.spreadsheetId}/permissions`,
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      role: "writer",
-      type: "anyone",
-    }),
-  }
-);
-```
+Replace the dynamic `window.location.origin` with the production domain `https://fagsallday.com` for share links:
 
-This is a single-file, ~10-line addition. The existing email-based sharing stays as a fallback. No database or frontend changes needed.
+1. **`copyShareLink` function** — change the URL construction to:
+   ```ts
+   const url = `https://fagsallday.com/#/register/${shareCode}`;
+   ```
+
+2. **Displayed share link** (the `<code>` element) — update to show:
+   ```
+   https://fagsallday.com/#/register/{selectedConfig.share_code}
+   ```
+
+This is a single-file, 2-line change. The link will always point to the published production site, which is publicly accessible without any Lovable login.
 
