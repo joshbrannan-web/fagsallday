@@ -38,7 +38,7 @@ const RegistrationConfigForm: React.FC<RegistrationConfigFormProps> = ({ onSubmi
       event_dates: eventDates.trim(),
       amount: parseFloat(amount) || 0,
       amount_label: amountLabel,
-      venmo_link: venmoLink.trim(),
+      venmo_link: venmoLink.trim().match(/^https?:\/\//) ? venmoLink.trim() : `https://${venmoLink.trim()}`,
     });
   };
 

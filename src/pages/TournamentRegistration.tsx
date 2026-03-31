@@ -10,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { MapPin, Calendar, DollarSign, ExternalLink, CheckCircle2, Loader2, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 
+const ensureUrl = (url: string) =>
+  url.match(/^https?:\/\//) ? url : `https://${url}`;
+
 const TournamentRegistration: React.FC = () => {
   const { shareCode } = useParams<{ shareCode: string }>();
   const { user } = useAuth();
@@ -154,7 +157,7 @@ const TournamentRegistration: React.FC = () => {
                   Don't forget to send your {config.amount_label.toLowerCase()} of ${config.amount}
                 </p>
                 <Button asChild variant="outline">
-                  <a href={config.venmo_link} target="_blank" rel="noopener noreferrer">
+                <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
                   </a>
                 </Button>
@@ -195,7 +198,7 @@ const TournamentRegistration: React.FC = () => {
             </div>
             {config.venmo_link && (
               <Button asChild variant="outline" size="sm" className="mt-2">
-                <a href={config.venmo_link} target="_blank" rel="noopener noreferrer">
+                <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
                 </a>
               </Button>
