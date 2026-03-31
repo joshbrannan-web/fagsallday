@@ -10,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { MapPin, Calendar, DollarSign, ExternalLink, CheckCircle2, Loader2, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 
+const ensureUrl = (url: string) =>
+  url.match(/^https?:\/\//) ? url : `https://${url}`;
+
 const TournamentRegistration: React.FC = () => {
   const { shareCode } = useParams<{ shareCode: string }>();
   const { user } = useAuth();
