@@ -71,10 +71,8 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(
-      authHeader.replace("Bearer ", "")
-    );
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: corsHeaders,
@@ -97,7 +95,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    const serviceAccount = JSON.parse(serviceAccountKey);
+    let serviceAccount: any;
+    try {
+      serviceAccount = JSON.parse(serviceAccountKey);
+    } catch (parseErr) {
+      console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY. First 20 chars:", serviceAccountKey.substring(0, 20));
+      return new Response(
+        JSON.stringify({ error: "Invalid service account key format" }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
     const accessToken = await getAccessToken(serviceAccount);
 
     // Create spreadsheet
