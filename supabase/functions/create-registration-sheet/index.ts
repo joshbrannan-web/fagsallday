@@ -172,6 +172,25 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Make sheet accessible to anyone with the link
+    const linkPermRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${sheetData.spreadsheetId}/permissions`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          role: "writer",
+          type: "anyone",
+        }),
+      }
+    );
+    if (!linkPermRes.ok) {
+      console.warn("Failed to set link sharing:", await linkPermRes.text());
+    }
+
     return new Response(
       JSON.stringify({
         sheet_id: sheetData.spreadsheetId,
