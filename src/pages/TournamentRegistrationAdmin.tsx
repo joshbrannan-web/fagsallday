@@ -83,25 +83,6 @@ const TournamentRegistrationAdmin: React.FC = () => {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      // Try to create a Google Sheet
-      let googleSheetId: string | null = null;
-      let googleSheetUrl: string | null = null;
-
-      try {
-        const { data: sheetData, error: sheetError } = await supabase.functions.invoke(
-          'create-registration-sheet',
-          {
-            body: { title: formData.name, admin_email: user.email },
-          }
-        );
-        if (!sheetError && sheetData?.sheet_id) {
-          googleSheetId = sheetData.sheet_id;
-          googleSheetUrl = sheetData.sheet_url;
-        }
-      } catch (e) {
-        console.warn('Sheet creation skipped:', e);
-      }
-
       const { data, error } = await supabase
         .from('tournament_registration_configs')
         .insert({
@@ -113,8 +94,6 @@ const TournamentRegistrationAdmin: React.FC = () => {
           amount: formData.amount,
           amount_label: formData.amount_label,
           venmo_link: formData.venmo_link,
-          google_sheet_id: googleSheetId,
-          google_sheet_url: googleSheetUrl,
         })
         .select()
         .single();
