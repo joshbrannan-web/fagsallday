@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournaments } from '@/hooks/useTournaments';
-import { Trophy, ArrowLeft, Plus } from 'lucide-react';
+import { Trophy, ArrowLeft, Plus, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import TournamentCard from '@/components/tournament-admin/TournamentCard';
