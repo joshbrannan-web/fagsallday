@@ -1,25 +1,36 @@
 
 
-# Fix Registration Share Link to Use Production URL
+# Add "Create Google Sheet" Button for Configs Missing a Sheet
 
 ## Problem
-When you copy the registration share link from the admin panel, it uses `window.location.origin` which resolves to the Lovable preview URL (e.g., `id-preview--*.lovable.app`). That URL requires a Lovable login, so anyone you share it with gets blocked.
+This tournament registration config (`a5eea025-a60d-495b-a8af-17b01645c9ee`) has `google_sheet_url = null` — the sheet was never created (the edge function likely failed silently). The "Open Google Sheet" button only renders when the URL exists, so there's no way to retry or create one after the fact.
 
 ## Fix
 
 ### `src/pages/TournamentRegistrationAdmin.tsx`
 
-Replace the dynamic `window.location.origin` with the production domain `https://fagsallday.com` for share links:
+In the detail view (line ~235), add an else branch: when `google_sheet_url` is null, show a "Create Google Sheet" button that:
 
-1. **`copyShareLink` function** — change the URL construction to:
-   ```ts
-   const url = `https://fagsallday.com/#/register/${shareCode}`;
-   ```
+1. Calls the `create-registration-sheet` edge function with the config name and admin email
+2. On success, updates the `tournament_registration_configs` row with the returned `sheet_id` and `sheet_url`
+3. Updates local state so the "Open Google Sheet" button appears immediately
 
-2. **Displayed share link** (the `<code>` element) — update to show:
-   ```
-   https://fagsallday.com/#/register/{selectedConfig.share_code}
-   ```
+```tsx
+// Replace the existing google_sheet_url conditional block:
+{selectedConfig.google_sheet_url ? (
+  <Button asChild variant="outline" size="sm">
+    <a href={selectedConfig.google_sheet_url} target="_blank">
+      <ExternalLink className="w-4 h-4 mr-2" /> Open Google Sheet
+    </a>
+  </Button>
+) : (
+  <Button variant="outline" size="sm" onClick={handleCreateSheet}>
+    <Plus className="w-4 h-4 mr-2" /> Create Google Sheet
+  </Button>
+)}
+```
 
-This is a single-file, 2-line change. The link will always point to the published production site, which is publicly accessible without any Lovable login.
+Add a `handleCreateSheet` function that invokes the edge function, updates the DB row, and refreshes `selectedConfig` in state.
+
+Single-file change, no database modifications needed.
 
