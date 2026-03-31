@@ -6,47 +6,23 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function getAccessToken(serviceAccount: any): Promise<string> {
-  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const now = Math.floor(Date.now() / 1000);
-  const claimSet = btoa(
-    JSON.stringify({
-      iss: serviceAccount.client_email,
-      scope: "https://www.googleapis.com/auth/spreadsheets",
-      aud: "https://oauth2.googleapis.com/token",
-      exp: now + 3600,
-      iat: now,
-    })
-  );
-
-  const pemContent = serviceAccount.private_key
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\n/g, "");
-  const binaryKey = Uint8Array.from(atob(pemContent), (c) => c.charCodeAt(0));
-
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signatureInput = new TextEncoder().encode(`${header}.${claimSet}`);
-  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, signatureInput);
-  const sig = btoa(String.fromCharCode(...new Uint8Array(signature)));
-
-  const jwt = `${header}.${claimSet}.${sig}`;
+async function getAccessTokenFromRefresh(refreshToken: string): Promise<string> {
+  const clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID")!;
+  const clientSecret = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET")!;
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
   });
 
   const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) throw new Error("Failed to get access token");
+  if (!tokenData.access_token) throw new Error("Failed to refresh access token");
   return tokenData.access_token;
 }
 
@@ -60,11 +36,10 @@ Deno.serve(async (req) => {
     if (!config_id || !entry) {
       return new Response(JSON.stringify({ error: "Missing config_id or entry" }), {
         status: 400,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Use service role to read config (entry was just inserted by anon/authenticated)
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -72,7 +47,7 @@ Deno.serve(async (req) => {
 
     const { data: config } = await supabase
       .from("tournament_registration_configs")
-      .select("google_sheet_id")
+      .select("google_sheet_id, google_refresh_token")
       .eq("id", config_id)
       .single();
 
@@ -82,15 +57,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
-    if (!serviceAccountKey) {
-      return new Response(JSON.stringify({ skipped: true, reason: "No service account" }), {
+    if (!config.google_refresh_token) {
+      return new Response(JSON.stringify({ skipped: true, reason: "No Google auth token" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const serviceAccount = JSON.parse(serviceAccountKey);
-    const accessToken = await getAccessToken(serviceAccount);
+    const accessToken = await getAccessTokenFromRefresh(config.google_refresh_token);
 
     const row = [
       entry.full_name || "",
@@ -120,7 +93,7 @@ Deno.serve(async (req) => {
       console.error("Sheet append failed:", JSON.stringify(appendData));
       return new Response(JSON.stringify({ error: "Failed to append to sheet" }), {
         status: 500,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -131,7 +104,7 @@ Deno.serve(async (req) => {
     console.error("Error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

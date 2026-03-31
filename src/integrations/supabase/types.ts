@@ -688,8 +688,10 @@ export type Database = {
           created_by: string
           description: string | null
           event_dates: string
+          google_refresh_token: string | null
           google_sheet_id: string | null
           google_sheet_url: string | null
+          google_token_expires_at: string | null
           id: string
           is_open: boolean
           location: string
@@ -705,8 +707,10 @@ export type Database = {
           created_by: string
           description?: string | null
           event_dates?: string
+          google_refresh_token?: string | null
           google_sheet_id?: string | null
           google_sheet_url?: string | null
+          google_token_expires_at?: string | null
           id?: string
           is_open?: boolean
           location?: string
@@ -722,8 +726,10 @@ export type Database = {
           created_by?: string
           description?: string | null
           event_dates?: string
+          google_refresh_token?: string | null
           google_sheet_id?: string | null
           google_sheet_url?: string | null
+          google_token_expires_at?: string | null
           id?: string
           is_open?: boolean
           location?: string

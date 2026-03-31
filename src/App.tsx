@@ -25,6 +25,7 @@ import TournamentGroupScorecard from './pages/TournamentGroupScorecard';
 import TournamentBuildRoundWizard from './components/tournament/TournamentBuildRoundWizard';
 import TournamentRegistration from './pages/TournamentRegistration';
 import TournamentRegistrationAdmin from './pages/TournamentRegistrationAdmin';
+import GoogleSheetsCallback from './pages/GoogleSheetsCallback';
 import CreateTournamentWizard from './components/tournament-admin/CreateTournamentWizard';
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
@@ -677,6 +678,7 @@ const AppContent: FC = () => {
         <Route path="/register/:shareCode" element={<TournamentRegistration />} />
         <Route path="/tournament-admin/registrations" element={<TournamentRegistrationAdmin />} />
         <Route path="/tournament-admin/registrations/:configId" element={<TournamentRegistrationAdmin />} />
+        <Route path="/google-sheets-callback" element={<GoogleSheetsCallback />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppContext.Provider>
