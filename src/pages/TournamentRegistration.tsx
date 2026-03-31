@@ -198,7 +198,7 @@ const TournamentRegistration: React.FC = () => {
             </div>
             {config.venmo_link && (
               <Button asChild variant="outline" size="sm" className="mt-2">
-                <a href={config.venmo_link} target="_blank" rel="noopener noreferrer">
+                <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
                 </a>
               </Button>
