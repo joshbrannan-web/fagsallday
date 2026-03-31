@@ -1,0 +1,3 @@
+ALTER TABLE public.tournament_registration_configs
+ADD COLUMN google_refresh_token text,
+ADD COLUMN google_token_expires_at timestamptz;

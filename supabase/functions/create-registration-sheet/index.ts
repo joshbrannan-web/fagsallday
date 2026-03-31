@@ -6,140 +6,27 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function getAccessToken(serviceAccount: any): Promise<string> {
-  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const now = Math.floor(Date.now() / 1000);
-  const claimSet = btoa(
-    JSON.stringify({
-      iss: serviceAccount.client_email,
-      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive",
-      aud: "https://oauth2.googleapis.com/token",
-      exp: now + 3600,
-      iat: now,
-    })
-  );
-
-  const pemContent = serviceAccount.private_key
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\n/g, "");
-  const binaryKey = Uint8Array.from(atob(pemContent), (c) => c.charCodeAt(0));
-
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signatureInput = new TextEncoder().encode(`${header}.${claimSet}`);
-  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, signatureInput);
-  const sig = btoa(String.fromCharCode(...new Uint8Array(signature)));
-
-  const jwt = `${header}.${claimSet}.${sig}`;
+async function getAccessTokenFromRefresh(refreshToken: string): Promise<string> {
+  const clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID")!;
+  const clientSecret = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET")!;
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
   });
 
   const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) throw new Error("Failed to get access token");
+  if (!tokenData.access_token) {
+    console.error("Refresh token exchange failed:", JSON.stringify(tokenData));
+    throw new Error("Failed to refresh access token");
+  }
   return tokenData.access_token;
-}
-
-type ParsedServiceAccount = {
-  client_email: string;
-  private_key: string;
-};
-
-function tryParseServiceAccountCandidate(candidate: string): ParsedServiceAccount | null {
-  try {
-    const parsed = JSON.parse(candidate);
-
-    if (typeof parsed === "string") {
-      return tryParseServiceAccountCandidate(parsed);
-    }
-
-    if (!parsed || typeof parsed !== "object") {
-      return null;
-    }
-
-    const serviceAccount = parsed as Record<string, unknown>;
-    if (
-      typeof serviceAccount.client_email !== "string" ||
-      typeof serviceAccount.private_key !== "string"
-    ) {
-      return null;
-    }
-
-    return {
-      client_email: serviceAccount.client_email,
-      private_key: serviceAccount.private_key
-        .replace(/\\r\\n/g, "\n")
-        .replace(/\\n/g, "\n"),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function parseServiceAccountKey(rawSecret: string): ParsedServiceAccount {
-  const queue: string[] = [rawSecret];
-  const seen = new Set<string>();
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) continue;
-
-    const trimmed = current.trim();
-    if (!trimmed || seen.has(trimmed)) continue;
-    seen.add(trimmed);
-
-    const direct = tryParseServiceAccountCandidate(trimmed);
-    if (direct) return direct;
-
-    const withoutOuterQuotes =
-      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-      (trimmed.startsWith("'") && trimmed.endsWith("'"))
-        ? trimmed.slice(1, -1)
-        : trimmed;
-    if (withoutOuterQuotes !== trimmed) queue.push(withoutOuterQuotes);
-
-    const unescaped = withoutOuterQuotes
-      .replace(/\\r\\n/g, "\n")
-      .replace(/\\n/g, "\n")
-      .replace(/\\"/g, '"');
-    if (unescaped !== withoutOuterQuotes) queue.push(unescaped);
-
-    const equalsIndex = unescaped.indexOf("=");
-    if (
-      equalsIndex > 0 &&
-      /google_service_account_key/i.test(unescaped.slice(0, equalsIndex))
-    ) {
-      queue.push(unescaped.slice(equalsIndex + 1).trim());
-    }
-
-    const firstBrace = unescaped.indexOf("{");
-    const lastBrace = unescaped.lastIndexOf("}");
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      const extracted = unescaped.slice(firstBrace, lastBrace + 1);
-      if (extracted !== unescaped) queue.push(extracted);
-    }
-
-    const compact = unescaped.replace(/\s+/g, "");
-    if (compact.length > 200 && /^[A-Za-z0-9+/=]+$/.test(compact)) {
-      try {
-        queue.push(atob(compact));
-      } catch {
-        // ignore invalid base64 candidates
-      }
-    }
-  }
-
-  throw new Error("Invalid GOOGLE_SERVICE_ACCOUNT_KEY format");
 }
 
 Deno.serve(async (req) => {
@@ -153,7 +40,7 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -167,40 +54,45 @@ Deno.serve(async (req) => {
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { title, admin_email } = await req.json();
-    if (!title || typeof title !== "string" || title.length > 255) {
-      return new Response(JSON.stringify({ error: "Invalid title" }), {
+    const { title, config_id } = await req.json();
+    if (!title || !config_id) {
+      return new Response(JSON.stringify({ error: "Missing title or config_id" }), {
         status: 400,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const serviceAccountKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY");
-    if (!serviceAccountKey) {
-      return new Response(
-        JSON.stringify({ error: "Google service account not configured" }),
-        { status: 500, headers: corsHeaders }
-      );
+    // Read the config's refresh token using service role
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: config } = await adminClient
+      .from("tournament_registration_configs")
+      .select("google_refresh_token, created_by")
+      .eq("id", config_id)
+      .single();
+
+    if (!config || config.created_by !== user.id) {
+      return new Response(JSON.stringify({ error: "Not authorized" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    let serviceAccount: ParsedServiceAccount;
-    try {
-      serviceAccount = parseServiceAccountKey(serviceAccountKey);
-    } catch (parseErr) {
-      console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY:", parseErr);
-      return new Response(
-        JSON.stringify({
-          error:
-            "Invalid service account key format. Please save the full Google service-account JSON object in GOOGLE_SERVICE_ACCOUNT_KEY.",
-        }),
-        { status: 500, headers: corsHeaders }
-      );
+    if (!config.google_refresh_token) {
+      return new Response(JSON.stringify({ error: "Google Sheets not connected. Please connect your Google account first." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-    const accessToken = await getAccessToken(serviceAccount);
+
+    const accessToken = await getAccessTokenFromRefresh(config.google_refresh_token);
 
     // Create spreadsheet
     const createRes = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
@@ -247,51 +139,18 @@ Deno.serve(async (req) => {
       console.error("Sheet creation failed:", JSON.stringify(sheetData));
       return new Response(JSON.stringify({ error: "Failed to create sheet" }), {
         status: 500,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Share with admin email if provided
-    if (admin_email && typeof admin_email === "string") {
-      const permRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${sheetData.spreadsheetId}/permissions`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            role: "writer",
-            type: "user",
-            emailAddress: admin_email,
-          }),
-        }
-      );
-      const permText = await permRes.text();
-      if (!permRes.ok) {
-        console.warn("Failed to share sheet:", permText);
-      }
-    }
-
-    // Make sheet accessible to anyone with the link
-    const linkPermRes = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${sheetData.spreadsheetId}/permissions`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          role: "writer",
-          type: "anyone",
-        }),
-      }
-    );
-    if (!linkPermRes.ok) {
-      console.warn("Failed to set link sharing:", await linkPermRes.text());
-    }
+    // Update config with sheet info
+    await adminClient
+      .from("tournament_registration_configs")
+      .update({
+        google_sheet_id: sheetData.spreadsheetId,
+        google_sheet_url: sheetData.spreadsheetUrl,
+      })
+      .eq("id", config_id);
 
     return new Response(
       JSON.stringify({
@@ -304,7 +163,7 @@ Deno.serve(async (req) => {
     console.error("Error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
