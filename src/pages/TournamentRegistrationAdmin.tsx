@@ -167,6 +167,34 @@ const TournamentRegistrationAdmin: React.FC = () => {
     toast.success('Link copied to clipboard!');
   };
 
+  const handleCreateSheet = async () => {
+    if (!user || !selectedConfig) return;
+    setCreatingSheet(true);
+    try {
+      const { data: sheetData, error: sheetError } = await supabase.functions.invoke(
+        'create-registration-sheet',
+        { body: { title: selectedConfig.name, admin_email: user.email } }
+      );
+      if (sheetError || !sheetData?.sheet_id) throw sheetError || new Error('No sheet returned');
+
+      const { error: updateError } = await supabase
+        .from('tournament_registration_configs')
+        .update({ google_sheet_id: sheetData.sheet_id, google_sheet_url: sheetData.sheet_url })
+        .eq('id', selectedConfig.id);
+      if (updateError) throw updateError;
+
+      const updated = { ...selectedConfig, google_sheet_id: sheetData.sheet_id, google_sheet_url: sheetData.sheet_url };
+      setSelectedConfig(updated);
+      setConfigs(prev => prev.map(c => c.id === selectedConfig.id ? updated : c));
+      toast.success('Google Sheet created!');
+    } catch (err: any) {
+      console.error('Sheet creation error:', err);
+      toast.error('Failed to create Google Sheet');
+    } finally {
+      setCreatingSheet(false);
+    }
+  };
+
   if (adminLoading || loading) {
     return (
       <div className="min-h-screen bg-background p-4 space-y-4">
