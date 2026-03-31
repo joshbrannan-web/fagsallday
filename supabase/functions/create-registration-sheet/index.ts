@@ -97,12 +97,22 @@ Deno.serve(async (req) => {
 
     let serviceAccount: any;
     try {
-      const trimmed = serviceAccountKey.trim();
-      serviceAccount = JSON.parse(
-        trimmed.startsWith("{") ? trimmed : JSON.parse(trimmed)
-      );
+      let raw = serviceAccountKey.trim();
+      // Strip surrounding single or double quotes if present
+      if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+        raw = raw.slice(1, -1);
+      }
+      // Handle escaped newlines (common when pasting from terminal)
+      raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+      // Try parsing; if result is a string, parse again (double-encoded)
+      let parsed = JSON.parse(raw);
+      if (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
+      }
+      serviceAccount = parsed;
     } catch (parseErr) {
       console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY:", parseErr);
+      console.error("First 50 chars:", serviceAccountKey.substring(0, 50));
       return new Response(
         JSON.stringify({ error: "Invalid service account key format" }),
         { status: 500, headers: corsHeaders }
