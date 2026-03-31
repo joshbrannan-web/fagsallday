@@ -674,6 +674,9 @@ const AppContent: FC = () => {
         <Route path="/tournament/:joinCode/scoreboards" element={<TournamentScoreboards />} />
         <Route path="/tournament/:joinCode/round/:roundId/group/:groupId" element={<TournamentGroupScorecard />} />
         <Route path="/tournament/:joinCode/build-round" element={<TournamentBuildRoundWizard />} />
+        <Route path="/register/:shareCode" element={<TournamentRegistration />} />
+        <Route path="/tournament-admin/registrations" element={<TournamentRegistrationAdmin />} />
+        <Route path="/tournament-admin/registrations/:configId" element={<TournamentRegistrationAdmin />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppContext.Provider>
