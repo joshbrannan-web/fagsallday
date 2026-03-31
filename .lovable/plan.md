@@ -1,36 +1,32 @@
 
 
-# Add "Create Google Sheet" Button for Configs Missing a Sheet
+# Fix Google Service Account Key Parsing in Edge Function
 
 ## Problem
-This tournament registration config (`a5eea025-a60d-495b-a8af-17b01645c9ee`) has `google_sheet_url = null` — the sheet was never created (the edge function likely failed silently). The "Open Google Sheet" button only renders when the URL exists, so there's no way to retry or create one after the fact.
+The `GOOGLE_SERVICE_ACCOUNT_KEY` secret is set, but it's likely stored in a double-serialized format (e.g., the JSON string was wrapped in extra quotes when saved). This causes `JSON.parse()` to fail because it encounters a string instead of an object.
 
 ## Fix
 
-### `src/pages/TournamentRegistrationAdmin.tsx`
+### `supabase/functions/create-registration-sheet/index.ts`
 
-In the detail view (line ~235), add an else branch: when `google_sheet_url` is null, show a "Create Google Sheet" button that:
+Replace the current parsing logic with a normalizing parser that handles both plain JSON and double-encoded JSON:
 
-1. Calls the `create-registration-sheet` edge function with the config name and admin email
-2. On success, updates the `tournament_registration_configs` row with the returned `sheet_id` and `sheet_url`
-3. Updates local state so the "Open Google Sheet" button appears immediately
-
-```tsx
-// Replace the existing google_sheet_url conditional block:
-{selectedConfig.google_sheet_url ? (
-  <Button asChild variant="outline" size="sm">
-    <a href={selectedConfig.google_sheet_url} target="_blank">
-      <ExternalLink className="w-4 h-4 mr-2" /> Open Google Sheet
-    </a>
-  </Button>
-) : (
-  <Button variant="outline" size="sm" onClick={handleCreateSheet}>
-    <Plus className="w-4 h-4 mr-2" /> Create Google Sheet
-  </Button>
-)}
+```ts
+const raw = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY")!;
+let serviceAccount: any;
+try {
+  const trimmed = raw.trim();
+  serviceAccount = JSON.parse(
+    trimmed.startsWith("{") ? trimmed : JSON.parse(trimmed)
+  );
+} catch (parseErr) {
+  console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY:", parseErr);
+  return new Response(
+    JSON.stringify({ error: "Invalid service account key format" }),
+    { status: 500, headers: corsHeaders }
+  );
+}
 ```
 
-Add a `handleCreateSheet` function that invokes the edge function, updates the DB row, and refreshes `selectedConfig` in state.
-
-Single-file change, no database modifications needed.
+If the raw value starts with `{`, it's already valid JSON and gets parsed directly. If it starts with `"` (double-encoded), the inner `JSON.parse` unwraps it first. This is a ~5-line change in the existing file.
 
