@@ -1,32 +1,18 @@
 
 
-# Fix Google Service Account Key Parsing in Edge Function
+# Save Google Service Account Key
 
 ## Problem
-The `GOOGLE_SERVICE_ACCOUNT_KEY` secret is set, but it's likely stored in a double-serialized format (e.g., the JSON string was wrapped in extra quotes when saved). This causes `JSON.parse()` to fail because it encounters a string instead of an object.
+The `GOOGLE_SERVICE_ACCOUNT_KEY` secret has been failing to parse. The user has provided a fresh, valid service account key.
 
-## Fix
+## Plan
 
-### `supabase/functions/create-registration-sheet/index.ts`
+### Step 1: Update the secret
+Use the `add_secret` tool to save the exact JSON the user provided as `GOOGLE_SERVICE_ACCOUNT_KEY`. This replaces whatever mangled value was stored before.
 
-Replace the current parsing logic with a normalizing parser that handles both plain JSON and double-encoded JSON:
+### Step 2: Verify the edge function parsing
+Review the current `create-registration-sheet/index.ts` to confirm its parser can handle a clean JSON object (which this now will be). No code changes should be needed since the parser already handles raw JSON.
 
-```ts
-const raw = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY")!;
-let serviceAccount: any;
-try {
-  const trimmed = raw.trim();
-  serviceAccount = JSON.parse(
-    trimmed.startsWith("{") ? trimmed : JSON.parse(trimmed)
-  );
-} catch (parseErr) {
-  console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY:", parseErr);
-  return new Response(
-    JSON.stringify({ error: "Invalid service account key format" }),
-    { status: 500, headers: corsHeaders }
-  );
-}
-```
-
-If the raw value starts with `{`, it's already valid JSON and gets parsed directly. If it starts with `"` (double-encoded), the inner `JSON.parse` unwraps it first. This is a ~5-line change in the existing file.
+### Step 3: Test
+Trigger the "Create Google Sheet" action from the registration admin page to confirm it works end-to-end.
 
