@@ -50,6 +50,98 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
   return tokenData.access_token;
 }
 
+type ParsedServiceAccount = {
+  client_email: string;
+  private_key: string;
+};
+
+function tryParseServiceAccountCandidate(candidate: string): ParsedServiceAccount | null {
+  try {
+    const parsed = JSON.parse(candidate);
+
+    if (typeof parsed === "string") {
+      return tryParseServiceAccountCandidate(parsed);
+    }
+
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const serviceAccount = parsed as Record<string, unknown>;
+    if (
+      typeof serviceAccount.client_email !== "string" ||
+      typeof serviceAccount.private_key !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      client_email: serviceAccount.client_email,
+      private_key: serviceAccount.private_key
+        .replace(/\\r\\n/g, "\n")
+        .replace(/\\n/g, "\n"),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseServiceAccountKey(rawSecret: string): ParsedServiceAccount {
+  const queue: string[] = [rawSecret];
+  const seen = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+
+    const trimmed = current.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+
+    const direct = tryParseServiceAccountCandidate(trimmed);
+    if (direct) return direct;
+
+    const withoutOuterQuotes =
+      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'"))
+        ? trimmed.slice(1, -1)
+        : trimmed;
+    if (withoutOuterQuotes !== trimmed) queue.push(withoutOuterQuotes);
+
+    const unescaped = withoutOuterQuotes
+      .replace(/\\r\\n/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/\\"/g, '"');
+    if (unescaped !== withoutOuterQuotes) queue.push(unescaped);
+
+    const equalsIndex = unescaped.indexOf("=");
+    if (
+      equalsIndex > 0 &&
+      /google_service_account_key/i.test(unescaped.slice(0, equalsIndex))
+    ) {
+      queue.push(unescaped.slice(equalsIndex + 1).trim());
+    }
+
+    const firstBrace = unescaped.indexOf("{");
+    const lastBrace = unescaped.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      const extracted = unescaped.slice(firstBrace, lastBrace + 1);
+      if (extracted !== unescaped) queue.push(extracted);
+    }
+
+    const compact = unescaped.replace(/\s+/g, "");
+    if (compact.length > 200 && /^[A-Za-z0-9+/=]+$/.test(compact)) {
+      try {
+        queue.push(atob(compact));
+      } catch {
+        // ignore invalid base64 candidates
+      }
+    }
+  }
+
+  throw new Error("Invalid GOOGLE_SERVICE_ACCOUNT_KEY format");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -95,27 +187,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    let serviceAccount: any;
+    let serviceAccount: ParsedServiceAccount;
     try {
-      const raw = serviceAccountKey
-        .trim()
-        .replace(/^['"]|['"]$/g, "")
-        .replace(/\\n/g, "\n")
-        .replace(/\\"/g, '"');
-
-      const parsed = JSON.parse(raw);
-      serviceAccount = typeof parsed === "string" ? JSON.parse(parsed) : parsed;
-
-      if (
-        !serviceAccount ||
-        typeof serviceAccount !== "object" ||
-        typeof serviceAccount.client_email !== "string" ||
-        typeof serviceAccount.private_key !== "string"
-      ) {
-        throw new Error("Service account JSON missing required fields");
-      }
-
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+      serviceAccount = parseServiceAccountKey(serviceAccountKey);
     } catch (parseErr) {
       console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY:", parseErr);
       return new Response(
