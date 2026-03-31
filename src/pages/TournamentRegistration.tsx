@@ -157,7 +157,7 @@ const TournamentRegistration: React.FC = () => {
                   Don't forget to send your {config.amount_label.toLowerCase()} of ${config.amount}
                 </p>
                 <Button asChild variant="outline">
-                  <a href={config.venmo_link} target="_blank" rel="noopener noreferrer">
+                <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
                   </a>
                 </Button>
