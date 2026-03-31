@@ -261,11 +261,15 @@ const TournamentRegistrationAdmin: React.FC = () => {
                 </Select>
               </div>
 
-              {selectedConfig.google_sheet_url && (
+              {selectedConfig.google_sheet_url ? (
                 <Button asChild variant="outline" size="sm">
                   <a href={selectedConfig.google_sheet_url} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4 mr-2" /> Open Google Sheet
                   </a>
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={handleCreateSheet} disabled={creatingSheet}>
+                  <Plus className="w-4 h-4 mr-2" /> {creatingSheet ? 'Creating…' : 'Create Google Sheet'}
                 </Button>
               )}
             </CardContent>
