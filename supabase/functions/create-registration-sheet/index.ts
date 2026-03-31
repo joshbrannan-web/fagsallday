@@ -97,9 +97,12 @@ Deno.serve(async (req) => {
 
     let serviceAccount: any;
     try {
-      serviceAccount = JSON.parse(serviceAccountKey);
+      const trimmed = serviceAccountKey.trim();
+      serviceAccount = JSON.parse(
+        trimmed.startsWith("{") ? trimmed : JSON.parse(trimmed)
+      );
     } catch (parseErr) {
-      console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY. First 20 chars:", serviceAccountKey.substring(0, 20));
+      console.error("Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY:", parseErr);
       return new Response(
         JSON.stringify({ error: "Invalid service account key format" }),
         { status: 500, headers: corsHeaders }
