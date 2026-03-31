@@ -197,7 +197,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
             <CardContent className="py-4 flex items-center gap-3">
               <LinkIcon className="w-4 h-4 text-muted-foreground shrink-0" />
               <code className="text-sm flex-1 truncate">
-                {window.location.origin}{window.location.pathname}#/register/{selectedConfig.share_code}
+                https://fagsallday.com/#/register/{selectedConfig.share_code}
               </code>
               <Button variant="outline" size="sm" onClick={() => copyShareLink(selectedConfig.share_code)}>
                 <Copy className="w-4 h-4" />
