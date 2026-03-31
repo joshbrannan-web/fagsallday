@@ -29,6 +29,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<any>(null);
+  const [creatingSheet, setCreatingSheet] = useState(false);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
@@ -166,6 +167,34 @@ const TournamentRegistrationAdmin: React.FC = () => {
     toast.success('Link copied to clipboard!');
   };
 
+  const handleCreateSheet = async () => {
+    if (!user || !selectedConfig) return;
+    setCreatingSheet(true);
+    try {
+      const { data: sheetData, error: sheetError } = await supabase.functions.invoke(
+        'create-registration-sheet',
+        { body: { title: selectedConfig.name, admin_email: user.email } }
+      );
+      if (sheetError || !sheetData?.sheet_id) throw sheetError || new Error('No sheet returned');
+
+      const { error: updateError } = await supabase
+        .from('tournament_registration_configs')
+        .update({ google_sheet_id: sheetData.sheet_id, google_sheet_url: sheetData.sheet_url })
+        .eq('id', selectedConfig.id);
+      if (updateError) throw updateError;
+
+      const updated = { ...selectedConfig, google_sheet_id: sheetData.sheet_id, google_sheet_url: sheetData.sheet_url };
+      setSelectedConfig(updated);
+      setConfigs(prev => prev.map(c => c.id === selectedConfig.id ? updated : c));
+      toast.success('Google Sheet created!');
+    } catch (err: any) {
+      console.error('Sheet creation error:', err);
+      toast.error('Failed to create Google Sheet');
+    } finally {
+      setCreatingSheet(false);
+    }
+  };
+
   if (adminLoading || loading) {
     return (
       <div className="min-h-screen bg-background p-4 space-y-4">
@@ -232,11 +261,15 @@ const TournamentRegistrationAdmin: React.FC = () => {
                 </Select>
               </div>
 
-              {selectedConfig.google_sheet_url && (
+              {selectedConfig.google_sheet_url ? (
                 <Button asChild variant="outline" size="sm">
                   <a href={selectedConfig.google_sheet_url} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4 mr-2" /> Open Google Sheet
                   </a>
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={handleCreateSheet} disabled={creatingSheet}>
+                  <Plus className="w-4 h-4 mr-2" /> {creatingSheet ? 'Creating…' : 'Create Google Sheet'}
                 </Button>
               )}
             </CardContent>
