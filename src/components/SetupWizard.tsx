@@ -1668,6 +1668,7 @@ const SetupWizard: React.FC = () => {
                         id={`name-${player.id}`}
                         value={player.name}
                         onChange={(e) => handlePlayerChange(player.id, "name", e.target.value)}
+                        onBlur={() => handlePlayerNameBlur(player, idx)}
                         placeholder="Enter name manually"
                         className="mt-1"
                       />
