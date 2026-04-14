@@ -414,7 +414,7 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
 
 export const calculateNassau = (round: Round, game: GameSettings): GameResult => {
   const players = getGamePlayers(game, round);
-  const unit = game.unitStake;
+  const { scores, course } = round;
 
   if (players.length !== 2) {
     return {
