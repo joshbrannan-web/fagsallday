@@ -1388,7 +1388,8 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
 // --- Wolf Game ---
 
 export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
+  const { scores, course } = round;
   const unit = game.unitStake;
 
   if (players.length !== 4) {
@@ -1530,7 +1531,8 @@ export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
 // --- Nine Points Game ---
 
 export const calculateNinePoints = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
+  const { scores, course } = round;
   const unit = game.unitStake;
 
   if (players.length !== 3) {
