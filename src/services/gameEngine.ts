@@ -3,6 +3,13 @@ import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
 import { calculateTeamBanker } from "./teamBankerEngine";
 
+// Helper: get only the players participating in a specific game
+export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
+  const ids = game.config.gamePlayers;
+  if (!ids || ids.length === 0) return round.players;
+  return round.players.filter(p => ids.map(String).includes(String(p.id)));
+};
+
 // --- FBO Stroke Calculation (supports both Absolute and Relative modes) ---
 
 export const calculateFBOStrokes = (
