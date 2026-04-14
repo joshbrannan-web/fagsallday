@@ -108,6 +108,7 @@ const SetupWizard: React.FC = () => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(changeGamesMode ? 3 : 1);
   const [courseMode, setCourseMode] = useState<CourseFinderMode>("select");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncingGhin, setIsSyncingGhin] = useState(false);
   const [showSavedPlayers, setShowSavedPlayers] = useState(false);
    const [showUserSearch, setShowUserSearch] = useState(false);
    const [userSearchSlotIndex, setUserSearchSlotIndex] = useState<number | null>(null);
