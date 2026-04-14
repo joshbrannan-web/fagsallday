@@ -155,6 +155,7 @@ export interface GameSettings {
     // Universal handicap configuration (not for Stockton 6's - it has its own logic)
     useHandicaps?: boolean; // true = use handicaps, false = gross scores only
     handicapMode?: 'absolute' | 'relative'; // 'absolute' = Stockton 6 style, 'relative' = Banker style (lowest HCP = 0)
+    gamePlayers?: string[]; // Player IDs participating in this game (when unset, all round players)
   };
 }
 
