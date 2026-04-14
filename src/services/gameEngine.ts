@@ -327,7 +327,8 @@ export const calculateGameStrokes = (
 // --- Betting Engine ---
 
 export const calculateSkins = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
+  const { scores, course } = round;
   const unit = game.unitStake;
   const carryovers = game.config.carryovers ?? true;
 
@@ -412,7 +413,7 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
 };
 
 export const calculateNassau = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
   const unit = game.unitStake;
 
   if (players.length !== 2) {
@@ -487,7 +488,7 @@ export const calculateNassau = (round: Round, game: GameSettings): GameResult =>
 };
 
 export const calculateOpenBetting = (round: Round, game: GameSettings): GameResult => {
-  const { players } = round;
+  const players = getGamePlayers(game, round);
   const results: { [id: string]: number } = {};
   const holeResults: { [hole: number]: { [id: string]: number } } = {};
 
@@ -517,7 +518,7 @@ export const calculateOpenBetting = (round: Round, game: GameSettings): GameResu
 };
 
 export const calculateBanker = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
   const unit = game.unitStake;
   // Support new multiplier config, fallback to legacy boolean config
   const birdieMultiplier = game.config.birdieMultiplier ?? (game.config.birdieTriple ? 3 : 1);
