@@ -48,6 +48,8 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
       if (game.type === GameType.FBO) {
         gameConfig.fboPlayers = players.map((p) => p.id);
       }
+      // Default all players as selected for every game
+      gameConfig.gamePlayers = players.map((p) => p.id);
       handleGamesChange([
         ...selectedGames,
         {
@@ -59,6 +61,32 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
         },
       ]);
     }
+  };
+
+  const handleToggleGamePlayer = (gameId: string, playerId: string, gameType: GameType) => {
+    const game = selectedGames.find(g => g.id === gameId);
+    if (!game) return;
+    const currentPlayers = game.config.gamePlayers || players.map(p => p.id);
+    const isIn = currentPlayers.includes(playerId);
+    const libraryItem = GAME_LIBRARY.find(g => g.type === gameType);
+    const minPlayers = libraryItem?.minPlayers || 2;
+
+    if (isIn && currentPlayers.length <= minPlayers) {
+      toast.error(`${game.name} requires at least ${minPlayers} players`);
+      return;
+    }
+    const newPlayers = isIn
+      ? currentPlayers.filter((id: string) => id !== playerId)
+      : [...currentPlayers, playerId];
+
+    updateGameConfigDeep(gameId, (g) => ({
+      ...g, config: {
+        ...g.config,
+        gamePlayers: newPlayers,
+        // Keep fboPlayers in sync for FBO
+        ...(gameType === GameType.FBO ? { fboPlayers: newPlayers } : {})
+      }
+    }));
   };
 
   const handleUpdateGameStake = (gameId: string, stake: number) => {
