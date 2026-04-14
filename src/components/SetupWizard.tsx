@@ -1803,9 +1803,14 @@ const SetupWizard: React.FC = () => {
       {/* Footer - hide on step 4 since TeamSetupStep has its own buttons */}
       {step !== 4 && (
         <div className="p-4 bg-card border-t border-border">
-          <Button onClick={handleNext} disabled={!canProceed()} className="w-full h-12 text-lg font-bold">
-            {step === 3 && !hasTeamGame ? "Start Round" : "Continue"}
-            <ArrowRight className="w-5 h-5 ml-2" />
+          <Button onClick={handleNext} disabled={!canProceed() || isSyncingGhin} className="w-full h-12 text-lg font-bold">
+            {isSyncingGhin ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Syncing Handicaps...
+              </>
+            ) : step === 3 && !hasTeamGame ? "Start Round" : "Continue"}
+            {!isSyncingGhin && <ArrowRight className="w-5 h-5 ml-2" />}
           </Button>
         </div>
       )}
