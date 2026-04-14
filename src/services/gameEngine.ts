@@ -519,6 +519,7 @@ export const calculateOpenBetting = (round: Round, game: GameSettings): GameResu
 
 export const calculateBanker = (round: Round, game: GameSettings): GameResult => {
   const players = getGamePlayers(game, round);
+  const { scores, course } = round;
   const unit = game.unitStake;
   // Support new multiplier config, fallback to legacy boolean config
   const birdieMultiplier = game.config.birdieMultiplier ?? (game.config.birdieTriple ? 3 : 1);
