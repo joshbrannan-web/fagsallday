@@ -104,7 +104,7 @@ const handler = async (req: Request): Promise<Response> => {
             type: "magiclink",
             email: userData.user.email,
             options: {
-              redirectTo: `${PRODUCTION_URL}/#/scorecard`,
+              redirectTo: `${PRODUCTION_URL}/?redirect=scorecard`,
             },
           });
 
@@ -123,7 +123,7 @@ const handler = async (req: Request): Promise<Response> => {
         }
       } else {
         // Unlinked player — generate invite URL and insert pending_round_links row
-        const inviteUrl = `${PRODUCTION_URL}/#/auth?mode=signup&round_id=${round_id}&player_name=${encodeURIComponent(player.name)}`;
+        const inviteUrl = `${PRODUCTION_URL}/#/round-access/${round_id}?player_name=${encodeURIComponent(player.name)}`;
 
         // Insert pending round link using admin client to bypass RLS
         await supabaseAdmin.from("pending_round_links").insert({
