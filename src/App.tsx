@@ -25,6 +25,8 @@ import TournamentGroupScorecard from './pages/TournamentGroupScorecard';
 import TournamentBuildRoundWizard from './components/tournament/TournamentBuildRoundWizard';
 import TournamentRegistration from './pages/TournamentRegistration';
 import TournamentRegistrationAdmin from './pages/TournamentRegistrationAdmin';
+import RoundAccess from './pages/RoundAccess';
+import ViewRound from './pages/ViewRound';
 import GoogleSheetsCallback from './pages/GoogleSheetsCallback';
 import CreateTournamentWizard from './components/tournament-admin/CreateTournamentWizard';
 import { calculateRoundTotals } from './services/gameEngine';
@@ -679,10 +681,26 @@ const AppContent: FC = () => {
         <Route path="/tournament-admin/registrations" element={<TournamentRegistrationAdmin />} />
         <Route path="/tournament-admin/registrations/:configId" element={<TournamentRegistrationAdmin />} />
         <Route path="/google-sheets-callback" element={<GoogleSheetsCallback />} />
+        <Route path="/round-access/:roundId" element={<RoundAccess />} />
+        <Route path="/view-round/:roundId" element={<ViewRound />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppContext.Provider>
   );
+};
+
+const RedirectHandler: FC = () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get('redirect');
+    if (redirect) {
+      // Clean the URL
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+      navigate(`/${redirect}`);
+    }
+  }, [navigate]);
+  return null;
 };
 
 const App: FC = () => {
@@ -694,6 +712,7 @@ const App: FC = () => {
           <Toaster />
           <Sonner />
           <HashRouter>
+            <RedirectHandler />
             <AppContent />
           </HashRouter>
         </TooltipProvider>
