@@ -48,6 +48,8 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
       if (game.type === GameType.FBO) {
         gameConfig.fboPlayers = players.map((p) => p.id);
       }
+      // Default all players as selected for every game
+      gameConfig.gamePlayers = players.map((p) => p.id);
       handleGamesChange([
         ...selectedGames,
         {
@@ -59,6 +61,32 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
         },
       ]);
     }
+  };
+
+  const handleToggleGamePlayer = (gameId: string, playerId: string, gameType: GameType) => {
+    const game = selectedGames.find(g => g.id === gameId);
+    if (!game) return;
+    const currentPlayers = game.config.gamePlayers || players.map(p => p.id);
+    const isIn = currentPlayers.includes(playerId);
+    const libraryItem = GAME_LIBRARY.find(g => g.type === gameType);
+    const minPlayers = libraryItem?.minPlayers || 2;
+
+    if (isIn && currentPlayers.length <= minPlayers) {
+      toast.error(`${game.name} requires at least ${minPlayers} players`);
+      return;
+    }
+    const newPlayers = isIn
+      ? currentPlayers.filter((id: string) => id !== playerId)
+      : [...currentPlayers, playerId];
+
+    updateGameConfigDeep(gameId, (g) => ({
+      ...g, config: {
+        ...g.config,
+        gamePlayers: newPlayers,
+        // Keep fboPlayers in sync for FBO
+        ...(gameType === GameType.FBO ? { fboPlayers: newPlayers } : {})
+      }
+    }));
   };
 
   const handleUpdateGameStake = (gameId: string, stake: number) => {
@@ -170,43 +198,40 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                   </div>
                 )}
 
-                {/* FBO Player Selection */}
+                {/* Universal Player Selection */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Players in {game.name}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {players.map((player) => {
+                      const gamePlayers = selectedGame.config.gamePlayers || players.map(p => p.id);
+                      const isInGame = gamePlayers.includes(player.id);
+                      return (
+                        <button key={player.id} type="button"
+                          onClick={() => handleToggleGamePlayer(selectedGame.id, player.id, game.type)}
+                          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                            isInGame
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-background border border-border text-muted-foreground hover:border-primary"
+                          }`}
+                        >
+                          {player.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {(() => {
+                    const libraryItem = GAME_LIBRARY.find(g => g.type === game.type);
+                    const minP = libraryItem?.minPlayers || 2;
+                    const count = (selectedGame.config.gamePlayers || players.map(p => p.id)).length;
+                    return count < minP ? (
+                      <p className="text-xs text-destructive">Select at least {minP} players</p>
+                    ) : null;
+                  })()}
+                </div>
+
+                {/* FBO-specific settings */}
                 {game.type === GameType.FBO && (
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Players in FBO</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {players.map((player) => {
-                          const fboPlayers = selectedGame.config.fboPlayers || [];
-                          const isInGame = fboPlayers.includes(player.id);
-                          return (
-                            <button key={player.id} type="button"
-                              onClick={() => {
-                                const currentPlayers = selectedGame.config.fboPlayers || [];
-                                const newPlayers = isInGame
-                                  ? currentPlayers.filter((id: string) => id !== player.id)
-                                  : [...currentPlayers, player.id];
-                                updateGameConfigDeep(selectedGame.id, (g) => ({
-                                  ...g, config: { ...g.config, fboPlayers: newPlayers }
-                                }));
-                              }}
-                              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                                isInGame
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-background border border-border text-muted-foreground hover:border-primary"
-                              }`}
-                            >
-                              {player.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {(selectedGame.config.fboPlayers?.length || 0) < 2 && (
-                        <p className="text-xs text-destructive">Select at least 2 players</p>
-                      )}
-                    </div>
-
-                    {/* FBO Allow Presses Toggle */}
                     <div className="flex items-center justify-between pt-2 border-t border-border/50">
                       <div>
                         <Label className="text-sm font-medium">Allow Presses</Label>

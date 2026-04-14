@@ -3,6 +3,13 @@ import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
 import { calculateTeamBanker } from "./teamBankerEngine";
 
+// Helper: get only the players participating in a specific game
+export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
+  const ids = game.config.gamePlayers;
+  if (!ids || ids.length === 0) return round.players;
+  return round.players.filter(p => ids.map(String).includes(String(p.id)));
+};
+
 // --- FBO Stroke Calculation (supports both Absolute and Relative modes) ---
 
 export const calculateFBOStrokes = (
@@ -320,7 +327,8 @@ export const calculateGameStrokes = (
 // --- Betting Engine ---
 
 export const calculateSkins = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
+  const { scores, course } = round;
   const unit = game.unitStake;
   const carryovers = game.config.carryovers ?? true;
 
@@ -405,7 +413,8 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
 };
 
 export const calculateNassau = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
+  const { scores, course } = round;
   const unit = game.unitStake;
 
   if (players.length !== 2) {
@@ -480,7 +489,7 @@ export const calculateNassau = (round: Round, game: GameSettings): GameResult =>
 };
 
 export const calculateOpenBetting = (round: Round, game: GameSettings): GameResult => {
-  const { players } = round;
+  const players = getGamePlayers(game, round);
   const results: { [id: string]: number } = {};
   const holeResults: { [hole: number]: { [id: string]: number } } = {};
 
@@ -510,7 +519,8 @@ export const calculateOpenBetting = (round: Round, game: GameSettings): GameResu
 };
 
 export const calculateBanker = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
+  const { scores, course } = round;
   const unit = game.unitStake;
   // Support new multiplier config, fallback to legacy boolean config
   const birdieMultiplier = game.config.birdieMultiplier ?? (game.config.birdieTriple ? 3 : 1);
@@ -1378,7 +1388,8 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
 // --- Wolf Game ---
 
 export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
+  const { scores, course } = round;
   const unit = game.unitStake;
 
   if (players.length !== 4) {
@@ -1520,7 +1531,8 @@ export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
 // --- Nine Points Game ---
 
 export const calculateNinePoints = (round: Round, game: GameSettings): GameResult => {
-  const { players, scores, course } = round;
+  const players = getGamePlayers(game, round);
+  const { scores, course } = round;
   const unit = game.unitStake;
 
   if (players.length !== 3) {
