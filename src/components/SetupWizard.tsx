@@ -108,6 +108,7 @@ const SetupWizard: React.FC = () => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(changeGamesMode ? 3 : 1);
   const [courseMode, setCourseMode] = useState<CourseFinderMode>("select");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncingGhin, setIsSyncingGhin] = useState(false);
   const [showSavedPlayers, setShowSavedPlayers] = useState(false);
    const [showUserSearch, setShowUserSearch] = useState(false);
    const [userSearchSlotIndex, setUserSearchSlotIndex] = useState<number | null>(null);
@@ -600,6 +601,46 @@ const SetupWizard: React.FC = () => {
     );
   };
 
+  // Auto-link: on blur of player name input, search for matching app user
+  const handlePlayerNameBlur = async (player: Player, index: number) => {
+    // Skip player 0 (current user), already-linked players, and empty names
+    if (index === 0 || player.linkedUserId || !player.name.trim() || !user) return;
+
+    try {
+      const { data, error } = await supabase.rpc('search_users_by_name', {
+        search_term: player.name.trim(),
+      });
+      if (error || !data) return;
+
+      // Find exact case-insensitive match
+      const exactMatch = (data as any[]).find(
+        (u: any) => u.display_name?.toLowerCase() === player.name.trim().toLowerCase()
+      );
+      if (!exactMatch) return;
+
+      // Auto-link this player
+      setPlayers(prev =>
+        prev.map((p, i) =>
+          i === index
+            ? {
+                ...p,
+                linkedUserId: exactMatch.id,
+                handicapIndex: exactMatch.handicap_index ?? p.handicapIndex,
+                courseHandicap: calculateCourseHandicap(exactMatch.handicap_index ?? p.handicapIndex, 72),
+              }
+            : p,
+        ),
+      );
+
+      // Save to saved_players with link
+      await addSavedPlayer(player.name.trim(), exactMatch.handicap_index ?? 0, player.tee || 'White', exactMatch.id);
+      toast.success(`Linked ${player.name} to their account`);
+    } catch (err) {
+      // Silent fail — auto-link is a convenience, not critical
+      console.error('Auto-link error:', err);
+    }
+  };
+
   // Game selection handlers removed — now delegated to <GameSelector />
 
   const handleCreateCourse = () => {
@@ -647,7 +688,7 @@ const SetupWizard: React.FC = () => {
     g => g.type === GameType.SIXES || g.type === GameType.STOCKTON_6 || g.type === GameType.TEAM_BANKER
   );
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1) {
       if (!selectedCourse && !courseName.trim()) {
         toast.error("Please select or create a course");
@@ -664,6 +705,57 @@ const SetupWizard: React.FC = () => {
         return;
       }
       setPlayers(validPlayers);
+
+      // Auto-sync GHIN for linked players before advancing
+      const linkedWithGhin = validPlayers
+        .map((p, i) => ({ player: p, index: i }))
+        .filter(({ player }) => player.linkedUserId);
+
+      if (linkedWithGhin.length > 0) {
+        setIsSyncingGhin(true);
+        try {
+          // Look up saved player records to get ghin_number and ghin_last_synced
+          const { data: savedData } = await supabase.rpc('get_saved_players_with_profiles', { p_user_id: user!.id } as any);
+          const savedMap = new Map((savedData || []).map((sp: any) => [sp.linked_user_id, sp]));
+
+          const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+          const syncPromises: Promise<void>[] = [];
+
+          for (const { player } of linkedWithGhin) {
+            const savedRecord = savedMap.get(player.linkedUserId);
+            if (!savedRecord?.ghin_number) continue;
+
+            const lastSynced = savedRecord.ghin_last_synced ? new Date(savedRecord.ghin_last_synced).getTime() : 0;
+            if (lastSynced >= oneDayAgo) continue;
+
+            syncPromises.push(
+              supabase.functions.invoke('sync-ghin-handicap', {
+                body: { ghin_number: savedRecord.ghin_number, update_profile: true },
+              }).then(({ data, error }) => {
+                if (!error && data && !data.error && typeof data.handicap_index === 'number') {
+                  setPlayers(prev =>
+                    prev.map(p =>
+                      p.linkedUserId === player.linkedUserId
+                        ? { ...p, handicapIndex: data.handicap_index, courseHandicap: calculateCourseHandicap(data.handicap_index, 72) }
+                        : p,
+                    ),
+                  );
+                }
+              }).catch(() => {}),
+            );
+          }
+
+          if (syncPromises.length > 0) {
+            await Promise.allSettled(syncPromises);
+            toast.success('Handicaps synced from GHIN');
+          }
+        } catch (err) {
+          console.error('GHIN sync error:', err);
+        } finally {
+          setIsSyncingGhin(false);
+        }
+      }
+
       setStep(3);
     } else if (step === 3) {
       if (hasTeamGame) {
@@ -1576,6 +1668,7 @@ const SetupWizard: React.FC = () => {
                         id={`name-${player.id}`}
                         value={player.name}
                         onChange={(e) => handlePlayerChange(player.id, "name", e.target.value)}
+                        onBlur={() => handlePlayerNameBlur(player, idx)}
                         placeholder="Enter name manually"
                         className="mt-1"
                       />
@@ -1710,9 +1803,14 @@ const SetupWizard: React.FC = () => {
       {/* Footer - hide on step 4 since TeamSetupStep has its own buttons */}
       {step !== 4 && (
         <div className="p-4 bg-card border-t border-border">
-          <Button onClick={handleNext} disabled={!canProceed()} className="w-full h-12 text-lg font-bold">
-            {step === 3 && !hasTeamGame ? "Start Round" : "Continue"}
-            <ArrowRight className="w-5 h-5 ml-2" />
+          <Button onClick={handleNext} disabled={!canProceed() || isSyncingGhin} className="w-full h-12 text-lg font-bold">
+            {isSyncingGhin ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Syncing Handicaps...
+              </>
+            ) : step === 3 && !hasTeamGame ? "Start Round" : "Continue"}
+            {!isSyncingGhin && <ArrowRight className="w-5 h-5 ml-2" />}
           </Button>
         </div>
       )}
