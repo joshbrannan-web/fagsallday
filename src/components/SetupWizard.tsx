@@ -705,6 +705,57 @@ const SetupWizard: React.FC = () => {
         return;
       }
       setPlayers(validPlayers);
+
+      // Auto-sync GHIN for linked players before advancing
+      const linkedWithGhin = validPlayers
+        .map((p, i) => ({ player: p, index: i }))
+        .filter(({ player }) => player.linkedUserId);
+
+      if (linkedWithGhin.length > 0) {
+        setIsSyncingGhin(true);
+        try {
+          // Look up saved player records to get ghin_number and ghin_last_synced
+          const { data: savedData } = await supabase.rpc('get_saved_players_with_profiles', { p_user_id: user!.id } as any);
+          const savedMap = new Map((savedData || []).map((sp: any) => [sp.linked_user_id, sp]));
+
+          const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+          const syncPromises: Promise<void>[] = [];
+
+          for (const { player } of linkedWithGhin) {
+            const savedRecord = savedMap.get(player.linkedUserId);
+            if (!savedRecord?.ghin_number) continue;
+
+            const lastSynced = savedRecord.ghin_last_synced ? new Date(savedRecord.ghin_last_synced).getTime() : 0;
+            if (lastSynced >= oneDayAgo) continue;
+
+            syncPromises.push(
+              supabase.functions.invoke('sync-ghin-handicap', {
+                body: { ghin_number: savedRecord.ghin_number, update_profile: true },
+              }).then(({ data, error }) => {
+                if (!error && data && !data.error && typeof data.handicap_index === 'number') {
+                  setPlayers(prev =>
+                    prev.map(p =>
+                      p.linkedUserId === player.linkedUserId
+                        ? { ...p, handicapIndex: data.handicap_index, courseHandicap: calculateCourseHandicap(data.handicap_index, 72) }
+                        : p,
+                    ),
+                  );
+                }
+              }).catch(() => {}),
+            );
+          }
+
+          if (syncPromises.length > 0) {
+            await Promise.allSettled(syncPromises);
+            toast.success('Handicaps synced from GHIN');
+          }
+        } catch (err) {
+          console.error('GHIN sync error:', err);
+        } finally {
+          setIsSyncingGhin(false);
+        }
+      }
+
       setStep(3);
     } else if (step === 3) {
       if (hasTeamGame) {
