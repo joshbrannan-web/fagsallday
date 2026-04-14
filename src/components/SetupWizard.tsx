@@ -601,6 +601,46 @@ const SetupWizard: React.FC = () => {
     );
   };
 
+  // Auto-link: on blur of player name input, search for matching app user
+  const handlePlayerNameBlur = async (player: Player, index: number) => {
+    // Skip player 0 (current user), already-linked players, and empty names
+    if (index === 0 || player.linkedUserId || !player.name.trim() || !user) return;
+
+    try {
+      const { data, error } = await supabase.rpc('search_users_by_name', {
+        search_term: player.name.trim(),
+      });
+      if (error || !data) return;
+
+      // Find exact case-insensitive match
+      const exactMatch = (data as any[]).find(
+        (u: any) => u.display_name?.toLowerCase() === player.name.trim().toLowerCase()
+      );
+      if (!exactMatch) return;
+
+      // Auto-link this player
+      setPlayers(prev =>
+        prev.map((p, i) =>
+          i === index
+            ? {
+                ...p,
+                linkedUserId: exactMatch.id,
+                handicapIndex: exactMatch.handicap_index ?? p.handicapIndex,
+                courseHandicap: calculateCourseHandicap(exactMatch.handicap_index ?? p.handicapIndex, 72),
+              }
+            : p,
+        ),
+      );
+
+      // Save to saved_players with link
+      await addSavedPlayer(player.name.trim(), exactMatch.handicap_index ?? 0, player.tee || 'White', exactMatch.id);
+      toast.success(`Linked ${player.name} to their account`);
+    } catch (err) {
+      // Silent fail — auto-link is a convenience, not critical
+      console.error('Auto-link error:', err);
+    }
+  };
+
   // Game selection handlers removed — now delegated to <GameSelector />
 
   const handleCreateCourse = () => {
