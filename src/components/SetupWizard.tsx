@@ -688,7 +688,7 @@ const SetupWizard: React.FC = () => {
     g => g.type === GameType.SIXES || g.type === GameType.STOCKTON_6 || g.type === GameType.TEAM_BANKER
   );
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1) {
       if (!selectedCourse && !courseName.trim()) {
         toast.error("Please select or create a course");
