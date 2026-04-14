@@ -1,91 +1,61 @@
 
 
-# Per-Admin Google OAuth for Sheets Integration
+# Fix Share Round Links + Add Public Round Viewing
 
-## Why it keeps failing
-The `GOOGLE_SERVICE_ACCOUNT_KEY` secret is being stored in a format the edge function cannot parse -- despite multiple attempts. The Lovable secrets system likely mangles the multi-line JSON (escaping newlines in the private key, double-encoding, etc.). More parsing logic won't fix a platform-level storage issue.
+## Problems Identified
 
-The service-account model is also architecturally wrong for your use case: sheets end up owned by the service account, requiring fragile permission-sharing. Per-admin OAuth is the right long-term path.
+### 1. Magic links break with HashRouter
+The edge function generates magic links with `redirectTo: "https://fagsallday.com/#/scorecard"`. Supabase's `generateLink` URL-encodes the `#`, turning it into `%23`. After authentication, the redirect goes to `fagsallday.com/%23/scorecard` which is a 404. This is the core reason linked-player links don't work.
 
-## How it will work
-
-1. Admin clicks "Connect Google Sheets" button
-2. A popup opens Google's OAuth consent screen requesting Sheets + Drive scopes
-3. Google redirects back with an authorization code
-4. An edge function exchanges the code for access/refresh tokens and stores them on the registration config
-5. A second edge function uses the admin's refresh token to create sheets or append rows -- sheets live in the admin's own Google Drive
-
-```text
-Admin clicks "Connect"
-       │
-       ▼
-  Google OAuth consent  ──► redirect to /google-sheets-callback
-       │
-       ▼
-  Edge fn: exchange code → save refresh_token on config
-       │
-       ▼
-  "Create Sheet" uses admin's token → sheet in admin's Drive
-```
+### 2. No public round viewing for unlinked players
+Unlinked players get sent to `/#/auth?mode=signup` with no option to just view the round. They must create an account first.
 
 ## Plan
 
-### Step 1 -- Database: add OAuth columns to registration configs
-Add columns to `tournament_registration_configs`:
-- `google_refresh_token` (text, nullable) -- encrypted refresh token
-- `google_token_expires_at` (timestamptz, nullable)
+### Step 1 — Fix magic link redirect (edge function)
+In `generate-round-links/index.ts`, change the `redirectTo` for linked players to use a query-param-based redirect instead of a hash:
+- Change: `redirectTo: "${PRODUCTION_URL}/#/scorecard"`
+- To: `redirectTo: "${PRODUCTION_URL}/?redirect=scorecard"`
 
-Keep existing `google_sheet_id` and `google_sheet_url` columns.
+Then in the frontend, detect the `?redirect=scorecard` param on app load and navigate to `/#/scorecard`.
 
-### Step 2 -- Create Google OAuth credentials
-You will need to create a Google Cloud OAuth **Web Application** client (not a service account):
-- Authorized redirect URI: `https://fagsallday.com/#/google-sheets-callback`
-- Scopes: `https://www.googleapis.com/auth/spreadsheets`, `https://www.googleapis.com/auth/drive.file`
-- Store `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` as project secrets
+### Step 2 — Create a public Round Access page
+Create `src/pages/RoundAccess.tsx` — a landing page for unlinked players that shows:
+- Round info (course name, from the round_id)
+- Two buttons: "Create Account to Get Access" and "View Round"
+- "Create Account" navigates to `/auth?mode=signup&round_id=X&player_name=Y`
+- "View Round" navigates to `/view-round/:roundId` (public read-only)
 
-### Step 3 -- Edge function: `google-sheets-exchange`
-New edge function that:
-- Receives the authorization code + config_id
-- Exchanges code for access + refresh tokens via Google's token endpoint
-- Stores the refresh token on the registration config row (service-role update)
-- Returns success
+### Step 3 — Create a public View Round page
+Create `src/pages/ViewRound.tsx` — a read-only scorecard viewer that:
+- Fetches round data via a new edge function (since unauthenticated users can't query `rounds` table directly due to RLS)
+- Displays scores in a simple read-only table
+- Shows a banner prompting sign-up for full access
 
-### Step 4 -- Update `create-registration-sheet` edge function
-Replace service-account logic with:
-- Read `google_refresh_token` from the config row
-- Use refresh token to get a fresh access token
-- Create sheet using the admin's credentials
-- Sheet lives in admin's Google Drive (no permission issues)
+### Step 4 — New edge function: `get-public-round`
+Create `supabase/functions/get-public-round/index.ts`:
+- Accepts `round_id` + optional `token` (a short-lived sharing token)
+- Uses service-role to fetch the round data
+- Returns only safe fields: course, players (names only), scores, status
+- Validates the round exists and has an active pending_round_link for that round_id (prevents random guessing)
 
-### Step 5 -- Update `sync-registration-to-sheets` edge function
-Same pattern: use the config's refresh token instead of the service account key.
+### Step 5 — Update generate-round-links for unlinked players
+Change invite URL from auth signup page to the new round access page:
+- From: `${PRODUCTION_URL}/#/auth?mode=signup&round_id=X&player_name=Y`
+- To: `${PRODUCTION_URL}/#/round-access/${round_id}?player_name=Y`
 
-### Step 6 -- Frontend: OAuth flow + callback
-- Replace the "Create Google Sheet" button with "Connect Google Sheets"
-- On click, open Google OAuth URL in a popup with `config_id` in state
-- Add a `/google-sheets-callback` route that captures the code and calls the exchange edge function
-- After successful connection, show the "Create Sheet" button (which now uses the admin's token)
+### Step 6 — Add redirect handler in App.tsx
+In `AppContent`, add a useEffect that checks `window.location.search` for `?redirect=scorecard` on mount, and if found, navigates to `/scorecard` and cleans the URL.
 
-### Step 7 -- Cleanup
-- Remove `GOOGLE_SERVICE_ACCOUNT_KEY` dependency from both edge functions
-- Keep the secret for backward compatibility but stop relying on it
+### Step 7 — Register new routes
+Add to `App.tsx`:
+- `/round-access/:roundId` → `RoundAccess`
+- `/view-round/:roundId` → `ViewRound`
 
 ## Files changed
-- **Migration**: add `google_refresh_token`, `google_token_expires_at` to `tournament_registration_configs`
-- **New**: `supabase/functions/google-sheets-exchange/index.ts`
-- **Edit**: `supabase/functions/create-registration-sheet/index.ts`
-- **Edit**: `supabase/functions/sync-registration-to-sheets/index.ts`
-- **Edit**: `src/pages/TournamentRegistrationAdmin.tsx` (OAuth button + flow)
-- **New**: Google Sheets callback handler component/route in `src/App.tsx`
-
-## Secrets needed
-- `GOOGLE_OAUTH_CLIENT_ID` -- from Google Cloud Console OAuth credentials
-- `GOOGLE_OAUTH_CLIENT_SECRET` -- from Google Cloud Console OAuth credentials
-
-## What you need to do
-1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Create an **OAuth 2.0 Client ID** (Web application type)
-3. Set authorized redirect URI to `https://fagsallday.com/#/google-sheets-callback`
-4. Enable the **Google Sheets API** and **Google Drive API** for the project
-5. Copy the Client ID and Client Secret -- I'll prompt you to save them as secrets
+- **Edit**: `supabase/functions/generate-round-links/index.ts` — fix redirectTo, change invite URL
+- **New**: `supabase/functions/get-public-round/index.ts` — public round data endpoint
+- **New**: `src/pages/RoundAccess.tsx` — choice page (Create Account / View Round)
+- **New**: `src/pages/ViewRound.tsx` — public read-only scorecard
+- **Edit**: `src/App.tsx` — add routes + redirect handler
 
