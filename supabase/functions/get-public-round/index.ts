@@ -44,10 +44,10 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Fetch round data
+    // Fetch round data including game configuration and game state
     const { data: round, error: roundError } = await supabaseAdmin
       .from("rounds")
-      .select("id, course_data, players_data, scores, status, start_time")
+      .select("id, course_data, players_data, scores, status, start_time, games_data, game_data")
       .eq("id", round_id)
       .single();
 
@@ -63,6 +63,7 @@ const handler = async (req: Request): Promise<Response> => {
       id: p.id,
       name: p.name,
       handicapIndex: p.handicapIndex,
+      courseHandicap: p.courseHandicap,
       tee: p.tee,
     }));
 
@@ -74,6 +75,8 @@ const handler = async (req: Request): Promise<Response> => {
         scores: round.scores,
         status: round.status,
         startTime: round.start_time,
+        games: round.games_data,
+        gameData: round.game_data,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
