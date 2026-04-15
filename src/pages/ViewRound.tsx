@@ -5,14 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, ArrowLeft, UserPlus } from 'lucide-react';
+import { Round, GameSettings, Player, Course, GameData } from '@/types';
+import { calculatePerGameTotals, calculateRoundTotals, calculateSettlement, formatMoney } from '@/services/gameEngine';
 
 interface PublicRoundData {
   id: string;
-  course: { name?: string; holes?: any[] };
-  players: { id: string; name: string; handicapIndex?: number; tee?: string }[];
+  course: Course;
+  players: Player[];
   scores: Record<string, Record<string, number>>;
   status: string;
   startTime: string;
+  games: GameSettings[];
+  gameData: GameData;
 }
 
 const ViewRound = () => {
@@ -80,6 +84,32 @@ const ViewRound = () => {
     }
     return total || '-';
   };
+
+  // Build a minimal Round object for game engine calculations
+  const buildRoundForEngine = (): Round => ({
+    id: round.id,
+    course: round.course,
+    players: round.players,
+    games: round.games || [],
+    scores: round.scores || {},
+    gameData: round.gameData || {},
+    status: (round.status as Round['status']) || 'ACTIVE',
+    startTime: new Date(round.startTime).getTime(),
+  });
+
+  const engineRound = buildRoundForEngine();
+  const hasGames = engineRound.games.length > 0;
+
+  // Calculate game results
+  const perGameResults = hasGames ? calculatePerGameTotals(engineRound) : [];
+  const roundTotals = hasGames ? calculateRoundTotals(engineRound) : {};
+
+  // Build settlement data
+  const settlementInput = round.players.map(p => ({
+    name: p.name,
+    amount: roundTotals[p.id] || 0,
+  }));
+  const settlements = hasGames ? calculateSettlement(settlementInput) : [];
 
   const renderScoreTable = (holeNumbers: number[], label: string) => (
     <div className="overflow-x-auto">
@@ -171,6 +201,80 @@ const ViewRound = () => {
               {renderScoreTable(backNine, 'Hole')}
             </CardContent>
           </Card>
+        )}
+
+        {/* Game Results */}
+        {hasGames && perGameResults.length > 0 && (
+          <>
+            {perGameResults.map(gameResult => (
+              <Card key={gameResult.gameId}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">{gameResult.gameName}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1">
+                    {round.players
+                      .filter(p => gameResult.playerResults[p.id] !== undefined)
+                      .sort((a, b) => (gameResult.playerResults[b.id] || 0) - (gameResult.playerResults[a.id] || 0))
+                      .map(player => {
+                        const amount = gameResult.playerResults[player.id] || 0;
+                        return (
+                          <div key={player.id} className="flex justify-between items-center py-1">
+                            <span className="text-sm font-medium">{player.name}</span>
+                            <span className={`text-sm font-semibold ${amount > 0 ? 'text-green-600' : amount < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                              {formatMoney(amount)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+
+            {/* Overall Totals */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Overall Totals</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1">
+                  {round.players
+                    .sort((a, b) => (roundTotals[b.id] || 0) - (roundTotals[a.id] || 0))
+                    .map(player => {
+                      const amount = roundTotals[player.id] || 0;
+                      return (
+                        <div key={player.id} className="flex justify-between items-center py-1">
+                          <span className="text-sm font-medium">{player.name}</span>
+                          <span className={`text-sm font-bold ${amount > 0 ? 'text-green-600' : amount < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                            {formatMoney(amount)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Who Pays Who */}
+            {settlements.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Who Pays Who</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {settlements.map((s, i) => (
+                      <div key={i} className="flex items-center justify-between py-1 text-sm">
+                        <span><span className="font-medium">{s.from}</span> → <span className="font-medium">{s.to}</span></span>
+                        <span className="font-semibold">${s.amount.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
         )}
       </div>
     </div>
