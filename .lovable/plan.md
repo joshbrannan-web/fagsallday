@@ -1,37 +1,23 @@
 
 
-# Per-Game Player Selection + Banker Min Players Fix
+# Add Game Results & Betting to Public Round View
 
 ## What changes
 
-### 1. Add universal `gamePlayers` field to game config
-Add `gamePlayers?: string[]` to `GameSettings.config` in `src/types.ts`. When set, only those players participate in that game. When unset, all round players participate (backward compatible).
+### 1. Edge function: include game data in response
+In `supabase/functions/get-public-round/index.ts`, add `games_data` and `game_data` to the SELECT query, and return them as `games` and `gameData` in the response payload.
 
-### 2. Lower Banker minimum players from 3 to 2
-In `src/lib/gameLibrary.ts`, change Banker and Bloody Banker `minPlayers` from 3 to 2.
+### 2. ViewRound page: render game results and settlement
+In `src/pages/ViewRound.tsx`:
+- Expand the `PublicRoundData` interface to include `games` (array of `GameSettings`) and `gameData`
+- Import `calculatePerGameTotals`, `calculateRoundTotals`, `formatMoney`, and `calculateSettlement` from the game engine
+- Reconstruct a minimal `Round` object from the public data to pass to the calculation functions
+- After the scorecard cards, render:
+  - **Per-game breakdown cards** — each game showing player payouts (green for positive, red for negative)
+  - **Overall totals card** — net position for each player
+  - **Who Pays Who card** — settlement transactions
 
-### 3. Add player selection UI to GameSelector for all games
-In `src/components/GameSelector.tsx`:
-- For every selected game (not just FBO), show a "Players in [Game Name]" toggle section
-- Default all players as selected when a game is first added
-- Store selected player IDs in `config.gamePlayers`
-- Validate minimum player count per game type
-- FBO keeps its existing `fboPlayers` field but also syncs with `gamePlayers` for consistency
-- Player count validation uses `gamePlayers.length` instead of `players.length` when `gamePlayers` is set
-
-### 4. Update game engines to respect `gamePlayers`
-In `src/services/gameEngine.ts`:
-- For Banker/Bloody Banker/Skins/Nassau/Wolf/Nine Points/Open Betting: filter `round.players` to only `gamePlayers` when calculating results
-- FBO already uses `fboPlayers` — keep that as-is, but also populate `gamePlayers` for consistency
-
-## Files changed
-- **`src/types.ts`** — add `gamePlayers?: string[]` to `GameSettings.config`
-- **`src/lib/gameLibrary.ts`** — Banker/Bloody Banker `minPlayers: 2`
-- **`src/components/GameSelector.tsx`** — add player selection UI for all games, validation logic
-- **`src/services/gameEngine.ts`** — use `gamePlayers` to filter participating players in each game's calculations
-
-## Technical detail
-- `gamePlayers` validation: when toggling a game on, `gamePlayers` defaults to all player IDs. Users can then deselect players, but cannot go below the game's `minPlayers`.
-- The existing `fboPlayers` stays as-is to avoid breaking existing rounds. New games use `gamePlayers`.
-- Game engines add a helper: `getGamePlayers(game, round) => Player[]` that checks `gamePlayers` first, falls back to `round.players`.
+### Files changed
+- **`supabase/functions/get-public-round/index.ts`** — add `games_data`, `game_data` to query and response
+- **`src/pages/ViewRound.tsx`** — import game engine utilities, build Round object, render game results cards
 
