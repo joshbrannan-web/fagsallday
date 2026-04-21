@@ -1521,8 +1521,33 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       const pressingPlayer = fboPlayers.find(p => p.id === String(press.playerId));
       const pressLevelLabel = (press.pressLevel || 1) > 1 ? ` (${press.pressLevel}x)` : '';
 
-      // Check if this is a Head-to-Head press (has opponentId)
-      if (press.opponentId) {
+      // TEAMS MODE press: playerId stores 'A' or 'B'
+      if (gameMode === 'teams' && teamsCfg && (String(press.playerId) === 'A' || String(press.playerId) === 'B')) {
+        const teamA = teamsCfg.teamA.map(String);
+        const teamB = teamsCfg.teamB.map(String);
+        const pressingTeam = String(press.playerId) as 'A' | 'B';
+        const opposingTeam: 'A' | 'B' = pressingTeam === 'A' ? 'B' : 'A';
+
+        let aDots = 0, bDots = 0;
+        for (let h = press.startHole; h <= pressEnd; h++) {
+          const td = fboData[h]?.teamDot;
+          if (td === 'A') aDots++;
+          else if (td === 'B') bDots++;
+        }
+
+        const winsA = aDots > bDots;
+        const winsB = bDots > aDots;
+        if (winsA || winsB) {
+          const winnerTeam: 'A' | 'B' = winsA ? 'A' : 'B';
+          const winnerIds = winnerTeam === 'A' ? teamA : teamB;
+          const loserIds = winnerTeam === 'A' ? teamB : teamA;
+          winnerIds.forEach(id => { results[id] = (results[id] || 0) + press.unitValue; });
+          loserIds.forEach(id => { results[id] = (results[id] || 0) - press.unitValue; });
+          details.push(`Press${pressLevelLabel} by Team ${pressingTeam} (${segmentLabel} from hole ${press.startHole}): Team ${winnerTeam} wins $${press.unitValue}/player`);
+        } else {
+          details.push(`Press${pressLevelLabel} by Team ${pressingTeam} (${segmentLabel} from hole ${press.startHole}): Push`);
+        }
+      } else if (press.opponentId) {
         // H2H Press: only compare pressing player vs specific opponent using matchupDots
         const opponent = fboPlayers.find(p => p.id === String(press.opponentId));
         if (!opponent) return;
