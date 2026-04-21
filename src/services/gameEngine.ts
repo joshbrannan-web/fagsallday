@@ -1324,8 +1324,46 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
   // Check game mode
   const gameMode = game.config.fbo?.gameMode || 'together';
   const headToHeadMatchups = game.config.fbo?.headToHeadMatchups || [];
+  const teamsCfg = game.config.fbo?.teams;
 
-  if (gameMode === 'headToHead' && headToHeadMatchups.length > 0) {
+  if (gameMode === 'teams' && teamsCfg && teamsCfg.teamA.length === 2 && teamsCfg.teamB.length === 2) {
+    // TEAMS MODE: Count team dots per segment, payouts per player on winning team
+    const teamA = teamsCfg.teamA.map(String);
+    const teamB = teamsCfg.teamB.map(String);
+
+    const countTeamDots = (startHole: number, endHole: number) => {
+      let aDots = 0, bDots = 0;
+      for (let h = startHole; h <= endHole; h++) {
+        const td = fboData[h]?.teamDot;
+        if (td === 'A') aDots++;
+        else if (td === 'B') bDots++;
+      }
+      return { aDots, bDots };
+    };
+
+    const settleTeamSegment = (startHole: number, endHole: number, isComplete: boolean, label: string) => {
+      if (!isComplete) {
+        details.push(`${label}: In progress`);
+        return;
+      }
+      const { aDots, bDots } = countTeamDots(startHole, endHole);
+      if (aDots > bDots) {
+        teamA.forEach(id => { results[id] = (results[id] || 0) + unit; });
+        teamB.forEach(id => { results[id] = (results[id] || 0) - unit; });
+        details.push(`${label}: Team A wins $${unit}/player (${aDots} vs ${bDots} dots)`);
+      } else if (bDots > aDots) {
+        teamB.forEach(id => { results[id] = (results[id] || 0) + unit; });
+        teamA.forEach(id => { results[id] = (results[id] || 0) - unit; });
+        details.push(`${label}: Team B wins $${unit}/player (${bDots} vs ${aDots} dots)`);
+      } else {
+        details.push(`${label}: Push (${aDots} dots each)`);
+      }
+    };
+
+    settleTeamSegment(1, 9, frontNineComplete, 'Front 9');
+    settleTeamSegment(10, 18, backNineComplete, 'Back 9');
+    settleTeamSegment(1, 18, overallComplete, 'Overall');
+  } else if (gameMode === 'headToHead' && headToHeadMatchups.length > 0) {
     // Head-to-Head Mode: Calculate each matchup independently using matchupDots
     // Each matchup has its own handicap calculation based only on those 2 players
     headToHeadMatchups.forEach((matchup: { player1Id: string; player2Id: string; unitValue: number }) => {
