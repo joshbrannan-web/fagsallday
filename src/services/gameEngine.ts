@@ -1060,6 +1060,185 @@ export const getFBOPressEligibilityOverall = (
   return { canPress: true, pressLevel: nextPressLevel };
 };
 
+// --- FBO Teams Mode Helpers ---
+
+// Compute the team that wins a hole's dot in Teams mode.
+// Returns 'A', 'B', or null (push). Requires all 4 team players to have a score.
+export const calculateFBOTeamHoleWinner = (
+  round: Round,
+  game: GameSettings,
+  holeNumber: number
+): 'A' | 'B' | null => {
+  const teamsCfg = game.config.fbo?.teams;
+  if (!teamsCfg || teamsCfg.teamA.length !== 2 || teamsCfg.teamB.length !== 2) return null;
+
+  const hole = round.course.holes.find(h => h.number === holeNumber);
+  const holeScores = round.scores[holeNumber];
+  if (!hole || !holeScores) return null;
+
+  const teamA = teamsCfg.teamA.map(id => round.players.find(p => String(p.id) === String(id))).filter(Boolean) as Player[];
+  const teamB = teamsCfg.teamB.map(id => round.players.find(p => String(p.id) === String(id))).filter(Boolean) as Player[];
+  if (teamA.length !== 2 || teamB.length !== 2) return null;
+
+  const allFour = [...teamA, ...teamB];
+  const allScored = allFour.every(p => {
+    const s = holeScores[p.id];
+    return typeof s === 'number' && s > 0;
+  });
+  if (!allScored) return null;
+
+  const handicapMode = game.config.fbo?.handicapMode || 'absolute';
+  const strokes = calculateFBOStrokes(allFour, hole.handicapIndex, handicapMode);
+
+  const netsFor = (team: Player[]) =>
+    team.map(p => (holeScores[p.id]! - (strokes[p.id] || 0))).sort((a, b) => a - b);
+
+  const aNets = netsFor(teamA);
+  const bNets = netsFor(teamB);
+
+  if (aNets[0] < bNets[0]) return 'A';
+  if (bNets[0] < aNets[0]) return 'B';
+
+  if (teamsCfg.useSecondBallTiebreaker) {
+    if (aNets[1] < bNets[1]) return 'A';
+    if (bNets[1] < aNets[1]) return 'B';
+  }
+  return null;
+};
+
+// Get team dormie status for a segment ('front' | 'back')
+export const getFBOTeamDormieStatus = (
+  round: Round,
+  game: GameSettings,
+  currentHole: number
+): {
+  teamA: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
+  teamB: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
+} => {
+  const fboData = round.gameData?.[game.id] || {};
+  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
+  const segmentStart = segment === 'front' ? 1 : 10;
+  const segmentEnd = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEnd - currentHole + 1;
+
+  let aDots = 0, bDots = 0;
+  for (let h = segmentStart; h < currentHole; h++) {
+    const td = fboData[h]?.teamDot;
+    if (td === 'A') aDots++;
+    else if (td === 'B') bDots++;
+  }
+
+  return {
+    teamA: { isDormie: aDots + holesRemaining < bDots, dotsBehind: Math.max(0, bDots - aDots), holesRemaining, segment },
+    teamB: { isDormie: bDots + holesRemaining < aDots, dotsBehind: Math.max(0, aDots - bDots), holesRemaining, segment },
+  };
+};
+
+// Get team dormie status for Overall (all 18)
+export const getFBOTeamOverallDormieStatus = (
+  round: Round,
+  game: GameSettings,
+  currentHole: number
+): {
+  teamA: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
+  teamB: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
+} => {
+  const fboData = round.gameData?.[game.id] || {};
+  const holesRemaining = 18 - currentHole + 1;
+  let aDots = 0, bDots = 0;
+  for (let h = 1; h < currentHole; h++) {
+    const td = fboData[h]?.teamDot;
+    if (td === 'A') aDots++;
+    else if (td === 'B') bDots++;
+  }
+  return {
+    teamA: { isDormie: aDots + holesRemaining < bDots, dotsBehind: Math.max(0, bDots - aDots), holesRemaining },
+    teamB: { isDormie: bDots + holesRemaining < aDots, dotsBehind: Math.max(0, aDots - bDots), holesRemaining },
+  };
+};
+
+// Press eligibility for a TEAM in a segment (front/back). Press is stored with playerId='A'|'B'.
+export const getFBOTeamPressEligibility = (
+  round: Round,
+  game: GameSettings,
+  team: 'A' | 'B',
+  segment: 'front' | 'back',
+  currentHole: number
+): { canPress: boolean; pressLevel: number; reason?: string } => {
+  const fboGameData = round.gameData?.[game.id] || {};
+  const presses: FBOPressState[] = fboGameData[1]?._META_PRESSES || [];
+  const teamPresses = presses.filter(p => String(p.playerId) === team && p.segment === segment);
+
+  const fboData = round.gameData?.[game.id] || {};
+  const segmentEnd = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEnd - currentHole + 1;
+
+  if (teamPresses.length === 0) {
+    const status = getFBOTeamDormieStatus(round, game, currentHole);
+    const myStatus = team === 'A' ? status.teamA : status.teamB;
+    if (!myStatus.isDormie) return { canPress: false, pressLevel: 1, reason: 'Not dormie' };
+    return { canPress: true, pressLevel: 1 };
+  }
+
+  const latestPress = teamPresses.reduce((a, b) => a.startHole > b.startHole ? a : b);
+  const nextPressLevel = (latestPress.pressLevel || 1) + 1;
+  if (latestPress.startHole >= currentHole) {
+    return { canPress: false, pressLevel: nextPressLevel, reason: 'Already pressed this hole' };
+  }
+
+  let aDots = 0, bDots = 0;
+  for (let h = latestPress.startHole; h < currentHole; h++) {
+    const td = fboData[h]?.teamDot;
+    if (td === 'A') aDots++;
+    else if (td === 'B') bDots++;
+  }
+  const myDots = team === 'A' ? aDots : bDots;
+  const oppDots = team === 'A' ? bDots : aDots;
+  if (myDots + holesRemaining < oppDots) return { canPress: true, pressLevel: nextPressLevel };
+  return { canPress: false, pressLevel: nextPressLevel, reason: 'Not dormie on current press' };
+};
+
+// Press eligibility for a TEAM on Overall (back 9 only)
+export const getFBOTeamPressEligibilityOverall = (
+  round: Round,
+  game: GameSettings,
+  team: 'A' | 'B',
+  currentHole: number
+): { canPress: boolean; pressLevel: number; reason?: string } => {
+  if (currentHole <= 9) return { canPress: false, pressLevel: 1, reason: 'Overall presses only available on back 9' };
+
+  const fboGameData = round.gameData?.[game.id] || {};
+  const presses: FBOPressState[] = fboGameData[1]?._META_PRESSES || [];
+  const teamPresses = presses.filter(p => String(p.playerId) === team && p.segment === 'overall');
+
+  const fboData = round.gameData?.[game.id] || {};
+  const holesRemaining = 18 - currentHole + 1;
+
+  if (teamPresses.length === 0) {
+    const status = getFBOTeamOverallDormieStatus(round, game, currentHole);
+    const myStatus = team === 'A' ? status.teamA : status.teamB;
+    if (!myStatus.isDormie) return { canPress: false, pressLevel: 1, reason: 'Not dormie on Overall' };
+    return { canPress: true, pressLevel: 1 };
+  }
+
+  const latestPress = teamPresses.reduce((a, b) => a.startHole > b.startHole ? a : b);
+  const nextPressLevel = (latestPress.pressLevel || 1) + 1;
+  if (latestPress.startHole >= currentHole) {
+    return { canPress: false, pressLevel: nextPressLevel, reason: 'Already pressed this hole' };
+  }
+
+  let aDots = 0, bDots = 0;
+  for (let h = latestPress.startHole; h < currentHole; h++) {
+    const td = fboData[h]?.teamDot;
+    if (td === 'A') aDots++;
+    else if (td === 'B') bDots++;
+  }
+  const myDots = team === 'A' ? aDots : bDots;
+  const oppDots = team === 'A' ? bDots : aDots;
+  if (myDots + holesRemaining < oppDots) return { canPress: true, pressLevel: nextPressLevel };
+  return { canPress: false, pressLevel: nextPressLevel, reason: 'Not dormie on current Overall press' };
+};
+
 // --- FBO (Front/Back/Overall) ---
 
 export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
