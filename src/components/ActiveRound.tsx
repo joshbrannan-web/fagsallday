@@ -1583,8 +1583,11 @@ const ActiveRound: React.FC = () => {
 
         {/* FBO Press UI - hidden for read-only */}
         {!isReadOnly && fboGames.filter(g => g.config.fbo?.allowPresses).map(fboGame => {
-          const isHeadToHead = fboGame.config.fbo?.gameMode === 'headToHead';
+          const mode = fboGame.config.fbo?.gameMode || 'together';
+          const isHeadToHead = mode === 'headToHead';
+          const isTeams = mode === 'teams';
           const matchups = fboGame.config.fbo?.headToHeadMatchups || [];
+          const teamsCfg = fboGame.config.fbo?.teams;
           
           // Only show if we're not on hole 1 or 10 (need history to detect dormie)
           const segmentStartHole = activeHole <= 9 ? 1 : 10;
@@ -1592,6 +1595,115 @@ const ActiveRound: React.FC = () => {
           
           const segment: 'front' | 'back' = activeHole <= 9 ? 'front' : 'back';
           const onBackNine = activeHole > 9;
+          
+          // TEAMS MODE: Render per-team press buttons
+          if (isTeams && teamsCfg && teamsCfg.teamA.length === 2 && teamsCfg.teamB.length === 2) {
+            const fboGameData = currentRound.gameData?.[fboGame.id] || {};
+            const allPresses: FBOPressState[] = (fboGameData as any)[1]?._META_PRESSES || [];
+            const teamPressed = (team: 'A' | 'B', seg: 'front' | 'back' | 'overall') =>
+              allPresses.some(p => String(p.playerId) === team && p.segment === seg);
+
+            const teamRows: Array<{ team: 'A' | 'B'; segElig: ReturnType<typeof getFBOTeamPressEligibility>; ovrElig: ReturnType<typeof getFBOTeamPressEligibilityOverall> }> = [];
+            (['A', 'B'] as const).forEach(team => {
+              const segElig = getFBOTeamPressEligibility(currentRound, fboGame, team, segment, activeHole);
+              const ovrElig = onBackNine
+                ? getFBOTeamPressEligibilityOverall(currentRound, fboGame, team, activeHole)
+                : { canPress: false, pressLevel: 1 };
+              if (segElig.canPress || ovrElig.canPress) teamRows.push({ team, segElig, ovrElig });
+            });
+            if (teamRows.length === 0) return null;
+
+            const teamLabel = (t: 'A' | 'B') => `Team ${t}`;
+            return (
+              <div key={fboGame.id} className="bg-card rounded-2xl shadow-sm border border-amber-500/50 p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-foreground flex items-center gap-2">
+                    <span className="bg-amber-500/20 text-amber-500 p-1.5 rounded text-lg">🎱</span>
+                    FBO Teams Press Available
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {teamRows.map(({ team, segElig, ovrElig }) => {
+                    const segKey = `${fboGame.id}-team${team}-${segment}`;
+                    const ovrKey = `${fboGame.id}-team${team}-overall`;
+                    const segPressed = teamPressed(team, segment);
+                    const ovrPressed = teamPressed(team, 'overall');
+                    const segDeclined = declinedPresses.has(segKey);
+                    const ovrDeclined = declinedPresses.has(ovrKey);
+                    return (
+                      <div key={team} className="p-3 bg-amber-500/10 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-500" />
+                          <span className="text-sm font-medium">{teamLabel(team)} is dormie</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {segElig.canPress && (
+                            segDeclined ? (
+                              <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-medium text-center bg-muted text-muted-foreground">
+                                Declined {segment === 'front' ? 'F9' : 'B9'}
+                              </span>
+                            ) : segPressed ? (
+                              <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold text-center bg-success text-success-foreground">
+                                <span className="flex items-center justify-center gap-1"><Check className="w-4 h-4" /> Pressed {segment === 'front' ? 'F9' : 'B9'}</span>
+                                <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                              </span>
+                            ) : (
+                              <div className="flex gap-1 flex-1 min-w-[100px]">
+                                <button
+                                  onClick={() => handleFBOPress(fboGame.id, team, segment, segElig.pressLevel)}
+                                  className="flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-amber-500 text-white hover:bg-amber-600"
+                                >
+                                  Press {segment === 'front' ? 'F9' : 'B9'}
+                                  <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                                </button>
+                                <button
+                                  onClick={() => setDeclinedPresses(prev => new Set(prev).add(segKey))}
+                                  className="px-3 py-2 rounded-lg text-xs font-medium transition-colors border border-border text-muted-foreground hover:bg-muted"
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                            )
+                          )}
+                          {ovrElig.canPress && (
+                            ovrDeclined ? (
+                              <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-medium text-center bg-muted text-muted-foreground">
+                                Declined Overall
+                              </span>
+                            ) : ovrPressed ? (
+                              <span className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-sm font-bold text-center bg-success text-success-foreground">
+                                <span className="flex items-center justify-center gap-1"><Check className="w-4 h-4" /> Pressed Overall</span>
+                                <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                              </span>
+                            ) : (
+                              <div className="flex gap-1 flex-1 min-w-[100px]">
+                                <button
+                                  onClick={() => handleFBOPress(fboGame.id, team, 'overall', ovrElig.pressLevel)}
+                                  className="flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-colors bg-primary text-primary-foreground hover:bg-primary/90"
+                                >
+                                  Press Overall
+                                  <span className="block text-xs font-normal opacity-80">${fboGame.unitStake}</span>
+                                </button>
+                                <button
+                                  onClick={() => setDeclinedPresses(prev => new Set(prev).add(ovrKey))}
+                                  className="px-3 py-2 rounded-lg text-xs font-medium transition-colors border border-border text-muted-foreground hover:bg-muted"
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  Double-or-nothing for remaining holes
+                </p>
+              </div>
+            );
+          }
           
           // HEAD-TO-HEAD MODE: Render per-matchup press buttons
           if (isHeadToHead && matchups.length > 0) {
