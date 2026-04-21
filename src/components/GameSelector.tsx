@@ -252,13 +252,16 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                       <Label className="text-sm font-medium">Game Mode</Label>
                       <RadioGroup
                         value={selectedGame.config.fbo?.gameMode || 'together'}
-                        onValueChange={(value: 'together' | 'headToHead') => {
+                        onValueChange={(value: 'together' | 'headToHead' | 'teams') => {
                           updateGameConfigDeep(selectedGame.id, (g) => ({
                             ...g, config: {
                               ...g.config, fbo: {
                                 ...g.config.fbo, gameMode: value,
                                 headToHeadMatchups: value === 'headToHead'
-                                  ? (g.config.fbo?.headToHeadMatchups || []) : undefined
+                                  ? (g.config.fbo?.headToHeadMatchups || []) : undefined,
+                                teams: value === 'teams'
+                                  ? (g.config.fbo?.teams || { teamA: [], teamB: [], useSecondBallTiebreaker: false })
+                                  : undefined,
                               }
                             }
                           }));
@@ -279,8 +282,89 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                             <p className="text-xs text-muted-foreground">Create 1v1 matchups with separate stakes.</p>
                           </div>
                         </div>
+                        <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                          <RadioGroupItem value="teams" id={`fbo-mode-teams-${selectedGame.id}`} className="mt-1" />
+                          <div className="flex-1">
+                            <Label htmlFor={`fbo-mode-teams-${selectedGame.id}`} className="font-medium cursor-pointer">Teams (2v2)</Label>
+                            <p className="text-xs text-muted-foreground">Two teams of 2. Low net ball wins the hole's dot for the team.</p>
+                          </div>
+                        </div>
                       </RadioGroup>
                     </div>
+
+                    {/* Teams (2v2) Setup */}
+                    {selectedGame.config.fbo?.gameMode === 'teams' && (() => {
+                      const fboPlayerIds = (selectedGame.config.fboPlayers || players.map(p => p.id));
+                      const fboPlayers = fboPlayerIds.map(id => players.find(p => p.id === id)).filter(Boolean) as Player[];
+                      const teams = selectedGame.config.fbo?.teams || { teamA: [], teamB: [], useSecondBallTiebreaker: false };
+                      const updateTeams = (next: { teamA: string[]; teamB: string[]; useSecondBallTiebreaker: boolean }) => {
+                        updateGameConfigDeep(selectedGame.id, (g) => ({
+                          ...g, config: { ...g.config, fbo: { ...g.config.fbo, teams: next } }
+                        }));
+                      };
+                      const togglePlayer = (team: 'A' | 'B', pid: string) => {
+                        const inA = teams.teamA.includes(pid);
+                        const inB = teams.teamB.includes(pid);
+                        let teamA = teams.teamA.filter(id => id !== pid);
+                        let teamB = teams.teamB.filter(id => id !== pid);
+                        if (team === 'A' && !inA) {
+                          if (teamA.length >= 2) { toast.error('Team A is full (2 players)'); return; }
+                          teamA = [...teamA, pid];
+                        } else if (team === 'B' && !inB) {
+                          if (teamB.length >= 2) { toast.error('Team B is full (2 players)'); return; }
+                          teamB = [...teamB, pid];
+                        }
+                        updateTeams({ ...teams, teamA, teamB });
+                      };
+                      const PlayerChips = ({ team }: { team: 'A' | 'B' }) => (
+                        <div className="flex flex-wrap gap-2">
+                          {fboPlayers.map(p => {
+                            const inThis = team === 'A' ? teams.teamA.includes(p.id) : teams.teamB.includes(p.id);
+                            const inOther = team === 'A' ? teams.teamB.includes(p.id) : teams.teamA.includes(p.id);
+                            return (
+                              <button key={p.id} type="button"
+                                disabled={inOther}
+                                onClick={() => togglePlayer(team, p.id)}
+                                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                  inThis
+                                    ? 'bg-primary text-primary-foreground'
+                                    : inOther
+                                      ? 'bg-muted text-muted-foreground/50 cursor-not-allowed'
+                                      : 'bg-background border border-border text-muted-foreground hover:border-primary'
+                                }`}>
+                                {p.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                      const validTeams = teams.teamA.length === 2 && teams.teamB.length === 2;
+                      return (
+                        <div className="space-y-3 animate-fade-in pt-2 border-t border-border/50">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Team A (pick 2)</Label>
+                            <PlayerChips team="A" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Team B (pick 2)</Label>
+                            <PlayerChips team="B" />
+                          </div>
+                          {!validTeams && (
+                            <p className="text-xs text-destructive">Each team needs exactly 2 players</p>
+                          )}
+                          <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                            <div>
+                              <Label className="text-sm font-medium">Use 2nd Ball as Tiebreaker</Label>
+                              <p className="text-xs text-muted-foreground">If team low balls tie, compare 2nd-low balls</p>
+                            </div>
+                            <Switch
+                              checked={teams.useSecondBallTiebreaker}
+                              onCheckedChange={(checked) => updateTeams({ ...teams, useSecondBallTiebreaker: checked })}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Head-to-Head Matchup Builder */}
                     {selectedGame.config.fbo?.gameMode === 'headToHead' && (
