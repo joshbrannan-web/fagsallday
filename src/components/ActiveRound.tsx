@@ -286,12 +286,19 @@ const ActiveRound: React.FC = () => {
     if (fboGames.length === 0) return;
     
     fboGames.forEach(game => {
-      const isHeadToHead = game.config.fbo?.gameMode === 'headToHead';
+      const mode = game.config.fbo?.gameMode || 'together';
       const matchups = game.config.fbo?.headToHeadMatchups || [];
+      const teamsCfg = game.config.fbo?.teams;
       
-      if (isHeadToHead && matchups.length > 0) {
+      if (mode === 'teams' && teamsCfg && teamsCfg.teamA.length === 2 && teamsCfg.teamB.length === 2) {
+        // TEAMS MODE: Calculate team dot for the hole
+        const winner = calculateFBOTeamHoleWinner(currentRound, game, activeHole);
+        const currentTeamDot = currentRound.gameData?.[game.id]?.[activeHole]?.teamDot;
+        if (winner !== null && winner !== currentTeamDot) {
+          updateGameData(game.id, activeHole, 'teamDot', winner);
+        }
+      } else if (mode === 'headToHead' && matchups.length > 0) {
         // HEAD-TO-HEAD MODE: Calculate dots per matchup independently
-        // Each matchup uses only its two players for relative handicap calculation
         const matchupDots: { [matchupKey: string]: string | null } = {};
         
         matchups.forEach(matchup => {
@@ -306,7 +313,6 @@ const ActiveRound: React.FC = () => {
           matchupDots[matchupKey] = winner;
         });
         
-        // Store as matchupDots instead of dots
         const currentMatchupDots = currentRound.gameData?.[game.id]?.[activeHole]?.matchupDots || {};
         const isDifferent = JSON.stringify(matchupDots) !== JSON.stringify(currentMatchupDots);
         
@@ -318,7 +324,6 @@ const ActiveRound: React.FC = () => {
         const winners = calculateFBOHoleWinners(currentRound, game, activeHole);
         const currentDots: string[] = currentRound.gameData?.[game.id]?.[activeHole]?.dots || [];
         
-        // Only update if different (to avoid infinite loop)
         const winnersSet = new Set(winners);
         const currentSet = new Set(currentDots);
         const isDifferent = winners.length !== currentDots.length || 
