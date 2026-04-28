@@ -419,6 +419,19 @@ const ActiveRound: React.FC = () => {
       return;
     }
 
+    // Block advance until LR Hammer teams are set for the just-completed hole
+    if (!isReadOnly) {
+      const hammerGames = currentRound.games.filter(g => g.type === GameType.HAMMER);
+      const missing = hammerGames.find(g => !hasLRHammerTeamsSet(currentRound.gameData, g, activeHole));
+      if (missing) {
+        toast.error(`Set Hammer teams for Hole ${activeHole} before advancing`);
+        document.getElementById(`hammer-card-${missing.id}`)?.scrollIntoView({
+          behavior: 'smooth', block: 'center',
+        });
+        return;
+      }
+    }
+
     // Per-hole tournament sync — fire-and-forget, never blocks hole advancement
     if (tournamentGroupId && !isReadOnly) {
       const completedHole = activeHole;
