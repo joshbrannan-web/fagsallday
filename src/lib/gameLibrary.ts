@@ -112,6 +112,22 @@ export const GAME_LIBRARY: GameLibraryItem[] = [
     maxPlayers: 4,
     config: { useHandicaps: true, handicapMode: 'relative', birdieMultiplier: 3, eagleMultiplier: 5, teamBanker: { mode: 'sixes', useSecondBallTiebreaker: false } },
   },
+  {
+    type: GameType.HAMMER,
+    name: "Hammer",
+    description: "Throw the hammer to double the pot. Team Hammer (2v2) or LR Hammer (per-hole teams).",
+    icon: "🔨",
+    defaultUnitStake: 5,
+    minPlayers: 3,
+    maxPlayers: 4,
+    config: {
+      hammer: { variant: 'team', segmentLength: 18 },
+      birdieMultiplier: 1,
+      eagleMultiplier: 1,
+      useHandicaps: true,
+      handicapMode: 'relative',
+    },
+  },
 ];
 
 // Detailed game info for popovers
