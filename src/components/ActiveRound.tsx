@@ -1148,7 +1148,7 @@ const ActiveRound: React.FC = () => {
             activeHole={activeHole}
             isReadOnly={isReadOnly}
             onUpdateGameData={(gameId, hole, updates) => {
-              Object.entries(updates).forEach(([k, v]) => updateGameData(gameId, hole, k, v));
+              updateGameDataBatch(gameId, hole, updates);
             }}
           />
         ))}
