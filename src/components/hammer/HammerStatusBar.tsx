@@ -44,8 +44,9 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
     return players.filter(p => ids.includes(p.id));
   }, [players, game.config.gamePlayers]);
 
-  // Auto-open setup if missing teams for this hole
-  const needsSetup = !teams && !isReadOnly;
+  // Auto-open setup ONLY for Team Hammer (segment teams must be set up-front).
+  // LR Hammer defers team selection until the user enters scores / advances.
+  const needsSetup = !teams && !isReadOnly && variant === 'team';
   React.useEffect(() => {
     if (needsSetup) {
       setDraftA([]); setDraftB([]); setDraftSolo(null);
@@ -54,7 +55,7 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
       setSetupOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeHole, teams ? '1' : '0']);
+  }, [activeHole, teams ? '1' : '0', variant]);
 
   const teamNameStr = (ids: string[]) =>
     ids.map(id => players.find(p => p.id === id)?.name || '?').join(' & ');
