@@ -1,40 +1,56 @@
-# GHIN Connections Audit
+# Nightly GHIN Auto-Refresh
 
 ## Goal
-Verify every profile with a stored `ghin_number` actually resolves to that exact golfer in the GHIN API, and that the stored `handicap_index` matches what GHIN currently returns. Report any users with issues.
+Every profile with a `ghin_number` gets its `handicap_index` and `ghin_last_synced` automatically refreshed once per day from the GHIN API — no user action required.
 
-## Users to audit (13)
-Austyn Whittenburg, Brandon Rodman, CB, Daniel Eskelson, Danny Laneri, Jake Larsen, John Boss, Josh Brannan, Justin Hamilton, Kevin Bene, Mau, Monroe McKay, Paul Rakovich.
-
-## How the audit will work
-
-A one-off Deno/Node script (run via `code--exec`, not added to the codebase) that:
-
-1. Authenticates once to the GHIN API using the existing `GHIN_EMAIL` / `GHIN_PASSWORD` secrets (same flow as `sync-ghin-handicap`).
-2. For each profile, calls `GET /api/v1/golfers/search.json?golfer_id=<ghin>&status=Active&per_page=10`.
-3. Applies the same exact-match logic the edge function uses (`golfer_id` / `ghin_no` / `ghin_number` / `GHINNumber` / `ghin` / `id`).
-4. Compares:
-   - **Match found?** If no exact match → flagged as "Invalid / not found".
-   - **Name check** — returned `first_name + last_name` vs profile `display_name` (loose token match). Mismatch → "Wrong golfer linked".
-   - **Handicap drift** — returned `handicap_index` vs stored value. Difference > 0.1 → "Handicap out of date".
-   - **Inactive / no index** — flagged separately.
-
-## Output
-
-A single table reported back in chat:
+## Architecture
 
 ```text
-User              GHIN       Status          Stored HCP   GHIN HCP   GHIN Name
-----------------  ---------  --------------  -----------  ---------  ----------------
-Josh Brannan      10988439   OK              11.4         11.4       Josh Brannan
-...
-CB                1902748    NAME MISMATCH   15.6         12.1       John Smith
+pg_cron (4:00 AM UTC daily)
+    │
+    └─► HTTP POST → edge function: nightly-ghin-refresh
+                        │
+                        ├─ Authenticate to GHIN (shared account)
+                        ├─ Pull all profiles WHERE ghin_number IS NOT NULL
+                        ├─ For each: search.json → exact-match → update profile
+                        └─ Log summary (count synced, drifted, failed)
 ```
 
-Plus a short summary listing only the users with issues and the recommended action (re-link, refresh, or clear).
+## Pieces to build
 
-## Scope
+### 1. Edge function `nightly-ghin-refresh`
+- Reuses the same logic as `sync-ghin-handicap`:
+  - GHIN login with `GHIN_EMAIL` / `GHIN_PASSWORD`
+  - Strict exact-match on returned golfer (same `extractIds` logic — protects against the wrong-golfer bug we fixed earlier)
+- Iterates every profile with a `ghin_number`, calls GHIN search, updates `handicap_index` + `ghin_last_synced` only on **valid exact match**.
+- Skips (does not overwrite) any profile where:
+  - GHIN API returns no exact match (avoids overwriting with stranger's data)
+  - Returned `handicap_index` is missing/NaN
+- Throttle: 250 ms between GHIN calls to be polite to the API.
+- Auth: protected by a shared secret header (`x-cron-secret`) so only the cron job can invoke it. Not public, not user-JWT (cron has no user).
+- Returns JSON summary: `{ total, updated, unchanged, skipped, errors }`.
 
-- Read-only audit. **No** profile rows will be modified.
-- No code added to the repo. The script lives in `/tmp` and is discarded.
-- If a user is flagged, you decide whether to (a) clear their `ghin_number`, (b) prompt them to re-link, or (c) auto-refresh — I'll wait for direction before any writes.
+### 2. New secret: `GHIN_CRON_SECRET`
+A random token the cron job sends in the `x-cron-secret` header. The edge function rejects requests without it.
+
+### 3. Enable extensions + cron schedule
+- Enable `pg_cron` and `pg_net` (migration).
+- Schedule via `cron.schedule(...)` using `net.http_post` to invoke the edge function daily at **04:00 UTC** (≈ overnight in US time zones, before any morning rounds).
+
+## Safety & observability
+- **Never overwrites** a handicap unless the GHIN API returns an exact-ID match. Same protection as the manual flow.
+- Every run logs to edge function logs: per-user result + final summary, easy to inspect via the logs tool.
+- If GHIN auth fails the entire job aborts cleanly and logs the error — no partial damage.
+- Linked `saved_players` automatically pick up new values via the existing `get_saved_players_with_profiles` RPC, so no extra writes needed.
+
+## Cost
+~13 GHIN API calls/day today. Edge function runs in <30 s. Effectively free.
+
+## Files
+- `supabase/functions/nightly-ghin-refresh/index.ts` — new edge function
+- DB migration — enable `pg_cron`, `pg_net`
+- DB insert (data, not schema) — `cron.schedule(...)` with the function URL + secret
+
+## Out of scope
+- No UI changes. (Existing "Refresh GHIN" button in profile remains for instant updates.)
+- No tournament/saved_player table writes — those derive from `profiles` already.
