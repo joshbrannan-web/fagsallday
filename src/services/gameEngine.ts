@@ -2,6 +2,7 @@ import { Course, GameSettings, GameType, Player, Round, GameResult, WolfHoleData
 import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
 import { calculateTeamBanker } from "./teamBankerEngine";
+import { calculateHammer } from "./hammerEngine";
 
 // Helper: get only the players participating in a specific game
 export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
@@ -1906,6 +1907,9 @@ export const calculatePerGameTotals = (round: Round): {
       case GameType.TEAM_BANKER:
         result = calculateTeamBanker(round, game);
         break;
+      case GameType.HAMMER:
+        result = calculateHammer(round, game);
+        break;
       default:
         return;
     }
@@ -2128,6 +2132,18 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
       .filter((g) => g.type === GameType.TEAM_BANKER)
       .forEach((game) => {
         const result = calculateTeamBanker(round, game);
+        if (result.holeResults?.[holeNumber]) {
+          Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
+            holePnL[holeNumber][playerId] += amount;
+          });
+        }
+      });
+
+    // Process Hammer games
+    round.games
+      .filter((g) => g.type === GameType.HAMMER)
+      .forEach((game) => {
+        const result = calculateHammer(round, game);
         if (result.holeResults?.[holeNumber]) {
           Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
             holePnL[holeNumber][playerId] += amount;
