@@ -1072,6 +1072,34 @@ const Scorecard: React.FC = () => {
                   <td className="p-2 border-l border-border">-</td>
                 </tr>
               )}
+              {/* Hammer indicator row (per game) */}
+              {hammerGames.map(hg => (
+                <tr key={`hammer-${hg.id}`} className="bg-amber-500/5 border-t border-amber-500/20">
+                  <td className="p-3 text-left font-semibold sticky left-0 bg-amber-500/5 border-r border-border z-10 text-amber-600">
+                    🔨 {hg.name || 'Hammer'}
+                  </td>
+                  {activeHoles.map(h => {
+                    const state = getHammerHoleState(currentRound, hg, h.number);
+                    const count = state?.hammerCount || 0;
+                    if (!count) {
+                      return (
+                        <td key={h.number} className="p-2 border-r border-border/50">
+                          <span className="text-muted-foreground/30">-</span>
+                        </td>
+                      );
+                    }
+                    return (
+                      <td key={h.number} className="p-2 border-r border-border/50">
+                        <span className="text-xs font-bold text-amber-600">
+                          🔨×{count}
+                        </span>
+                      </td>
+                    );
+                  })}
+                  <td className="p-2 font-bold text-foreground">-</td>
+                  <td className="p-2 border-l border-border">-</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
