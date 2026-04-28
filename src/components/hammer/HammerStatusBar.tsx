@@ -148,9 +148,43 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
 
   return (
     <>
+      {/* LR placeholder when teams not yet set for this hole */}
+      {!teams && variant === 'lr' && !isReadOnly && (
+        <div
+          id={`hammer-card-${game.id}`}
+          data-hammer-needs-teams="true"
+          className="rounded-2xl border border-dashed border-primary/40 bg-card p-3 shadow-sm"
+        >
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex items-center gap-2">
+              <HammerIcon className="w-5 h-5 text-primary" />
+              <span className="text-sm font-bold">Hammer · Hole {activeHole}</span>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Pot</div>
+              <div className="text-2xl font-extrabold tabular-nums">${game.unitStake}</div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-2">
+            Pick teams when you enter scores for this hole.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              setDraftA([]); setDraftB([]); setDraftSolo(null);
+              setSetupOpen(true);
+            }}
+          >
+            <Users className="w-4 h-4 mr-1" /> Set teams now
+          </Button>
+        </div>
+      )}
+
       {/* Status bar */}
       {teams && (
-        <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+        <div id={`hammer-card-${game.id}`} className="rounded-2xl border border-border bg-card p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3 mb-2">
             <div className="flex items-center gap-2">
               <HammerIcon className="w-5 h-5 text-primary" />
