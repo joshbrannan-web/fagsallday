@@ -1,34 +1,40 @@
+# GHIN Connections Audit
 
+## Goal
+Verify every profile with a stored `ghin_number` actually resolves to that exact golfer in the GHIN API, and that the stored `handicap_index` matches what GHIN currently returns. Report any users with issues.
 
-# Fix: GHIN exact-match check rejects valid GHIN 10988439
+## Users to audit (13)
+Austyn Whittenburg, Brandon Rodman, CB, Daniel Eskelson, Danny Laneri, Jake Larsen, John Boss, Josh Brannan, Justin Hamilton, Kevin Bene, Mau, Monroe McKay, Paul Rakovich.
 
-## What's happening
+## How the audit will work
 
-Edge logs from `sync-ghin-handicap` show:
+A one-off Deno/Node script (run via `code--exec`, not added to the codebase) that:
 
+1. Authenticates once to the GHIN API using the existing `GHIN_EMAIL` / `GHIN_PASSWORD` secrets (same flow as `sync-ghin-handicap`).
+2. For each profile, calls `GET /api/v1/golfers/search.json?golfer_id=<ghin>&status=Active&per_page=10`.
+3. Applies the same exact-match logic the edge function uses (`golfer_id` / `ghin_no` / `ghin_number` / `GHINNumber` / `ghin` / `id`).
+4. Compares:
+   - **Match found?** If no exact match → flagged as "Invalid / not found".
+   - **Name check** — returned `first_name + last_name` vs profile `display_name` (loose token match). Mismatch → "Wrong golfer linked".
+   - **Handicap drift** — returned `handicap_index` vs stored value. Difference > 0.1 → "Handicap out of date".
+   - **Inactive / no index** — flagged separately.
+
+## Output
+
+A single table reported back in chat:
+
+```text
+User              GHIN       Status          Stored HCP   GHIN HCP   GHIN Name
+----------------  ---------  --------------  -----------  ---------  ----------------
+Josh Brannan      10988439   OK              11.4         11.4       Josh Brannan
+...
+CB                1902748    NAME MISMATCH   15.6         12.1       John Smith
 ```
-GHIN exact-match miss: requested=10988439, returned 1 loose match(es)
-```
 
-The GHIN API **is** returning a golfer record, but my new exact-match guard from the previous fix doesn't recognize the ID field on it. I'm only checking `golfer_id`, `ghin_no`, and `id` — but GHIN's `search.json` response uses different field names (likely `ghin_number`, `GHINNumber`, or similar), so the strict equality fails and the user sees "No active golfer found".
+Plus a short summary listing only the users with issues and the recommended action (re-link, refresh, or clear).
 
-The previous bug (silently returning the wrong golfer) was real, but the fix is now too strict and rejects legitimate lookups.
+## Scope
 
-## Fix
-
-In `supabase/functions/sync-ghin-handicap/index.ts`:
-
-1. **Expand the candidate ID fields** checked when verifying the returned golfer. Look at: `golfer_id`, `ghin_no`, `ghin_number`, `GHINNumber`, `ghin`, `id`. Compare each to the requested GHIN as trimmed strings.
-2. **Add diagnostic logging** on the exact-match-miss path: log the keys present on `golfers[0]` and the values of any id-like fields. This way if GHIN ever changes their schema again, we'll see it immediately in logs and can add the new field name in one edit.
-3. Keep the safety net — if no field matches, still return 404 (never silently overwrite the profile with a different golfer's data).
-
-## Files changed
-
-- **`supabase/functions/sync-ghin-handicap/index.ts`** — broaden id-field candidates, add debug logging on miss.
-
-## Verification
-
-After deploy, the user retries Refresh GHIN with `10988439`. Either:
-- It succeeds and returns the right golfer, OR
-- The 404 still fires but the new log line reveals which field name GHIN is actually using, and we add it.
-
+- Read-only audit. **No** profile rows will be modified.
+- No code added to the repo. The script lives in `/tmp` and is discarded.
+- If a user is flagged, you decide whether to (a) clear their `ghin_number`, (b) prompt them to re-link, or (c) auto-refresh — I'll wait for direction before any writes.
