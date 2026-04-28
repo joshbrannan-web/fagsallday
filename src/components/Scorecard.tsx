@@ -731,7 +731,10 @@ const Scorecard: React.FC = () => {
   
   // Find 6's game
   const sixesGame = currentRound.games.find(g => g.type === GameType.SIXES);
-  
+
+  // Find Hammer games
+  const hammerGames = currentRound.games.filter(g => g.type === GameType.HAMMER);
+
   // Wolf data helper
   const getWolfDataForHole = (holeNum: number): WolfHoleData | null => {
     if (!wolfGame) return null;
