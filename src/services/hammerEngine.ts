@@ -85,6 +85,17 @@ export const getHammerHoleTeams = (
   return { teamA: data.lrTeamA, teamB: data.lrTeamB, solo: data.lrSolo };
 };
 
+// Returns true if LR Hammer teams are set for the given hole (or N/A for Team Hammer).
+export const hasLRHammerTeamsSet = (
+  gameData: any,
+  game: GameSettings,
+  hole: number,
+): boolean => {
+  if (getHammerVariant(game) !== 'lr') return true;
+  const data = gameData?.[game.id]?.[hole];
+  return !!(data?.lrTeamA && data?.lrTeamB && data.lrTeamA.length > 0 && data.lrTeamB.length > 0);
+};
+
 // ---- Hammer pot math ----
 
 export const getHammerHoleState = (
