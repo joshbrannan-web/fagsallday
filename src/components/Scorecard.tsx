@@ -1079,7 +1079,7 @@ const Scorecard: React.FC = () => {
                     🔨 {hg.name || 'Hammer'}
                   </td>
                   {activeHoles.map(h => {
-                    const state = getHammerHoleState(currentRound, hg, h.number);
+                    const state = getHammerHoleState(currentRound.gameData, hg.id, h.number);
                     const count = state?.hammerCount || 0;
                     if (!count) {
                       return (
