@@ -2138,6 +2138,18 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
           });
         }
       });
+
+    // Process Hammer games
+    round.games
+      .filter((g) => g.type === GameType.HAMMER)
+      .forEach((game) => {
+        const result = calculateHammer(round, game);
+        if (result.holeResults?.[holeNumber]) {
+          Object.entries(result.holeResults[holeNumber]).forEach(([playerId, amount]) => {
+            holePnL[holeNumber][playerId] += amount;
+          });
+        }
+      });
   });
 
   return holePnL;
