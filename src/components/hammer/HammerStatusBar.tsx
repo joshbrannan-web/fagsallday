@@ -32,7 +32,6 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
   const result = calculateHammerHole(round, game, activeHole);
   const settled = result?.winningTeam !== undefined && result?.winningTeam !== null;
 
-  const [throwSide, setThrowSide] = useState<'A' | 'B' | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const [draftA, setDraftA] = useState<string[]>([]);
   const [draftB, setDraftB] = useState<string[]>([]);
@@ -63,16 +62,10 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
   const handleThrow = (side: 'A' | 'B') => {
     if (isReadOnly || settled) return;
     if (lastThrownBy === side) return; // not your turn
-    setThrowSide(side);
-  };
-
-  const confirmThrow = () => {
-    if (!throwSide) return;
     onUpdateGameData(game.id, activeHole, {
       hammerCount: hammerCount + 1,
-      lastThrownBy: throwSide,
+      lastThrownBy: side,
     });
-    setThrowSide(null);
   };
 
   const saveSetup = () => {
@@ -256,22 +249,7 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
         </div>
       )}
 
-      {/* Throw confirmation */}
-      <AlertDialog open={!!throwSide} onOpenChange={(o) => !o && setThrowSide(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Throw the Hammer?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Team {throwSide} doubles the pot from <b>${pot}</b> to <b>${pot * 2}</b>.
-              The other team will need to accept or throw it back.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmThrow}>Throw it (${pot * 2})</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
 
       {/* Setup dialog */}
       <AlertDialog open={setupOpen} onOpenChange={(o) => !o && teams && setSetupOpen(false)}>
