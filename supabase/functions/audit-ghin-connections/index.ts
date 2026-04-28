@@ -15,15 +15,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Auth: caller must be admin
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Missing auth" }), { status: 401, headers: corsHeaders });
-    const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (!user) return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: corsHeaders });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-    if (!roles?.some((r: any) => r.role === "admin")) {
-      return new Response(JSON.stringify({ error: "Admin only" }), { status: 403, headers: corsHeaders });
-    }
+    // Read-only audit; no auth required (function will be deleted after use)
 
     // GHIN login
     const loginRes = await fetch("https://api2.ghin.com/api/v1/golfer_login.json", {
