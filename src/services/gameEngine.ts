@@ -2,6 +2,7 @@ import { Course, GameSettings, GameType, Player, Round, GameResult, WolfHoleData
 import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
 import { calculateTeamBanker } from "./teamBankerEngine";
+import { calculateHammer } from "./hammerEngine";
 
 // Helper: get only the players participating in a specific game
 export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
@@ -1905,6 +1906,9 @@ export const calculatePerGameTotals = (round: Round): {
         break;
       case GameType.TEAM_BANKER:
         result = calculateTeamBanker(round, game);
+        break;
+      case GameType.HAMMER:
+        result = calculateHammer(round, game);
         break;
       default:
         return;
