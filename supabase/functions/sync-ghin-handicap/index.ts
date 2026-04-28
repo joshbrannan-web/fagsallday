@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
 
     // Look up golfer by GHIN number
     const searchRes = await fetch(
-      `https://api2.ghin.com/api/v1/golfers/search.json?golfer_id=${ghin_number}&status=Active&per_page=1&page=1`,
+      `https://api2.ghin.com/api/v1/golfers/search.json?golfer_id=${ghin_number}&status=Active&per_page=10&page=1`,
       { headers: { Authorization: `Bearer ${ghinToken}` } },
     );
 
@@ -121,16 +121,36 @@ Deno.serve(async (req) => {
     }
 
     const searchData = await searchRes.json();
-    const golfers = searchData?.golfers;
+    const golfers: any[] = searchData?.golfers || [];
 
-    if (!golfers || golfers.length === 0) {
+    if (golfers.length === 0) {
       return new Response(JSON.stringify({ error: "No active golfer found with that GHIN number" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const golfer = golfers[0];
+    // CRITICAL: GHIN's search.json is a fuzzy/multi-field search and may return
+    // unrelated golfers. We MUST verify the returned golfer's GHIN number
+    // exactly matches the requested one, otherwise we'd overwrite the user's
+    // profile with someone else's handicap.
+    const requestedId = String(ghin_number).trim();
+    const golfer = golfers.find((g) => {
+      const candidates = [g?.golfer_id, g?.ghin_no, g?.id]
+        .filter((v) => v !== undefined && v !== null)
+        .map((v) => String(v).trim());
+      return candidates.includes(requestedId);
+    });
+
+    if (!golfer) {
+      console.warn(
+        `GHIN exact-match miss: requested=${requestedId}, returned ${golfers.length} loose match(es)`,
+      );
+      return new Response(JSON.stringify({ error: "No active golfer found with that GHIN number" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const handicapIndex = parseFloat(golfer.handicap_index);
 
     if (isNaN(handicapIndex)) {
