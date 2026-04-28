@@ -28,6 +28,7 @@ import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRela
 import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
 import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses, getSixesMode, getStretchStartHole, SixesMode } from '../services/sixesEngine';
 import { HammerStatusBar } from './hammer';
+import { hasLRHammerTeamsSet } from '../services/hammerEngine';
 import { TeamBankerTeamSetup } from './teamBanker';
 import TournamentTabPanel from './tournament/TournamentTabPanel';
 import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
@@ -416,6 +417,19 @@ const ActiveRound: React.FC = () => {
       }
       toast.error('Enter scores for all players before moving on');
       return;
+    }
+
+    // Block advance until LR Hammer teams are set for the just-completed hole
+    if (!isReadOnly) {
+      const hammerGames = currentRound.games.filter(g => g.type === GameType.HAMMER);
+      const missing = hammerGames.find(g => !hasLRHammerTeamsSet(currentRound.gameData, g, activeHole));
+      if (missing) {
+        toast.error(`Set Hammer teams for Hole ${activeHole} before advancing`);
+        document.getElementById(`hammer-card-${missing.id}`)?.scrollIntoView({
+          behavior: 'smooth', block: 'center',
+        });
+        return;
+      }
     }
 
     // Per-hole tournament sync — fire-and-forget, never blocks hole advancement
