@@ -719,6 +719,30 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                           </RadioGroup>
                         </div>
 
+                        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                          <div>
+                            <Label className="text-sm font-medium">2nd Ball Tiebreaker</Label>
+                            <p className="text-xs text-muted-foreground">If 1st balls tie, compare 2nd balls (2v2 only)</p>
+                          </div>
+                          <Switch
+                            checked={selectedGame.config.hammer?.useSecondBallTiebreaker ?? false}
+                            onCheckedChange={(checked) => {
+                              updateGameConfigDeep(selectedGame.id, (g) => ({
+                                ...g,
+                                config: {
+                                  ...g.config,
+                                  hammer: {
+                                    ...(g.config.hammer || { variant: 'team', segmentLength: 18 }),
+                                    variant: g.config.hammer?.variant ?? 'team',
+                                    segmentLength: g.config.hammer?.segmentLength ?? 18,
+                                    useSecondBallTiebreaker: checked,
+                                  },
+                                },
+                              }));
+                            }}
+                          />
+                        </div>
+
                         {selectedGame.config.hammer?.variant !== 'lr' && (
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">Segment Length</Label>

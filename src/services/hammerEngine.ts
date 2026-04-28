@@ -203,6 +203,22 @@ export const calculateHammerHole = (
   if (aLow < bLow) winningTeam = 'A';
   else if (bLow < aLow) winningTeam = 'B';
 
+  // 2nd Ball Tiebreaker: if 1st balls tie and option enabled, compare 2nd lowest nets.
+  // Only applies to 2v2 (each team needs ≥2 players); skip in 2v1 LR holes.
+  if (
+    !winningTeam &&
+    game.config.hammer?.useSecondBallTiebreaker === true &&
+    teams.teamA.length >= 2 &&
+    teams.teamB.length >= 2
+  ) {
+    const aSorted = aNets.map(x => x.net).sort((a, b) => a - b);
+    const bSorted = bNets.map(x => x.net).sort((a, b) => a - b);
+    const aSecond = aSorted[1];
+    const bSecond = bSorted[1];
+    if (aSecond < bSecond) winningTeam = 'A';
+    else if (bSecond < aSecond) winningTeam = 'B';
+  }
+
   if (!winningTeam) {
     return {
       winningTeam: null,
