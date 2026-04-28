@@ -1355,6 +1355,21 @@ const Scorecard: React.FC = () => {
             );
           })}
 
+        {/* Hammer Round Totals */}
+        {hammerGames.map(game => {
+          const result = calculateHammer(currentRound, game);
+          return (
+            <GameRoundTotals
+              key={game.id}
+              gameName={game.name || 'Hammer'}
+              playerResults={result.playerResults}
+              players={currentRound.players}
+              icon={<span className="text-lg">🔨</span>}
+              accentColor="primary"
+            />
+          );
+        })}
+
         {/* 6's Match Play Section */}
         {sixesGame && (
           <SixesMatchSummary round={currentRound} game={sixesGame} />
