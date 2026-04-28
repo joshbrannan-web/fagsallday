@@ -35,7 +35,28 @@ export enum GameType {
   FBO = 'FBO',
   STOCKTON_6 = 'STOCKTON_6',
   SIXES = 'SIXES',
-  TEAM_BANKER = 'TEAM_BANKER'
+  TEAM_BANKER = 'TEAM_BANKER',
+  HAMMER = 'HAMMER'
+}
+
+// Hammer game types
+export type HammerVariant = 'team' | 'lr';
+export type HammerSegmentLength = 3 | 6 | 18;
+
+// Stored in gameData[gameId][holeNumber]
+export interface HammerHoleState {
+  // Team Hammer per-segment teams (stored at segment-start hole only)
+  _META_TEAM_A?: string[];
+  _META_TEAM_B?: string[];
+  _META_LOCKED?: boolean;
+  // LR Hammer per-hole teams
+  lrTeamA?: string[]; // 4-player: 2 IDs; 3-player: solo's "opponents" (the pair)
+  lrTeamB?: string[]; // 4-player: 2 IDs; 3-player: solo (1 ID)
+  lrSolo?: string;    // 3-player only — the lone player
+  // Hammer state
+  hammerCount?: number;          // doublings on this hole
+  lastThrownBy?: 'A' | 'B' | null;
+  // Result is computed; not stored
 }
 
 // Wolf game types
