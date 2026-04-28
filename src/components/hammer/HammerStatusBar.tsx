@@ -62,16 +62,10 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
   const handleThrow = (side: 'A' | 'B') => {
     if (isReadOnly || settled) return;
     if (lastThrownBy === side) return; // not your turn
-    setThrowSide(side);
-  };
-
-  const confirmThrow = () => {
-    if (!throwSide) return;
     onUpdateGameData(game.id, activeHole, {
       hammerCount: hammerCount + 1,
-      lastThrownBy: throwSide,
+      lastThrownBy: side,
     });
-    setThrowSide(null);
   };
 
   const saveSetup = () => {
