@@ -135,16 +135,19 @@ Deno.serve(async (req) => {
     // exactly matches the requested one, otherwise we'd overwrite the user's
     // profile with someone else's handicap.
     const requestedId = String(ghin_number).trim();
-    const golfer = golfers.find((g) => {
-      const candidates = [g?.golfer_id, g?.ghin_no, g?.id]
+    const extractIds = (g: any): string[] =>
+      [g?.golfer_id, g?.ghin_no, g?.ghin_number, g?.GHINNumber, g?.ghin, g?.id]
         .filter((v) => v !== undefined && v !== null)
         .map((v) => String(v).trim());
-      return candidates.includes(requestedId);
-    });
+
+    const golfer = golfers.find((g: any) => extractIds(g).includes(requestedId));
 
     if (!golfer) {
+      const debugIds = golfers.map((g: any, i: number) =>
+        `[${i}] ids=${JSON.stringify(extractIds(g))} keys=${Object.keys(g || {}).join(',')}`
+      ).join(' | ');
       console.warn(
-        `GHIN exact-match miss: requested=${requestedId}, returned ${golfers.length} loose match(es)`,
+        `GHIN exact-match miss: requested=${requestedId}, returned ${golfers.length} loose match(es). Debug: ${debugIds}`,
       );
       return new Response(JSON.stringify({ error: "No active golfer found with that GHIN number" }), {
         status: 404,
