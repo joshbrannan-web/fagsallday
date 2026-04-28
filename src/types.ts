@@ -178,6 +178,11 @@ export interface GameSettings {
       allowPresses?: boolean; // Enable/disable press option (double-or-nothing when dormie)
       mode?: 'sixes' | 'threes'; // 'sixes' = 3 stretches of 6 holes, 'threes' = 6 stretches of 3 holes
     };
+    // Hammer game config
+    hammer?: {
+      variant: 'team' | 'lr'; // Team Hammer 2v2 segmented OR LR (per-hole teams)
+      segmentLength?: 3 | 6 | 18; // Team Hammer only
+    };
     // Universal handicap configuration (not for Stockton 6's - it has its own logic)
     useHandicaps?: boolean; // true = use handicaps, false = gross scores only
     handicapMode?: 'absolute' | 'relative'; // 'absolute' = Stockton 6 style, 'relative' = Banker style (lowest HCP = 0)
