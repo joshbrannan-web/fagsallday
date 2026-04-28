@@ -584,8 +584,8 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                   </div>
                 )}
 
-                {/* Banker / Bloody Banker / Team Banker multipliers */}
-                {(game.type === GameType.BANKER || game.type === GameType.BLOODY_BANKER || game.type === GameType.TEAM_BANKER) && (
+                {/* Banker / Bloody Banker / Team Banker / Hammer multipliers */}
+                {(game.type === GameType.BANKER || game.type === GameType.BLOODY_BANKER || game.type === GameType.TEAM_BANKER || game.type === GameType.HAMMER) && (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Birdie Multiplier</Label>
@@ -685,6 +685,67 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                             }}
                           />
                         </div>
+                      </div>
+                    )}
+
+                    {/* Hammer-specific: variant + segment length */}
+                    {game.type === GameType.HAMMER && (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Variant</Label>
+                          <RadioGroup
+                            value={selectedGame.config.hammer?.variant || 'team'}
+                            onValueChange={(value: 'team' | 'lr') => {
+                              updateGameConfigDeep(selectedGame.id, (g) => ({
+                                ...g, config: { ...g.config, hammer: { ...(g.config.hammer || { segmentLength: 18 }), variant: value, segmentLength: g.config.hammer?.segmentLength ?? 18 } }
+                              }));
+                            }}
+                            className="space-y-2"
+                          >
+                            <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                              <RadioGroupItem value="team" id={`hammer-team-${selectedGame.id}`} className="mt-1" />
+                              <div className="flex-1">
+                                <Label htmlFor={`hammer-team-${selectedGame.id}`} className="font-medium cursor-pointer">Team Hammer (2v2)</Label>
+                                <p className="text-xs text-muted-foreground">Fixed teams per segment. Requires 4 players.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
+                              <RadioGroupItem value="lr" id={`hammer-lr-${selectedGame.id}`} className="mt-1" />
+                              <div className="flex-1">
+                                <Label htmlFor={`hammer-lr-${selectedGame.id}`} className="font-medium cursor-pointer">LR Hammer (Left/Right)</Label>
+                                <p className="text-xs text-muted-foreground">Pick teams each hole. 4 players = 2v2; 3 players = 2v1.</p>
+                              </div>
+                            </div>
+                          </RadioGroup>
+                        </div>
+
+                        {selectedGame.config.hammer?.variant !== 'lr' && (
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Segment Length</Label>
+                            <RadioGroup
+                              value={String(selectedGame.config.hammer?.segmentLength ?? 18)}
+                              onValueChange={(value) => {
+                                updateGameConfigDeep(selectedGame.id, (g) => ({
+                                  ...g, config: { ...g.config, hammer: { ...(g.config.hammer || { variant: 'team' }), variant: g.config.hammer?.variant ?? 'team', segmentLength: Number(value) as 3 | 6 | 18 } }
+                                }));
+                              }}
+                              className="flex gap-3"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="3" id={`hammer-seg-3-${selectedGame.id}`} />
+                                <Label htmlFor={`hammer-seg-3-${selectedGame.id}`} className="font-normal cursor-pointer">3 holes</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="6" id={`hammer-seg-6-${selectedGame.id}`} />
+                                <Label htmlFor={`hammer-seg-6-${selectedGame.id}`} className="font-normal cursor-pointer">6 holes</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="18" id={`hammer-seg-18-${selectedGame.id}`} />
+                                <Label htmlFor={`hammer-seg-18-${selectedGame.id}`} className="font-normal cursor-pointer">18 holes</Label>
+                              </div>
+                            </RadioGroup>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
