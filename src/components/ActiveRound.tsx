@@ -27,6 +27,7 @@ import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './st
 import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRelativeStrokes } from '../services/stockton6Engine';
 import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
 import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses, getSixesMode, getStretchStartHole, SixesMode } from '../services/sixesEngine';
+import { HammerStatusBar } from './hammer';
 import { TeamBankerTeamSetup } from './teamBanker';
 import TournamentTabPanel from './tournament/TournamentTabPanel';
 import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
@@ -1123,6 +1124,20 @@ const ActiveRound: React.FC = () => {
             onTriggerPress={isReadOnly ? undefined : (teamDormie) => handleSixesPress(sixesGame.id, teamDormie)}
           />
         )}
+
+        {/* Hammer Status Bar(s) */}
+        {currentRound.games.filter(g => g.type === GameType.HAMMER).map(hg => (
+          <HammerStatusBar
+            key={hg.id}
+            round={currentRound}
+            game={hg}
+            activeHole={activeHole}
+            isReadOnly={isReadOnly}
+            onUpdateGameData={(gameId, hole, updates) => {
+              Object.entries(updates).forEach(([k, v]) => updateGameData(gameId, hole, k, v));
+            }}
+          />
+        ))}
 
         {/* Banker Game: Selection Header */}
         {bankerGames.map(game => {
