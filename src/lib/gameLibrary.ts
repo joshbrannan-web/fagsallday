@@ -121,7 +121,7 @@ export const GAME_LIBRARY: GameLibraryItem[] = [
     minPlayers: 3,
     maxPlayers: 4,
     config: {
-      hammer: { variant: 'team', segmentLength: 18 },
+      hammer: { variant: 'team', segmentLength: 18, useSecondBallTiebreaker: false },
       birdieMultiplier: 1,
       eagleMultiplier: 1,
       useHandicaps: true,

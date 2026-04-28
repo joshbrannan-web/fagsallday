@@ -182,6 +182,7 @@ export interface GameSettings {
     hammer?: {
       variant: 'team' | 'lr'; // Team Hammer 2v2 segmented OR LR (per-hole teams)
       segmentLength?: 3 | 6 | 18; // Team Hammer only
+      useSecondBallTiebreaker?: boolean; // If 1st balls tie, compare 2nd balls (2v2 only)
     };
     // Universal handicap configuration (not for Stockton 6's - it has its own logic)
     useHandicaps?: boolean; // true = use handicaps, false = gross scores only
