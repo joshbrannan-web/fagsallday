@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag, Eye } from 'lucide-react';
 import { calculateAggregatedHolePnL, calculateBanker, calculateFBO, calculateGameStrokes, calculateBankerMatchupStrokes } from '../services/gameEngine';
 import { calculateTeamBanker } from '../services/teamBankerEngine';
+import { calculateHammer, getHammerHoleState } from '../services/hammerEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
 import { getSixesTeamAssignment, calculateSixesHoleResult, calculateSixesStretchResult, getSixesStretchForHole, getSixesPresses, getSixesMode, SixesMode } from '../services/sixesEngine';
 import { SixesMatchSummary } from './sixes';
@@ -730,7 +731,10 @@ const Scorecard: React.FC = () => {
   
   // Find 6's game
   const sixesGame = currentRound.games.find(g => g.type === GameType.SIXES);
-  
+
+  // Find Hammer games
+  const hammerGames = currentRound.games.filter(g => g.type === GameType.HAMMER);
+
   // Wolf data helper
   const getWolfDataForHole = (holeNum: number): WolfHoleData | null => {
     if (!wolfGame) return null;
@@ -1068,6 +1072,34 @@ const Scorecard: React.FC = () => {
                   <td className="p-2 border-l border-border">-</td>
                 </tr>
               )}
+              {/* Hammer indicator row (per game) */}
+              {hammerGames.map(hg => (
+                <tr key={`hammer-${hg.id}`} className="bg-amber-500/5 border-t border-amber-500/20">
+                  <td className="p-3 text-left font-semibold sticky left-0 bg-amber-500/5 border-r border-border z-10 text-amber-600">
+                    🔨 {hg.name || 'Hammer'}
+                  </td>
+                  {activeHoles.map(h => {
+                    const state = getHammerHoleState(currentRound.gameData, hg.id, h.number);
+                    const count = state?.hammerCount || 0;
+                    if (!count) {
+                      return (
+                        <td key={h.number} className="p-2 border-r border-border/50">
+                          <span className="text-muted-foreground/30">-</span>
+                        </td>
+                      );
+                    }
+                    return (
+                      <td key={h.number} className="p-2 border-r border-border/50">
+                        <span className="text-xs font-bold text-amber-600">
+                          🔨×{count}
+                        </span>
+                      </td>
+                    );
+                  })}
+                  <td className="p-2 font-bold text-foreground">-</td>
+                  <td className="p-2 border-l border-border">-</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -1322,6 +1354,21 @@ const Scorecard: React.FC = () => {
               />
             );
           })}
+
+        {/* Hammer Round Totals */}
+        {hammerGames.map(game => {
+          const result = calculateHammer(currentRound, game);
+          return (
+            <GameRoundTotals
+              key={game.id}
+              gameName={game.name || 'Hammer'}
+              playerResults={result.playerResults}
+              players={currentRound.players}
+              icon={<span className="text-lg">🔨</span>}
+              accentColor="primary"
+            />
+          );
+        })}
 
         {/* 6's Match Play Section */}
         {sixesGame && (

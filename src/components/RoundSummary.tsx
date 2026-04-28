@@ -108,7 +108,23 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
       details.push('Presses: On');
     }
   }
-  
+
+  if (type === GameType.HAMMER && config.hammer) {
+    const variant = config.hammer.variant;
+    if (variant === 'team') {
+      const seg = config.hammer.segmentLength ?? 6;
+      details.push(`Variant: Team Hammer (${seg === 18 ? '18 Holes' : seg === 3 ? "3's" : "6's"})`);
+    } else {
+      details.push('Variant: LR Hammer');
+    }
+    if (config.birdieMultiplier && config.birdieMultiplier > 1) {
+      details.push(`Birdie: ${config.birdieMultiplier}x`);
+    }
+    if (config.eagleMultiplier && config.eagleMultiplier > 1) {
+      details.push(`Eagle: ${config.eagleMultiplier}x`);
+    }
+  }
+
   return details;
 };
 
