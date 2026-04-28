@@ -249,22 +249,7 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
         </div>
       )}
 
-      {/* Throw confirmation */}
-      <AlertDialog open={!!throwSide} onOpenChange={(o) => !o && setThrowSide(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Throw the Hammer?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Team {throwSide} doubles the pot from <b>${pot}</b> to <b>${pot * 2}</b>.
-              The other team will need to accept or throw it back.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmThrow}>Throw it (${pot * 2})</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
 
       {/* Setup dialog */}
       <AlertDialog open={setupOpen} onOpenChange={(o) => !o && teams && setSetupOpen(false)}>
