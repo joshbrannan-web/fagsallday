@@ -1105,6 +1105,10 @@ export type Database = {
           id: string
         }[]
       }
+      seed_service_role_secret: {
+        Args: { p_value: string }
+        Returns: undefined
+      }
       unlink_players_bidirectional: {
         Args: { p_linked_user_id: string }
         Returns: undefined
