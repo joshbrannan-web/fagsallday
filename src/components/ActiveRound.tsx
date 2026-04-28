@@ -28,6 +28,7 @@ import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRela
 import { SixesTeamSetup, SixesStatusBar, SixesStretchSummary } from './sixes';
 import { isSixesStretchStartHole, getSixesTeamAssignment, getSixesStretchForHole, isSixesStretchEndHole, getSixesPresses, getSixesMode, getStretchStartHole, SixesMode } from '../services/sixesEngine';
 import { HammerStatusBar } from './hammer';
+import { hasLRHammerTeamsSet } from '../services/hammerEngine';
 import { TeamBankerTeamSetup } from './teamBanker';
 import TournamentTabPanel from './tournament/TournamentTabPanel';
 import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
