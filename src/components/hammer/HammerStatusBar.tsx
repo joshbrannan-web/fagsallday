@@ -59,10 +59,12 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
     ids.map(id => players.find(p => p.id === id)?.name || '?').join(' & ');
 
   const handleThrow = (side: 'A' | 'B') => {
-    if (isReadOnly || settled) return;
-    if (lastThrownBy === side) return; // not your turn
+    if (isReadOnly) return;
+    const { hammerCount: latestCount, lastThrownBy: latestLast } =
+      getHammerHoleState(round.gameData, game.id, activeHole);
+    if (latestLast === side) return; // not your turn
     onUpdateGameData(game.id, activeHole, {
-      hammerCount: hammerCount + 1,
+      hammerCount: latestCount + 1,
       lastThrownBy: side,
     });
   };
