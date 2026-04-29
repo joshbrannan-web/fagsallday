@@ -1,38 +1,34 @@
-## Add 2nd Ball Tiebreaker to Hammer
+# Fix: Hammer throws not registering
 
-Mirror the existing 2nd ball tiebreaker pattern from Sixes / Team Banker so Hammer holes that tie on the team's low ball can be decided by the team's 2nd ball instead of always pushing.
+## Problem
 
-### Files to change
+In `HammerStatusBar.tsx`, both "A throws" and "B throws" buttons silently stop working as soon as scores are entered that give one team a lower net ball. The cause:
 
-**1. `src/types.ts`** — extend the `hammer` config:
 ```ts
-hammer?: {
-  variant: 'team' | 'lr';
-  segmentLength?: 3 | 6 | 18;
-  useSecondBallTiebreaker?: boolean; // NEW
-};
+const result = calculateHammerHole(round, game, activeHole);
+const settled = result?.winningTeam !== undefined && result?.winningTeam !== null;
+...
+if (isReadOnly || settled) return;
 ```
 
-**2. `src/lib/gameLibrary.ts`** — update Hammer default config to include `useSecondBallTiebreaker: false`.
+`calculateHammerHole` returns a `winningTeam` the moment all required players have a score and one side has a lower ball. `settled` then flips true, disables the throw handler, and (because the buttons are not visually disabled by `settled`, only by `lastThrownBy`) clicks appear to do nothing — exactly the symptom the user reported.
 
-**3. `src/components/GameSelector.tsx`** — in the Hammer config section (around the variant/segment-length block, lines 692–749), add a Switch row identical to the Team Banker one (line 674–687):
-- Label: "2nd Ball Tiebreaker"
-- Sub-label: "If 1st balls tie, compare 2nd balls"
-- Bound to `selectedGame.config.hammer?.useSecondBallTiebreaker ?? false`
-- Updates via `updateGameConfigDeep` preserving `variant` and `segmentLength`.
+This contradicts Hammer rules: a team can throw the hammer at any point during the hole (before/during/after putts), until the group moves to the next hole. The "settled" concept here is a UI artifact, not a real game state — there is no separate "lock hole" action for Hammer.
 
-**4. `src/services/hammerEngine.ts`** — update `calculateHammerHole`:
-- After computing `aLow` / `bLow`, if they tie AND `game.config.hammer?.useSecondBallTiebreaker === true` AND each team has ≥2 players (skip in 2v1 LR mode — solo has no 2nd ball), compare each team's 2nd-lowest net.
-- If the 2nd balls break the tie, set `winningTeam` accordingly. The rest of the function (multipliers, payouts, low-ball detection for birdie/eagle) continues unchanged using the winning team's lowest-net ball owner.
-- If still tied (or 2v1), fall through to the existing push behavior.
+A secondary risk: `handleThrow` reads `hammerCount` from a closure. Two rapid clicks could write the same `hammerCount + 1`. We will use a functional update pattern (read latest from `round.gameData` at click time via the engine helper) to avoid lost increments.
 
-### Behavior
+## Changes
 
-- **Off (default)**: tie on low ball → push, pot doubles on next hole as today.
-- **On (2v2)**: tie on low ball → compare 2nd ball; lower 2nd ball wins the pot. Still tied → push.
-- **2v1 LR holes**: option is ignored (solo has only 1 ball) — still pushes on tie.
+**`src/components/hammer/HammerStatusBar.tsx`**
 
-### Out of scope
+1. Remove the `settled` gate from `handleThrow`. Throws stay allowed for the active hole regardless of score state. Only `isReadOnly` and the turn rule (`lastThrownBy === side`) block a throw.
+2. Re-read the latest `hammerCount` from `getHammerHoleState(round.gameData, game.id, activeHole)` inside `handleThrow` immediately before computing the new value, so fast double-clicks can't reuse a stale count.
+3. Keep the visual "Pot" display, results card, and turn-button disabling unchanged.
 
-- No changes to Hammer throw/turn logic, segment teams, payouts math, or status-bar UI.
-- No memory/doc updates needed beyond the existing Hammer memory note (can be appended after implementation).
+No other files need changes. The engine still computes `winningTeam` correctly using the final `hammerCount` from `gameData` at calculation time.
+
+## Acceptance
+
+- Enter scores on a hammer hole where Team A is lower → "B throws" still works and doubles the pot.
+- Click "A throws" twice rapidly → pot doubles exactly once (turn rule blocks the second), no lost increments on legitimate alternating throws.
+- Read-only / shared rounds still cannot throw.

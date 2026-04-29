@@ -30,7 +30,6 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
   const { hammerCount, lastThrownBy } = getHammerHoleState(round.gameData, game.id, activeHole);
   const pot = calculateHammerPot(game.unitStake, hammerCount);
   const result = calculateHammerHole(round, game, activeHole);
-  const settled = result?.winningTeam !== undefined && result?.winningTeam !== null;
 
   const [setupOpen, setSetupOpen] = useState(false);
   const [draftA, setDraftA] = useState<string[]>([]);
