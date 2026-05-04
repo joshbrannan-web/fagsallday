@@ -224,8 +224,6 @@ export const calculateHammerHole = (
   const aLow = Math.min(...aNets.map(x => x.net));
   const bLow = Math.min(...bNets.map(x => x.net));
 
-  const { hammerCount } = getHammerHoleState(round.gameData, game.id, hole);
-  const basePot = game.unitStake;
   const potBeforeMultipliers = calculateHammerPot(basePot, hammerCount);
 
   let winningTeam: 'A' | 'B' | null = null;
