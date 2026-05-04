@@ -173,8 +173,36 @@ export const calculateHammerHole = (
   if (!teams) return null;
 
   const holeData = round.course.holes.find(h => h.number === hole);
+  if (!holeData) return null;
+
+  const { hammerCount, lastThrownBy, concededBy } = getHammerHoleState(round.gameData, game.id, hole);
+  const basePot = game.unitStake;
+
+  // Concession short-circuit: opponent wins base bet (no hammers, no multipliers).
+  if (concededBy === 'A' || concededBy === 'B') {
+    const winningTeam: 'A' | 'B' = concededBy === 'A' ? 'B' : 'A';
+    const isSolo = variant === 'lr' && (teams.teamA.length === 1 || teams.teamB.length === 1);
+    let soloPlayerId: string | undefined;
+    let pairPlayerIds: string[] | undefined;
+    if (isSolo) {
+      if (teams.teamA.length === 1) { soloPlayerId = teams.teamA[0]; pairPlayerIds = teams.teamB; }
+      else { soloPlayerId = teams.teamB[0]; pairPlayerIds = teams.teamA; }
+    }
+    return {
+      winningTeam,
+      lowBallPlayerIds: [],
+      potBeforeMultipliers: basePot,
+      potAfterMultipliers: basePot,
+      basePot,
+      hammerCount: 0,
+      isSolo,
+      soloPlayerId,
+      pairPlayerIds,
+    };
+  }
+
   const scores = round.scores[hole];
-  if (!holeData || !scores) return null;
+  if (!scores) return null;
 
   const allIds = [...teams.teamA, ...teams.teamB];
   const players = round.players.filter(p => allIds.includes(p.id));
