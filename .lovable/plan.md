@@ -1,34 +1,56 @@
-# Fix: Hammer throws not registering
+# Hammer: Concede the Hole
 
-## Problem
+Add a "Concede" action for each team in the Hammer status bar. When a team concedes, the **original base bet** (the unit stake at the start of the hole) is awarded to the other team — no hammer doublings, no birdie/eagle multipliers, no 2nd-ball tiebreaker logic.
 
-In `HammerStatusBar.tsx`, both "A throws" and "B throws" buttons silently stop working as soon as scores are entered that give one team a lower net ball. The cause:
+## Behavior
 
+- Two new buttons appear under the existing "A throws" / "B throws" buttons:
+  - "Team A concedes" → Team B wins the base bet
+  - "Team B concedes" → Team A wins the base bet
+- A confirmation dialog (`AlertDialog`) appears before applying ("Concede this hole? Team X wins $unitStake. No multipliers apply.") to prevent misclicks.
+- Once conceded, both throw and concede buttons disable, the status bar shows "Conceded by Team X — Team Y wins $base", and the hole's payout is locked at base unit stake.
+- Conceding works at any point in the hole (before or after scores entered). Scores entered for the hole are ignored for payout purposes when a concession exists.
+- In LR Hammer 2v1 mode, the solo side conceding pays each pair member the base; the pair conceding has each member pay the solo the base (mirrors existing 2v1 payout shape but at base, not multiplied pot).
+
+## Technical Details
+
+### Data model (`src/types.ts`)
+Add to `HammerHoleState`:
 ```ts
-const result = calculateHammerHole(round, game, activeHole);
-const settled = result?.winningTeam !== undefined && result?.winningTeam !== null;
-...
-if (isReadOnly || settled) return;
+concededBy?: 'A' | 'B' | null; // team that conceded → opponent wins basePot
 ```
+Stored at `gameData[gameId][hole].concededBy`.
 
-`calculateHammerHole` returns a `winningTeam` the moment all required players have a score and one side has a lower ball. `settled` then flips true, disables the throw handler, and (because the buttons are not visually disabled by `settled`, only by `lastThrownBy`) clicks appear to do nothing — exactly the symptom the user reported.
+### Engine (`src/services/hammerEngine.ts`)
+- Extend `getHammerHoleState` to also return `concededBy`.
+- In `calculateHammerHole`:
+  - After loading teams (and before requiring scores), check `concededBy`. If set:
+    - `winningTeam` = opposite side
+    - `potBeforeMultipliers` = `potAfterMultipliers` = `basePot` (ignore `hammerCount`, ignore birdie/eagle multipliers)
+    - `lowBallPlayerIds = []`
+    - Skip the "all scored" requirement (concession resolves the hole regardless of scores).
+    - Populate `isSolo`/`soloPlayerId`/`pairPlayerIds` as today so 2v1 payouts work.
+- `calculateHammerHolePayouts` works unchanged because it reads `potAfterMultipliers` from the result.
+- In `calculateHammer` aggregator, add a detail line like: `Hole H: Conceded by Team X — Team Y wins $base`.
 
-This contradicts Hammer rules: a team can throw the hammer at any point during the hole (before/during/after putts), until the group moves to the next hole. The "settled" concept here is a UI artifact, not a real game state — there is no separate "lock hole" action for Hammer.
+### UI (`src/components/hammer/HammerStatusBar.tsx`)
+- Read `concededBy` via `getHammerHoleState`.
+- Under the existing throw button row, render a second row with two outline buttons:
+  - "Team A concedes" / "Team B concedes" (smaller, muted styling).
+- Each opens an `AlertDialog` confirm; on confirm:
+  ```ts
+  onUpdateGameData(game.id, activeHole, { concededBy: side });
+  ```
+- When `concededBy` is set:
+  - Disable both throw buttons and both concede buttons.
+  - Replace the "X hammers thrown" line (or render alongside) with: `Team X conceded — Team Y wins $${basePot}`.
+- Read-only mode hides concede buttons (same gate as throw buttons).
 
-A secondary risk: `handleThrow` reads `hammerCount` from a closure. Two rapid clicks could write the same `hammerCount + 1`. We will use a functional update pattern (read latest from `round.gameData` at click time via the engine helper) to avoid lost increments.
+### Notes / out-of-scope
+- No "undo concede" affordance is added in this pass. (Can be added later if requested; it would just clear `concededBy`.)
+- Tournament/admin scorecard views read the same engine, so concession results flow through automatically.
 
-## Changes
-
-**`src/components/hammer/HammerStatusBar.tsx`**
-
-1. Remove the `settled` gate from `handleThrow`. Throws stay allowed for the active hole regardless of score state. Only `isReadOnly` and the turn rule (`lastThrownBy === side`) block a throw.
-2. Re-read the latest `hammerCount` from `getHammerHoleState(round.gameData, game.id, activeHole)` inside `handleThrow` immediately before computing the new value, so fast double-clicks can't reuse a stale count.
-3. Keep the visual "Pot" display, results card, and turn-button disabling unchanged.
-
-No other files need changes. The engine still computes `winningTeam` correctly using the final `hammerCount` from `gameData` at calculation time.
-
-## Acceptance
-
-- Enter scores on a hammer hole where Team A is lower → "B throws" still works and doubles the pot.
-- Click "A throws" twice rapidly → pot doubles exactly once (turn rule blocks the second), no lost increments on legitimate alternating throws.
-- Read-only / shared rounds still cannot throw.
+## Files to Edit
+- `src/types.ts` — add `concededBy` field to `HammerHoleState`.
+- `src/services/hammerEngine.ts` — return + honor `concededBy`; short-circuit calculation; aggregator detail line.
+- `src/components/hammer/HammerStatusBar.tsx` — concede buttons, confirm dialog, conceded status display, disabled state.

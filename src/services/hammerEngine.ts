@@ -102,11 +102,12 @@ export const getHammerHoleState = (
   gameData: any,
   gameId: string,
   hole: number,
-): { hammerCount: number; lastThrownBy: 'A' | 'B' | null } => {
+): { hammerCount: number; lastThrownBy: 'A' | 'B' | null; concededBy: 'A' | 'B' | null } => {
   const data = gameData?.[gameId]?.[hole] || {};
   return {
     hammerCount: data.hammerCount ?? 0,
     lastThrownBy: data.lastThrownBy ?? null,
+    concededBy: data.concededBy ?? null,
   };
 };
 

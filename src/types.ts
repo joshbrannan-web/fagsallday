@@ -56,6 +56,7 @@ export interface HammerHoleState {
   // Hammer state
   hammerCount?: number;          // doublings on this hole
   lastThrownBy?: 'A' | 'B' | null;
+  concededBy?: 'A' | 'B' | null; // team that conceded → opponent wins basePot (no multipliers)
   // Result is computed; not stored
 }
 
