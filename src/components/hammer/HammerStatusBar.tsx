@@ -27,9 +27,10 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
   const variant = getHammerVariant(game);
   const segLen = getHammerSegmentLength(game);
   const teams = getHammerHoleTeams(round.gameData, game.id, activeHole, variant, segLen);
-  const { hammerCount, lastThrownBy } = getHammerHoleState(round.gameData, game.id, activeHole);
+  const { hammerCount, lastThrownBy, concededBy } = getHammerHoleState(round.gameData, game.id, activeHole);
   const pot = calculateHammerPot(game.unitStake, hammerCount);
   const result = calculateHammerHole(round, game, activeHole);
+  const [concedeConfirm, setConcedeConfirm] = useState<'A' | 'B' | null>(null);
 
   const [setupOpen, setSetupOpen] = useState(false);
   const [draftA, setDraftA] = useState<string[]>([]);
@@ -203,33 +204,59 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
             </div>
           </div>
 
-          {hammerCount > 0 && (
+          {hammerCount > 0 && !concededBy && (
             <div className="text-xs text-muted-foreground mb-2">
               {hammerCount} hammer{hammerCount > 1 ? 's' : ''} thrown {lastThrownBy ? `(last: Team ${lastThrownBy})` : ''}
             </div>
           )}
 
-          {!isReadOnly && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                disabled={lastThrownBy === 'A'}
-                onClick={() => handleThrow('A')}
-              >
-                <HammerIcon className="w-4 h-4 mr-1" /> A throws
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                disabled={lastThrownBy === 'B'}
-                onClick={() => handleThrow('B')}
-              >
-                <HammerIcon className="w-4 h-4 mr-1" /> B throws
-              </Button>
+          {concededBy && (
+            <div className="text-xs font-semibold text-primary mb-2">
+              Team {concededBy} conceded — Team {concededBy === 'A' ? 'B' : 'A'} wins ${game.unitStake}
             </div>
+          )}
+
+          {!isReadOnly && !concededBy && (
+            <>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  disabled={lastThrownBy === 'A'}
+                  onClick={() => handleThrow('A')}
+                >
+                  <HammerIcon className="w-4 h-4 mr-1" /> A throws
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  disabled={lastThrownBy === 'B'}
+                  onClick={() => handleThrow('B')}
+                >
+                  <HammerIcon className="w-4 h-4 mr-1" /> B throws
+                </Button>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 text-xs text-muted-foreground hover:text-destructive"
+                  onClick={() => setConcedeConfirm('A')}
+                >
+                  A concedes
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 text-xs text-muted-foreground hover:text-destructive"
+                  onClick={() => setConcedeConfirm('B')}
+                >
+                  B concedes
+                </Button>
+              </div>
+            </>
           )}
 
           {variant === 'lr' && !isReadOnly && (
@@ -251,6 +278,32 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
       )}
 
 
+
+      {/* Concede confirmation */}
+      <AlertDialog open={!!concedeConfirm} onOpenChange={(o) => !o && setConcedeConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Team {concedeConfirm} concedes hole {activeHole}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Team {concedeConfirm === 'A' ? 'B' : 'A'} wins the original ${game.unitStake} bet.
+              No hammers or birdie/eagle multipliers will be applied.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (concedeConfirm) {
+                  onUpdateGameData(game.id, activeHole, { concededBy: concedeConfirm });
+                }
+                setConcedeConfirm(null);
+              }}
+            >
+              Confirm Concession
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Setup dialog */}
       <AlertDialog open={setupOpen} onOpenChange={(o) => !o && teams && setSetupOpen(false)}>

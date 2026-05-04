@@ -102,11 +102,12 @@ export const getHammerHoleState = (
   gameData: any,
   gameId: string,
   hole: number,
-): { hammerCount: number; lastThrownBy: 'A' | 'B' | null } => {
+): { hammerCount: number; lastThrownBy: 'A' | 'B' | null; concededBy: 'A' | 'B' | null } => {
   const data = gameData?.[gameId]?.[hole] || {};
   return {
     hammerCount: data.hammerCount ?? 0,
     lastThrownBy: data.lastThrownBy ?? null,
+    concededBy: data.concededBy ?? null,
   };
 };
 
@@ -172,8 +173,36 @@ export const calculateHammerHole = (
   if (!teams) return null;
 
   const holeData = round.course.holes.find(h => h.number === hole);
+  if (!holeData) return null;
+
+  const { hammerCount, lastThrownBy, concededBy } = getHammerHoleState(round.gameData, game.id, hole);
+  const basePot = game.unitStake;
+
+  // Concession short-circuit: opponent wins base bet (no hammers, no multipliers).
+  if (concededBy === 'A' || concededBy === 'B') {
+    const winningTeam: 'A' | 'B' = concededBy === 'A' ? 'B' : 'A';
+    const isSolo = variant === 'lr' && (teams.teamA.length === 1 || teams.teamB.length === 1);
+    let soloPlayerId: string | undefined;
+    let pairPlayerIds: string[] | undefined;
+    if (isSolo) {
+      if (teams.teamA.length === 1) { soloPlayerId = teams.teamA[0]; pairPlayerIds = teams.teamB; }
+      else { soloPlayerId = teams.teamB[0]; pairPlayerIds = teams.teamA; }
+    }
+    return {
+      winningTeam,
+      lowBallPlayerIds: [],
+      potBeforeMultipliers: basePot,
+      potAfterMultipliers: basePot,
+      basePot,
+      hammerCount: 0,
+      isSolo,
+      soloPlayerId,
+      pairPlayerIds,
+    };
+  }
+
   const scores = round.scores[hole];
-  if (!holeData || !scores) return null;
+  if (!scores) return null;
 
   const allIds = [...teams.teamA, ...teams.teamB];
   const players = round.players.filter(p => allIds.includes(p.id));
@@ -195,8 +224,6 @@ export const calculateHammerHole = (
   const aLow = Math.min(...aNets.map(x => x.net));
   const bLow = Math.min(...bNets.map(x => x.net));
 
-  const { hammerCount } = getHammerHoleState(round.gameData, game.id, hole);
-  const basePot = game.unitStake;
   const potBeforeMultipliers = calculateHammerPot(basePot, hammerCount);
 
   let winningTeam: 'A' | 'B' | null = null;
@@ -335,10 +362,15 @@ export const calculateHammer = (round: Round, game: GameSettings): GameResult =>
       ? (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game))?.teamA || [])
       : (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game))?.teamB || []))
       .map(pid => round.players.find(p => p.id === pid)?.name || '?').join(' & ');
-    const multNote = result.potAfterMultipliers !== result.potBeforeMultipliers
-      ? ` (×${result.potAfterMultipliers / result.potBeforeMultipliers} bonus)` : '';
-    const hammerNote = result.hammerCount > 0 ? ` [${result.hammerCount} hammer]` : '';
-    details.push(`Hole ${h}: ${winnerNames} win $${result.potAfterMultipliers}${hammerNote}${multNote}`);
+    const { concededBy } = getHammerHoleState(round.gameData, game.id, h);
+    if (concededBy) {
+      details.push(`Hole ${h}: Team ${concededBy} conceded — ${winnerNames} win $${result.potAfterMultipliers}`);
+    } else {
+      const multNote = result.potAfterMultipliers !== result.potBeforeMultipliers
+        ? ` (×${result.potAfterMultipliers / result.potBeforeMultipliers} bonus)` : '';
+      const hammerNote = result.hammerCount > 0 ? ` [${result.hammerCount} hammer]` : '';
+      details.push(`Hole ${h}: ${winnerNames} win $${result.potAfterMultipliers}${hammerNote}${multNote}`);
+    }
   }
 
   return { gameId: game.id, playerResults: results, details, holeResults };
