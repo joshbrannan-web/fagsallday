@@ -362,10 +362,15 @@ export const calculateHammer = (round: Round, game: GameSettings): GameResult =>
       ? (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game))?.teamA || [])
       : (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game))?.teamB || []))
       .map(pid => round.players.find(p => p.id === pid)?.name || '?').join(' & ');
-    const multNote = result.potAfterMultipliers !== result.potBeforeMultipliers
-      ? ` (×${result.potAfterMultipliers / result.potBeforeMultipliers} bonus)` : '';
-    const hammerNote = result.hammerCount > 0 ? ` [${result.hammerCount} hammer]` : '';
-    details.push(`Hole ${h}: ${winnerNames} win $${result.potAfterMultipliers}${hammerNote}${multNote}`);
+    const { concededBy } = getHammerHoleState(round.gameData, game.id, h);
+    if (concededBy) {
+      details.push(`Hole ${h}: Team ${concededBy} conceded — ${winnerNames} win $${result.potAfterMultipliers}`);
+    } else {
+      const multNote = result.potAfterMultipliers !== result.potBeforeMultipliers
+        ? ` (×${result.potAfterMultipliers / result.potBeforeMultipliers} bonus)` : '';
+      const hammerNote = result.hammerCount > 0 ? ` [${result.hammerCount} hammer]` : '';
+      details.push(`Hole ${h}: ${winnerNames} win $${result.potAfterMultipliers}${hammerNote}${multNote}`);
+    }
   }
 
   return { gameId: game.id, playerResults: results, details, holeResults };
