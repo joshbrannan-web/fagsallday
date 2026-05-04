@@ -279,6 +279,32 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
 
 
 
+      {/* Concede confirmation */}
+      <AlertDialog open={!!concedeConfirm} onOpenChange={(o) => !o && setConcedeConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Team {concedeConfirm} concedes hole {activeHole}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Team {concedeConfirm === 'A' ? 'B' : 'A'} wins the original ${game.unitStake} bet.
+              No hammers or birdie/eagle multipliers will be applied.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (concedeConfirm) {
+                  onUpdateGameData(game.id, activeHole, { concededBy: concedeConfirm });
+                }
+                setConcedeConfirm(null);
+              }}
+            >
+              Confirm Concession
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Setup dialog */}
       <AlertDialog open={setupOpen} onOpenChange={(o) => !o && teams && setSetupOpen(false)}>
         <AlertDialogContent>
