@@ -27,9 +27,10 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
   const variant = getHammerVariant(game);
   const segLen = getHammerSegmentLength(game);
   const teams = getHammerHoleTeams(round.gameData, game.id, activeHole, variant, segLen);
-  const { hammerCount, lastThrownBy } = getHammerHoleState(round.gameData, game.id, activeHole);
+  const { hammerCount, lastThrownBy, concededBy } = getHammerHoleState(round.gameData, game.id, activeHole);
   const pot = calculateHammerPot(game.unitStake, hammerCount);
   const result = calculateHammerHole(round, game, activeHole);
+  const [concedeConfirm, setConcedeConfirm] = useState<'A' | 'B' | null>(null);
 
   const [setupOpen, setSetupOpen] = useState(false);
   const [draftA, setDraftA] = useState<string[]>([]);
