@@ -33,7 +33,7 @@ const GoogleSheetsCallback: React.FC = () => {
       }
 
       try {
-        const redirectUri = `${window.location.origin}${window.location.pathname}#/google-sheets-callback`;
+        const redirectUri = window.location.origin;
         
         const { data, error } = await supabase.functions.invoke('google-sheets-exchange', {
           body: { code, config_id: configId, redirect_uri: redirectUri },

@@ -154,7 +154,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
       toast.error('Google OAuth not configured');
       return;
     }
-    const redirectUri = `${window.location.origin}${window.location.pathname}#/google-sheets-callback`;
+    const redirectUri = window.location.origin;
     const state = btoa(JSON.stringify({ config_id: selectedConfig.id }));
     const scopes = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
     const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}&access_type=offline&prompt=consent`;

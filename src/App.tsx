@@ -694,8 +694,14 @@ const RedirectHandler: FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const redirect = params.get('redirect');
-    if (redirect) {
-      // Clean the URL
+    const code = params.get('code');
+    const state = params.get('state');
+
+    if (code && state) {
+      // Google OAuth callback landed on the root URL — forward into the hash router
+      window.history.replaceState({}, '', window.location.pathname);
+      navigate(`/google-sheets-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
+    } else if (redirect) {
       window.history.replaceState({}, '', window.location.pathname + window.location.hash);
       navigate(`/${redirect}`);
     }
