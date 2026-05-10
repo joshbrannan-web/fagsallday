@@ -1058,6 +1058,10 @@ export type Database = {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      decrement_sheet_row_index: {
+        Args: { p_above_row: number; p_config_id: string }
+        Returns: undefined
+      }
       generate_join_code: { Args: never; Returns: string }
       generate_registration_share_code: { Args: never; Returns: string }
       get_saved_players_with_profiles: {
