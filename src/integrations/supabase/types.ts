@@ -750,6 +750,8 @@ export type Database = {
       }
       tournament_registration_entries: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           config_id: string
           created_at: string
           email: string
@@ -761,9 +763,13 @@ export type Database = {
           payment_amount: number | null
           payment_confirmed: boolean
           phone: string | null
+          sheet_row_index: number | null
+          status: string
           user_id: string | null
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           config_id: string
           created_at?: string
           email: string
@@ -775,9 +781,13 @@ export type Database = {
           payment_amount?: number | null
           payment_confirmed?: boolean
           phone?: string | null
+          sheet_row_index?: number | null
+          status?: string
           user_id?: string | null
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           config_id?: string
           created_at?: string
           email?: string
@@ -789,6 +799,8 @@ export type Database = {
           payment_amount?: number | null
           payment_confirmed?: boolean
           phone?: string | null
+          sheet_row_index?: number | null
+          status?: string
           user_id?: string | null
         }
         Relationships: [
