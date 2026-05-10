@@ -30,6 +30,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<any>(null);
   const [creatingSheet, setCreatingSheet] = useState(false);
+  const [processingEntryId, setProcessingEntryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
@@ -160,6 +161,40 @@ const TournamentRegistrationAdmin: React.FC = () => {
     window.location.href = url;
   };
 
+  const handleApprove = async (entry: any) => {
+    setProcessingEntryId(entry.id);
+    try {
+      const { error } = await supabase.functions.invoke('approve-registration', {
+        body: { entry_id: entry.id, action: 'approve' },
+      });
+      if (error) throw error;
+      setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'approved' } : e));
+      toast.success(`${entry.full_name} approved and added to tournament`);
+    } catch (err: any) {
+      console.error('Approve error:', err);
+      toast.error('Failed to approve registration');
+    } finally {
+      setProcessingEntryId(null);
+    }
+  };
+
+  const handleReject = async (entry: any) => {
+    setProcessingEntryId(entry.id);
+    try {
+      const { error } = await supabase.functions.invoke('approve-registration', {
+        body: { entry_id: entry.id, action: 'reject' },
+      });
+      if (error) throw error;
+      setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'rejected' } : e));
+      toast.success(`${entry.full_name}'s registration rejected`);
+    } catch (err: any) {
+      console.error('Reject error:', err);
+      toast.error('Failed to reject registration');
+    } finally {
+      setProcessingEntryId(null);
+    }
+  };
+
   const handleCreateSheet = async () => {
     if (!user || !selectedConfig) return;
     setCreatingSheet(true);
@@ -266,7 +301,13 @@ const TournamentRegistrationAdmin: React.FC = () => {
             </CardContent>
           </Card>
 
-          <RegistrationEntryList entries={entries} isLoading={entriesLoading} />
+          <RegistrationEntryList
+            entries={entries}
+            isLoading={entriesLoading}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            processingId={processingEntryId}
+          />
         </div>
       </div>
     );
@@ -287,7 +328,11 @@ const TournamentRegistrationAdmin: React.FC = () => {
         </div>
 
         {showCreateForm && (
-          <RegistrationConfigForm onSubmit={handleCreate} isSubmitting={isSubmitting} />
+          <RegistrationConfigForm
+            onSubmit={handleCreate}
+            isSubmitting={isSubmitting}
+            onCreateSheet={selectedConfig?.google_refresh_token ? handleCreateSheet : handleConnectGoogle}
+          />
         )}
 
         {configs.length === 0 && !showCreateForm ? (

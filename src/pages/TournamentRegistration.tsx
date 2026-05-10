@@ -95,18 +95,17 @@ const TournamentRegistration: React.FC = () => {
         payment_amount: paymentAmount ? parseFloat(paymentAmount) : null,
       };
 
-      const { error } = await supabase
+      const { data: insertedEntry, error } = await supabase
         .from('tournament_registration_entries')
-        .insert(entry);
+        .insert(entry)
+        .select('id')
+        .single();
 
       if (error) throw error;
 
-      // Sync to Google Sheets (fire-and-forget)
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      fetch(`https://${projectId}.supabase.co/functions/v1/sync-registration-to-sheets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config_id: config.id, entry }),
+      // Sync to Google Sheets — pass the entry id so the edge function can save sheet_row_index
+      supabase.functions.invoke('sync-registration-to-sheets', {
+        body: { config_id: config.id, entry: { ...entry, id: insertedEntry.id } },
       }).catch(err => console.warn('Sheet sync failed:', err));
 
       setSubmitted(true);
@@ -147,9 +146,9 @@ const TournamentRegistration: React.FC = () => {
         <Card className="max-w-md w-full text-center">
           <CardContent className="py-12 space-y-4">
             <CheckCircle2 className="w-16 h-16 mx-auto text-[hsl(var(--success))]" />
-            <h2 className="text-xl font-bold">You're Registered!</h2>
+            <h2 className="text-xl font-bold">You're on the List!</h2>
             <p className="text-muted-foreground">
-              Your registration for <strong>{config.name}</strong> has been submitted.
+              Your registration for <strong>{config.name}</strong> has been received and is pending approval. The tournament admin will review your registration and add you to the tournament once approved.
             </p>
             {config.venmo_link && !paymentConfirmed && (
               <div className="pt-2">

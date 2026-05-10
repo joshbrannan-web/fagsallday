@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Sheet, SkipForward } from 'lucide-react';
 
 interface RegistrationConfigFormProps {
   onSubmit: (config: {
@@ -18,9 +18,10 @@ interface RegistrationConfigFormProps {
     venmo_link: string;
   }) => Promise<void>;
   isSubmitting: boolean;
+  onCreateSheet?: () => void;
 }
 
-const RegistrationConfigForm: React.FC<RegistrationConfigFormProps> = ({ onSubmit, isSubmitting }) => {
+const RegistrationConfigForm: React.FC<RegistrationConfigFormProps> = ({ onSubmit, isSubmitting, onCreateSheet }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
@@ -28,6 +29,7 @@ const RegistrationConfigForm: React.FC<RegistrationConfigFormProps> = ({ onSubmi
   const [amount, setAmount] = useState('');
   const [amountLabel, setAmountLabel] = useState('Deposit');
   const [venmoLink, setVenmoLink] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +42,7 @@ const RegistrationConfigForm: React.FC<RegistrationConfigFormProps> = ({ onSubmi
       amount_label: amountLabel,
       venmo_link: venmoLink.trim().match(/^https?:\/\//) ? venmoLink.trim() : `https://${venmoLink.trim()}`,
     });
+    if (onCreateSheet) setSubmitted(true);
   };
 
   const isValid = name.trim() && location.trim() && eventDates.trim() && venmoLink.trim() && parseFloat(amount) > 0;
@@ -93,9 +96,27 @@ const RegistrationConfigForm: React.FC<RegistrationConfigFormProps> = ({ onSubmi
             <Input id="reg-venmo" value={venmoLink} onChange={e => setVenmoLink(e.target.value)} placeholder="https://venmo.com/u/YourUsername" maxLength={300} />
           </div>
 
-          <Button type="submit" className="w-full" disabled={!isValid || isSubmitting}>
-            {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Creating...</> : 'Create Registration Page'}
-          </Button>
+          {!submitted ? (
+            <Button type="submit" className="w-full" disabled={!isValid || isSubmitting}>
+              {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Creating...</> : 'Create Registration Page'}
+            </Button>
+          ) : (
+            <div className="space-y-3 pt-2 border-t">
+              <p className="text-sm text-muted-foreground text-center">
+                Registration page created! Would you like to set up a Google Sheet to track registrations?
+              </p>
+              <div className="flex gap-2">
+                {onCreateSheet && (
+                  <Button type="button" variant="outline" className="flex-1" onClick={onCreateSheet}>
+                    <Sheet className="w-4 h-4 mr-2" /> Create Google Sheet
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" className="flex-1" onClick={() => setSubmitted(false)}>
+                  <SkipForward className="w-4 h-4 mr-2" /> Skip for Now
+                </Button>
+              </div>
+            </div>
+          )}
         </form>
       </CardContent>
     </Card>
