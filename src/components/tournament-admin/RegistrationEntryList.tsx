@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react';
 
 interface Entry {
   id: string;
@@ -23,6 +23,7 @@ interface RegistrationEntryListProps {
   isLoading: boolean;
   onApprove?: (entry: Entry) => Promise<void>;
   onReject?: (entry: Entry) => Promise<void>;
+  onDelete?: (entry: Entry) => Promise<void>;
   processingId?: string | null;
 }
 
@@ -41,6 +42,7 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
   isLoading,
   onApprove,
   onReject,
+  onDelete,
   processingId,
 }) => {
   if (isLoading) {
@@ -88,7 +90,7 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                 <TableHead>Payment</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
-                {(onApprove || onReject) && <TableHead className="text-right">Actions</TableHead>}
+                {(onApprove || onReject || onDelete) && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -117,40 +119,49 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {new Date(entry.created_at).toLocaleDateString()}
                     </TableCell>
-                    {(onApprove || onReject) && (
+                    {(onApprove || onReject || onDelete) && (
                       <TableCell className="text-right">
-                        {isPending && (
-                          <div className="flex items-center justify-end gap-1">
-                            {isProcessing ? (
-                              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                            ) : (
-                              <>
-                                {onApprove && (
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 text-[hsl(var(--success))] hover:text-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/10"
-                                    onClick={() => onApprove(entry)}
-                                    title="Approve"
-                                  >
-                                    <CheckCircle2 className="w-4 h-4" />
-                                  </Button>
-                                )}
-                                {onReject && (
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    onClick={() => onReject(entry)}
-                                    title="Reject"
-                                  >
-                                    <XCircle className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex items-center justify-end gap-1">
+                          {isProcessing ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                          ) : (
+                            <>
+                              {isPending && onApprove && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-[hsl(var(--success))] hover:text-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/10"
+                                  onClick={() => onApprove(entry)}
+                                  title="Approve"
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {isPending && onReject && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => onReject(entry)}
+                                  title="Reject"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {onDelete && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => onDelete(entry)}
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>

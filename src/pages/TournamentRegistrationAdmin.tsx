@@ -195,6 +195,24 @@ const TournamentRegistrationAdmin: React.FC = () => {
     }
   };
 
+  const handleDelete = async (entry: any) => {
+    if (!confirm(`Delete ${entry.full_name}'s registration? This cannot be undone.`)) return;
+    setProcessingEntryId(entry.id);
+    try {
+      const { error } = await supabase.functions.invoke('delete-registration', {
+        body: { entry_id: entry.id },
+      });
+      if (error) throw error;
+      setEntries(prev => prev.filter(e => e.id !== entry.id));
+      toast.success(`${entry.full_name}'s registration deleted`);
+    } catch (err: any) {
+      console.error('Delete error:', err);
+      toast.error('Failed to delete registration');
+    } finally {
+      setProcessingEntryId(null);
+    }
+  };
+
   const handleCreateSheet = async () => {
     if (!user || !selectedConfig) return;
     setCreatingSheet(true);
@@ -306,6 +324,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
             isLoading={entriesLoading}
             onApprove={handleApprove}
             onReject={handleReject}
+            onDelete={handleDelete}
             processingId={processingEntryId}
           />
         </div>
