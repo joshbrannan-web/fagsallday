@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     if (!config?.google_sheet_id) return new Response(JSON.stringify({ skipped: true, reason: "No sheet configured" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     if (!config.google_refresh_token) return new Response(JSON.stringify({ skipped: true, reason: "No Google auth token" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const accessToken = await getAccessTokenFromRefresh(config.google_refresh_token);
-    const row = [entry.id || "", "Person", entry.full_name || "", entry.email || "", entry.phone || "", entry.handicap_index != null ? String(entry.handicap_index) : "", entry.ghin_number || "", entry.payment_amount != null ? String(entry.payment_amount) : "", entry.payment_confirmed ? "Yes" : "No", new Date().toISOString()];
+    const row = [entry.id || "", "Pending", entry.full_name || "", entry.email || "", entry.phone || "", entry.handicap_index != null ? String(entry.handicap_index) : "", entry.ghin_number || "", entry.payment_amount != null ? String(entry.payment_amount) : "", entry.payment_confirmed ? "Yes" : "No", new Date().toISOString()];
     const appendRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${config.google_sheet_id}/values/Registrations!A:J:append?valueInputOption=USER_ENTERED`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
