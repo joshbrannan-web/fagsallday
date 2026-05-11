@@ -84,6 +84,7 @@ const TournamentRegistration: React.FC = () => {
     setSubmitting(true);
     try {
       const entry = {
+        id: crypto.randomUUID(),
         config_id: config.id,
         user_id: user?.id || null,
         full_name: trimmedName,
@@ -95,17 +96,15 @@ const TournamentRegistration: React.FC = () => {
         payment_amount: paymentAmount ? parseFloat(paymentAmount) : null,
       };
 
-      const { data: insertedEntry, error } = await supabase
+      const { error } = await supabase
         .from('tournament_registration_entries')
-        .insert(entry)
-        .select('id')
-        .single();
+        .insert(entry);
 
       if (error) throw error;
 
       // Sync to Google Sheets — pass the entry id so the edge function can save sheet_row_index
       supabase.functions.invoke('sync-registration-to-sheets', {
-        body: { config_id: config.id, entry: { ...entry, id: insertedEntry.id } },
+        body: { config_id: config.id, entry },
       }).catch(err => console.warn('Sheet sync failed:', err));
 
       setSubmitted(true);

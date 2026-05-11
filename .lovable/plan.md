@@ -1,17 +1,49 @@
-## Problem
+# Fix "Failed to Submit Registration"
 
-Deleting a registrant fails because the `delete-registration` edge function is returning **404 Not Found**. The function source exists at `supabase/functions/delete-registration/index.ts`, but it has never been deployed (confirmed via edge logs — only OPTIONS preflight requests, all 404).
+## Root cause
 
-The frontend code (`TournamentRegistrationAdmin.tsx` → `handleDelete`) and the function source itself are both correct. The only issue is deployment.
+Database logs confirm every submission fails with:
 
-## Plan
+> new row violates row-level security policy for table "tournament_registration_entries"
 
-1. Deploy the `delete-registration` edge function so it's available at `/functions/v1/delete-registration`.
-2. Verify by calling it once via the curl tool to confirm a non-404 response.
-3. As a small UX upgrade, replace the native `confirm(...)` in `handleDelete` with the project's standard `AlertDialog` pattern (per project memory: "Use AlertDialog over window confirm"). Optional — can skip if you'd rather keep this minimal.
+The `INSERT` policy itself (`Anyone can register`, WITH CHECK `true`) allows the write, but the client calls:
 
-## Technical notes
+```ts
+.insert(entry).select('id').single()
+```
 
-- Root cause confirmed via `function_edge_logs`: every request to `delete-registration` returns 404, including OPTIONS preflight, which means the function isn't deployed.
-- The required secrets (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`) are all already configured.
-- The DB function `decrement_sheet_row_index` it depends on already exists.
+`INSERT … RETURNING` re‑applies the table's `SELECT` policies to the returned row. The only SELECT policy on `tournament_registration_entries` is "Creator can read registration entries" (config owner only). A registrant — especially an anonymous one — does not satisfy it, so Postgres rejects the row with the RLS error above.
+
+## Fix
+
+Generate the entry id on the client and drop the `.select().single()` call so no row needs to be returned.
+
+### Change in `src/pages/TournamentRegistration.tsx` (`handleSubmit`)
+
+```ts
+const newId = crypto.randomUUID();
+const entry = {
+  id: newId,
+  config_id: config.id,
+  user_id: user?.id || null,
+  // ...rest unchanged
+};
+
+const { error } = await supabase
+  .from('tournament_registration_entries')
+  .insert(entry);
+
+if (error) throw error;
+
+supabase.functions.invoke('sync-registration-to-sheets', {
+  body: { config_id: config.id, entry },
+}).catch(err => console.warn('Sheet sync failed:', err));
+```
+
+No DB / RLS changes needed — the existing "Anyone can register" INSERT policy is correct, and we keep registrants from being able to read other entries.
+
+## Verification
+
+1. Open the public registration page while logged out (and again while logged in as a non‑creator).
+2. Submit the form — toast should show "Registration submitted!" and the success card should render.
+3. Confirm the new row appears in the admin Registration list and in the Google Sheet (sync still receives the same `entry.id`).
