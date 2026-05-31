@@ -44,6 +44,7 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
   onApprove,
   onReject,
   onDelete,
+  onSyncToSheet,
   processingId,
 }) => {
   if (isLoading) {
