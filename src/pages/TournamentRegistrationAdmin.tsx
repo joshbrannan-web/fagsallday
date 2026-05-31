@@ -458,9 +458,67 @@ const TournamentRegistrationAdmin: React.FC = () => {
             processingId={processingEntryId}
           />
         </div>
+
+        {/* Relink tournament confirmation */}
+        <AlertDialog open={!!pendingTournamentChange} onOpenChange={(open) => !open && !relinking && setPendingTournamentChange(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Move approved registrants?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingTournamentChange?.approvedCount} approved registrant(s) will be removed from{' '}
+                <strong>{pendingTournamentChange?.oldName}</strong> and added to{' '}
+                <strong>{pendingTournamentChange?.newName}</strong>. Any team, group, and score data in the
+                previous tournament will be deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={relinking}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => { e.preventDefault(); confirmRelink(); }}
+                disabled={relinking}
+              >
+                {relinking ? 'Moving…' : 'Move registrants'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete approved entry — choose mode */}
+        <AlertDialog open={!!entryToDelete} onOpenChange={(open) => !open && !processingEntryId && setEntryToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {entryToDelete?.full_name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This registrant is approved and linked to a tournament. Choose how to delete:
+                <br /><br />
+                <strong>Delete Registrant Only</strong> — removes the registration entry only. Keeps tournament player, team assignment, and scores intact.
+                <br /><br />
+                <strong>Delete Registrant + Tournament Data</strong> — also removes the player from the tournament, including their team assignment and all scores. Use only mid-tournament when you need to fully remove a player.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <AlertDialogCancel disabled={!!processingEntryId}>Cancel</AlertDialogCancel>
+              <Button
+                variant="outline"
+                disabled={!!processingEntryId}
+                onClick={() => entryToDelete && performDelete(entryToDelete, 'entry_only')}
+              >
+                Delete Registrant Only
+              </Button>
+              <Button
+                disabled={!!processingEntryId}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => entryToDelete && performDelete(entryToDelete, 'entry_and_tournament')}
+              >
+                Delete Registrant + Tournament Data
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
+
 
   // List view
   return (
