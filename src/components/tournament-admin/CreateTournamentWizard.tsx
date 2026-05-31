@@ -16,6 +16,8 @@ const STEPS = ['Basic Info', 'Teams', 'Players', 'Rounds', 'Review'];
 
 const CreateTournamentWizard: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const linkConfigId = searchParams.get('linkConfigId');
   const { createTournament } = useTournaments();
   const [step, setStep] = useState(0);
   const [publishing, setPublishing] = useState(false);
