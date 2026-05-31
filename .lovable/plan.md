@@ -1,61 +1,44 @@
 ## Goal
 
-When someone submits the public Tournament Registration form and the email is not yet tied to a fagsallday.com account, automatically:
+1. After a player clicks **Submit Registration**, show a popup: *"You have Registered, you will receive an email with instructions."*
+2. Always send a **registration confirmation email** containing:
+   - "Congratulations, you have registered for **{Tournament Name}**."
+   - "If you haven't already, please submit payment to {Venmo link}."
+   - "Once confirmed you'll get an email from the Tournament Masters that you are all set."
+3. **Existing accounts (matched by email):** receive the registration email only.
+4. **Newly created accounts:** receive ONE combined email — the existing Welcome / Set‑Password content **plus** the registration confirmation section above. Never two emails.
 
-1. Create a Supabase Auth user with that email.
-2. Seed their `profiles` row with `display_name`, `handicap_index`, and (if provided) `ghin_number` / `ghin_last_synced` from the registration form.
-3. Send a branded welcome email containing a one-time link that lets them set their password and land in the app.
-4. Link the new `auth.users.id` back onto the `tournament_registration_entries` row so the existing approval / sync-to-tournament flow associates the entry with the real user.
+## Frontend — `src/pages/TournamentRegistration.tsx`
 
-If the email already maps to an existing account, skip user creation and skip the welcome email — just stamp `user_id` on the entry.
+- Replace the current inline "submitted" view swap with an `AlertDialog` modal that opens on successful `submit-tournament-registration` response.
+  - Title: **You have Registered**
+  - Body: *"You will receive an email with instructions."*
+  - Single action button: **Close** → routes back to home (or to `/` / tournament list, matching today's behavior).
+- Keep validation, error toasts, and Venmo button on the form itself untouched.
 
-## What you may be missing
+## Edge function — `supabase/functions/submit-tournament-registration/index.ts`
 
-- **Duplicate email handling.** Re-registering with an existing email must NOT create a second account or re-trigger the welcome email (abuse + confusion). Plan: look up by email, link entry to existing `user_id`, send nothing.
-- **Profile fields beyond handicap.** Carry over `display_name` (from Full Name), `handicap_index`, and `ghin_number` + `ghin_last_synced` (when the GHIN dropdown was used). Phone is not on `profiles` today — out of scope unless you want a schema change.
-- **Where the "set password" link lands.** Auth.tsx already handles `type=recovery` and shows a "set new password" form. We will generate a `recovery` link (via Supabase Admin `generateLink`) pointing to `${origin}/#/auth` so users hit the existing flow with no new page needed.
-- **Server-side only.** The current insert into `tournament_registration_entries` happens client-side with the anon key. Account creation requires the service role, so it must run in an Edge Function. We'll move the entry insert into a new public Edge Function so the whole thing is one atomic, rate-limited server call.
-- **Avoiding email-enumeration & abuse.** The new Edge Function will be rate-limited per IP and per email (same pattern as `send-welcome-email` / `generate-reset-link`).
-- **Approval flow continuity.** `sync-approved-to-tournament` already reads `user_id` off the entry — once we backfill it during registration, no change is needed there.
+- After resolving `configId`, fetch from `tournament_registration_configs`: `name`, `venmo_link`, `amount`, `amount_label` (pass these to email rendering). Pass these in the request body from the client so we avoid an extra DB read; if not present, fall back to a server-side `select`.
+- Build a reusable `registrationBlock` HTML snippet:
+  ```
+  Congratulations, you have registered for <strong>{tournamentName}</strong>.
+  If you haven't already, please submit your {amount_label} of ${amount} via Venmo:
+  [Pay via Venmo] (button → venmo_link)
+  Once confirmed, you'll get an email from the Tournament Masters that you're all set.
+  ```
+  Only render the Venmo button when `venmo_link` exists.
+- Email branching:
+  - **`accountCreated === true`:** Replace today's welcome-email body so it contains BOTH the existing "Welcome / Set Your Password" block AND the `registrationBlock`. Subject: *"Welcome to F&Gs All Day — you're registered for {Tournament Name}"*. One email only.
+  - **`accountCreated === false` (existing user):** Send a new email using only the `registrationBlock` (no password-set CTA). Subject: *"You're registered for {Tournament Name}"*. From the same `noreply@fagsallday.com` sender via Resend.
+- Keep the existing rate-limit + Sheets sync flow. Failures to send email continue to be logged but do not fail the registration.
 
-## Implementation
+## Out of scope
 
-### New Edge Function: `submit-tournament-registration` (public, `verify_jwt = false`)
+- No DB schema changes.
+- No change to the admin "approval" email — that remains the "Tournament Masters" follow-up the copy alludes to.
+- No change to phone formatting / GHIN sync paths.
 
-Inputs: full entry payload + `origin` (for the link host).
+## Files
 
-Flow:
-1. Validate payload (Zod-style guards — name/email length, GHIN regex, handicap range).
-2. Per-IP + per-email rate limit (in-memory, mirror `send-welcome-email`).
-3. Insert the row into `tournament_registration_entries` using the service-role client.
-4. Look up `auth.users` by email via `admin.listUsers({ email })`.
-   - **Found:** set `entry.user_id = existing.id` and return success. No email sent.
-   - **Not found:**
-     a. `admin.createUser({ email, email_confirm: true, user_metadata: { display_name, handicap_index } })` — the existing `handle_new_user` trigger creates the `profiles` row with display name + handicap.
-     b. If GHIN was provided, `profiles.update({ ghin_number, ghin_last_synced })` for the new user.
-     c. `admin.generateLink({ type: 'recovery', email, options: { redirectTo: '${origin}/#/auth' } })` to get a password-set URL.
-     d. Send welcome email via Resend (reuse template style from `send-welcome-email`) with subject "Welcome to FagsAllDay — set your password" and a CTA pointing to the recovery link.
-     e. Update the entry row with `user_id = new.id`.
-5. Fire-and-forget the existing Google Sheets sync (`sync-registration-to-sheets`).
-6. Return `{ ok: true, accountCreated: boolean }`.
-
-### Frontend: `src/pages/TournamentRegistration.tsx`
-
-- Replace the direct `supabase.from('tournament_registration_entries').insert(...)` + sheets-invoke block with a single `supabase.functions.invoke('submit-tournament-registration', { body: { entry, origin: window.location.origin } })`.
-- Confirmation screen wording: if `accountCreated`, add a line — "We've also created your FagsAllDay account — check your email to set a password."
-
-### No DB migration required.
-
-`profiles` already has `display_name`, `handicap_index`, `ghin_number`, `ghin_last_synced`. `tournament_registration_entries.user_id` already exists and is what the approval flow consumes.
-
-### Files
-
-- New: `supabase/functions/submit-tournament-registration/index.ts`
-- Edit: `supabase/config.toml` — add `[functions.submit-tournament-registration] verify_jwt = false`
-- Edit: `src/pages/TournamentRegistration.tsx` — swap insert for function invoke; tweak confirmation message.
-
-### Out of scope (call out, don't build)
-
-- Persisting phone to the user's profile (no column today).
-- Welcome-email branding/templating beyond reusing the existing Resend pattern.
-- Auto-confirming the email at sign-in time — `email_confirm: true` on createUser means the recovery link logs them straight in to set a password, no separate verification email.
+- Edit: `src/pages/TournamentRegistration.tsx` (popup + pass tournament_name/venmo/amount in invoke body).
+- Edit: `supabase/functions/submit-tournament-registration/index.ts` (registration email for existing users, merged welcome+registration for new users, fetch/accept config fields).
