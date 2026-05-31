@@ -1,50 +1,61 @@
 ## Goal
 
-On the public Tournament Registration page (`src/pages/TournamentRegistration.tsx`):
+When someone submits the public Tournament Registration form and the email is not yet tied to a fagsallday.com account, automatically:
 
-1. Replace the separate "Handicap Index" and "GHIN #" fields with a single **Handicap** section that has a dropdown selector: **GHIN** or **Manual**.
-2. Format the **Phone** field as a US phone number and cap entry at 10 digits.
+1. Create a Supabase Auth user with that email.
+2. Seed their `profiles` row with `display_name`, `handicap_index`, and (if provided) `ghin_number` / `ghin_last_synced` from the registration form.
+3. Send a branded welcome email containing a one-time link that lets them set their password and land in the app.
+4. Link the new `auth.users.id` back onto the `tournament_registration_entries` row so the existing approval / sync-to-tournament flow associates the entry with the real user.
 
-## UI Changes — `src/pages/TournamentRegistration.tsx`
+If the email already maps to an existing account, skip user creation and skip the welcome email — just stamp `user_id` on the entry.
 
-Remove the existing 2-column grid containing `r-hcp` and `r-ghin`. Replace with:
+## What you may be missing
 
-- A **Handicap Source** `<Select>` with two options: `GHIN` (default) and `Manual`.
-- If **GHIN** selected:
-  - `Input` for GHIN # (5–9 digits) + a **Sync** button.
-  - Clicking Sync calls the GHIN lookup (see backend below). On success, populates a read-only handicap display and stores both `ghinNumber` and `handicapIndex` in form state.
-  - Last-synced timestamp shown inline on success.
-- If **Manual** selected:
-  - `Input` (number, step 0.1, range -10 to 54) for handicap index. `ghinNumber` is cleared.
+- **Duplicate email handling.** Re-registering with an existing email must NOT create a second account or re-trigger the welcome email (abuse + confusion). Plan: look up by email, link entry to existing `user_id`, send nothing.
+- **Profile fields beyond handicap.** Carry over `display_name` (from Full Name), `handicap_index`, and `ghin_number` + `ghin_last_synced` (when the GHIN dropdown was used). Phone is not on `profiles` today — out of scope unless you want a schema change.
+- **Where the "set password" link lands.** Auth.tsx already handles `type=recovery` and shows a "set new password" form. We will generate a `recovery` link (via Supabase Admin `generateLink`) pointing to `${origin}/#/auth` so users hit the existing flow with no new page needed.
+- **Server-side only.** The current insert into `tournament_registration_entries` happens client-side with the anon key. Account creation requires the service role, so it must run in an Edge Function. We'll move the entry insert into a new public Edge Function so the whole thing is one atomic, rate-limited server call.
+- **Avoiding email-enumeration & abuse.** The new Edge Function will be rate-limited per IP and per email (same pattern as `send-welcome-email` / `generate-reset-link`).
+- **Approval flow continuity.** `sync-approved-to-tournament` already reads `user_id` off the entry — once we backfill it during registration, no change is needed there.
 
-When the user is already logged in and the profile auto-fill loads a GHIN # + handicap, default the selector to **GHIN** and prefill both; otherwise default to **GHIN** with empty fields. Submission payload to `tournament_registration_entries` keeps the same `handicap_index` and `ghin_number` columns — only the input UX changes.
+## Implementation
 
-### Phone formatting
+### New Edge Function: `submit-tournament-registration` (public, `verify_jwt = false`)
 
-- Strip non-digits on each keystroke, cap at 10 digits, and display as `(XXX) XXX-XXXX` (partial masks while typing: `(XX`, `(XXX) XX`, etc.).
-- Persist only the formatted string (matches current free-text column). `maxLength` becomes 14 (formatted length).
+Inputs: full entry payload + `origin` (for the link host).
 
-## Backend — GHIN lookup for anonymous users
+Flow:
+1. Validate payload (Zod-style guards — name/email length, GHIN regex, handicap range).
+2. Per-IP + per-email rate limit (in-memory, mirror `send-welcome-email`).
+3. Insert the row into `tournament_registration_entries` using the service-role client.
+4. Look up `auth.users` by email via `admin.listUsers({ email })`.
+   - **Found:** set `entry.user_id = existing.id` and return success. No email sent.
+   - **Not found:**
+     a. `admin.createUser({ email, email_confirm: true, user_metadata: { display_name, handicap_index } })` — the existing `handle_new_user` trigger creates the `profiles` row with display name + handicap.
+     b. If GHIN was provided, `profiles.update({ ghin_number, ghin_last_synced })` for the new user.
+     c. `admin.generateLink({ type: 'recovery', email, options: { redirectTo: '${origin}/#/auth' } })` to get a password-set URL.
+     d. Send welcome email via Resend (reuse template style from `send-welcome-email`) with subject "Welcome to FagsAllDay — set your password" and a CTA pointing to the recovery link.
+     e. Update the entry row with `user_id = new.id`.
+5. Fire-and-forget the existing Google Sheets sync (`sync-registration-to-sheets`).
+6. Return `{ ok: true, accountCreated: boolean }`.
 
-The existing `sync-ghin-handicap` edge function **requires a logged-in JWT** and writes to `profiles`. The registration page is public (users may not be signed in), so we need a public lookup path.
+### Frontend: `src/pages/TournamentRegistration.tsx`
 
-Add a new edge function **`lookup-ghin-handicap`**:
+- Replace the direct `supabase.from('tournament_registration_entries').insert(...)` + sheets-invoke block with a single `supabase.functions.invoke('submit-tournament-registration', { body: { entry, origin: window.location.origin } })`.
+- Confirmation screen wording: if `accountCreated`, add a line — "We've also created your FagsAllDay account — check your email to set a password."
 
-- Public (no JWT required); configured with `verify_jwt = false` in `supabase/config.toml`.
-- Input: `{ ghin_number: string }`.
-- Performs the same GHIN API call as `sync-ghin-handicap` (reuse the lookup logic) and returns `{ handicap_index, full_name?, club? }`. **Does not** read or write any DB rows.
-- Rate-limited by client IP (e.g. 10/hour) using the same in-memory pattern.
-- CORS headers identical to other public functions.
+### No DB migration required.
 
-The registration page's Sync button invokes this function via `supabase.functions.invoke('lookup-ghin-handicap', { body: { ghin_number } })`. No anon key handling beyond the default client.
+`profiles` already has `display_name`, `handicap_index`, `ghin_number`, `ghin_last_synced`. `tournament_registration_entries.user_id` already exists and is what the approval flow consumes.
 
-## Technical Details
+### Files
 
-- Files edited:
-  - `src/pages/TournamentRegistration.tsx` — form refactor, phone formatter helper, new state (`hcpSource: 'ghin' | 'manual'`, `ghinSyncing`, `ghinSyncedAt`).
-  - `supabase/config.toml` — add `[functions.lookup-ghin-handicap] verify_jwt = false`.
-- Files created:
-  - `supabase/functions/lookup-ghin-handicap/index.ts` — extracted public GHIN lookup.
-- No database migrations. No changes to admin pages, approval flow, or sheet sync — `handicap_index` and `ghin_number` fields on `tournament_registration_entries` are unchanged.
-- Validation: GHIN must match `/^\d{5,9}$/` before Sync is enabled; Manual handicap kept in the existing -10..54 range.
-- Phone helper: pure function `formatPhone(raw: string): string` (cap 10 digits, mask as US format).
+- New: `supabase/functions/submit-tournament-registration/index.ts`
+- Edit: `supabase/config.toml` — add `[functions.submit-tournament-registration] verify_jwt = false`
+- Edit: `src/pages/TournamentRegistration.tsx` — swap insert for function invoke; tweak confirmation message.
+
+### Out of scope (call out, don't build)
+
+- Persisting phone to the user's profile (no column today).
+- Welcome-email branding/templating beyond reusing the existing Resend pattern.
+- Auto-confirming the email at sign-in time — `email_confirm: true` on createUser means the recovery link logs them straight in to set a password, no separate verification email.
