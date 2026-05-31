@@ -354,6 +354,20 @@ const TournamentRegistration: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>You have Registered</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will receive an email with instructions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => navigate('/')}>Close</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
