@@ -149,21 +149,20 @@ const TournamentRegistration: React.FC = () => {
         payment_amount: paymentAmount ? parseFloat(paymentAmount) : null,
       };
 
-      const { error } = await supabase
-        .from('tournament_registration_entries')
-        .insert(entry);
+      const { data, error } = await supabase.functions.invoke('submit-tournament-registration', {
+        body: { entry, origin: window.location.origin },
+      });
 
-      if (error) throw error;
+      if (error || (data && data.error)) {
+        throw new Error(data?.error || error?.message || 'Submission failed');
+      }
 
-      supabase.functions.invoke('sync-registration-to-sheets', {
-        body: { config_id: config.id, entry },
-      }).catch(err => console.warn('Sheet sync failed:', err));
-
+      setAccountCreated(!!data?.accountCreated);
       setSubmitted(true);
       toast.success('Registration submitted!');
     } catch (err: any) {
       console.error('Registration error:', err);
-      toast.error('Failed to submit registration');
+      toast.error(err?.message || 'Failed to submit registration');
     } finally {
       setSubmitting(false);
     }
