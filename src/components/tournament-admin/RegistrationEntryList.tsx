@@ -92,7 +92,7 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                 <TableHead>Payment</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
-                {(onApprove || onReject || onDelete) && <TableHead className="text-right">Actions</TableHead>}
+                {(onApprove || onReject || onDelete || onSyncToSheet) && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
