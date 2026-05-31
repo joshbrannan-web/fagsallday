@@ -30,6 +30,7 @@ const TournamentRegistration: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
