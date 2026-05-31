@@ -30,6 +30,7 @@ const TournamentRegistration: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -149,21 +150,20 @@ const TournamentRegistration: React.FC = () => {
         payment_amount: paymentAmount ? parseFloat(paymentAmount) : null,
       };
 
-      const { error } = await supabase
-        .from('tournament_registration_entries')
-        .insert(entry);
+      const { data, error } = await supabase.functions.invoke('submit-tournament-registration', {
+        body: { entry, origin: window.location.origin },
+      });
 
-      if (error) throw error;
+      if (error || (data && data.error)) {
+        throw new Error(data?.error || error?.message || 'Submission failed');
+      }
 
-      supabase.functions.invoke('sync-registration-to-sheets', {
-        body: { config_id: config.id, entry },
-      }).catch(err => console.warn('Sheet sync failed:', err));
-
+      setAccountCreated(!!data?.accountCreated);
       setSubmitted(true);
       toast.success('Registration submitted!');
     } catch (err: any) {
       console.error('Registration error:', err);
-      toast.error('Failed to submit registration');
+      toast.error(err?.message || 'Failed to submit registration');
     } finally {
       setSubmitting(false);
     }
@@ -201,6 +201,11 @@ const TournamentRegistration: React.FC = () => {
             <p className="text-muted-foreground">
               Your registration for <strong>{config.name}</strong> has been received and is pending approval. The tournament admin will review your registration and add you to the tournament once approved.
             </p>
+            {accountCreated && (
+              <p className="text-sm text-muted-foreground">
+                We've also created your F&Gs All Day account — check your email for a link to set your password.
+              </p>
+            )}
             {config.venmo_link && !paymentConfirmed && (
               <div className="pt-2">
                 <p className="text-sm text-muted-foreground mb-2">
