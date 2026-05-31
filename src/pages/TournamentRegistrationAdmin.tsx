@@ -428,6 +428,15 @@ const TournamentRegistrationAdmin: React.FC = () => {
                     {syncingAll ? 'Syncing…' : 'Sync all approved to tournament'}
                   </Button>
                 )}
+                {!selectedConfig.tournament_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/tournament-admin/create?linkConfigId=${selectedConfig.id}`)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" /> Create Tournament
+                  </Button>
+                )}
               </div>
 
 

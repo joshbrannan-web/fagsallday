@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,6 +16,8 @@ const STEPS = ['Basic Info', 'Teams', 'Players', 'Rounds', 'Review'];
 
 const CreateTournamentWizard: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const linkConfigId = searchParams.get('linkConfigId');
   const { createTournament } = useTournaments();
   const [step, setStep] = useState(0);
   const [publishing, setPublishing] = useState(false);
@@ -113,6 +116,26 @@ const CreateTournamentWizard: React.FC = () => {
     setPublishing(false);
     if (joinCode) {
       toast.success(`Tournament created! Join code: ${joinCode}`);
+      if (linkConfigId) {
+        const { data: newT } = await supabase
+          .from('tournaments')
+          .select('id')
+          .eq('join_code', joinCode)
+          .maybeSingle();
+        if (newT?.id) {
+          const { error: linkErr } = await supabase
+            .from('tournament_registration_configs')
+            .update({ tournament_id: newT.id })
+            .eq('id', linkConfigId);
+          if (linkErr) {
+            toast.error('Tournament created, but failed to link to registration');
+          } else {
+            toast.success('Linked to registration');
+          }
+        }
+        navigate(`/tournament-admin/registrations/${linkConfigId}`);
+        return;
+      }
       navigate('/tournament-admin');
     }
   };
