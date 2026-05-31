@@ -1,44 +1,29 @@
-## Goal
+## Why "Test person" wasn't synced
 
-1. After a player clicks **Submit Registration**, show a popup: *"You have Registered, you will receive an email with instructions."*
-2. Always send a **registration confirmation email** containing:
-   - "Congratulations, you have registered for **{Tournament Name}**."
-   - "If you haven't already, please submit payment to {Venmo link}."
-   - "Once confirmed you'll get an email from the Tournament Masters that you are all set."
-3. **Existing accounts (matched by email):** receive the registration email only.
-4. **Newly created accounts:** receive ONE combined email — the existing Welcome / Set‑Password content **plus** the registration confirmation section above. Never two emails.
+I confirmed the problem against the live data:
 
-## Frontend — `src/pages/TournamentRegistration.tsx`
+- The registration entry exists (`74c61cb8-...`, status `approved`) but its `sheet_row_index` is `NULL`, meaning the row was never appended to the Google Sheet.
+- The config has both a `google_sheet_id` and a valid `google_refresh_token`, so credentials are fine.
+- The `sync-registration-to-sheets` edge function has **zero log entries** — it was never invoked.
 
-- Replace the current inline "submitted" view swap with an `AlertDialog` modal that opens on successful `submit-tournament-registration` response.
-  - Title: **You have Registered**
-  - Body: *"You will receive an email with instructions."*
-  - Single action button: **Close** → routes back to home (or to `/` / tournament list, matching today's behavior).
-- Keep validation, error toasts, and Venmo button on the form itself untouched.
+### Root cause
 
-## Edge function — `supabase/functions/submit-tournament-registration/index.ts`
+In `supabase/functions/submit-tournament-registration/index.ts` (lines 332–339), the sheet sync is invoked fire-and-forget:
 
-- After resolving `configId`, fetch from `tournament_registration_configs`: `name`, `venmo_link`, `amount`, `amount_label` (pass these to email rendering). Pass these in the request body from the client so we avoid an extra DB read; if not present, fall back to a server-side `select`.
-- Build a reusable `registrationBlock` HTML snippet:
-  ```
-  Congratulations, you have registered for <strong>{tournamentName}</strong>.
-  If you haven't already, please submit your {amount_label} of ${amount} via Venmo:
-  [Pay via Venmo] (button → venmo_link)
-  Once confirmed, you'll get an email from the Tournament Masters that you're all set.
-  ```
-  Only render the Venmo button when `venmo_link` exists.
-- Email branching:
-  - **`accountCreated === true`:** Replace today's welcome-email body so it contains BOTH the existing "Welcome / Set Your Password" block AND the `registrationBlock`. Subject: *"Welcome to F&Gs All Day — you're registered for {Tournament Name}"*. One email only.
-  - **`accountCreated === false` (existing user):** Send a new email using only the `registrationBlock` (no password-set CTA). Subject: *"You're registered for {Tournament Name}"*. From the same `noreply@fagsallday.com` sender via Resend.
-- Keep the existing rate-limit + Sheets sync flow. Failures to send email continue to be logged but do not fail the registration.
+```ts
+supabase.functions.invoke("sync-registration-to-sheets", { ... })
+  .catch((err) => console.warn("Sheet sync failed:", err));
+return new Response(...);
+```
 
-## Out of scope
+There is no `await` and no `EdgeRuntime.waitUntil(...)`. Deno Edge Runtime tears down pending async work the moment the handler returns its `Response`, so the invoke promise is killed before the HTTP call to the child function is even sent. That's why no logs exist for `sync-registration-to-sheets` and `sheet_row_index` stayed `NULL`.
 
-- No DB schema changes.
-- No change to the admin "approval" email — that remains the "Tournament Masters" follow-up the copy alludes to.
-- No change to phone formatting / GHIN sync paths.
+## Fix
 
-## Files
+1. **Edit `supabase/functions/submit-tournament-registration/index.ts`** — wrap the sync invocation in `EdgeRuntime.waitUntil(...)` so it runs to completion after the response is sent (keeps the UX snappy and the dialog still pops immediately). Fallback to `await` if `EdgeRuntime` is unavailable.
 
-- Edit: `src/pages/TournamentRegistration.tsx` (popup + pass tournament_name/venmo/amount in invoke body).
-- Edit: `supabase/functions/submit-tournament-registration/index.ts` (registration email for existing users, merged welcome+registration for new users, fetch/accept config fields).
+2. **Backfill the missing row for "Test person"** — call `sync-registration-to-sheets` once directly (via `curl_edge_functions`) with `config_id` + the existing entry payload so the row appears in the sheet and `sheet_row_index` gets populated.
+
+3. **Verify** — re-query `tournament_registration_entries` to confirm `sheet_row_index` is now set, and check `sync-registration-to-sheets` logs show a successful append.
+
+No schema changes. No frontend changes. No new secrets.

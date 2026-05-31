@@ -329,11 +329,19 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("registration email send failed:", e);
     }
 
-    // 5) Fire-and-forget Google Sheets sync (don't block response)
+    // 5) Google Sheets sync — use EdgeRuntime.waitUntil so it survives after response
     try {
-      supabase.functions.invoke("sync-registration-to-sheets", {
+      const syncPromise = supabase.functions.invoke("sync-registration-to-sheets", {
         body: { config_id: configId, entry: insertRow },
-      }).catch((err) => console.warn("Sheet sync failed:", err));
+      }).then((r) => console.log("Sheet sync result:", r))
+        .catch((err) => console.warn("Sheet sync failed:", err));
+      // @ts-ignore - EdgeRuntime is provided by Supabase Edge Runtime
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(syncPromise);
+      } else {
+        await syncPromise;
+      }
     } catch (_e) {
       // ignore
     }
