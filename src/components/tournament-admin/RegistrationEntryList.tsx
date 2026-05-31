@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Trash2, RefreshCw } from 'lucide-react';
 
 interface Entry {
   id: string;
