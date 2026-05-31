@@ -44,6 +44,10 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [processingEntryId, setProcessingEntryId] = useState<string | null>(null);
   const [configToDelete, setConfigToDelete] = useState<any>(null);
   const [deletingConfig, setDeletingConfig] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<any>(null);
+  const [pendingTournamentChange, setPendingTournamentChange] = useState<{ newId: string | null; approvedCount: number; oldName: string; newName: string } | null>(null);
+  const [relinking, setRelinking] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
 
   const handleDeleteConfig = async () => {
     if (!configToDelete) return;
