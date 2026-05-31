@@ -56,6 +56,14 @@ const TournamentRegistrationAdmin: React.FC = () => {
     }
   }, [configId, configs]);
 
+  useEffect(() => {
+    if (!configId && searchParams.get('new') === '1') {
+      setShowCreateForm(true);
+      searchParams.delete('new');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [configId, searchParams, setSearchParams]);
+
   const loadConfigs = async () => {
     setLoading(true);
     const { data, error } = await supabase
