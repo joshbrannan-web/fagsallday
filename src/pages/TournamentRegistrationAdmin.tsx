@@ -42,6 +42,27 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [selectedConfig, setSelectedConfig] = useState<any>(null);
   const [creatingSheet, setCreatingSheet] = useState(false);
   const [processingEntryId, setProcessingEntryId] = useState<string | null>(null);
+  const [configToDelete, setConfigToDelete] = useState<any>(null);
+  const [deletingConfig, setDeletingConfig] = useState(false);
+
+  const handleDeleteConfig = async () => {
+    if (!configToDelete) return;
+    setDeletingConfig(true);
+    try {
+      const { error } = await supabase.functions.invoke('delete-registration-config', {
+        body: { config_id: configToDelete.id },
+      });
+      if (error) throw error;
+      setConfigs(prev => prev.filter(c => c.id !== configToDelete.id));
+      toast.success(`"${configToDelete.name}" deleted`);
+      setConfigToDelete(null);
+    } catch (err: any) {
+      console.error('Delete config error:', err);
+      toast.error('Failed to delete registration');
+    } finally {
+      setDeletingConfig(false);
+    }
+  };
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
