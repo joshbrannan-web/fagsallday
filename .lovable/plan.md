@@ -1,49 +1,35 @@
-# Fix "Failed to Submit Registration"
+## Goal
+Restructure `/tournament-admin` so it presents two clearly separated paths — **Registrations** and **Tournaments** — each with its own "view list" and "create new" entry point.
 
-## Root cause
+## Changes (UI only, `src/pages/TournamentAdmin.tsx`)
 
-Database logs confirm every submission fails with:
+Replace the current single-column layout (one Registrations button + tournament list + floating "+") with two side-by-side section cards on desktop, stacked on mobile.
 
-> new row violates row-level security policy for table "tournament_registration_entries"
-
-The `INSERT` policy itself (`Anyone can register`, WITH CHECK `true`) allows the write, but the client calls:
-
-```ts
-.insert(entry).select('id').single()
+```
+┌─────────────────────────┐  ┌─────────────────────────┐
+│  📋 Registrations       │  │  🏆 Tournaments         │
+│  Collect signups for    │  │  Run live tournaments   │
+│  upcoming events        │  │  with groups & scoring  │
+│                         │  │                         │
+│  [ View Registrations ] │  │  [ View Tournaments ]   │
+│  [ + Create New        ]│  │  [ + Create New        ]│
+└─────────────────────────┘  └─────────────────────────┘
 ```
 
-`INSERT … RETURNING` re‑applies the table's `SELECT` policies to the returned row. The only SELECT policy on `tournament_registration_entries` is "Creator can read registration entries" (config owner only). A registrant — especially an anonymous one — does not satisfy it, so Postgres rejects the row with the RLS error above.
+- **Registrations card**
+  - "View Registrations" → `/tournament-admin/registrations`
+  - "Create New Registration" → `/tournament-admin/registrations` with a query flag (e.g. `?new=1`) OR navigate there and auto-open the existing create form. Simplest: navigate to `/tournament-admin/registrations?new=1` and have `TournamentRegistrationAdmin` read the param and set `showCreateForm` on mount.
+- **Tournaments card**
+  - "View Tournaments" → new route/section showing the existing tournament list (move current list rendering to `/tournament-admin/tournaments`)
+  - "Create New Tournament" → `/tournament-admin/create` (existing route)
 
-## Fix
+## Routing
+- Add route `/tournament-admin/tournaments` rendering a list page that uses the existing `useTournaments` + `TournamentCard` (extract current list block from `TournamentAdmin.tsx` into a small new page `TournamentList.tsx`).
+- Keep `/tournament-admin/create` and `/tournament-admin/registrations` as-is.
 
-Generate the entry id on the client and drop the `.select().single()` call so no row needs to be returned.
+## Small follow-ups
+- Remove the floating "+" FAB from the landing page (no longer needed; each card has its own create button).
+- `TournamentRegistrationAdmin` reads `?new=1` and opens the create form automatically.
 
-### Change in `src/pages/TournamentRegistration.tsx` (`handleSubmit`)
-
-```ts
-const newId = crypto.randomUUID();
-const entry = {
-  id: newId,
-  config_id: config.id,
-  user_id: user?.id || null,
-  // ...rest unchanged
-};
-
-const { error } = await supabase
-  .from('tournament_registration_entries')
-  .insert(entry);
-
-if (error) throw error;
-
-supabase.functions.invoke('sync-registration-to-sheets', {
-  body: { config_id: config.id, entry },
-}).catch(err => console.warn('Sheet sync failed:', err));
-```
-
-No DB / RLS changes needed — the existing "Anyone can register" INSERT policy is correct, and we keep registrants from being able to read other entries.
-
-## Verification
-
-1. Open the public registration page while logged out (and again while logged in as a non‑creator).
-2. Submit the form — toast should show "Registration submitted!" and the success card should render.
-3. Confirm the new row appears in the admin Registration list and in the Google Sheet (sync still receives the same `entry.id`).
+## Out of scope
+No backend, schema, or business-logic changes. Pure presentation + routing.

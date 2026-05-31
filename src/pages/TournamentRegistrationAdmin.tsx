@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
@@ -18,6 +18,7 @@ import RegistrationEntryList from '@/components/tournament-admin/RegistrationEnt
 const TournamentRegistrationAdmin: React.FC = () => {
   const navigate = useNavigate();
   const { configId } = useParams<{ configId?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { tournaments } = useTournaments();
@@ -54,6 +55,14 @@ const TournamentRegistrationAdmin: React.FC = () => {
       setEntries([]);
     }
   }, [configId, configs]);
+
+  useEffect(() => {
+    if (!configId && searchParams.get('new') === '1') {
+      setShowCreateForm(true);
+      searchParams.delete('new');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [configId, searchParams, setSearchParams]);
 
   const loadConfigs = async () => {
     setLoading(true);
