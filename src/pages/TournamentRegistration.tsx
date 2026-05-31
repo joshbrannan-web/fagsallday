@@ -201,6 +201,11 @@ const TournamentRegistration: React.FC = () => {
             <p className="text-muted-foreground">
               Your registration for <strong>{config.name}</strong> has been received and is pending approval. The tournament admin will review your registration and add you to the tournament once approved.
             </p>
+            {accountCreated && (
+              <p className="text-sm text-muted-foreground">
+                We've also created your F&Gs All Day account — check your email for a link to set your password.
+              </p>
+            )}
             {config.venmo_link && !paymentConfirmed && (
               <div className="pt-2">
                 <p className="text-sm text-muted-foreground mb-2">
