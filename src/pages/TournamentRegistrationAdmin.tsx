@@ -551,7 +551,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
           />
         )}
 
-        {configs.length === 0 && !showCreateForm ? (
+        {!showCreateForm && configs.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center space-y-3">
               <Users className="w-12 h-12 mx-auto text-muted-foreground" />
@@ -560,7 +560,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
               <Button onClick={() => setShowCreateForm(true)}>Create Registration Page</Button>
             </CardContent>
           </Card>
-        ) : (
+        ) : !showCreateForm ? (
           configs.map(cfg => (
             <Card
               key={cfg.id}
@@ -594,7 +594,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
               </CardContent>
             </Card>
           ))
-        )}
+        ) : null}
       </div>
 
       <AlertDialog open={!!configToDelete} onOpenChange={(open) => !open && !deletingConfig && setConfigToDelete(null)}>
