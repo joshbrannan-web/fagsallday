@@ -305,15 +305,29 @@ const TournamentRegistrationAdmin: React.FC = () => {
   };
 
   const handleDelete = async (entry: any) => {
+    const linked = !!selectedConfig?.tournament_id;
+    if (entry.status === 'approved' && linked) {
+      setEntryToDelete(entry);
+      return;
+    }
     if (!confirm(`Delete ${entry.full_name}'s registration? This cannot be undone.`)) return;
+    await performDelete(entry, 'entry_only');
+  };
+
+  const performDelete = async (entry: any, mode: 'entry_only' | 'entry_and_tournament') => {
     setProcessingEntryId(entry.id);
     try {
       const { error } = await supabase.functions.invoke('delete-registration', {
-        body: { entry_id: entry.id },
+        body: { entry_id: entry.id, mode },
       });
       if (error) throw error;
       setEntries(prev => prev.filter(e => e.id !== entry.id));
-      toast.success(`${entry.full_name}'s registration deleted`);
+      toast.success(
+        mode === 'entry_and_tournament'
+          ? `${entry.full_name} removed from tournament and registration`
+          : `${entry.full_name}'s registration deleted`
+      );
+      setEntryToDelete(null);
     } catch (err: any) {
       console.error('Delete error:', err);
       toast.error('Failed to delete registration');
