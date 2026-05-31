@@ -49,7 +49,58 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ requests: [{ updateDimensionProperties: { range: { sheetId: 0, dimension: "COLUMNS", startIndex: 0, endIndex: 1 }, properties: { hiddenByUser: true }, fields: "hiddenByUser" } }] }),
     });
     await adminClient.from("tournament_registration_configs").update({ google_sheet_id: sheetData.spreadsheetId, google_sheet_url: sheetData.spreadsheetUrl }).eq("id", config_id);
-    return new Response(JSON.stringify({ sheet_id: sheetData.spreadsheetId, sheet_url: sheetData.spreadsheetUrl }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    // Backfill existing registrants into the new sheet (non-fatal on failure)
+    let backfilled = 0;
+    try {
+      const { data: entries } = await adminClient
+        .from("tournament_registration_entries")
+        .select("id, full_name, email, phone, handicap_index, ghin_number, payment_amount, payment_confirmed, status, created_at")
+        .eq("config_id", config_id)
+        .order("created_at", { ascending: true });
+      if (entries && entries.length > 0) {
+        const rows = entries.map((e: any) => [
+          e.id || "",
+          e.status || "Pending",
+          e.full_name || "",
+          e.email || "",
+          e.phone || "",
+          e.handicap_index != null ? String(e.handicap_index) : "",
+          e.ghin_number || "",
+          e.payment_amount != null ? String(e.payment_amount) : "",
+          e.payment_confirmed ? "Yes" : "No",
+          e.created_at || new Date().toISOString(),
+        ]);
+        const appendRes = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${sheetData.spreadsheetId}/values/Registrations!A:J:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ values: rows }),
+          },
+        );
+        const appendData = await appendRes.json();
+        if (appendRes.ok) {
+          const m = appendData.updates?.updatedRange?.match(/!A(\d+)/);
+          const startRow = m ? parseInt(m[1], 10) : null;
+          if (startRow) {
+            for (let i = 0; i < entries.length; i++) {
+              await adminClient
+                .from("tournament_registration_entries")
+                .update({ sheet_row_index: startRow + i })
+                .eq("id", entries[i].id);
+            }
+          }
+          backfilled = entries.length;
+        } else {
+          console.error("Backfill append failed:", appendData);
+        }
+      }
+    } catch (backfillErr) {
+      console.error("Backfill error (non-fatal):", backfillErr);
+    }
+
+    return new Response(JSON.stringify({ sheet_id: sheetData.spreadsheetId, sheet_url: sheetData.spreadsheetUrl, backfilled }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("Error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
