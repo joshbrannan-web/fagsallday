@@ -669,6 +669,7 @@ const AppContent: FC = () => {
         <Route path="/admin/round/:roundId" element={<AdminRoundView />} />
         <Route path="/tournament-admin" element={<TournamentAdmin />} />
         <Route path="/tournament-admin/create" element={<CreateTournamentWizard />} />
+        <Route path="/tournament-admin/tournaments" element={<TournamentList />} />
         <Route path="/tournament-admin/:tournamentId" element={<TournamentAdminDashboard />} />
         <Route path="/tournament-admin/:tournamentId/scoreboards" element={<TournamentAdminScoreboards />} />
         <Route path="/tournament-admin/:tournamentId/round/:roundId/group/:groupId" element={<TournamentAdminScorecard />} />
