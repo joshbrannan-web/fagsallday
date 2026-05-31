@@ -198,38 +198,6 @@ const TournamentRegistration: React.FC = () => {
     );
   }
 
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center">
-          <CardContent className="py-12 space-y-4">
-            <CheckCircle2 className="w-16 h-16 mx-auto text-[hsl(var(--success))]" />
-            <h2 className="text-xl font-bold">You're on the List!</h2>
-            <p className="text-muted-foreground">
-              Your registration for <strong>{config.name}</strong> has been received and is pending approval. The tournament admin will review your registration and add you to the tournament once approved.
-            </p>
-            {accountCreated && (
-              <p className="text-sm text-muted-foreground">
-                We've also created your F&Gs All Day account — check your email for a link to set your password.
-              </p>
-            )}
-            {config.venmo_link && !paymentConfirmed && (
-              <div className="pt-2">
-                <p className="text-sm text-muted-foreground mb-2">
-                  Don't forget to send your {config.amount_label.toLowerCase()} of ${config.amount}
-                </p>
-                <Button asChild variant="outline">
-                <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
-                  </a>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background p-4 pb-24">
