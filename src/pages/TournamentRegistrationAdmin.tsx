@@ -422,7 +422,14 @@ const TournamentRegistrationAdmin: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedConfig.tournament_id && entries.some(e => e.status === 'approved') && (
+                  <Button variant="outline" size="sm" onClick={handleSyncAllApproved} disabled={syncingAll}>
+                    <Users className="w-4 h-4 mr-2" />
+                    {syncingAll ? 'Syncing…' : 'Sync all approved to tournament'}
+                  </Button>
+                )}
               </div>
+
 
               {selectedConfig.google_sheet_url ? (
                 <Button asChild variant="outline" size="sm">
