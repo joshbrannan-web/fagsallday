@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,16 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MapPin, Calendar, DollarSign, ExternalLink, CheckCircle2, Loader2, Trophy, RefreshCw } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { MapPin, Calendar, DollarSign, ExternalLink, Loader2, Trophy, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ensureUrl = (url: string) =>
@@ -25,12 +34,12 @@ const formatPhone = (raw: string): string => {
 const TournamentRegistration: React.FC = () => {
   const { shareCode } = useParams<{ shareCode: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [accountCreated, setAccountCreated] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -158,9 +167,7 @@ const TournamentRegistration: React.FC = () => {
         throw new Error(data?.error || error?.message || 'Submission failed');
       }
 
-      setAccountCreated(!!data?.accountCreated);
-      setSubmitted(true);
-      toast.success('Registration submitted!');
+      setShowSuccessDialog(true);
     } catch (err: any) {
       console.error('Registration error:', err);
       toast.error(err?.message || 'Failed to submit registration');
@@ -191,38 +198,6 @@ const TournamentRegistration: React.FC = () => {
     );
   }
 
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center">
-          <CardContent className="py-12 space-y-4">
-            <CheckCircle2 className="w-16 h-16 mx-auto text-[hsl(var(--success))]" />
-            <h2 className="text-xl font-bold">You're on the List!</h2>
-            <p className="text-muted-foreground">
-              Your registration for <strong>{config.name}</strong> has been received and is pending approval. The tournament admin will review your registration and add you to the tournament once approved.
-            </p>
-            {accountCreated && (
-              <p className="text-sm text-muted-foreground">
-                We've also created your F&Gs All Day account — check your email for a link to set your password.
-              </p>
-            )}
-            {config.venmo_link && !paymentConfirmed && (
-              <div className="pt-2">
-                <p className="text-sm text-muted-foreground mb-2">
-                  Don't forget to send your {config.amount_label.toLowerCase()} of ${config.amount}
-                </p>
-                <Button asChild variant="outline">
-                <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
-                  </a>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background p-4 pb-24">
@@ -379,6 +354,20 @@ const TournamentRegistration: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>You have Registered</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will receive an email with instructions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => navigate('/')}>Close</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

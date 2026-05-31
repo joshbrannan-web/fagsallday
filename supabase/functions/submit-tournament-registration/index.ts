@@ -99,6 +99,27 @@ const handler = async (req: Request): Promise<Response> => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
+    // 0) Fetch tournament/config info for email content
+    let tournamentName = "the tournament";
+    let venmoLink: string | null = null;
+    let amount: number | null = null;
+    let amountLabel: string = "entry fee";
+    {
+      const { data: cfg } = await supabase
+        .from("tournament_registration_configs")
+        .select("name, venmo_link, amount, amount_label")
+        .eq("id", configId)
+        .maybeSingle();
+      if (cfg) {
+        tournamentName = cfg.name || tournamentName;
+        venmoLink = cfg.venmo_link || null;
+        amount = cfg.amount ?? null;
+        amountLabel = cfg.amount_label || amountLabel;
+      }
+    }
+
+    const ensureUrl = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
+
     // 1) Look up existing user by email (paginated listUsers; for typical volumes single page is fine)
     let existingUserId: string | null = null;
     {
@@ -181,9 +202,44 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // 4) Send welcome email with set-password link (only for newly created accounts)
-    if (accountCreated) {
-      try {
+    // 4) Build shared registration confirmation block
+    const venmoButtonHtml = venmoLink
+      ? `
+        <div style="text-align:center; margin:24px 0;">
+          <a href="${ensureUrl(venmoLink)}" style="display:inline-block; background:#3D95CE; color:#ffffff; text-decoration:none; padding:14px 32px; border-radius:8px; font-weight:bold; font-size:16px;">
+            Pay via Venmo
+          </a>
+        </div>`
+      : "";
+
+    const amountText = amount !== null
+      ? ` your ${amountLabel.toLowerCase()} of $${amount}`
+      : " your payment";
+
+    const registrationBlockHtml = `
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:20px; margin:24px 0;">
+        <h2 style="color:#16a34a; margin:0 0 12px 0; font-size:20px;">🏆 You're registered for ${tournamentName}!</h2>
+        <p style="color:#4b5563; font-size:16px; line-height:1.6; margin:0 0 12px 0;">
+          Congratulations — your registration for <strong>${tournamentName}</strong> has been received.
+        </p>
+        ${venmoLink
+          ? `<p style="color:#4b5563; font-size:16px; line-height:1.6; margin:0;">
+              If you haven't already, please submit${amountText} via Venmo below.
+            </p>
+            ${venmoButtonHtml}`
+          : `<p style="color:#4b5563; font-size:16px; line-height:1.6; margin:0;">
+              If you haven't already, please submit${amountText}.
+            </p>`
+        }
+        <p style="color:#4b5563; font-size:14px; line-height:1.6; margin:12px 0 0 0;">
+          Once your payment is confirmed, you'll receive an email from the Tournament Masters letting you know you're all set.
+        </p>
+      </div>
+    `;
+
+    // 5) Email send — combined welcome + registration for new users, registration-only for existing
+    try {
+      if (accountCreated) {
         const redirectTo = `${origin}/#/auth`;
         const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
           type: "recovery",
@@ -201,7 +257,7 @@ const handler = async (req: Request): Promise<Response> => {
         await resend.emails.send({
           from: "F&Gs All Day <noreply@fagsallday.com>",
           to: [email],
-          subject: "Welcome to F&Gs All Day — set your password",
+          subject: `Welcome to F&Gs All Day — you're registered for ${tournamentName}`,
           html: `
             <!DOCTYPE html>
             <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -223,11 +279,12 @@ const handler = async (req: Request): Promise<Response> => {
                       Set Your Password
                     </a>
                   </div>
-                  <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:16px; margin:24px 0;">
+                  <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:16px; margin:24px 0;">
                     <p style="color:#4b5563; margin:4px 0;"><strong>Email:</strong> ${email}</p>
                     ${handicapIndex !== null ? `<p style="color:#4b5563; margin:4px 0;"><strong>Handicap Index:</strong> ${handicapIndex}</p>` : ""}
                     ${ghinNumber ? `<p style="color:#4b5563; margin:4px 0;"><strong>GHIN #:</strong> ${ghinNumber}</p>` : ""}
                   </div>
+                  ${registrationBlockHtml}
                   <p style="color:#9ca3af; font-size:13px; text-align:center; margin-top:24px;">
                     If you didn't register for this tournament, you can ignore this email.
                   </p>
@@ -239,9 +296,37 @@ const handler = async (req: Request): Promise<Response> => {
             </body></html>
           `,
         });
-      } catch (e) {
-        console.error("welcome email send failed:", e);
+      } else {
+        // Existing account — registration-only email
+        await resend.emails.send({
+          from: "F&Gs All Day <noreply@fagsallday.com>",
+          to: [email],
+          subject: `You're registered for ${tournamentName}`,
+          html: `
+            <!DOCTYPE html>
+            <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; margin:0; padding:0; background-color:#f4f4f4;">
+              <div style="max-width:600px; margin:0 auto; padding:40px 20px;">
+                <div style="background:#ffffff; border-radius:12px; padding:40px; box-shadow:0 4px 6px rgba(0,0,0,0.08);">
+                  <div style="text-align:center; margin-bottom:24px;">
+                    <h1 style="color:#16a34a; margin:0; font-size:28px;">⛳ F&Gs All Day</h1>
+                  </div>
+                  <h2 style="color:#1f2937; margin:0 0 16px 0;">Hi ${fullName},</h2>
+                  ${registrationBlockHtml}
+                  <p style="color:#9ca3af; font-size:13px; text-align:center; margin-top:24px;">
+                    If you didn't register for this tournament, you can ignore this email.
+                  </p>
+                </div>
+                <p style="color:#9ca3af; font-size:12px; text-align:center; margin-top:20px;">
+                  © 2025 F&Gs All Day
+                </p>
+              </div>
+            </body></html>
+          `,
+        });
       }
+    } catch (e) {
+      console.error("registration email send failed:", e);
     }
 
     // 5) Fire-and-forget Google Sheets sync (don't block response)
