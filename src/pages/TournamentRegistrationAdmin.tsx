@@ -355,6 +355,9 @@ const TournamentRegistrationAdmin: React.FC = () => {
     } finally {
       setProcessingEntryId(null);
     }
+  };
+
+
 
   const handleCreateSheet = async () => {
     if (!user || !selectedConfig) return;
