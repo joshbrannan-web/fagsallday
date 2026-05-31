@@ -172,16 +172,81 @@ const TournamentRegistrationAdmin: React.FC = () => {
   };
 
   const assignTournament = async (cfgId: string, tournamentId: string) => {
-    const { error } = await supabase
-      .from('tournament_registration_configs')
-      .update({ tournament_id: tournamentId === 'none' ? null : tournamentId })
-      .eq('id', cfgId);
+    const newId = tournamentId === 'none' ? null : tournamentId;
+    const oldId = selectedConfig?.tournament_id ?? null;
+    if (newId === oldId) return;
 
-    if (error) {
-      toast.error('Failed to link tournament');
-    } else {
-      setConfigs(prev => prev.map(c => c.id === cfgId ? { ...c, tournament_id: tournamentId === 'none' ? null : tournamentId } : c));
-      toast.success('Tournament linked');
+    const approvedCount = entries.filter(e => e.status === 'approved').length;
+    const oldName = tournaments.find(t => t.id === oldId)?.name || 'None';
+    const newName = tournaments.find(t => t.id === newId)?.name || 'None';
+
+    // Block changes when either tournament is live
+    const oldT = tournaments.find(t => t.id === oldId);
+    const newT = tournaments.find(t => t.id === newId);
+    if (oldT?.status === 'active') {
+      toast.error('Cannot change linked tournament while it is live');
+      return;
+    }
+    if (newT?.status === 'active') {
+      toast.error('Cannot link to a tournament that is already live');
+      return;
+    }
+
+    // If no approved entries, just update directly (no player movement needed)
+    if (approvedCount === 0) {
+      const { error } = await supabase
+        .from('tournament_registration_configs')
+        .update({ tournament_id: newId })
+        .eq('id', cfgId);
+      if (error) {
+        toast.error('Failed to link tournament');
+      } else {
+        setConfigs(prev => prev.map(c => c.id === cfgId ? { ...c, tournament_id: newId } : c));
+        setSelectedConfig((c: any) => c ? { ...c, tournament_id: newId } : c);
+        toast.success('Tournament linked');
+      }
+      return;
+    }
+
+    // Otherwise confirm and move approved players
+    setPendingTournamentChange({ newId, approvedCount, oldName, newName });
+  };
+
+  const confirmRelink = async () => {
+    if (!pendingTournamentChange || !selectedConfig) return;
+    setRelinking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('relink-registration-tournament', {
+        body: { config_id: selectedConfig.id, new_tournament_id: pendingTournamentChange.newId },
+      });
+      if (error) throw error;
+      const newId = pendingTournamentChange.newId;
+      setConfigs(prev => prev.map(c => c.id === selectedConfig.id ? { ...c, tournament_id: newId } : c));
+      setSelectedConfig((c: any) => c ? { ...c, tournament_id: newId } : c);
+      toast.success(`Moved ${data?.added ?? 0} player(s) to ${pendingTournamentChange.newName}`);
+      setPendingTournamentChange(null);
+    } catch (err: any) {
+      console.error('Relink error:', err);
+      toast.error(err?.message || 'Failed to change linked tournament');
+    } finally {
+      setRelinking(false);
+    }
+  };
+
+  const handleSyncAllApproved = async () => {
+    if (!selectedConfig?.tournament_id) return;
+    setSyncingAll(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-approved-to-tournament', {
+        body: { config_id: selectedConfig.id },
+      });
+      if (error) throw error;
+      toast.success(`Added ${data?.added ?? 0} player(s), ${data?.skipped ?? 0} already present`);
+    } catch (err: any) {
+      console.error('Sync error:', err);
+      toast.error('Failed to sync approved registrants');
+    } finally {
+      setSyncingAll(false);
     }
   };
 
