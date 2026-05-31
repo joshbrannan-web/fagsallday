@@ -594,7 +594,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
               </CardContent>
             </Card>
           ))
-        )}
+        ) : null}
       </div>
 
       <AlertDialog open={!!configToDelete} onOpenChange={(open) => !open && !deletingConfig && setConfigToDelete(null)}>
