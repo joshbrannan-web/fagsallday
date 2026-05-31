@@ -18,6 +18,7 @@ import RegistrationEntryList from '@/components/tournament-admin/RegistrationEnt
 const TournamentRegistrationAdmin: React.FC = () => {
   const navigate = useNavigate();
   const { configId } = useParams<{ configId?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { tournaments } = useTournaments();
