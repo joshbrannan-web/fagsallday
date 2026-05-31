@@ -38,10 +38,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { entry_id } = await req.json();
+    const { entry_id, mode } = await req.json();
     if (!entry_id) {
       return new Response(JSON.stringify({ error: "Missing entry_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    const deleteMode: "entry_only" | "entry_and_tournament" = mode === "entry_and_tournament" ? "entry_and_tournament" : "entry_only";
 
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -50,7 +51,7 @@ Deno.serve(async (req) => {
 
     const { data: entry, error: entryError } = await adminClient
       .from("tournament_registration_entries")
-      .select(`id, sheet_row_index, tournament_registration_configs ( id, created_by, google_sheet_id, google_refresh_token )`)
+      .select(`id, full_name, status, sheet_row_index, tournament_registration_configs ( id, created_by, google_sheet_id, google_refresh_token, tournament_id )`)
       .eq("id", entry_id)
       .single();
 
@@ -92,10 +93,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Optionally remove the player + scores + group assignment from the linked tournament
+    let tournament_player_deleted = false;
+    if (deleteMode === "entry_and_tournament" && config?.tournament_id && entry.status === "approved") {
+      const { data: player } = await adminClient
+        .from("tournament_players")
+        .select("id")
+        .eq("tournament_id", config.tournament_id)
+        .eq("display_name", entry.full_name)
+        .maybeSingle();
+      if (player) {
+        await adminClient.from("tournament_hole_scores").delete().eq("tournament_player_id", player.id);
+        await adminClient.from("tournament_group_players").delete().eq("tournament_player_id", player.id);
+        await adminClient.from("tournament_players").delete().eq("id", player.id);
+        tournament_player_deleted = true;
+      }
+    }
+
     // Delete the entry from the database
     await adminClient.from("tournament_registration_entries").delete().eq("id", entry_id);
 
-    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ success: true, tournament_player_deleted }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("Error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });

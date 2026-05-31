@@ -44,6 +44,10 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [processingEntryId, setProcessingEntryId] = useState<string | null>(null);
   const [configToDelete, setConfigToDelete] = useState<any>(null);
   const [deletingConfig, setDeletingConfig] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<any>(null);
+  const [pendingTournamentChange, setPendingTournamentChange] = useState<{ newId: string | null; approvedCount: number; oldName: string; newName: string } | null>(null);
+  const [relinking, setRelinking] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
 
   const handleDeleteConfig = async () => {
     if (!configToDelete) return;
@@ -168,16 +172,81 @@ const TournamentRegistrationAdmin: React.FC = () => {
   };
 
   const assignTournament = async (cfgId: string, tournamentId: string) => {
-    const { error } = await supabase
-      .from('tournament_registration_configs')
-      .update({ tournament_id: tournamentId === 'none' ? null : tournamentId })
-      .eq('id', cfgId);
+    const newId = tournamentId === 'none' ? null : tournamentId;
+    const oldId = selectedConfig?.tournament_id ?? null;
+    if (newId === oldId) return;
 
-    if (error) {
-      toast.error('Failed to link tournament');
-    } else {
-      setConfigs(prev => prev.map(c => c.id === cfgId ? { ...c, tournament_id: tournamentId === 'none' ? null : tournamentId } : c));
-      toast.success('Tournament linked');
+    const approvedCount = entries.filter(e => e.status === 'approved').length;
+    const oldName = tournaments.find(t => t.id === oldId)?.name || 'None';
+    const newName = tournaments.find(t => t.id === newId)?.name || 'None';
+
+    // Block changes when either tournament is live
+    const oldT = tournaments.find(t => t.id === oldId);
+    const newT = tournaments.find(t => t.id === newId);
+    if (oldT?.status === 'active') {
+      toast.error('Cannot change linked tournament while it is live');
+      return;
+    }
+    if (newT?.status === 'active') {
+      toast.error('Cannot link to a tournament that is already live');
+      return;
+    }
+
+    // If no approved entries, just update directly (no player movement needed)
+    if (approvedCount === 0) {
+      const { error } = await supabase
+        .from('tournament_registration_configs')
+        .update({ tournament_id: newId })
+        .eq('id', cfgId);
+      if (error) {
+        toast.error('Failed to link tournament');
+      } else {
+        setConfigs(prev => prev.map(c => c.id === cfgId ? { ...c, tournament_id: newId } : c));
+        setSelectedConfig((c: any) => c ? { ...c, tournament_id: newId } : c);
+        toast.success('Tournament linked');
+      }
+      return;
+    }
+
+    // Otherwise confirm and move approved players
+    setPendingTournamentChange({ newId, approvedCount, oldName, newName });
+  };
+
+  const confirmRelink = async () => {
+    if (!pendingTournamentChange || !selectedConfig) return;
+    setRelinking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('relink-registration-tournament', {
+        body: { config_id: selectedConfig.id, new_tournament_id: pendingTournamentChange.newId },
+      });
+      if (error) throw error;
+      const newId = pendingTournamentChange.newId;
+      setConfigs(prev => prev.map(c => c.id === selectedConfig.id ? { ...c, tournament_id: newId } : c));
+      setSelectedConfig((c: any) => c ? { ...c, tournament_id: newId } : c);
+      toast.success(`Moved ${data?.added ?? 0} player(s) to ${pendingTournamentChange.newName}`);
+      setPendingTournamentChange(null);
+    } catch (err: any) {
+      console.error('Relink error:', err);
+      toast.error(err?.message || 'Failed to change linked tournament');
+    } finally {
+      setRelinking(false);
+    }
+  };
+
+  const handleSyncAllApproved = async () => {
+    if (!selectedConfig?.tournament_id) return;
+    setSyncingAll(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-approved-to-tournament', {
+        body: { config_id: selectedConfig.id },
+      });
+      if (error) throw error;
+      toast.success(`Added ${data?.added ?? 0} player(s), ${data?.skipped ?? 0} already present`);
+    } catch (err: any) {
+      console.error('Sync error:', err);
+      toast.error('Failed to sync approved registrants');
+    } finally {
+      setSyncingAll(false);
     }
   };
 
@@ -236,15 +305,29 @@ const TournamentRegistrationAdmin: React.FC = () => {
   };
 
   const handleDelete = async (entry: any) => {
+    const linked = !!selectedConfig?.tournament_id;
+    if (entry.status === 'approved' && linked) {
+      setEntryToDelete(entry);
+      return;
+    }
     if (!confirm(`Delete ${entry.full_name}'s registration? This cannot be undone.`)) return;
+    await performDelete(entry, 'entry_only');
+  };
+
+  const performDelete = async (entry: any, mode: 'entry_only' | 'entry_and_tournament') => {
     setProcessingEntryId(entry.id);
     try {
       const { error } = await supabase.functions.invoke('delete-registration', {
-        body: { entry_id: entry.id },
+        body: { entry_id: entry.id, mode },
       });
       if (error) throw error;
       setEntries(prev => prev.filter(e => e.id !== entry.id));
-      toast.success(`${entry.full_name}'s registration deleted`);
+      toast.success(
+        mode === 'entry_and_tournament'
+          ? `${entry.full_name} removed from tournament and registration`
+          : `${entry.full_name}'s registration deleted`
+      );
+      setEntryToDelete(null);
     } catch (err: any) {
       console.error('Delete error:', err);
       toast.error('Failed to delete registration');
@@ -339,7 +422,14 @@ const TournamentRegistrationAdmin: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedConfig.tournament_id && entries.some(e => e.status === 'approved') && (
+                  <Button variant="outline" size="sm" onClick={handleSyncAllApproved} disabled={syncingAll}>
+                    <Users className="w-4 h-4 mr-2" />
+                    {syncingAll ? 'Syncing…' : 'Sync all approved to tournament'}
+                  </Button>
+                )}
               </div>
+
 
               {selectedConfig.google_sheet_url ? (
                 <Button asChild variant="outline" size="sm">
@@ -368,9 +458,67 @@ const TournamentRegistrationAdmin: React.FC = () => {
             processingId={processingEntryId}
           />
         </div>
+
+        {/* Relink tournament confirmation */}
+        <AlertDialog open={!!pendingTournamentChange} onOpenChange={(open) => !open && !relinking && setPendingTournamentChange(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Move approved registrants?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingTournamentChange?.approvedCount} approved registrant(s) will be removed from{' '}
+                <strong>{pendingTournamentChange?.oldName}</strong> and added to{' '}
+                <strong>{pendingTournamentChange?.newName}</strong>. Any team, group, and score data in the
+                previous tournament will be deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={relinking}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => { e.preventDefault(); confirmRelink(); }}
+                disabled={relinking}
+              >
+                {relinking ? 'Moving…' : 'Move registrants'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete approved entry — choose mode */}
+        <AlertDialog open={!!entryToDelete} onOpenChange={(open) => !open && !processingEntryId && setEntryToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {entryToDelete?.full_name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This registrant is approved and linked to a tournament. Choose how to delete:
+                <br /><br />
+                <strong>Delete Registrant Only</strong> — removes the registration entry only. Keeps tournament player, team assignment, and scores intact.
+                <br /><br />
+                <strong>Delete Registrant + Tournament Data</strong> — also removes the player from the tournament, including their team assignment and all scores. Use only mid-tournament when you need to fully remove a player.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <AlertDialogCancel disabled={!!processingEntryId}>Cancel</AlertDialogCancel>
+              <Button
+                variant="outline"
+                disabled={!!processingEntryId}
+                onClick={() => entryToDelete && performDelete(entryToDelete, 'entry_only')}
+              >
+                Delete Registrant Only
+              </Button>
+              <Button
+                disabled={!!processingEntryId}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => entryToDelete && performDelete(entryToDelete, 'entry_and_tournament')}
+              >
+                Delete Registrant + Tournament Data
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
+
 
   // List view
   return (
