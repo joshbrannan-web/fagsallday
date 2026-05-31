@@ -116,6 +116,26 @@ const CreateTournamentWizard: React.FC = () => {
     setPublishing(false);
     if (joinCode) {
       toast.success(`Tournament created! Join code: ${joinCode}`);
+      if (linkConfigId) {
+        const { data: newT } = await supabase
+          .from('tournaments')
+          .select('id')
+          .eq('join_code', joinCode)
+          .maybeSingle();
+        if (newT?.id) {
+          const { error: linkErr } = await supabase
+            .from('tournament_registration_configs')
+            .update({ tournament_id: newT.id })
+            .eq('id', linkConfigId);
+          if (linkErr) {
+            toast.error('Tournament created, but failed to link to registration');
+          } else {
+            toast.success('Linked to registration');
+          }
+        }
+        navigate(`/tournament-admin/registrations/${linkConfigId}`);
+        return;
+      }
       navigate('/tournament-admin');
     }
   };
