@@ -487,8 +487,10 @@ const TournamentRegistrationAdmin: React.FC = () => {
             onApprove={handleApprove}
             onReject={handleReject}
             onDelete={handleDelete}
+            onSyncToSheet={selectedConfig?.google_sheet_id ? handleSyncToSheet : undefined}
             processingId={processingEntryId}
           />
+
         </div>
 
         {/* Relink tournament confirmation */}
