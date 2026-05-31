@@ -34,12 +34,12 @@ const formatPhone = (raw: string): string => {
 const TournamentRegistration: React.FC = () => {
   const { shareCode } = useParams<{ shareCode: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [accountCreated, setAccountCreated] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
