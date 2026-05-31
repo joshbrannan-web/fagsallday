@@ -121,7 +121,7 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {new Date(entry.created_at).toLocaleDateString()}
                     </TableCell>
-                    {(onApprove || onReject || onDelete) && (
+                    {(onApprove || onReject || onDelete || onSyncToSheet) && (
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           {isProcessing ? (
