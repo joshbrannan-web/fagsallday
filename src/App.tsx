@@ -15,6 +15,7 @@ import AdminRoundView from './pages/AdminRoundView';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
 import TournamentAdmin from './pages/TournamentAdmin';
+import TournamentList from './pages/TournamentList';
 import TournamentAdminDashboard from './pages/TournamentAdminDashboard';
 import TournamentAdminScorecard from './pages/TournamentAdminScorecard';
 import TournamentAdminScoreboards from './pages/TournamentAdminScoreboards';
