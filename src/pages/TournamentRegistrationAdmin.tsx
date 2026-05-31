@@ -411,11 +411,23 @@ const TournamentRegistrationAdmin: React.FC = () => {
               onClick={() => navigate(`/tournament-admin/registrations/${cfg.id}`)}
             >
               <CardContent className="py-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold">{cfg.name}</h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-bold flex-1 truncate">{cfg.name}</h3>
                   <Badge variant={cfg.is_open ? 'default' : 'secondary'}>
                     {cfg.is_open ? 'Open' : 'Closed'}
                   </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 -mr-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfigToDelete(cfg);
+                    }}
+                    aria-label="Delete registration"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
                 <p className="text-sm text-muted-foreground">{cfg.location} • {cfg.event_dates}</p>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -427,6 +439,27 @@ const TournamentRegistrationAdmin: React.FC = () => {
           ))
         )}
       </div>
+
+      <AlertDialog open={!!configToDelete} onOpenChange={(open) => !open && !deletingConfig && setConfigToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{configToDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the registration page, all signup entries, and the linked Google Sheet. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingConfig}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteConfig(); }}
+              disabled={deletingConfig}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingConfig ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
