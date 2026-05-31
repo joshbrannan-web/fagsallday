@@ -167,9 +167,7 @@ const TournamentRegistration: React.FC = () => {
         throw new Error(data?.error || error?.message || 'Submission failed');
       }
 
-      setAccountCreated(!!data?.accountCreated);
-      setSubmitted(true);
-      toast.success('Registration submitted!');
+      setShowSuccessDialog(true);
     } catch (err: any) {
       console.error('Registration error:', err);
       toast.error(err?.message || 'Failed to submit registration');
