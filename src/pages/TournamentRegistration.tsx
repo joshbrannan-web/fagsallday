@@ -7,11 +7,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { MapPin, Calendar, DollarSign, ExternalLink, CheckCircle2, Loader2, Trophy } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MapPin, Calendar, DollarSign, ExternalLink, CheckCircle2, Loader2, Trophy, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ensureUrl = (url: string) =>
   url.match(/^https?:\/\//) ? url : `https://${url}`;
+
+const formatPhone = (raw: string): string => {
+  const digits = raw.replace(/\D/g, '').slice(0, 10);
+  if (digits.length === 0) return '';
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+};
 
 const TournamentRegistration: React.FC = () => {
   const { shareCode } = useParams<{ shareCode: string }>();
@@ -25,8 +34,11 @@ const TournamentRegistration: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [hcpSource, setHcpSource] = useState<'ghin' | 'manual'>('ghin');
   const [handicapIndex, setHandicapIndex] = useState('');
   const [ghinNumber, setGhinNumber] = useState('');
+  const [ghinSyncing, setGhinSyncing] = useState(false);
+  const [ghinSyncedAt, setGhinSyncedAt] = useState<string | null>(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
 
@@ -58,13 +70,54 @@ const TournamentRegistration: React.FC = () => {
         .maybeSingle();
       if (data) {
         if (data.display_name && !fullName) setFullName(data.display_name);
-        if (data.handicap_index != null && !handicapIndex) setHandicapIndex(String(data.handicap_index));
-        if (data.ghin_number && !ghinNumber) setGhinNumber(data.ghin_number);
+        if (data.ghin_number && !ghinNumber) {
+          setGhinNumber(data.ghin_number);
+          setHcpSource('ghin');
+        }
+        if (data.handicap_index != null && !handicapIndex) {
+          setHandicapIndex(String(data.handicap_index));
+        }
       }
       if (user.email && !email) setEmail(user.email);
     };
     loadProfile();
   }, [user]);
+
+  const handleSyncGhin = async () => {
+    const ghin = ghinNumber.trim();
+    if (!/^\d{5,9}$/.test(ghin)) {
+      toast.error('GHIN number must be 5-9 digits');
+      return;
+    }
+    setGhinSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('lookup-ghin-handicap', {
+        body: { ghin_number: ghin },
+      });
+      if (error || !data || data.error) {
+        toast.error(data?.error || 'Failed to look up GHIN number');
+        return;
+      }
+      setHandicapIndex(String(data.handicap_index));
+      setGhinSyncedAt(new Date().toISOString());
+      toast.success(`Handicap synced: ${data.handicap_index}`);
+    } catch (err) {
+      console.error('GHIN sync error:', err);
+      toast.error('Failed to look up GHIN number');
+    } finally {
+      setGhinSyncing(false);
+    }
+  };
+
+  const handleHcpSourceChange = (val: 'ghin' | 'manual') => {
+    setHcpSource(val);
+    setGhinSyncedAt(null);
+    if (val === 'manual') {
+      setGhinNumber('');
+    } else {
+      setHandicapIndex('');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +144,7 @@ const TournamentRegistration: React.FC = () => {
         email: trimmedEmail,
         phone: phone.trim() || null,
         handicap_index: handicapIndex ? parseFloat(handicapIndex) : null,
-        ghin_number: ghinNumber.trim() || null,
+        ghin_number: hcpSource === 'ghin' && ghinNumber.trim() ? ghinNumber.trim() : null,
         payment_confirmed: paymentConfirmed,
         payment_amount: paymentAmount ? parseFloat(paymentAmount) : null,
       };
@@ -102,7 +155,6 @@ const TournamentRegistration: React.FC = () => {
 
       if (error) throw error;
 
-      // Sync to Google Sheets — pass the entry id so the edge function can save sheet_row_index
       supabase.functions.invoke('sync-registration-to-sheets', {
         body: { config_id: config.id, entry },
       }).catch(err => console.warn('Sheet sync failed:', err));
@@ -223,18 +275,72 @@ const TournamentRegistration: React.FC = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="r-phone">Phone</Label>
-                <Input id="r-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 123-4567" maxLength={20} />
+                <Input
+                  id="r-phone"
+                  type="tel"
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={e => setPhone(formatPhone(e.target.value))}
+                  placeholder="(555) 123-4567"
+                  maxLength={14}
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="r-hcp">Handicap Index</Label>
-                  <Input id="r-hcp" type="number" step="0.1" min="-10" max="54" value={handicapIndex} onChange={e => setHandicapIndex(e.target.value)} placeholder="12.5" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="r-ghin">GHIN #</Label>
-                  <Input id="r-ghin" value={ghinNumber} onChange={e => setGhinNumber(e.target.value)} placeholder="1234567" maxLength={20} />
-                </div>
+              <div className="space-y-2">
+                <Label>Handicap</Label>
+                <Select value={hcpSource} onValueChange={(v) => handleHcpSourceChange(v as 'ghin' | 'manual')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ghin">GHIN #</SelectItem>
+                    <SelectItem value="manual">Manual</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {hcpSource === 'ghin' ? (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex gap-2">
+                      <Input
+                        id="r-ghin"
+                        inputMode="numeric"
+                        value={ghinNumber}
+                        onChange={e => {
+                          setGhinNumber(e.target.value.replace(/\D/g, '').slice(0, 9));
+                          setGhinSyncedAt(null);
+                        }}
+                        placeholder="GHIN # (5-9 digits)"
+                        maxLength={9}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleSyncGhin}
+                        disabled={ghinSyncing || !/^\d{5,9}$/.test(ghinNumber.trim())}
+                      >
+                        {ghinSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RefreshCw className="w-4 h-4 mr-1" /> Sync</>}
+                      </Button>
+                    </div>
+                    {ghinSyncedAt && handicapIndex && (
+                      <p className="text-xs text-muted-foreground">
+                        ✓ Handicap Index: <strong>{handicapIndex}</strong> (synced {new Date(ghinSyncedAt).toLocaleTimeString()})
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="pt-1">
+                    <Input
+                      id="r-hcp"
+                      type="number"
+                      step="0.1"
+                      min="-10"
+                      max="54"
+                      value={handicapIndex}
+                      onChange={e => setHandicapIndex(e.target.value)}
+                      placeholder="Handicap index (e.g. 12.5)"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="border rounded-lg p-4 space-y-3 bg-secondary/30">
