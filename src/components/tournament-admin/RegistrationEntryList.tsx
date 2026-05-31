@@ -150,6 +150,17 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                                   <XCircle className="w-4 h-4" />
                                 </Button>
                               )}
+                              {onSyncToSheet && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                  onClick={() => onSyncToSheet(entry)}
+                                  title="Sync to Google Sheet"
+                                >
+                                  <RefreshCw className="w-4 h-4" />
+                                </Button>
+                              )}
                               {onDelete && (
                                 <Button
                                   size="icon"
