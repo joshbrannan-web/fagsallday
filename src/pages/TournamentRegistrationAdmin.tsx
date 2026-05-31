@@ -336,6 +336,29 @@ const TournamentRegistrationAdmin: React.FC = () => {
     }
   };
 
+  const handleSyncToSheet = async (entry: any) => {
+    if (!selectedConfig?.id) return;
+    setProcessingEntryId(entry.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-registration-to-sheets', {
+        body: { config_id: selectedConfig.id, entry_id: entry.id },
+      });
+      if (error) throw error;
+      if (data?.skipped) {
+        toast.error(data.reason || 'Sheet sync skipped');
+      } else {
+        toast.success(`${entry.full_name} added to Google Sheet`);
+      }
+    } catch (err: any) {
+      console.error('Sheet sync error:', err);
+      toast.error('Failed to sync to Google Sheet');
+    } finally {
+      setProcessingEntryId(null);
+    }
+  };
+
+
+
   const handleCreateSheet = async () => {
     if (!user || !selectedConfig) return;
     setCreatingSheet(true);
@@ -464,8 +487,10 @@ const TournamentRegistrationAdmin: React.FC = () => {
             onApprove={handleApprove}
             onReject={handleReject}
             onDelete={handleDelete}
+            onSyncToSheet={selectedConfig?.google_sheet_id ? handleSyncToSheet : undefined}
             processingId={processingEntryId}
           />
+
         </div>
 
         {/* Relink tournament confirmation */}

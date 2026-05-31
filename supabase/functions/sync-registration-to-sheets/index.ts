@@ -27,9 +27,27 @@ function parseRowIndex(updatedRange: string): number | null {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const { config_id, entry } = await req.json();
-    if (!config_id || !entry) return new Response(JSON.stringify({ error: "Missing config_id or entry" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const body = await req.json();
+    const { config_id, entry_id } = body;
+    let { entry } = body;
+    if (!config_id || (!entry && !entry_id)) {
+      return new Response(JSON.stringify({ error: "Missing config_id and (entry or entry_id)" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    // If entry_id is provided, always fetch the freshest row from the DB
+    if (entry_id) {
+      const { data: fetched, error: fetchErr } = await supabase
+        .from("tournament_registration_entries")
+        .select("id, full_name, email, phone, handicap_index, ghin_number, payment_amount, payment_confirmed")
+        .eq("id", entry_id)
+        .single();
+      if (fetchErr || !fetched) {
+        return new Response(JSON.stringify({ error: "Entry not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      entry = fetched;
+    }
+
     const { data: config } = await supabase.from("tournament_registration_configs").select("google_sheet_id, google_refresh_token").eq("id", config_id).single();
     if (!config?.google_sheet_id) return new Response(JSON.stringify({ skipped: true, reason: "No sheet configured" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     if (!config.google_refresh_token) return new Response(JSON.stringify({ skipped: true, reason: "No Google auth token" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -41,7 +59,10 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ values: [row] }),
     });
     const appendData = await appendRes.json();
-    if (!appendRes.ok) return new Response(JSON.stringify({ error: "Failed to append to sheet" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!appendRes.ok) {
+      console.error("Sheets append failed:", appendData);
+      return new Response(JSON.stringify({ error: "Failed to append to sheet", details: appendData }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const sheetRowIndex = parseRowIndex(appendData.updates?.updatedRange);
     if (sheetRowIndex && entry.id) await supabase.from("tournament_registration_entries").update({ sheet_row_index: sheetRowIndex }).eq("id", entry.id);
     return new Response(JSON.stringify({ success: true, sheet_row_index: sheetRowIndex }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

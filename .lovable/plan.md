@@ -1,29 +1,11 @@
-## Why "Test person" wasn't synced
+Add a "Sync to Sheet" action per registrant on the admin page.
 
-I confirmed the problem against the live data:
+### Changes
 
-- The registration entry exists (`74c61cb8-...`, status `approved`) but its `sheet_row_index` is `NULL`, meaning the row was never appended to the Google Sheet.
-- The config has both a `google_sheet_id` and a valid `google_refresh_token`, so credentials are fine.
-- The `sync-registration-to-sheets` edge function has **zero log entries** — it was never invoked.
+1. **`supabase/functions/sync-registration-to-sheets/index.ts`** — accept `{ config_id, entry_id }` in addition to `{ config_id, entry }`. When `entry_id` is given, fetch the full entry row from `tournament_registration_entries` server-side using the service-role client (always uses current HCP, phone, GHIN, payment fields). Log Sheets API failures.
 
-### Root cause
+2. **`src/components/tournament-admin/RegistrationEntryList.tsx`** — add an optional `onSyncToSheet?: (entry) => Promise<void>` prop and a small RefreshCw icon button in the Actions column (shown when prop is provided), with `title="Sync to Google Sheet"`. Spinner during processing.
 
-In `supabase/functions/submit-tournament-registration/index.ts` (lines 332–339), the sheet sync is invoked fire-and-forget:
+3. **`src/pages/TournamentRegistrationAdmin.tsx`** — add `handleSyncToSheet(entry)` that invokes `sync-registration-to-sheets` with `{ config_id: selectedConfig.id, entry_id: entry.id }`, shows a sonner toast on success/error, and passes it as `onSyncToSheet` to the list. Only render the button when the config has a `google_sheet_id` linked.
 
-```ts
-supabase.functions.invoke("sync-registration-to-sheets", { ... })
-  .catch((err) => console.warn("Sheet sync failed:", err));
-return new Response(...);
-```
-
-There is no `await` and no `EdgeRuntime.waitUntil(...)`. Deno Edge Runtime tears down pending async work the moment the handler returns its `Response`, so the invoke promise is killed before the HTTP call to the child function is even sent. That's why no logs exist for `sync-registration-to-sheets` and `sheet_row_index` stayed `NULL`.
-
-## Fix
-
-1. **Edit `supabase/functions/submit-tournament-registration/index.ts`** — wrap the sync invocation in `EdgeRuntime.waitUntil(...)` so it runs to completion after the response is sent (keeps the UX snappy and the dialog still pops immediately). Fallback to `await` if `EdgeRuntime` is unavailable.
-
-2. **Backfill the missing row for "Test person"** — call `sync-registration-to-sheets` once directly (via `curl_edge_functions`) with `config_id` + the existing entry payload so the row appears in the sheet and `sheet_row_index` gets populated.
-
-3. **Verify** — re-query `tournament_registration_entries` to confirm `sheet_row_index` is now set, and check `sync-registration-to-sheets` logs show a successful append.
-
-No schema changes. No frontend changes. No new secrets.
+No schema changes, no new secrets. Future auto-sync on submit is unaffected.

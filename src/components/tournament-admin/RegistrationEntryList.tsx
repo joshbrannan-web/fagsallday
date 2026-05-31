@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Trash2, RefreshCw } from 'lucide-react';
 
 interface Entry {
   id: string;
@@ -24,6 +24,7 @@ interface RegistrationEntryListProps {
   onApprove?: (entry: Entry) => Promise<void>;
   onReject?: (entry: Entry) => Promise<void>;
   onDelete?: (entry: Entry) => Promise<void>;
+  onSyncToSheet?: (entry: Entry) => Promise<void>;
   processingId?: string | null;
 }
 
@@ -43,6 +44,7 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
   onApprove,
   onReject,
   onDelete,
+  onSyncToSheet,
   processingId,
 }) => {
   if (isLoading) {
@@ -90,7 +92,7 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                 <TableHead>Payment</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
-                {(onApprove || onReject || onDelete) && <TableHead className="text-right">Actions</TableHead>}
+                {(onApprove || onReject || onDelete || onSyncToSheet) && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -119,7 +121,7 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {new Date(entry.created_at).toLocaleDateString()}
                     </TableCell>
-                    {(onApprove || onReject || onDelete) && (
+                    {(onApprove || onReject || onDelete || onSyncToSheet) && (
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           {isProcessing ? (
@@ -146,6 +148,17 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                                   title="Reject"
                                 >
                                   <XCircle className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {onSyncToSheet && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                  onClick={() => onSyncToSheet(entry)}
+                                  title="Sync to Google Sheet"
+                                >
+                                  <RefreshCw className="w-4 h-4" />
                                 </Button>
                               )}
                               {onDelete && (
