@@ -1,60 +1,33 @@
 ## Goal
-Let registration admins delete their own registration configs (plus all entries and the linked Google Sheet). Restrict the registrations list so each admin only sees their own. Josh (`joshuajbrannan@gmail.com`, already has the `admin` app_role) sees and can delete everything.
+When a Google Sheet is created for a registration that already has signups, backfill all existing entries into the new sheet so admins don't lose visibility on prior registrants.
 
-## 1. Database migration
+## Change: `supabase/functions/create-registration-sheet/index.ts`
 
-`tournament_registration_configs` currently has:
-- "Creator full access" (created_by = auth.uid())
-- "Public can read open registration configs" (is_open = true) — for the public registration page
+After the sheet is created and `tournament_registration_configs` is updated with `google_sheet_id` / `google_sheet_url`, add a backfill step:
 
-Add a parallel "Super admin full access" policy so app admins bypass ownership:
+1. Query existing entries:
+   ```ts
+   const { data: entries } = await adminClient
+     .from("tournament_registration_entries")
+     .select("id, full_name, email, phone, handicap_index, ghin_number, payment_amount, payment_confirmed, status, created_at")
+     .eq("config_id", config_id)
+     .order("created_at", { ascending: true });
+   ```
 
-```sql
-CREATE POLICY "Super admin full access on registration configs"
-ON public.tournament_registration_configs
-FOR ALL TO authenticated
-USING (public.has_role(auth.uid(), 'admin'))
-WITH CHECK (public.has_role(auth.uid(), 'admin'));
-```
+2. If `entries.length > 0`, map each to a row matching `HEADERS`:
+   `[id, status || "Pending", full_name, email, phone, handicap_index?String:"", ghin_number, payment_amount?String:"", payment_confirmed?"Yes":"No", created_at]`
 
-Same for `tournament_registration_entries` — add a super-admin policy that allows SELECT/UPDATE/DELETE for app admins:
+3. Append in one call:
+   ```
+   POST https://sheets.googleapis.com/v4/spreadsheets/{sheetId}/values/Registrations!A:J:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS
+   body: { values: rows }
+   ```
 
-```sql
-CREATE POLICY "Super admin full access on registration entries"
-ON public.tournament_registration_entries
-FOR ALL TO authenticated
-USING (public.has_role(auth.uid(), 'admin'))
-WITH CHECK (public.has_role(auth.uid(), 'admin'));
-```
+4. Parse `updates.updatedRange` to get the starting row index. Update each entry's `sheet_row_index` based on its position (start + i). Use a loop of `adminClient.from(...).update({ sheet_row_index }).eq("id", entry.id)`.
 
-Josh already has `role = 'admin'` in `user_roles` — no data change needed.
-
-Note: the existing "Creator full access" policy already scopes the admin list to `created_by = auth.uid()`, which already satisfies the "only see what I created" requirement. The new super-admin policy adds Josh's global access on top.
-
-## 2. New edge function `delete-registration-config`
-
-`supabase/functions/delete-registration-config/index.ts`:
-- Validates Bearer JWT → `user`
-- Loads the config row (id, created_by, google_sheet_id, google_refresh_token) with service role
-- Authorizes if `config.created_by === user.id` OR caller has `admin` role (`user_roles` lookup)
-- If `google_sheet_id` + `google_refresh_token` present: refresh Google token and `DELETE https://www.googleapis.com/drive/v3/files/{sheet_id}` (non-fatal on failure)
-- `DELETE FROM tournament_registration_entries WHERE config_id = :id` (service role)
-- `DELETE FROM tournament_registration_configs WHERE id = :id`
-- Returns `{ success: true }`
-
-Pattern mirrors existing `delete-registration` function (same CORS, same Google token refresh helper).
-
-## 3. UI changes — `src/pages/TournamentRegistrationAdmin.tsx`
-
-On the list view, each config card gets a Delete (trash) icon button in the top-right:
-- `stopPropagation` so the card-level navigate doesn't fire
-- Opens an `AlertDialog`: "Delete '{name}'? This permanently removes the registration page, all signups, and the linked Google Sheet. This cannot be undone."
-- Confirm → `supabase.functions.invoke('delete-registration-config', { body: { config_id } })`
-- On success: toast + remove from local `configs` state
-- Show a spinner / disable while in-flight
-
-No filtering changes needed in `loadConfigs()` — RLS already returns only the caller's configs (and everything for admins).
+5. Wrap backfill in try/catch — log errors but still return success with `sheet_id` / `sheet_url`. Sheet creation succeeds even if backfill partially fails; future per-entry syncs via `sync-registration-to-sheets` continue to work for new signups.
 
 ## Out of scope
-- No changes to the public registration page or the existing per-entry delete.
-- No tournament/round deletion when a config is linked to a tournament — only the registration data is removed (the linked tournament stays).
+- No UI changes — button already flips to "Open Google Sheet" once `google_sheet_url` is set.
+- No changes to `sync-registration-to-sheets` (new signups already append correctly).
+- No retry/re-sync UI for failed backfills.
