@@ -1,1 +1,4 @@
 project_id = "wvmpxjcghlgtitdhozlj"
+
+[functions.lookup-ghin-handicap]
+verify_jwt = false
