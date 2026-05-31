@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const { data: entry, error: entryError } = await adminClient
       .from("tournament_registration_entries")
-      .select(`id, sheet_row_index, tournament_registration_configs ( id, created_by, google_sheet_id, google_refresh_token )`)
+      .select(`id, full_name, status, sheet_row_index, tournament_registration_configs ( id, created_by, google_sheet_id, google_refresh_token, tournament_id )`)
       .eq("id", entry_id)
       .single();
 
