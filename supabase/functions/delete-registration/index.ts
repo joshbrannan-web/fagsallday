@@ -38,10 +38,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { entry_id } = await req.json();
+    const { entry_id, mode } = await req.json();
     if (!entry_id) {
       return new Response(JSON.stringify({ error: "Missing entry_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    const deleteMode: "entry_only" | "entry_and_tournament" = mode === "entry_and_tournament" ? "entry_and_tournament" : "entry_only";
 
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
