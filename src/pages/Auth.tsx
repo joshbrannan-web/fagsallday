@@ -125,21 +125,22 @@ const Auth: React.FC = () => {
     }
   };
 
+  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
+  const [resetConfirmError, setResetConfirmError] = useState<string | null>(null);
+
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setResetPasswordError(null);
+    setResetConfirmError(null);
 
-    // Validate passwords
-    try {
-      passwordSchema.parse(newPassword);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        toast.error(err.errors[0].message);
-        return;
-      }
+    // Inline validation
+    const pwResult = passwordSchema.safeParse(newPassword);
+    if (!pwResult.success) {
+      setResetPasswordError(pwResult.error.errors[0].message);
+      return;
     }
-
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+      setResetConfirmError('Passwords do not match');
       return;
     }
 
@@ -149,7 +150,6 @@ const Auth: React.FC = () => {
       // Ensure we have an active session (PKCE code exchange may still be in flight)
       let { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!currentSession) {
-        // Poll every 500ms for up to 10 seconds waiting for PKCE exchange
         for (let i = 0; i < 20; i++) {
           await new Promise(r => setTimeout(r, 500));
           const retry = await supabase.auth.getSession();
@@ -159,7 +159,7 @@ const Auth: React.FC = () => {
       }
 
       if (!currentSession) {
-        toast.error('Your reset link has expired. Please request a new one.');
+        toast.error('This reset link has expired. Request a new one from Forgot Password.');
         setMode('forgot');
         return;
       }
@@ -167,17 +167,19 @@ const Auth: React.FC = () => {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
 
       if (error) {
-        if (error.message.includes('session') || error.message.includes('token')) {
-          toast.error('Your reset link has expired. Please request a new one.');
+        if (error.message.toLowerCase().includes('session') || error.message.toLowerCase().includes('token') || error.message.toLowerCase().includes('auth')) {
+          toast.error('This reset link has expired. Request a new one from Forgot Password.');
           setMode('forgot');
         } else {
           toast.error(error.message);
         }
       } else {
-        toast.success('Password updated successfully! Redirecting...');
+        toast.success('Password updated. You can now sign in with your new password.', { duration: 5000 });
         setNewPassword('');
         setConfirmPassword('');
-        navigate('/');
+        await supabase.auth.signOut();
+        setMode('signin');
+        navigate('/auth?mode=signin');
       }
     } finally {
       setIsSubmitting(false);
@@ -324,10 +326,14 @@ const Auth: React.FC = () => {
                 type="password"
                 placeholder="••••••••"
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e) => { setNewPassword(e.target.value); setResetPasswordError(null); }}
                 required
                 autoComplete="new-password"
+                aria-invalid={!!resetPasswordError}
               />
+              {resetPasswordError && (
+                <p className="text-sm text-destructive">{resetPasswordError}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -337,10 +343,14 @@ const Auth: React.FC = () => {
                 type="password"
                 placeholder="••••••••"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => { setConfirmPassword(e.target.value); setResetConfirmError(null); }}
                 required
                 autoComplete="new-password"
+                aria-invalid={!!resetConfirmError}
               />
+              {resetConfirmError && (
+                <p className="text-sm text-destructive">{resetConfirmError}</p>
+              )}
             </div>
 
             <Button
