@@ -98,17 +98,16 @@ serve(async (req: Request) => {
     const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
       type: "recovery",
       email: userEmail,
+      options: {
+        redirectTo: `${requestOrigin}/#/auth?mode=reset`,
+      },
     });
 
-    if (linkError || !linkData) {
+    if (linkError || !linkData?.properties?.action_link) {
       throw linkError || new Error("Failed to generate reset link");
     }
 
-    const generatedUrl = new URL(linkData.properties.action_link);
-    const token = generatedUrl.searchParams.get("token");
-    const type = generatedUrl.searchParams.get("type");
-    
-    const resetLink = `${requestOrigin}/#/auth?mode=reset&token=${token}&type=${type}`;
+    const resetLink = linkData.properties.action_link;
 
     const emailResponse = await resend.emails.send({
       from: "Fags All Day Golf <noreply@fagsallday.com>",
