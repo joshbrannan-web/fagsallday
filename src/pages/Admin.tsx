@@ -19,7 +19,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Users, Trophy, ArrowLeft, Trash2, KeyRound, Loader2, Shield, Mail, Send, CheckCircle, XCircle } from 'lucide-react';
+import { Users, Trophy, ArrowLeft, Trash2, KeyRound, Loader2, Shield, Mail, Send, CheckCircle, XCircle, Lock, Copy } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -69,6 +70,9 @@ const Admin = () => {
   const [emailMessage, setEmailMessage] = useState('');
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [setPwUser, setSetPwUser] = useState<AdminUser | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [tempPasswordUser, setTempPasswordUser] = useState<AdminUser | null>(null);
 
   useEffect(() => {
     if (!adminLoading && !isAdmin) {
@@ -243,6 +247,37 @@ const Admin = () => {
     }
   };
 
+  const handleSetTempPassword = async () => {
+    if (!setPwUser) return;
+    const user = setPwUser;
+    setActionLoading(user.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-set-password', {
+        body: { userId: user.id },
+      });
+      if (error) throw error;
+      if (!data?.temporaryPassword) throw new Error('No password returned');
+      setTempPassword(data.temporaryPassword);
+      setTempPasswordUser(user);
+    } catch (err: any) {
+      console.error('Error setting password:', err);
+      toast.error(err.message || 'Failed to set password');
+    } finally {
+      setActionLoading(null);
+      setSetPwUser(null);
+    }
+  };
+
+  const copyTempPassword = async () => {
+    if (!tempPassword) return;
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      toast.success('Password copied to clipboard');
+    } catch {
+      toast.error('Failed to copy');
+    }
+  };
+
   const openDeleteDialog = (user: AdminUser) => {
     setUserToDelete(user);
     setDeleteDialogOpen(true);
@@ -407,12 +442,22 @@ const Admin = () => {
                                   size="sm"
                                   onClick={() => handleResetPassword(user)}
                                   disabled={actionLoading === user.id}
+                                  title="Email reset link"
                                 >
                                   {actionLoading === user.id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                   ) : (
                                     <KeyRound className="h-4 w-4" />
                                   )}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSetPwUser(user)}
+                                  disabled={actionLoading === user.id}
+                                  title="Set temporary password"
+                                >
+                                  <Lock className="h-4 w-4" />
                                 </Button>
                                 {session?.user?.id !== user.id && (
                                   <Button
@@ -674,6 +719,49 @@ const Admin = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Set Temporary Password Confirmation */}
+      <AlertDialog open={!!setPwUser} onOpenChange={(open) => !open && setSetPwUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Set Temporary Password</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will overwrite <strong>{setPwUser?.display_name}</strong>'s password and generate a new temporary one.
+              The password will be displayed once — copy it now and hand it to the user. They can change it after signing in.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSetTempPassword}>
+              Generate Password
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Display Generated Password */}
+      <Dialog open={!!tempPassword} onOpenChange={(open) => { if (!open) { setTempPassword(null); setTempPasswordUser(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Temporary Password Generated</DialogTitle>
+            <DialogDescription>
+              Copy this password and send it to <strong>{tempPasswordUser?.display_name}</strong> ({tempPasswordUser?.email}).
+              It will not be shown again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
+            <code className="flex-1 font-mono text-sm break-all">{tempPassword}</code>
+            <Button size="sm" variant="outline" onClick={copyTempPassword}>
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { setTempPassword(null); setTempPasswordUser(null); }}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
