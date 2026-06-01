@@ -380,8 +380,37 @@ const Auth: React.FC = () => {
           </p>
         </div>
 
+        {/* Reset link: checking */}
+        {isResetFromUrl.current && resetStatus === 'checking' && (
+          <div className="flex flex-col items-center justify-center py-8 gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Opening your reset link…</p>
+          </div>
+        )}
+
+        {/* Reset link: expired */}
+        {isResetFromUrl.current && resetStatus === 'expired' && (
+          <div className="space-y-4">
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              This reset link has expired or has already been used. Request a new one below.
+            </div>
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={() => {
+                setResetStatus('idle');
+                isResetFromUrl.current = false;
+                setMode('forgot');
+                navigate('/auth?mode=forgot');
+              }}
+            >
+              Request a new reset link
+            </Button>
+          </div>
+        )}
+
         {/* Reset Password Form */}
-        {mode === 'reset' && (
+        {mode === 'reset' && resetStatus === 'ready' && (
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
