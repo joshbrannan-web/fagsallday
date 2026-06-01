@@ -103,11 +103,13 @@ serve(async (req: Request) => {
       },
     });
 
-    if (linkError || !linkData?.properties?.action_link) {
+    const hashedToken = (linkData?.properties as any)?.hashed_token;
+    if (linkError || !hashedToken) {
       throw linkError || new Error("Failed to generate reset link");
     }
 
-    const resetLink = linkData.properties.action_link;
+    // Use token_hash + verifyOtp instead of action_link to defeat email link prefetchers.
+    const resetLink = `${requestOrigin}/#/auth?mode=reset&token_hash=${encodeURIComponent(hashedToken)}&type=recovery`;
 
     const emailResponse = await resend.emails.send({
       from: "Fags All Day Golf <noreply@fagsallday.com>",
