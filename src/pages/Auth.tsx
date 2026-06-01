@@ -59,12 +59,76 @@ const Auth: React.FC = () => {
 
   const recoverySessionReady = useRef(false);
 
-  // Listen for PASSWORD_RECOVERY event
+  // Reset-link verification state
+  const [resetStatus, setResetStatus] = useState<'idle' | 'checking' | 'ready' | 'expired'>(
+    () => (hashModeIsReset || queryModeIsReset) ? 'checking' : 'idle'
+  );
+  const verifyAttempted = useRef(false);
+
+  // Verify the recovery token_hash on mount (or accept an existing recovery session
+  // from the legacy ?code= PKCE flow). This runs only in the user's real browser, so
+  // email scanners can't consume the token before they click.
+  useEffect(() => {
+    if (!isResetFromUrl.current || verifyAttempted.current) return;
+    verifyAttempted.current = true;
+
+    const run = async () => {
+      const hashPart = window.location.hash.split('?')[1] || '';
+      const hashSp = new URLSearchParams(hashPart);
+      const tokenHash = hashSp.get('token_hash') || urlParams.get('token_hash');
+      const type = (hashSp.get('type') || urlParams.get('type') || 'recovery') as 'recovery';
+      const code = urlParams.get('code');
+
+      if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+        if (error) {
+          console.error('verifyOtp failed:', error);
+          setResetStatus('expired');
+          return;
+        }
+        recoverySessionReady.current = true;
+        setMode('reset');
+        setResetStatus('ready');
+        const cleanHash = window.location.hash.split('?')[0] + '?mode=reset';
+        window.history.replaceState({}, '', window.location.pathname + cleanHash);
+        return;
+      }
+
+      if (code) {
+        for (let i = 0; i < 20; i++) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            recoverySessionReady.current = true;
+            setMode('reset');
+            setResetStatus('ready');
+            return;
+          }
+          await new Promise(r => setTimeout(r, 300));
+        }
+        setResetStatus('expired');
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        recoverySessionReady.current = true;
+        setMode('reset');
+        setResetStatus('ready');
+      } else {
+        setResetStatus('expired');
+      }
+    };
+
+    run();
+  }, []);
+
+  // Listen for PASSWORD_RECOVERY event (covers any path that fires it)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && isResetFromUrl.current)) {
         recoverySessionReady.current = true;
         setMode('reset');
+        setResetStatus('ready');
       }
     });
 
@@ -316,8 +380,37 @@ const Auth: React.FC = () => {
           </p>
         </div>
 
+        {/* Reset link: checking */}
+        {isResetFromUrl.current && resetStatus === 'checking' && (
+          <div className="flex flex-col items-center justify-center py-8 gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Opening your reset link…</p>
+          </div>
+        )}
+
+        {/* Reset link: expired */}
+        {isResetFromUrl.current && resetStatus === 'expired' && (
+          <div className="space-y-4">
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              This reset link has expired or has already been used. Request a new one below.
+            </div>
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={() => {
+                setResetStatus('idle');
+                isResetFromUrl.current = false;
+                setMode('forgot');
+                navigate('/auth?mode=forgot');
+              }}
+            >
+              Request a new reset link
+            </Button>
+          </div>
+        )}
+
         {/* Reset Password Form */}
-        {mode === 'reset' && (
+        {mode === 'reset' && resetStatus === 'ready' && (
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
