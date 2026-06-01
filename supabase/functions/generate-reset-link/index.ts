@@ -80,7 +80,7 @@ const handler = async (req: Request): Promise<Response> => {
     );
 
     const PRODUCTION_URL = "https://fagsallday.com";
-    
+
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email: email,
@@ -97,15 +97,19 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const resetLink = data.properties?.action_link;
-
-    if (!resetLink) {
-      console.error("No action link returned");
+    // Use hashed_token + client-side verifyOtp instead of action_link.
+    // The /verify URL is a one-time GET that email scanners (Gmail, Outlook safe-links,
+    // antivirus) prefetch and consume before the human can click it. token_hash is only
+    // consumed when JS runs in a real browser, so prefetchers cannot invalidate it.
+    const hashedToken = (data?.properties as any)?.hashed_token;
+    if (!hashedToken) {
+      console.error("No hashed_token returned from generateLink");
       return new Response(
         JSON.stringify({ error: "Failed to generate reset link" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+    const resetLink = `${PRODUCTION_URL}/#/auth?mode=reset&token_hash=${encodeURIComponent(hashedToken)}&type=recovery`;
 
     console.log("Reset link generated successfully, sending branded email...");
 
