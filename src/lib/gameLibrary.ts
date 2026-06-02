@@ -85,12 +85,12 @@ export const GAME_LIBRARY: GameLibraryItem[] = [
   {
     type: GameType.NINE_POINTS,
     name: "Nine Points",
-    description: "9 points split each hole: 5-3-1 for 1st-2nd-3rd place based on net scores.",
+    description: "9 points split each hole: 5-3-1 for 1st-2nd-3rd place based on net scores. Optional Home Run rule sweeps all 9 on a 2+ stroke win.",
     icon: "9️⃣",
     defaultUnitStake: 1,
     minPlayers: 3,
     maxPlayers: 3,
-    config: { useHandicaps: true, handicapMode: 'relative' },
+    config: { useHandicaps: true, handicapMode: 'relative', ninePoints: { homeRunEnabled: false } },
   },
   {
     type: GameType.SIXES,
