@@ -1,33 +1,32 @@
-## What I found
+# Add Home Run Rule to Nine Points (Baseball)
 
-- The hosted backend is healthy.
-- For `kevinbenemusic@gmail.com`, the reset email was generated at `21:27:52` and the auth system recorded a successful recovery-login at `21:28:03`.
-- The logs also show `One-time token not found` immediately before/around repeated clicks. That means the email token is getting consumed successfully, but the app then fails to keep/use the recovery session, so the user lands back on the forgot-password screen and sees “link expired.”
-- The likely frontend bug is in the reset handling: the app relies on passive auth events and `getSession()` polling, but does not explicitly exchange the `?code=` from the recovery URL. On production/mobile email flows, this can race or lose the session.
+Adds an optional "Home Run" rule: when a single player wins a hole outright by **2 or more net strokes**, that player sweeps all 9 points (others get 0). Toggle is off by default; users enable it in the Setup Wizard when picking Nine Points.
 
-## Plan
+## 1. Type updates — `src/types.ts`
+Extend `GameSettings['config']` with an optional `ninePoints` block:
+```ts
+ninePoints?: { homeRunEnabled: boolean };
+```
 
-1. **Make recovery code exchange explicit in `Auth.tsx`**
-   - Detect `?code=...` + `mode=reset` on page load.
-   - Call `supabase.auth.exchangeCodeForSession(code)` directly before showing/using the reset form.
-   - Track recovery states: `checking`, `ready`, `expired`.
-   - Only show the “link expired” message after the explicit exchange fails, not just because `getSession()` is momentarily empty.
+## 2. Default config — `src/lib/gameLibrary.ts`
+On the `NINE_POINTS` entry, set default config to include `ninePoints: { homeRunEnabled: false }` and update the description to mention the optional Home Run rule. Add a short note to `GAME_DETAILS[NINE_POINTS].howItWorks` describing Home Run.
 
-2. **Stop redirect/cleanup from interfering with reset links**
-   - Preserve recovery query parameters while the exchange is running.
-   - Keep normal signed-in redirects disabled during reset mode.
-   - Clear the URL only after exchange succeeds so refreshes do not re-use the same one-time code.
+## 3. Setup wizard toggle — `src/components/GameSelector.tsx`
+Add a per-game config block (mirroring the Skins "Carryovers" switch pattern) shown only when `game.type === GameType.NINE_POINTS`:
+- Label: **Home Run (win by 2+)**
+- Helper text: *"If a player wins a hole outright by 2 or more net strokes, they sweep all 9 points."*
+- `Switch` bound to `selectedGame.config.ninePoints?.homeRunEnabled ?? false`, updates via `updateGameConfigDeep`.
 
-3. **Improve reset-screen messaging**
-   - While exchanging the link, show a loading state like “Opening your reset link...” instead of the forgot-password form.
-   - If exchange fails, show a clearer inline error and a button to request a fresh link.
-   - Keep existing inline password validation and success message.
+## 4. Scoring logic — `src/services/gameEngine.ts` (`calculateNinePoints`)
+After sorting `netScores` ascending, before the existing tie/no-tie distribution:
+- If `homeRunEnabled` is true AND `first.net !== second.net` (no tie for low) AND `(second.net - first.net) >= 2`, award `{ first: 9, second: 0, third: 0 }` and push detail line `"Hole H: <name> HOME RUN — wins by Xstrokes, 9 pts"`.
+- Otherwise fall through to existing 5-3-1 / tie distribution.
 
-4. **Re-check backend email link generation**
-   - Keep `generate-reset-link` and `admin-reset-password` using the provider `action_link` directly.
-   - Add small defensive logging around the generated redirect target only, without logging full tokens.
+The zero-sum subtraction at the end already handles the new distribution correctly (still totals 9 per played hole).
 
-## Validation
+## 5. No DB / no edge function changes
+The rule lives entirely in client config + scoring engine. Existing rounds without the flag default to `false` (current behavior preserved).
 
-- Use backend auth logs to confirm a new recovery link produces one successful `/verify` event and no immediate app-side “expired” flow.
-- Verify the frontend reset route handles `https://fagsallday.com/?code=...#/auth?mode=reset` and `https://fagsallday.com/#/auth?mode=reset&code=...` style URLs robustly.
+## Notes / assumptions
+- "Wins by 2+" uses **net** strokes (consistent with the rest of Nine Points scoring). If you want gross-only, say so and I'll flip it.
+- Tournament round wizard (`TournamentBuildRoundWizard`) reuses `GAME_LIBRARY` defaults, so the toggle will need an equivalent surface there only if you also want it exposed in tournament setup — let me know and I'll add it.
