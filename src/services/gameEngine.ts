@@ -1821,7 +1821,14 @@ export const calculateNinePoints = (round: Round, game: GameSettings): GameResul
     const [first, second, third] = netScores;
     let points: { [id: string]: number } = {};
 
-    if (first.net === second.net && second.net === third.net) {
+    const homeRunEnabled = game.config.ninePoints?.homeRunEnabled ?? false;
+    const margin = second.net - first.net;
+
+    if (homeRunEnabled && first.net !== second.net && margin >= 2) {
+      // HOME RUN: outright winner by 2+ net strokes sweeps all 9
+      points = { [first.playerId]: 9, [second.playerId]: 0, [third.playerId]: 0 };
+      details.push(`Hole ${h}: ${first.name} HOME RUN — wins by ${margin} strokes, sweeps 9 pts`);
+    } else if (first.net === second.net && second.net === third.net) {
       // Three-way tie: 3-3-3
       points = { [first.playerId]: 3, [second.playerId]: 3, [third.playerId]: 3 };
       details.push(`Hole ${h}: Three-way tie - 3 pts each`);

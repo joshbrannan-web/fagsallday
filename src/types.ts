@@ -168,6 +168,10 @@ export interface GameSettings {
     wolf?: {
       teesFirst: boolean; // true = Wolf tees first, false = Wolf tees last
     };
+    // Nine Points game config
+    ninePoints?: {
+      homeRunEnabled: boolean; // If true, winning a hole outright by 2+ net strokes sweeps all 9 points
+    };
     // Team Banker game config
     teamBanker?: {
       mode: 'eighteen' | 'sixes' | 'threes'; // team rotation frequency
