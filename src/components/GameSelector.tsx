@@ -472,6 +472,25 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                   </div>
                 )}
 
+                {/* Nine Points — Home Run rule */}
+                {game.type === GameType.NINE_POINTS && (
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <Label className="text-sm font-medium">Home Run (win by 2+)</Label>
+                      <p className="text-xs text-muted-foreground">If a player wins a hole outright by 2 or more net strokes, they sweep all 9 points.</p>
+                    </div>
+                    <Switch
+                      checked={selectedGame.config.ninePoints?.homeRunEnabled ?? false}
+                      onCheckedChange={(checked) => {
+                        updateGameConfigDeep(selectedGame.id, (g) => ({
+                          ...g,
+                          config: { ...g.config, ninePoints: { ...(g.config.ninePoints ?? {}), homeRunEnabled: checked } },
+                        }));
+                      }}
+                    />
+                  </div>
+                )}
+
                 {/* Handicap Configuration - for all games except Stockton 6's */}
                 {game.type !== GameType.STOCKTON_6 && (
                   <div className="space-y-4 pt-3 border-t border-border/50">
