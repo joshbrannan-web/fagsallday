@@ -1,7 +1,7 @@
 name: Supabase Keep-Alive
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0,12 * * *'
   workflow_dispatch:
 jobs:
   ping-supabase:
@@ -12,8 +12,12 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_API_KEY: ${{ secrets.SUPABASE_API_KEY }}
         run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" "${SUPABASE_URL}/auth/v1/health" -H "apikey: ${SUPABASE_API_KEY}")
-          echo "Supabase responded with HTTP $code"
-          if [ -z "$code" ] || [ "$code" = "000" ]; then
-            echo "No response from Supabase - keep-alive failed"; exit 1
-          fi
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 15 --max-time 30 --retry 3 --retry-delay 5 "${SUPABASE_URL}/auth/v1/health" -H "apikey: ${SUPABASE_API_KEY}" -H "Authorization: Bearer ${SUPABASE_API_KEY}") || code="000"
+            echo "Attempt $i: Supabase responded with HTTP $code"
+            if [ "$code" = "200" ]; then echo "Keep-alive succeeded"; exit 0; fi
+            echo "Not ready yet, waiting 20s before retry..."
+            sleep 20
+          done
+          echo "No successful response from Supabase after 5 attempts - keep-alive failed"
+          exit 1          
