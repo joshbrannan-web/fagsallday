@@ -8,6 +8,13 @@ import { getPlayHalf, getFrontNineHoles, getBackNineHoles, getPlayedHoles, getPl
 // Read the round's starting hole (physical hole # where round teed off). Defaults to 1.
 const roundStart = (round: Round): number => (round as any).startHole || 1;
 
+// Segment holes-remaining (in a Front/Back 9), computed from play-order position.
+const segmentHolesRemaining = (round: Round, currentHole: number, segment: 'front' | 'back'): number => {
+  const pos = getPlayOrder(currentHole, roundStart(round));
+  const endPos = segment === 'front' ? 9 : 18;
+  return Math.max(0, endPos - pos + 1);
+};
+
 // Helper: get only the players participating in a specific game
 export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
   const ids = game.config.gamePlayers;
