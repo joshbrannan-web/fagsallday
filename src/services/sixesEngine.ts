@@ -89,9 +89,10 @@ export const getSixesTeamAssignment = (
   gameData: any,
   gameId: string,
   stretch: SixesStretch,
-  mode: SixesMode = 'sixes'
+  mode: SixesMode = 'sixes',
+  startHole: number = 1,
 ): SixesTeamAssignment | null => {
-  const stretchStartHole = getStretchStartHole(stretch, mode);
+  const stretchStartHole = getStretchStartHole(stretch, mode, startHole);
   const data = gameData?.[gameId]?.[stretchStartHole];
   
   if (!data?._META_TEAM_A || !data?._META_TEAM_B) return null;
@@ -109,11 +110,14 @@ export const getSixesTeamAssignment = (
   };
 };
 
-// Get the mode from gameData (stored at stretch 1)
-export const getSixesMode = (gameData: any, gameId: string): SixesMode => {
-  // Mode is stored in Stretch 1 metadata at hole 1
-  const data = gameData?.[gameId]?.[1];
-  return data?._META_MODE ?? 'sixes';
+// Get the mode from gameData (stored at first-played hole)
+export const getSixesMode = (gameData: any, gameId: string, startHole: number = 1): SixesMode => {
+  // Mode is stored in Stretch 1 metadata at the first played hole (=startHole).
+  const data = gameData?.[gameId]?.[startHole];
+  if (data?._META_MODE) return data._META_MODE;
+  // Backward compat: some legacy rounds stored it at physical hole 1.
+  const legacy = gameData?.[gameId]?.[1];
+  return legacy?._META_MODE ?? 'sixes';
 };
 
 // Get presses for a stretch
@@ -121,9 +125,10 @@ export const getSixesPresses = (
   gameData: any,
   gameId: string,
   stretch: SixesStretch,
-  mode: SixesMode = 'sixes'
+  mode: SixesMode = 'sixes',
+  startHole: number = 1,
 ): SixesPressState[] => {
-  const stretchStartHole = getStretchStartHole(stretch, mode);
+  const stretchStartHole = getStretchStartHole(stretch, mode, startHole);
   return gameData?.[gameId]?.[stretchStartHole]?._META_PRESSES || [];
 };
 
