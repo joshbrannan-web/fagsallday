@@ -1389,9 +1389,9 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     const teamA = teamsCfg.teamA.map(String);
     const teamB = teamsCfg.teamB.map(String);
 
-    const countTeamDots = (startHole: number, endHole: number) => {
+    const countTeamDots = (holes: number[]) => {
       let aDots = 0, bDots = 0;
-      for (let h = startHole; h <= endHole; h++) {
+      for (const h of holes) {
         const td = fboData[h]?.teamDot;
         if (td === 'A') aDots++;
         else if (td === 'B') bDots++;
@@ -1399,12 +1399,12 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       return { aDots, bDots };
     };
 
-    const settleTeamSegment = (startHole: number, endHole: number, isComplete: boolean, label: string) => {
+    const settleTeamSegment = (holes: number[], isComplete: boolean, label: string) => {
       if (!isComplete) {
         details.push(`${label}: In progress`);
         return;
       }
-      const { aDots, bDots } = countTeamDots(startHole, endHole);
+      const { aDots, bDots } = countTeamDots(holes);
       if (aDots > bDots) {
         teamA.forEach(id => { results[id] = (results[id] || 0) + unit; });
         teamB.forEach(id => { results[id] = (results[id] || 0) - unit; });
@@ -1418,9 +1418,9 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       }
     };
 
-    settleTeamSegment(1, 9, frontNineComplete, 'Front 9');
-    settleTeamSegment(10, 18, backNineComplete, 'Back 9');
-    settleTeamSegment(1, 18, overallComplete, 'Overall');
+    settleTeamSegment(frontHoles, frontNineComplete, 'Front 9');
+    settleTeamSegment(backHoles, backNineComplete, 'Back 9');
+    settleTeamSegment(allHoles, overallComplete, 'Overall');
   } else if (gameMode === 'headToHead' && headToHeadMatchups.length > 0) {
     // Head-to-Head Mode: Calculate each matchup independently using matchupDots
     // Each matchup has its own handicap calculation based only on those 2 players
