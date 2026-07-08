@@ -179,7 +179,7 @@ export const calculateHammerHole = (
 ): HammerHoleResult | null => {
   const variant = getHammerVariant(game);
   const segLen = getHammerSegmentLength(game);
-  const teams = getHammerHoleTeams(round.gameData, game.id, hole, variant, segLen);
+  const teams = getHammerHoleTeams(round.gameData, game.id, hole, variant, segLen, roundStart(round));
   if (!teams) return null;
 
   const holeData = round.course.holes.find(h => h.number === hole);
@@ -317,7 +317,7 @@ export const calculateHammerHolePayouts = (
 
   const variant = getHammerVariant(game);
   const segLen = getHammerSegmentLength(game);
-  const teams = getHammerHoleTeams(round.gameData, game.id, hole, variant, segLen);
+  const teams = getHammerHoleTeams(round.gameData, game.id, hole, variant, segLen, roundStart(round));
   if (!teams) return null;
 
   const payouts: { [pid: string]: number } = {};
@@ -369,8 +369,8 @@ export const calculateHammer = (round: Round, game: GameSettings): GameResult =>
 
     const result = calculateHammerHole(round, game, h)!;
     const winnerNames = (result.winningTeam === 'A'
-      ? (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game))?.teamA || [])
-      : (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game))?.teamB || []))
+      ? (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game, roundStart(round)))?.teamA || [])
+      : (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game, roundStart(round)))?.teamB || []))
       .map(pid => round.players.find(p => p.id === pid)?.name || '?').join(' & ');
     const { concededBy } = getHammerHoleState(round.gameData, game.id, h);
     if (concededBy) {
