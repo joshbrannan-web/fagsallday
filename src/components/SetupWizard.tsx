@@ -144,6 +144,8 @@ const SetupWizard: React.FC = () => {
 
   // Step 3: Games
   const [selectedGames, setSelectedGames] = useState<GameSettings[]>([]);
+  const [startHole, setStartHole] = useState<number>(1);
+  const [startHoleMode, setStartHoleMode] = useState<'1' | '10' | 'other'>('1');
 
   // Load verified status for saved courses
   useEffect(() => {
