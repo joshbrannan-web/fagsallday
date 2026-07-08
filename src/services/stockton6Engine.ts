@@ -468,14 +468,14 @@ export const calculateStretchPayouts = (
   game: GameSettings,
   stretch: 1 | 2 | 3
 ): { playerPayouts: { [playerId: string]: number }; details: string[] } | null => {
-  const teamAssignment = getTeamAssignment(round.gameData, game.id, stretch);
+  const sh = roundStart(round);
+  const teamAssignment = getTeamAssignment(round.gameData, game.id, stretch, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB, unitValue, dotValue } = teamAssignment;
-  const stretchEndHole = stretch * 6;
+  const stretchHoles = getStretchHoles(stretch, sh);
+  const stretchEndHole = stretchHoles[stretchHoles.length - 1];
   
-  // Check if stretch is complete
-  const stretchHoles = STRETCH_HOLES[stretch];
   const allComplete = stretchHoles.every(hole => {
     const holeScores = round.scores[hole];
     if (!holeScores) return false;
