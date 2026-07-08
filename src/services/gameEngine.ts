@@ -651,11 +651,11 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
         playerMultiplier *= birdieMultiplier;
       }
 
-      // For Bloody Banker on holes 16, 17, 18: custom stake becomes the BASE BET
+      // For Bloody Banker on the final 3 played holes: custom stake becomes the BASE BET
       // Formula: Base Bet × Banker Multiplier (Double All) × Player Multiplier = Final Bet
       let payout: number;
       const isBloodyActive = game.type === GameType.BLOODY_BANKER || (round.gameData?.[game.id]?.[0]?.['_META_BLOODY_ACTIVATED'] === true);
-      if (isBloodyActive && h >= 16 && h <= 18) {
+      if (isBloodyActive && isInLastNPlayed(h, roundStart(round), 3)) {
         const customStake = holeBankerData[`_STAKE_${p.id}`];
         if (customStake !== undefined && customStake > 0) {
           // Custom stake is the new base bet
