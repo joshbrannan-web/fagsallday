@@ -104,10 +104,11 @@ const ActiveRound: React.FC = () => {
   // State for Bloody Banker activation dialog
   const [showBloodyActivateDialog, setShowBloodyActivateDialog] = useState<string | null>(null); // gameId or null
 
-  // Check if any regular Banker game needs the activation prompt at hole 16
+  // Check if any regular Banker game needs the activation prompt at the 16th played hole
   useEffect(() => {
-    if (!currentRound || activeHole !== 16) return;
-    
+    if (!currentRound) return;
+    if (getPlayOrder(activeHole, roundStartHole) !== 16) return;
+
     const regularBankerGames = currentRound.games.filter(g => g.type === GameType.BANKER);
     for (const game of regularBankerGames) {
       const alreadyChosen = currentRound.gameData?.[game.id]?.[0]?.['_META_BLOODY_ACTIVATED'];
@@ -117,7 +118,7 @@ const ActiveRound: React.FC = () => {
         return;
       }
     }
-  }, [currentRound, activeHole]);
+  }, [currentRound, activeHole, roundStartHole]);
 
   // Bloody Banker "Down the Most" logic for holes 16, 17, 18
   const bloodyBankerDownPlayer = useMemo(() => {
