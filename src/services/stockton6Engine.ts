@@ -228,11 +228,13 @@ export const calculateBallState = (
   stretch: 1 | 2 | 3,
   throughHole: number
 ): { oneBall: Stockton6BallState; twoBall: Stockton6BallState } | null => {
-  const teamAssignment = getTeamAssignment(round.gameData, gameId, stretch);
+  const sh = roundStart(round);
+  const teamAssignment = getTeamAssignment(round.gameData, gameId, stretch, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB } = teamAssignment;
-  const stretchHoles = STRETCH_HOLES[stretch];
+  const stretchHoles = getStretchHoles(stretch, sh);
+  const throughPos = getPlayOrder(throughHole, sh);
   
   // Initialize states
   let oneBall: Stockton6BallState = {
@@ -247,14 +249,14 @@ export const calculateBallState = (
     overall: { teamAUp: 0 }
   };
   
-  // Process each hole
+  // Process each played hole in this stretch (in play order)
   for (const hole of stretchHoles) {
-    if (hole > throughHole) break;
+    if (getPlayOrder(hole, sh) > throughPos) break;
     
     const holeResult = calculateHoleBallResults(round, hole, teamA, teamB);
     if (!holeResult) continue;
     
-    const holeInStretch = getHoleInStretch(hole);
+    const holeInStretch = getHoleInStretch(hole, sh);
     const isFront = holeInStretch <= 3;
     
     // Update 1-Ball
