@@ -604,10 +604,11 @@ export const calculateHoleDotPayouts = (
   hole: number
 ): { playerPayouts: { [playerId: string]: number } } | null => {
   // Determine which stretch this hole belongs to
-  const stretch = getStretchForHole(hole);
+  const sh = roundStart(round);
+  const stretch = getStretchForHole(hole, sh);
   
   // Get team assignment for this stretch
-  const teamAssignment = getTeamAssignment(round.gameData, gameId, stretch);
+  const teamAssignment = getTeamAssignment(round.gameData, gameId, stretch, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB, dotValue } = teamAssignment;
