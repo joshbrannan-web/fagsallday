@@ -1264,7 +1264,7 @@ const ActiveRound: React.FC = () => {
                     <div>
                       <div className="font-bold text-foreground">{downPlayer.name}</div>
                       <div className="text-xs text-destructive font-mono font-bold">
-                        Down ${Math.abs(amount)} after {activeHole - 1} holes
+                        Down ${Math.abs(amount)} after {getPlayOrder(activeHole, roundStartHole) - 1} holes
                       </div>
                     </div>
                   </div>
