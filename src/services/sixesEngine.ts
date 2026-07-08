@@ -350,7 +350,8 @@ export const calculateSixesStretchPayouts = (
   stretch: SixesStretch,
   mode: SixesMode = 'sixes'
 ): { playerPayouts: { [playerId: string]: number }; details: string[] } | null => {
-  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode);
+  const sh = roundStart(round);
+  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB, unitValue } = teamAssignment;
@@ -365,24 +366,19 @@ export const calculateSixesStretchPayouts = (
   // Initialize all payouts to 0
   [...teamA, ...teamB].forEach(pid => playerPayouts[pid] = 0);
   
-  const stretchName = getStretchName(stretch, mode);
+  const stretchName = getStretchName(stretch, mode, sh);
   
   if (teamAWins > teamBWins) {
-    // Team A wins: each winner wins unitValue, each loser loses unitValue
     teamA.forEach(pid => playerPayouts[pid] = unitValue);
     teamB.forEach(pid => playerPayouts[pid] = -unitValue);
-    
     const teamANames = teamA.map(pid => round.players.find(p => p.id === pid)?.name || 'Unknown').join(' & ');
     details.push(`${stretchName}: Team A (${teamANames}) wins ${teamAWins}-${teamBWins} (+$${unitValue} each)`);
   } else if (teamBWins > teamAWins) {
-    // Team B wins: each winner wins unitValue, each loser loses unitValue
     teamB.forEach(pid => playerPayouts[pid] = unitValue);
     teamA.forEach(pid => playerPayouts[pid] = -unitValue);
-    
     const teamBNames = teamB.map(pid => round.players.find(p => p.id === pid)?.name || 'Unknown').join(' & ');
     details.push(`${stretchName}: Team B (${teamBNames}) wins ${teamBWins}-${teamAWins} (+$${unitValue} each)`);
   } else {
-    // Push - no money changes hands
     details.push(`${stretchName}: Push ${teamAWins}-${teamBWins} (tie)`);
   }
   
@@ -396,15 +392,17 @@ export const calculateSixesPressPayouts = (
   stretch: SixesStretch,
   mode: SixesMode = 'sixes'
 ): { playerPayouts: { [playerId: string]: number }; details: string[] } | null => {
-  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode);
+  const sh = roundStart(round);
+  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB, useHandicaps, useSecondBallTiebreaker, handicapMode } = teamAssignment;
-  const presses = getSixesPresses(round.gameData, game.id, stretch, mode);
+  const presses = getSixesPresses(round.gameData, game.id, stretch, mode, sh);
   
   if (presses.length === 0) return null;
   
-  const stretchEndHole = getStretchEndHole(stretch, mode);
+  const stretchHoles = getStretchHolesForMode(stretch, mode, sh);
+  const stretchName = getStretchName(stretch, mode, sh);
   const details: string[] = [];
   const playerPayouts: { [playerId: string]: number } = {};
   
@@ -412,12 +410,16 @@ export const calculateSixesPressPayouts = (
   [...teamA, ...teamB].forEach(pid => playerPayouts[pid] = 0);
   
   for (const press of presses) {
-    // Count holes won from press.startHole to stretch end
+    // Play-ordered holes from press.startHole through stretch end
+    const pressStartPos = getPlayOrder(press.startHole, sh);
+    const stretchStartPos = getPlayOrder(stretchHoles[0], sh);
+    const pressHoles = stretchHoles.slice(pressStartPos - stretchStartPos);
+    
     let teamAWinsInPress = 0;
     let teamBWinsInPress = 0;
     let holesInPressCompleted = 0;
     
-    for (let h = press.startHole; h <= stretchEndHole; h++) {
+    for (const h of pressHoles) {
       const holeResult = calculateSixesHoleResult(round, h, teamA, teamB, useHandicaps, useSecondBallTiebreaker, handicapMode);
       if (holeResult === null) continue;
       holesInPressCompleted++;
@@ -425,20 +427,13 @@ export const calculateSixesPressPayouts = (
       else if (holeResult === 'B') teamBWinsInPress++;
     }
     
-    // Check if all holes in press range are complete
-    const totalPressHoles = stretchEndHole - press.startHole + 1;
-    if (holesInPressCompleted < totalPressHoles) continue;
+    if (holesInPressCompleted < pressHoles.length) continue;
     
-    const stretchName = getStretchName(stretch, mode);
-    
-    // Determine press winner
     if (teamAWinsInPress > teamBWinsInPress) {
-      // Team A wins press
       teamA.forEach(pid => playerPayouts[pid] += press.unitValue);
       teamB.forEach(pid => playerPayouts[pid] -= press.unitValue);
       details.push(`${stretchName} Press (Hole ${press.startHole}): Team A wins ${teamAWinsInPress}-${teamBWinsInPress} (+$${press.unitValue}/player)`);
     } else if (teamBWinsInPress > teamAWinsInPress) {
-      // Team B wins press
       teamB.forEach(pid => playerPayouts[pid] += press.unitValue);
       teamA.forEach(pid => playerPayouts[pid] -= press.unitValue);
       details.push(`${stretchName} Press (Hole ${press.startHole}): Team B wins ${teamBWinsInPress}-${teamAWinsInPress} (+$${press.unitValue}/player)`);
@@ -456,41 +451,30 @@ export const calculateSixes = (round: Round, game: GameSettings): GameResult => 
   const details: string[] = [];
   const holeResults: { [holeNumber: number]: { [playerId: string]: number } } = {};
   
-  // Initialize results for all players
   round.players.forEach(p => results[p.id] = 0);
   
-  // Get mode from gameData
-  const mode = getSixesMode(round.gameData, game.id);
+  const sh = roundStart(round);
+  const mode = getSixesMode(round.gameData, game.id, sh);
   const stretches = getAllStretches(mode);
   
-  // Calculate payouts for each stretch
   for (const stretch of stretches) {
     const stretchPayouts = calculateSixesStretchPayouts(round, game, stretch, mode);
     
     if (stretchPayouts) {
-      // Add to overall results
       Object.entries(stretchPayouts.playerPayouts).forEach(([playerId, amount]) => {
         results[playerId] = (results[playerId] || 0) + amount;
       });
-      
-      // Add details
       details.push(...stretchPayouts.details);
-      
-      // Record at stretch end hole for per-hole breakdown
-      const stretchEndHole = getStretchEndHole(stretch, mode);
+      const stretchEndHole = getStretchEndHole(stretch, mode, sh);
       holeResults[stretchEndHole] = { ...stretchPayouts.playerPayouts };
     }
     
-    // Calculate press payouts for this stretch
     const pressPayouts = calculateSixesPressPayouts(round, game, stretch, mode);
     
     if (pressPayouts) {
-      // Add to overall results
       Object.entries(pressPayouts.playerPayouts).forEach(([playerId, amount]) => {
         results[playerId] = (results[playerId] || 0) + amount;
       });
-      
-      // Add details
       details.push(...pressPayouts.details);
     }
   }
