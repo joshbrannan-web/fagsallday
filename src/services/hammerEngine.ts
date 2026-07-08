@@ -82,10 +82,11 @@ export const getHammerHoleTeams = (
   hole: number,
   variant: 'team' | 'lr',
   segLen: HammerSegmentLength,
+  startHole: number = 1,
 ): HammerHoleTeams | null => {
   if (variant === 'team') {
-    const seg = getHammerSegmentForHole(hole, segLen);
-    const a = getHammerTeamAssignment(gameData, gameId, seg, segLen);
+    const seg = getHammerSegmentForHole(hole, segLen, startHole);
+    const a = getHammerTeamAssignment(gameData, gameId, seg, segLen, startHole);
     if (!a) return null;
     return { teamA: a.teamA, teamB: a.teamB };
   }
