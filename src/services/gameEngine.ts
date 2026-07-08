@@ -703,18 +703,21 @@ export const getFBODormieStatus = (
   const fboPlayerIds = game.config.fboPlayers || round.players.map(p => p.id);
   const fboPlayers = round.players.filter(p => fboPlayerIds.includes(p.id));
   const fboData = round.gameData?.[game.id] || {};
-  
-  // Determine which segment we're in
-  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
-  const segmentStart = segment === 'front' ? 1 : 10;
-  const segmentEnd = segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
-  
-  // Count dots earned so far in this segment
+
+  // Determine which segment we're in based on play order (Front = first 9 played)
+  const startHole = roundStart(round);
+  const segment: 'front' | 'back' = getPlayHalf(currentHole, startHole);
+  const segmentHoles = segment === 'front' ? getFrontNineHoles(startHole) : getBackNineHoles(startHole);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const segmentEndPos = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEndPos - currentPos + 1;
+
+  // Count dots earned so far in this segment (holes played before currentHole in play order)
   const dotCounts: { [id: string]: number } = {};
   fboPlayers.forEach(p => dotCounts[p.id] = 0);
-  
-  for (let h = segmentStart; h < currentHole; h++) {
+
+  for (const h of segmentHoles) {
+    if (getPlayOrder(h, startHole) >= currentPos) break;
     const holeDots = fboData[h]?.dots || [];
     holeDots.forEach((playerId: string) => {
       if (dotCounts[playerId] !== undefined) {
@@ -722,13 +725,13 @@ export const getFBODormieStatus = (
       }
     });
   }
-  
+
   // Find the leader
   const maxDots = Math.max(...Object.values(dotCounts));
-  
+
   // Calculate dormie status for each player
   const result: { [playerId: string]: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' } } = {};
-  
+
   fboPlayers.forEach(p => {
     const playerDots = dotCounts[p.id];
     const isDormie = isFBOPlayerDormie(playerDots, maxDots, holesRemaining);
@@ -739,7 +742,7 @@ export const getFBODormieStatus = (
       segment
     };
   });
-  
+
   return result;
 };
 
