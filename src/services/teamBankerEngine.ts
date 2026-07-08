@@ -123,7 +123,7 @@ export const calculateTeamBanker = (round: Round, game: GameSettings): GameResul
 
   round.players.forEach(p => results[p.id] = 0);
 
-  const mode = getTeamBankerMode(round.gameData, game.id);
+  const mode = getTeamBankerMode(round.gameData, game.id, roundStart(round));
   const stretches = getTeamBankerAllStretches(mode);
 
   for (const stretch of stretches) {
