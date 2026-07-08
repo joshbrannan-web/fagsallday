@@ -1372,7 +1372,7 @@ const ActiveRound: React.FC = () => {
         {/* Wolf Game UI */}
         {wolfGame && (() => {
           const wolfData = currentRound.gameData?.[wolfGame.id]?.[activeHole] as WolfHoleData | undefined;
-          const wolfIndex = (activeHole - 1) % currentRound.players.length;
+          const wolfIndex = (getPlayOrder(activeHole, roundStartHole) - 1) % currentRound.players.length;
           const currentWolf = currentRound.players[wolfIndex];
           const opponents = currentRound.players.filter((_, i) => i !== wolfIndex);
           const hasAnyScores = currentRound.players.some(p => currentRound.scores[activeHole]?.[p.id] !== undefined);
