@@ -378,24 +378,32 @@ const AppContent: FC = () => {
     }
   }, [localRoundHistory, isAuthenticated]);
 
-  const startNewRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>) => {
+  const startNewRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>, startHole: number = 1) => {
     if (isAuthenticated) {
       for (const player of players) {
         if (player.name.trim()) {
           await addSavedPlayer(player.name, player.handicapIndex || 0, player.tee);
         }
       }
-      await createRound(course, players, games, initialGameData);
+      await createRound(course, players, games, initialGameData, startHole);
     } else {
+      const mergedGameData: Record<string, any> = {
+        ...(initialGameData || {}),
+        _ROUND_META: {
+          ...((initialGameData as any)?._ROUND_META || {}),
+          startHole: startHole || 1,
+        },
+      };
       const newRound: Round = {
         id: Date.now().toString(),
         course,
         players,
         games,
         scores: {},
-        gameData: initialGameData || {},
+        gameData: mergedGameData,
         status: 'ACTIVE',
-        startTime: Date.now()
+        startTime: Date.now(),
+        startHole: startHole || 1,
       };
       setLocalCurrentRound(newRound);
     }

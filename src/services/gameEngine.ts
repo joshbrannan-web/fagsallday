@@ -3,6 +3,25 @@ import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
 import { calculateTeamBanker } from "./teamBankerEngine";
 import { calculateHammer } from "./hammerEngine";
+import { getPlayHalf, getFrontNineHoles, getBackNineHoles, getPlayedHoles, getPlayOrder, isInLastNPlayed, TOTAL_HOLES } from "../lib/holeOrder";
+
+// Read the round's starting hole (physical hole # where round teed off). Defaults to 1.
+const roundStart = (round: Round): number => (round as any).startHole || 1;
+
+// Segment holes-remaining (in a Front/Back 9), computed from play-order position.
+const segmentHolesRemaining = (round: Round, currentHole: number, segment: 'front' | 'back'): number => {
+  const pos = getPlayOrder(currentHole, roundStart(round));
+  const endPos = segment === 'front' ? 9 : 18;
+  return Math.max(0, endPos - pos + 1);
+};
+
+// Play-ordered physical hole numbers from a press's startHole through its segment end.
+const getPressHoles = (pressStartHole: number, segment: 'front' | 'back' | 'overall', startHole: number): number[] => {
+  const played = getPlayedHoles(startHole);
+  const startPos = getPlayOrder(pressStartHole, startHole);
+  const endPos = segment === 'front' ? 9 : 18; // 'overall' => full 18
+  return played.slice(startPos - 1, endPos);
+};
 
 // Helper: get only the players participating in a specific game
 export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
@@ -451,7 +470,7 @@ export const calculateNassau = (round: Round, game: GameSettings): GameResult =>
     const net1 = holeScores[p1.id]! - effectiveStrokes1;
     const net2 = holeScores[p2.id]! - effectiveStrokes2;
 
-    const scoreDiff = h <= 9 ? front9Score : back9Score;
+    const scoreDiff = getPlayHalf(h, roundStart(round)) === 'front' ? front9Score : back9Score;
 
     if (net1 < net2) {
       scoreDiff[p1.id] += 1;
@@ -632,11 +651,11 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
         playerMultiplier *= birdieMultiplier;
       }
 
-      // For Bloody Banker on holes 16, 17, 18: custom stake becomes the BASE BET
+      // For Bloody Banker on the final 3 played holes: custom stake becomes the BASE BET
       // Formula: Base Bet × Banker Multiplier (Double All) × Player Multiplier = Final Bet
       let payout: number;
       const isBloodyActive = game.type === GameType.BLOODY_BANKER || (round.gameData?.[game.id]?.[0]?.['_META_BLOODY_ACTIVATED'] === true);
-      if (isBloodyActive && h >= 16 && h <= 18) {
+      if (isBloodyActive && isInLastNPlayed(h, roundStart(round), 3)) {
         const customStake = holeBankerData[`_STAKE_${p.id}`];
         if (customStake !== undefined && customStake > 0) {
           // Custom stake is the new base bet
@@ -699,18 +718,21 @@ export const getFBODormieStatus = (
   const fboPlayerIds = game.config.fboPlayers || round.players.map(p => p.id);
   const fboPlayers = round.players.filter(p => fboPlayerIds.includes(p.id));
   const fboData = round.gameData?.[game.id] || {};
-  
-  // Determine which segment we're in
-  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
-  const segmentStart = segment === 'front' ? 1 : 10;
-  const segmentEnd = segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
-  
-  // Count dots earned so far in this segment
+
+  // Determine which segment we're in based on play order (Front = first 9 played)
+  const startHole = roundStart(round);
+  const segment: 'front' | 'back' = getPlayHalf(currentHole, startHole);
+  const segmentHoles = segment === 'front' ? getFrontNineHoles(startHole) : getBackNineHoles(startHole);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const segmentEndPos = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEndPos - currentPos + 1;
+
+  // Count dots earned so far in this segment (holes played before currentHole in play order)
   const dotCounts: { [id: string]: number } = {};
   fboPlayers.forEach(p => dotCounts[p.id] = 0);
-  
-  for (let h = segmentStart; h < currentHole; h++) {
+
+  for (const h of segmentHoles) {
+    if (getPlayOrder(h, startHole) >= currentPos) break;
     const holeDots = fboData[h]?.dots || [];
     holeDots.forEach((playerId: string) => {
       if (dotCounts[playerId] !== undefined) {
@@ -718,13 +740,13 @@ export const getFBODormieStatus = (
       }
     });
   }
-  
+
   // Find the leader
   const maxDots = Math.max(...Object.values(dotCounts));
-  
+
   // Calculate dormie status for each player
   const result: { [playerId: string]: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' } } = {};
-  
+
   fboPlayers.forEach(p => {
     const playerDots = dotCounts[p.id];
     const isDormie = isFBOPlayerDormie(playerDots, maxDots, holesRemaining);
@@ -735,7 +757,7 @@ export const getFBODormieStatus = (
       segment
     };
   });
-  
+
   return result;
 };
 
@@ -771,14 +793,18 @@ export const isFBOPlayerDormieOnPress = (
   const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
   const fboData = round.gameData?.[game.id] || {};
   
-  const segmentEnd = press.segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
+  const holesRemaining = segmentHolesRemaining(round, currentHole, press.segment as 'front' | 'back');
   
-  // Count dots from press.startHole to currentHole-1 (completed holes)
+  // Count dots from press.startHole (play-order) to currentHole-1 (play-order)
   const pressDots: { [id: string]: number } = {};
   fboPlayers.forEach(p => pressDots[String(p.id)] = 0);
-  
-  for (let h = press.startHole; h < currentHole; h++) {
+
+  const startHole = roundStart(round);
+  const played = getPlayedHoles(startHole);
+  const pressStartPos = getPlayOrder(press.startHole, startHole);
+  const curPos = getPlayOrder(currentHole, startHole);
+  for (let pos = pressStartPos; pos < curPos; pos++) {
+    const h = played[pos - 1];
     const holeDots: (string | number)[] = fboData[h]?.dots || [];
     holeDots.forEach((pid: string | number) => {
       const normalizedId = String(pid);
@@ -852,13 +878,17 @@ export const getFBOOverallDormieStatus = (
   const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
   const fboData = round.gameData?.[game.id] || {};
   
-  const holesRemaining = 18 - currentHole + 1;
-  
-  // Count dots earned so far (holes 1 to currentHole-1)
+  const startHole = roundStart(round);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
+
+  // Count dots earned so far (played holes before currentHole in play order)
   const dotCounts: { [id: string]: number } = {};
   fboPlayers.forEach(p => dotCounts[p.id] = 0);
-  
-  for (let h = 1; h < currentHole; h++) {
+
+  const played = getPlayedHoles(startHole);
+  for (let i = 0; i < currentPos - 1; i++) {
+    const h = played[i];
     const holeDots: (string | number)[] = fboData[h]?.dots || [];
     holeDots.forEach((playerId: string | number) => {
       const normalizedId = String(playerId);
@@ -902,18 +932,21 @@ export const getFBOMatchupDormieStatus = (
   player2: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
 } => {
   const fboData = round.gameData?.[game.id] || {};
-  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
-  const segmentStart = segment === 'front' ? 1 : 10;
-  const segmentEnd = segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
-  
+  const startHole = roundStart(round);
+  const segment: 'front' | 'back' = getPlayHalf(currentHole, startHole);
+  const segmentHoles = segment === 'front' ? getFrontNineHoles(startHole) : getBackNineHoles(startHole);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const segmentEndPos = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEndPos - currentPos + 1;
+
   // Build matchup keys (try both orderings)
   const key1 = `${player1Id}_${player2Id}`;
   const key2 = `${player2Id}_${player1Id}`;
-  
-  // Count dots from matchupDots for this specific matchup
+
+  // Count dots for this specific matchup on played holes before currentHole in this segment
   let p1Dots = 0, p2Dots = 0;
-  for (let h = segmentStart; h < currentHole; h++) {
+  for (const h of segmentHoles) {
+    if (getPlayOrder(h, startHole) >= currentPos) break;
     const matchupDots = fboData[h]?.matchupDots || {};
     const winner = matchupDots[key1] ?? matchupDots[key2];
     if (String(winner) === String(player1Id)) p1Dots++;
@@ -948,13 +981,17 @@ export const getFBOMatchupOverallDormieStatus = (
   player2: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
 } => {
   const fboData = round.gameData?.[game.id] || {};
-  const holesRemaining = 18 - currentHole + 1;
-  
+  const startHole = roundStart(round);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
+
   const key1 = `${player1Id}_${player2Id}`;
   const key2 = `${player2Id}_${player1Id}`;
-  
+
   let p1Dots = 0, p2Dots = 0;
-  for (let h = 1; h < currentHole; h++) {
+  const played = getPlayedHoles(startHole);
+  for (let i = 0; i < currentPos - 1; i++) {
+    const h = played[i];
     const matchupDots = fboData[h]?.matchupDots || {};
     const winner = matchupDots[key1] ?? matchupDots[key2];
     if (String(winner) === String(player1Id)) p1Dots++;
@@ -987,13 +1024,18 @@ export const isFBOPlayerDormieOnOverallPress = (
   const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
   const fboData = round.gameData?.[game.id] || {};
   
-  const holesRemaining = 18 - currentHole + 1;
-  
-  // Count dots from press.startHole to currentHole-1 (completed holes)
+  const startHole = roundStart(round);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
+
+  // Count dots from press.startHole (play-order position) to currentHole-1 (completed play-order holes)
   const pressDots: { [id: string]: number } = {};
   fboPlayers.forEach(p => pressDots[String(p.id)] = 0);
-  
-  for (let h = press.startHole; h < currentHole; h++) {
+
+  const played = getPlayedHoles(startHole);
+  const pressStartPos = getPlayOrder(press.startHole, startHole);
+  for (let pos = pressStartPos; pos < currentPos; pos++) {
+    const h = played[pos - 1];
     const holeDots: (string | number)[] = fboData[h]?.dots || [];
     holeDots.forEach((pid: string | number) => {
       const normalizedId = String(pid);
@@ -1017,8 +1059,8 @@ export const getFBOPressEligibilityOverall = (
   playerId: string,
   currentHole: number
 ): { canPress: boolean; pressLevel: number; reason?: string } => {
-  // Only available on back 9 (holes 10-18)
-  if (currentHole <= 9) {
+  // Only available on back 9 (play positions 10–18)
+  if (getPlayOrder(currentHole, roundStart(round)) <= 9) {
     return { canPress: false, pressLevel: 1, reason: 'Overall presses only available on back 9' };
   }
   
@@ -1117,13 +1159,16 @@ export const getFBOTeamDormieStatus = (
   teamB: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
 } => {
   const fboData = round.gameData?.[game.id] || {};
-  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
-  const segmentStart = segment === 'front' ? 1 : 10;
-  const segmentEnd = segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
+  const startHole = roundStart(round);
+  const segment: 'front' | 'back' = getPlayHalf(currentHole, startHole);
+  const segmentHoles = segment === 'front' ? getFrontNineHoles(startHole) : getBackNineHoles(startHole);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const segmentEndPos = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEndPos - currentPos + 1;
 
   let aDots = 0, bDots = 0;
-  for (let h = segmentStart; h < currentHole; h++) {
+  for (const h of segmentHoles) {
+    if (getPlayOrder(h, startHole) >= currentPos) break;
     const td = fboData[h]?.teamDot;
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
@@ -1145,9 +1190,13 @@ export const getFBOTeamOverallDormieStatus = (
   teamB: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
 } => {
   const fboData = round.gameData?.[game.id] || {};
-  const holesRemaining = 18 - currentHole + 1;
+  const startHole = roundStart(round);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
+  const played = getPlayedHoles(startHole);
   let aDots = 0, bDots = 0;
-  for (let h = 1; h < currentHole; h++) {
+  for (let i = 0; i < currentPos - 1; i++) {
+    const h = played[i];
     const td = fboData[h]?.teamDot;
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
@@ -1171,8 +1220,10 @@ export const getFBOTeamPressEligibility = (
   const teamPresses = presses.filter(p => String(p.playerId) === team && p.segment === segment);
 
   const fboData = round.gameData?.[game.id] || {};
-  const segmentEnd = segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
+  const startHole = roundStart(round);
+  const holesRemaining = segmentHolesRemaining(round, currentHole, segment);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const played = getPlayedHoles(startHole);
 
   if (teamPresses.length === 0) {
     const status = getFBOTeamDormieStatus(round, game, currentHole);
@@ -1183,12 +1234,14 @@ export const getFBOTeamPressEligibility = (
 
   const latestPress = teamPresses.reduce((a, b) => a.startHole > b.startHole ? a : b);
   const nextPressLevel = (latestPress.pressLevel || 1) + 1;
-  if (latestPress.startHole >= currentHole) {
+  const latestPressPos = getPlayOrder(latestPress.startHole, startHole);
+  if (latestPressPos >= currentPos) {
     return { canPress: false, pressLevel: nextPressLevel, reason: 'Already pressed this hole' };
   }
 
   let aDots = 0, bDots = 0;
-  for (let h = latestPress.startHole; h < currentHole; h++) {
+  for (let pos = latestPressPos; pos < currentPos; pos++) {
+    const h = played[pos - 1];
     const td = fboData[h]?.teamDot;
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
@@ -1206,14 +1259,16 @@ export const getFBOTeamPressEligibilityOverall = (
   team: 'A' | 'B',
   currentHole: number
 ): { canPress: boolean; pressLevel: number; reason?: string } => {
-  if (currentHole <= 9) return { canPress: false, pressLevel: 1, reason: 'Overall presses only available on back 9' };
+  const startHole = roundStart(round);
+  if (getPlayOrder(currentHole, startHole) <= 9) return { canPress: false, pressLevel: 1, reason: 'Overall presses only available on back 9' };
 
   const fboGameData = round.gameData?.[game.id] || {};
   const presses: FBOPressState[] = fboGameData[1]?._META_PRESSES || [];
   const teamPresses = presses.filter(p => String(p.playerId) === team && p.segment === 'overall');
 
   const fboData = round.gameData?.[game.id] || {};
-  const holesRemaining = 18 - currentHole + 1;
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
 
   if (teamPresses.length === 0) {
     const status = getFBOTeamOverallDormieStatus(round, game, currentHole);
@@ -1224,12 +1279,15 @@ export const getFBOTeamPressEligibilityOverall = (
 
   const latestPress = teamPresses.reduce((a, b) => a.startHole > b.startHole ? a : b);
   const nextPressLevel = (latestPress.pressLevel || 1) + 1;
-  if (latestPress.startHole >= currentHole) {
+  const latestPressPos = getPlayOrder(latestPress.startHole, startHole);
+  if (latestPressPos >= currentPos) {
     return { canPress: false, pressLevel: nextPressLevel, reason: 'Already pressed this hole' };
   }
 
+  const played = getPlayedHoles(startHole);
   let aDots = 0, bDots = 0;
-  for (let h = latestPress.startHole; h < currentHole; h++) {
+  for (let pos = latestPressPos; pos < currentPos; pos++) {
+    const h = played[pos - 1];
     const td = fboData[h]?.teamDot;
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
@@ -1281,9 +1339,15 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     }
   }
 
+  // Segment definitions based on play order (start hole → first 9 played = Front)
+  const startHole = roundStart(round);
+  const frontHoles = getFrontNineHoles(startHole);
+  const backHoles = getBackNineHoles(startHole);
+  const allHoles = [...frontHoles, ...backHoles];
+
   // Check if segments are complete
-  const frontNineComplete = [1, 2, 3, 4, 5, 6, 7, 8, 9].every(h => completedHoles.has(h));
-  const backNineComplete = [10, 11, 12, 13, 14, 15, 16, 17, 18].every(h => completedHoles.has(h));
+  const frontNineComplete = frontHoles.every(h => completedHoles.has(h));
+  const backNineComplete = backHoles.every(h => completedHoles.has(h));
   const overallComplete = frontNineComplete && backNineComplete;
 
   // Get dot data from gameData
@@ -1302,6 +1366,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     dotCounts.overall[p.id] = 0;
   });
 
+  const frontSet = new Set(frontHoles);
   // Count dots from each hole
   for (let h = 1; h <= course.holes.length; h++) {
     const holeDots = fboData[h]?.dots || [];
@@ -1313,7 +1378,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       const normalizedId = String(playerId);
       if (dotCounts.overall[normalizedId] !== undefined) {
         dotCounts.overall[normalizedId]++;
-        if (h <= 9) {
+        if (frontSet.has(h)) {
           dotCounts.front[normalizedId]++;
         } else {
           dotCounts.back[normalizedId]++;
@@ -1332,9 +1397,9 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     const teamA = teamsCfg.teamA.map(String);
     const teamB = teamsCfg.teamB.map(String);
 
-    const countTeamDots = (startHole: number, endHole: number) => {
+    const countTeamDots = (holes: number[]) => {
       let aDots = 0, bDots = 0;
-      for (let h = startHole; h <= endHole; h++) {
+      for (const h of holes) {
         const td = fboData[h]?.teamDot;
         if (td === 'A') aDots++;
         else if (td === 'B') bDots++;
@@ -1342,12 +1407,12 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       return { aDots, bDots };
     };
 
-    const settleTeamSegment = (startHole: number, endHole: number, isComplete: boolean, label: string) => {
+    const settleTeamSegment = (holes: number[], isComplete: boolean, label: string) => {
       if (!isComplete) {
         details.push(`${label}: In progress`);
         return;
       }
-      const { aDots, bDots } = countTeamDots(startHole, endHole);
+      const { aDots, bDots } = countTeamDots(holes);
       if (aDots > bDots) {
         teamA.forEach(id => { results[id] = (results[id] || 0) + unit; });
         teamB.forEach(id => { results[id] = (results[id] || 0) - unit; });
@@ -1361,9 +1426,9 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       }
     };
 
-    settleTeamSegment(1, 9, frontNineComplete, 'Front 9');
-    settleTeamSegment(10, 18, backNineComplete, 'Back 9');
-    settleTeamSegment(1, 18, overallComplete, 'Overall');
+    settleTeamSegment(frontHoles, frontNineComplete, 'Front 9');
+    settleTeamSegment(backHoles, backNineComplete, 'Back 9');
+    settleTeamSegment(allHoles, overallComplete, 'Overall');
   } else if (gameMode === 'headToHead' && headToHeadMatchups.length > 0) {
     // Head-to-Head Mode: Calculate each matchup independently using matchupDots
     // Each matchup has its own handicap calculation based only on those 2 players
@@ -1375,10 +1440,10 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       const matchupKey = `${matchup.player1Id}_${matchup.player2Id}`;
 
       // Count dots from matchupDots for this specific matchup
-      const countMatchupDots = (startHole: number, endHole: number): { p1Dots: number; p2Dots: number } => {
+      const countMatchupDots = (holes: number[]): { p1Dots: number; p2Dots: number } => {
         let p1Dots = 0;
         let p2Dots = 0;
-        for (let h = startHole; h <= endHole; h++) {
+        for (const h of holes) {
           const matchupDots = fboData[h]?.matchupDots || {};
           const winner = matchupDots[matchupKey];
           if (String(winner) === String(matchup.player1Id)) p1Dots++;
@@ -1387,13 +1452,13 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         return { p1Dots, p2Dots };
       };
 
-      const calculateH2HSegment = (startHole: number, endHole: number, isComplete: boolean, label: string) => {
+      const calculateH2HSegment = (holes: number[], isComplete: boolean, label: string) => {
         if (!isComplete) {
           details.push(`${p1.name} vs ${p2.name} - ${label}: In progress`);
           return;
         }
 
-        const { p1Dots, p2Dots } = countMatchupDots(startHole, endHole);
+        const { p1Dots, p2Dots } = countMatchupDots(holes);
 
         if (p1Dots > p2Dots) {
           results[p1.id] += matchup.unitValue;
@@ -1408,9 +1473,9 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         }
       };
 
-      calculateH2HSegment(1, 9, frontNineComplete, 'Front 9');
-      calculateH2HSegment(10, 18, backNineComplete, 'Back 9');
-      calculateH2HSegment(1, 18, overallComplete, 'Overall');
+      calculateH2HSegment(frontHoles, frontNineComplete, 'Front 9');
+      calculateH2HSegment(backHoles, backNineComplete, 'Back 9');
+      calculateH2HSegment(allHoles, overallComplete, 'Overall');
     });
   } else {
     // All Together Mode (original behavior)
@@ -1516,8 +1581,8 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         return;
       }
 
-      // Count dots in press range (from startHole to segment end)
-      const pressEnd = press.segment === 'front' ? 9 : 18;
+      // Physical holes covered by this press (play-ordered from press.startHole to segment end)
+      const pressHoles = getPressHoles(press.startHole, press.segment as any, startHole);
       
       const pressingPlayer = fboPlayers.find(p => p.id === String(press.playerId));
       const pressLevelLabel = (press.pressLevel || 1) > 1 ? ` (${press.pressLevel}x)` : '';
@@ -1530,7 +1595,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         const opposingTeam: 'A' | 'B' = pressingTeam === 'A' ? 'B' : 'A';
 
         let aDots = 0, bDots = 0;
-        for (let h = press.startHole; h <= pressEnd; h++) {
+        for (const h of pressHoles) {
           const td = fboData[h]?.teamDot;
           if (td === 'A') aDots++;
           else if (td === 'B') bDots++;
@@ -1565,7 +1630,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         let p1Dots = 0;
         let p2Dots = 0;
         
-        for (let h = press.startHole; h <= pressEnd; h++) {
+        for (const h of pressHoles) {
           const matchupDots = fboData[h]?.matchupDots || {};
           const winner = matchupDots[normalizedMatchupKey];
           if (String(winner) === String(press.playerId)) p1Dots++;
@@ -1591,7 +1656,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         const pressDots: { [id: string]: number } = {};
         fboPlayers.forEach(p => pressDots[p.id] = 0);
         
-        for (let h = press.startHole; h <= pressEnd; h++) {
+        for (const h of pressHoles) {
           const holeDots = fboData[h]?.dots || [];
           holeDots.forEach((playerId: string | number) => {
             const normalizedId = String(playerId);
@@ -2031,11 +2096,11 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
               playerMult *= birdieMultiplier;
             }
             
-            // For Bloody Banker on holes 16, 17, 18: custom stake becomes the BASE BET
+            // For Bloody Banker on the final 3 played holes: custom stake becomes the BASE BET
             // Formula: Base Bet × Banker Multiplier (Double All) × Player Multiplier = Final Bet
             let betAmount: number;
             const isBloodyActive = game.type === GameType.BLOODY_BANKER || (round.gameData?.[game.id]?.[0]?.['_META_BLOODY_ACTIVATED'] === true);
-            if (isBloodyActive && holeNumber >= 16 && holeNumber <= 18) {
+            if (isBloodyActive && isInLastNPlayed(holeNumber, roundStart(round), 3)) {
               const customStake = holeData[`_STAKE_${player.id}`];
               if (customStake !== undefined && customStake > 0) {
                 // Custom stake is the new base bet
@@ -2199,7 +2264,11 @@ export const calculateBloodyBankerPnL = (
 
   const bankerData = round.gameData?.[game.id] || {};
 
-  for (let h = 1; h <= upToHole; h++) {
+  const startHole = roundStart(round);
+  const upToPos = getPlayOrder(upToHole, startHole);
+  const played = getPlayedHoles(startHole);
+  for (let pi = 0; pi < upToPos; pi++) {
+    const h = played[pi];
     const holeData = course.holes.find((hole) => hole.number === h);
     if (!holeData) continue;
 
@@ -2290,9 +2359,15 @@ export const isHoleComplete = (round: Round, holeNumber: number): boolean => {
   return round.players.every(p => typeof holeScores[p.id] === 'number');
 };
 
-// Check if first N holes are complete (all players have scores)
+// Check if the first N played holes are complete (all players have scores).
+// `throughHole` is interpreted as a *physical* hole number; the check walks in play order
+// from the round's start hole through that physical hole (inclusive).
 export const areHolesComplete = (round: Round, throughHole: number): boolean => {
-  for (let h = 1; h <= throughHole; h++) {
+  const startHole = (round as any).startHole || 1;
+  const targetPos = ((throughHole - startHole + 18) % 18) + 1;
+  for (let pos = 1; pos <= targetPos; pos++) {
+    const zeroIdx = ((startHole - 1) + (pos - 1)) % 18;
+    const h = zeroIdx + 1;
     if (!isHoleComplete(round, h)) return false;
   }
   return true;

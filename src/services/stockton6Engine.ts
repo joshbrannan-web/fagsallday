@@ -1,5 +1,8 @@
 import { Round, GameSettings, GameResult, DotType, Stockton6TeamAssignment, Stockton6BallState, Stockton6PressState, Player, PlayerHoleDots } from "../types";
 import { getNetScore } from "./gameEngine";
+import { getPlayedHoles, getPlayOrder, getHoleByPlayOrder } from "../lib/holeOrder";
+
+const roundStart = (round: Round): number => (round as any).startHole || 1;
 
 // Calculate strokes for all players on a given hole
 // Player gets a stroke if hole index <= their handicap
@@ -29,42 +32,52 @@ export const calculateRelativeStrokes = (
   return strokes;
 };
 
-// Stretch definitions (6 holes each)
+// Legacy stretch definitions (physical scorecard). Kept for callers that use startHole=1.
 export const STRETCH_HOLES = {
   1: [1, 2, 3, 4, 5, 6],
   2: [7, 8, 9, 10, 11, 12],
   3: [13, 14, 15, 16, 17, 18],
 };
 
-// Get stretch number for a hole (1-18)
-export const getStretchForHole = (hole: number): 1 | 2 | 3 => {
-  if (hole <= 6) return 1;
-  if (hole <= 12) return 2;
+// Get the played holes for a stretch (in play order) given the round's startHole.
+export const getStretchHoles = (stretch: 1 | 2 | 3, startHole: number = 1): number[] => {
+  const played = getPlayedHoles(startHole);
+  return played.slice((stretch - 1) * 6, stretch * 6);
+};
+
+// Get stretch number (1-3) for a physical hole, given startHole.
+export const getStretchForHole = (hole: number, startHole: number = 1): 1 | 2 | 3 => {
+  const pos = getPlayOrder(hole, startHole);
+  if (pos <= 6) return 1;
+  if (pos <= 12) return 2;
   return 3;
 };
 
 // Get hole position within stretch (1-6)
-export const getHoleInStretch = (hole: number): number => {
-  return ((hole - 1) % 6) + 1;
+export const getHoleInStretch = (hole: number, startHole: number = 1): number => {
+  return ((getPlayOrder(hole, startHole) - 1) % 6) + 1;
 };
 
-// Is this a stretch start hole?
-export const isStretchStartHole = (hole: number): boolean => {
-  return hole === 1 || hole === 7 || hole === 13;
+// Is this the first-played hole of a stretch?
+export const isStretchStartHole = (hole: number, startHole: number = 1): boolean => {
+  const pos = getPlayOrder(hole, startHole);
+  return pos === 1 || pos === 7 || pos === 13;
 };
 
-// Is this a stretch end hole?
-export const isStretchEndHole = (hole: number): boolean => {
-  return hole === 6 || hole === 12 || hole === 18;
+// Is this the last-played hole of a stretch?
+export const isStretchEndHole = (hole: number, startHole: number = 1): boolean => {
+  const pos = getPlayOrder(hole, startHole);
+  return pos === 6 || pos === 12 || pos === 18;
 };
 
 // Get team assignment from gameData
 export const getTeamAssignment = (
   gameData: any,
   gameId: string,
-  stretch: 1 | 2 | 3
+  stretch: 1 | 2 | 3,
+  startHole: number = 1,
 ): Stockton6TeamAssignment | null => {
-  const stretchStartHole = (stretch - 1) * 6 + 1;
+  const stretchStartHole = getHoleByPlayOrder((stretch - 1) * 6 + 1, startHole);
   const data = gameData?.[gameId]?.[stretchStartHole];
   
   if (!data?._META_TEAM_A || !data?._META_TEAM_B) return null;
@@ -215,11 +228,13 @@ export const calculateBallState = (
   stretch: 1 | 2 | 3,
   throughHole: number
 ): { oneBall: Stockton6BallState; twoBall: Stockton6BallState } | null => {
-  const teamAssignment = getTeamAssignment(round.gameData, gameId, stretch);
+  const sh = roundStart(round);
+  const teamAssignment = getTeamAssignment(round.gameData, gameId, stretch, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB } = teamAssignment;
-  const stretchHoles = STRETCH_HOLES[stretch];
+  const stretchHoles = getStretchHoles(stretch, sh);
+  const throughPos = getPlayOrder(throughHole, sh);
   
   // Initialize states
   let oneBall: Stockton6BallState = {
@@ -234,14 +249,14 @@ export const calculateBallState = (
     overall: { teamAUp: 0 }
   };
   
-  // Process each hole
+  // Process each played hole in this stretch (in play order)
   for (const hole of stretchHoles) {
-    if (hole > throughHole) break;
+    if (getPlayOrder(hole, sh) > throughPos) break;
     
     const holeResult = calculateHoleBallResults(round, hole, teamA, teamB);
     if (!holeResult) continue;
     
-    const holeInStretch = getHoleInStretch(hole);
+    const holeInStretch = getHoleInStretch(hole, sh);
     const isFront = holeInStretch <= 3;
     
     // Update 1-Ball
@@ -407,7 +422,7 @@ export const countTeamDots = (
   stretch: 1 | 2 | 3,
   teamPlayerIds: string[]
 ): number => {
-  const stretchHoles = STRETCH_HOLES[stretch];
+  const stretchHoles = getStretchHoles(stretch, roundStart(round));
   let total = 0;
   
   for (const hole of stretchHoles) {
@@ -453,14 +468,14 @@ export const calculateStretchPayouts = (
   game: GameSettings,
   stretch: 1 | 2 | 3
 ): { playerPayouts: { [playerId: string]: number }; details: string[] } | null => {
-  const teamAssignment = getTeamAssignment(round.gameData, game.id, stretch);
+  const sh = roundStart(round);
+  const teamAssignment = getTeamAssignment(round.gameData, game.id, stretch, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB, unitValue, dotValue } = teamAssignment;
-  const stretchEndHole = stretch * 6;
+  const stretchHoles = getStretchHoles(stretch, sh);
+  const stretchEndHole = stretchHoles[stretchHoles.length - 1];
   
-  // Check if stretch is complete
-  const stretchHoles = STRETCH_HOLES[stretch];
   const allComplete = stretchHoles.every(hole => {
     const holeScores = round.scores[hole];
     if (!holeScores) return false;
@@ -538,16 +553,19 @@ export const getHolePressInfo = (
     twoBall: { front: false, back: false }
   };
   
-  const stretch = getStretchForHole(hole);
-  const holeInStretch = getHoleInStretch(hole);
+  const sh = roundStart(round);
+  const stretch = getStretchForHole(hole, sh);
+  const holeInStretch = getHoleInStretch(hole, sh);
   
   // Presses can only start on holes 2, 3 (front) or 5, 6 (back)
   if (holeInStretch === 1 || holeInStretch === 4) return result;
   
-  // Calculate ball state up to previous hole
-  const prevHole = hole - 1;
-  const prevBallState = prevHole >= (stretch - 1) * 6 + 1 
-    ? calculateBallState(round, gameId, stretch, prevHole) 
+  // Calculate ball state up to previous played hole (in this stretch)
+  const stretchHoles = getStretchHoles(stretch, sh);
+  const idxInStretch = stretchHoles.indexOf(hole);
+  const prevHole = idxInStretch > 0 ? stretchHoles[idxInStretch - 1] : null;
+  const prevBallState = prevHole !== null
+    ? calculateBallState(round, gameId, stretch, prevHole)
     : null;
   
   // Calculate ball state up to current hole
@@ -586,10 +604,11 @@ export const calculateHoleDotPayouts = (
   hole: number
 ): { playerPayouts: { [playerId: string]: number } } | null => {
   // Determine which stretch this hole belongs to
-  const stretch = getStretchForHole(hole);
+  const sh = roundStart(round);
+  const stretch = getStretchForHole(hole, sh);
   
   // Get team assignment for this stretch
-  const teamAssignment = getTeamAssignment(round.gameData, gameId, stretch);
+  const teamAssignment = getTeamAssignment(round.gameData, gameId, stretch, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB, dotValue } = teamAssignment;
@@ -629,14 +648,14 @@ export const calculateStretchBallPayouts = (
   game: GameSettings,
   stretch: 1 | 2 | 3
 ): { playerPayouts: { [playerId: string]: number }; details: string[] } | null => {
-  const teamAssignment = getTeamAssignment(round.gameData, game.id, stretch);
+  const sh = roundStart(round);
+  const teamAssignment = getTeamAssignment(round.gameData, game.id, stretch, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB, unitValue } = teamAssignment;
-  const stretchEndHole = stretch * 6;
+  const stretchHoles = getStretchHoles(stretch, sh);
+  const stretchEndHole = stretchHoles[stretchHoles.length - 1];
   
-  // Check if stretch is complete
-  const stretchHoles = STRETCH_HOLES[stretch];
   const allComplete = stretchHoles.every(hole => {
     const holeScores = round.scores[hole];
     if (!holeScores) return false;

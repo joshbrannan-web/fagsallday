@@ -19,19 +19,24 @@ interface DbRound {
   updated_at: string;
 }
 
-const dbRoundToRound = (dbRound: DbRound, isShared = false, ownerName?: string): Round => ({
-  id: dbRound.id,
-  course: dbRound.course_data as Course,
-  players: dbRound.players_data as Player[],
-  games: dbRound.games_data as GameSettings[],
-  scores: dbRound.scores || {},
-  gameData: dbRound.game_data || {},
-  status: dbRound.status as Round['status'],
-  startTime: new Date(dbRound.start_time).getTime(),
-  isFavorite: (dbRound as any).is_favorite || false,
-  isShared,
-  ownerName,
-});
+const dbRoundToRound = (dbRound: DbRound, isShared = false, ownerName?: string): Round => {
+  const gd = (dbRound.game_data || {}) as any;
+  const startHole = gd?._ROUND_META?.startHole;
+  return {
+    id: dbRound.id,
+    course: dbRound.course_data as Course,
+    players: dbRound.players_data as Player[],
+    games: dbRound.games_data as GameSettings[],
+    scores: dbRound.scores || {},
+    gameData: gd,
+    status: dbRound.status as Round['status'],
+    startTime: new Date(dbRound.start_time).getTime(),
+    startHole: typeof startHole === 'number' ? startHole : 1,
+    isFavorite: (dbRound as any).is_favorite || false,
+    isShared,
+    ownerName,
+  };
+};
 
 // Insert round participants for linked players
 const insertRoundParticipants = async (roundId: string, players: Player[], ownerId: string) => {
@@ -227,13 +232,20 @@ export const useRounds = () => {
     };
   }, [rounds.filter(r => r.isShared && r.status === 'ACTIVE').map(r => r.id).join(',')]);
 
-  const createRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>): Promise<Round | null> => {
+  const createRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>, startHole: number = 1): Promise<Round | null> => {
     if (!user) {
       toast.error('Please sign in to start a round');
       return null;
     }
 
     try {
+      const mergedGameData: Record<string, any> = {
+        ...(initialGameData || {}),
+        _ROUND_META: {
+          ...((initialGameData as any)?._ROUND_META || {}),
+          startHole: startHole || 1,
+        },
+      };
       const { data, error } = await supabase
         .from('rounds')
         .insert({
@@ -242,7 +254,7 @@ export const useRounds = () => {
           players_data: players as unknown as Record<string, unknown>[],
           games_data: games as unknown as Record<string, unknown>[],
           scores: {},
-          game_data: initialGameData || {},
+          game_data: mergedGameData,
           status: 'ACTIVE',
           start_time: new Date().toISOString()
         } as any)

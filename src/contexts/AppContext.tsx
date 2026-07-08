@@ -7,7 +7,7 @@ export interface AppState {
   favoriteCourses: Course[];
   nonFavoriteCourses: Course[];
   roundHistory: Round[];
-  startNewRound: (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>) => void;
+  startNewRound: (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>, startHole?: number) => void;
   updateScore: (holeNumber: number, playerId: string, score: number) => void;
   updateGameData: (gameId: string, holeNumber: number, key: string, value: any) => void;
   updateGameDataBatch: (gameId: string, holeNumber: number, updates: Record<string, any>) => void;

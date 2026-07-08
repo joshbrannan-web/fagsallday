@@ -1,5 +1,6 @@
 import { Round, GameSettings, GameResult, Player } from "../types";
 import { calculateStrokesReceived } from "./gameEngine";
+import { getPlayedHoles, getPlayOrder, getHoleByPlayOrder } from "../lib/holeOrder";
 
 // Types
 export type TeamBankerMode = 'eighteen' | 'sixes' | 'threes';
@@ -19,54 +20,40 @@ export interface TeamBankerTeamAssignment {
   locked: boolean;
 }
 
-// Stretch hole definitions
-const EIGHTEEN_STRETCH_HOLES: { [key: number]: number[] } = {
-  1: Array.from({ length: 18 }, (_, i) => i + 1),
+const roundStart = (round: Round): number => (round as any).startHole || 1;
+
+const stretchSize = (mode: TeamBankerMode): number => {
+  if (mode === 'eighteen') return 18;
+  if (mode === 'threes') return 3;
+  return 6;
 };
 
-const SIXES_STRETCH_HOLES: { [key: number]: number[] } = {
-  1: [1, 2, 3, 4, 5, 6],
-  2: [7, 8, 9, 10, 11, 12],
-  3: [13, 14, 15, 16, 17, 18],
+// Play-ordered physical holes for a stretch.
+const stretchHolesFor = (stretch: TeamBankerStretch, mode: TeamBankerMode, startHole: number): number[] => {
+  const size = stretchSize(mode);
+  const played = getPlayedHoles(startHole);
+  const startIdx = (stretch - 1) * size;
+  return played.slice(startIdx, startIdx + size);
 };
 
-const THREES_STRETCH_HOLES: { [key: number]: number[] } = {
-  1: [1, 2, 3],
-  2: [4, 5, 6],
-  3: [7, 8, 9],
-  4: [10, 11, 12],
-  5: [13, 14, 15],
-  6: [16, 17, 18],
-};
-
-export const getTeamBankerStretchForHole = (hole: number, mode: TeamBankerMode): TeamBankerStretch => {
+export const getTeamBankerStretchForHole = (hole: number, mode: TeamBankerMode, startHole: number = 1): TeamBankerStretch => {
   if (mode === 'eighteen') return 1;
-  if (mode === 'threes') {
-    if (hole <= 3) return 1;
-    if (hole <= 6) return 2;
-    if (hole <= 9) return 3;
-    if (hole <= 12) return 4;
-    if (hole <= 15) return 5;
-    return 6;
-  }
-  // sixes
-  if (hole <= 6) return 1;
-  if (hole <= 12) return 2;
-  return 3;
+  const pos = getPlayOrder(hole, startHole);
+  const size = stretchSize(mode);
+  return (Math.floor((pos - 1) / size) + 1) as TeamBankerStretch;
 };
 
-export const isTeamBankerStretchStartHole = (hole: number, mode: TeamBankerMode): boolean => {
-  if (mode === 'eighteen') return hole === 1;
-  if (mode === 'threes') return [1, 4, 7, 10, 13, 16].includes(hole);
-  return [1, 7, 13].includes(hole);
+export const isTeamBankerStretchStartHole = (hole: number, mode: TeamBankerMode, startHole: number = 1): boolean => {
+  const pos = getPlayOrder(hole, startHole);
+  if (mode === 'eighteen') return pos === 1;
+  const size = stretchSize(mode);
+  return ((pos - 1) % size) === 0;
 };
 
-export const getTeamBankerStretchStartHole = (stretch: TeamBankerStretch, mode: TeamBankerMode): number => {
-  if (mode === 'eighteen') return 1;
-  if (mode === 'threes') {
-    return [1, 4, 7, 10, 13, 16][stretch - 1] || 1;
-  }
-  return (stretch - 1) * 6 + 1;
+export const getTeamBankerStretchStartHole = (stretch: TeamBankerStretch, mode: TeamBankerMode, startHole: number = 1): number => {
+  const size = stretchSize(mode);
+  const pos = (stretch - 1) * size + 1;
+  return getHoleByPlayOrder(pos, startHole);
 };
 
 export const getTeamBankerTotalStretches = (mode: TeamBankerMode): number => {
@@ -81,8 +68,9 @@ export const getTeamBankerAllStretches = (mode: TeamBankerMode): TeamBankerStret
   return [1, 2, 3];
 };
 
-export const getTeamBankerMode = (gameData: any, gameId: string): TeamBankerMode => {
-  const data = gameData?.[gameId]?.[1];
+export const getTeamBankerMode = (gameData: any, gameId: string, startHole: number = 1): TeamBankerMode => {
+  // Mode stored at the first-played hole (=startHole). Fall back to physical hole 1 for legacy rounds.
+  const data = gameData?.[gameId]?.[startHole] ?? gameData?.[gameId]?.[1];
   return data?._META_MODE ?? 'sixes';
 };
 
@@ -90,9 +78,10 @@ export const getTeamBankerTeamAssignment = (
   gameData: any,
   gameId: string,
   stretch: TeamBankerStretch,
-  mode: TeamBankerMode
+  mode: TeamBankerMode,
+  startHole: number = 1,
 ): TeamBankerTeamAssignment | null => {
-  const stretchStartHole = getTeamBankerStretchStartHole(stretch, mode);
+  const stretchStartHole = getTeamBankerStretchStartHole(stretch, mode, startHole);
   const data = gameData?.[gameId]?.[stretchStartHole];
 
   if (!data?._META_TEAM_A || !data?._META_TEAM_B) return null;
@@ -134,23 +123,21 @@ export const calculateTeamBanker = (round: Round, game: GameSettings): GameResul
 
   round.players.forEach(p => results[p.id] = 0);
 
-  const mode = getTeamBankerMode(round.gameData, game.id);
+  const mode = getTeamBankerMode(round.gameData, game.id, roundStart(round));
   const stretches = getTeamBankerAllStretches(mode);
 
   for (const stretch of stretches) {
-    const assignment = getTeamBankerTeamAssignment(round.gameData, game.id, stretch, mode);
+    const sh = roundStart(round);
+    const assignment = getTeamBankerTeamAssignment(round.gameData, game.id, stretch, mode, sh);
     if (!assignment) continue;
 
     const { teamA, teamB, unitValue, useHandicaps, handicapMode, useSecondBallTiebreaker, birdieMultiplier, eagleMultiplier } = assignment;
     const allPlayerIds = [...teamA, ...teamB];
     const allPlayers = round.players.filter(p => allPlayerIds.includes(p.id));
 
-    // Determine holes for this stretch
-    const stretchStartHole = getTeamBankerStretchStartHole(stretch, mode);
-    let stretchHoles: number[];
-    if (mode === 'eighteen') stretchHoles = EIGHTEEN_STRETCH_HOLES[1];
-    else if (mode === 'threes') stretchHoles = THREES_STRETCH_HOLES[stretch] || [];
-    else stretchHoles = SIXES_STRETCH_HOLES[stretch] || [];
+    // Determine holes for this stretch (in play order, based on round's start hole)
+    const stretchStartHole = getTeamBankerStretchStartHole(stretch, mode, sh);
+    const stretchHoles: number[] = stretchHolesFor(stretch, mode, sh);
 
     for (const holeNumber of stretchHoles) {
       const hole = round.course.holes.find(h => h.number === holeNumber);

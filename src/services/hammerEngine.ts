@@ -1,8 +1,11 @@
 import { Round, GameSettings, GameResult, Player } from "../types";
+import { getPlayedHoles, getPlayOrder, getHoleByPlayOrder } from "../lib/holeOrder";
 
 // ---- Segment helpers (Team Hammer) ----
 
 export type HammerSegmentLength = 3 | 6 | 18;
+
+const roundStart = (round: Round): number => (round as any).startHole || 1;
 
 export const getHammerSegmentLength = (game: GameSettings): HammerSegmentLength => {
   return (game.config.hammer?.segmentLength ?? 18) as HammerSegmentLength;
@@ -12,27 +15,32 @@ export const getHammerVariant = (game: GameSettings): 'team' | 'lr' => {
   return game.config.hammer?.variant ?? 'team';
 };
 
-export const getHammerSegmentForHole = (hole: number, segLen: HammerSegmentLength): number => {
+// Segment (1-based) for a physical hole given round startHole and segment length.
+export const getHammerSegmentForHole = (hole: number, segLen: HammerSegmentLength, startHole: number = 1): number => {
   if (segLen === 18) return 1;
-  return Math.floor((hole - 1) / segLen) + 1;
+  const pos = getPlayOrder(hole, startHole);
+  return Math.floor((pos - 1) / segLen) + 1;
 };
 
-export const getHammerSegmentStartHole = (segment: number, segLen: HammerSegmentLength): number => {
-  if (segLen === 18) return 1;
-  return (segment - 1) * segLen + 1;
+// Physical hole number where a segment starts (first played hole of the segment).
+export const getHammerSegmentStartHole = (segment: number, segLen: HammerSegmentLength, startHole: number = 1): number => {
+  if (segLen === 18) return getHoleByPlayOrder(1, startHole);
+  const pos = (segment - 1) * segLen + 1;
+  return getHoleByPlayOrder(pos, startHole);
 };
 
-export const getHammerSegmentHoles = (segment: number, segLen: HammerSegmentLength): number[] => {
-  const start = getHammerSegmentStartHole(segment, segLen);
-  const end = Math.min(start + segLen - 1, 18);
-  const holes: number[] = [];
-  for (let h = start; h <= end; h++) holes.push(h);
-  return holes;
+export const getHammerSegmentHoles = (segment: number, segLen: HammerSegmentLength, startHole: number = 1): number[] => {
+  const played = getPlayedHoles(startHole);
+  if (segLen === 18) return played;
+  const startIdx = (segment - 1) * segLen;
+  const endIdx = Math.min(startIdx + segLen, 18);
+  return played.slice(startIdx, endIdx);
 };
 
-export const isHammerSegmentStartHole = (hole: number, segLen: HammerSegmentLength): boolean => {
-  if (segLen === 18) return hole === 1;
-  return ((hole - 1) % segLen) === 0;
+export const isHammerSegmentStartHole = (hole: number, segLen: HammerSegmentLength, startHole: number = 1): boolean => {
+  const pos = getPlayOrder(hole, startHole);
+  if (segLen === 18) return pos === 1;
+  return ((pos - 1) % segLen) === 0;
 };
 
 export const getHammerAllSegments = (segLen: HammerSegmentLength): number[] => {
@@ -53,9 +61,10 @@ export const getHammerTeamAssignment = (
   gameId: string,
   segment: number,
   segLen: HammerSegmentLength,
+  startHole: number = 1,
 ): HammerTeamAssignment | null => {
-  const startHole = getHammerSegmentStartHole(segment, segLen);
-  const data = gameData?.[gameId]?.[startHole];
+  const segStartHole = getHammerSegmentStartHole(segment, segLen, startHole);
+  const data = gameData?.[gameId]?.[segStartHole];
   if (!data?._META_TEAM_A || !data?._META_TEAM_B) return null;
   return { teamA: data._META_TEAM_A, teamB: data._META_TEAM_B };
 };
@@ -73,10 +82,11 @@ export const getHammerHoleTeams = (
   hole: number,
   variant: 'team' | 'lr',
   segLen: HammerSegmentLength,
+  startHole: number = 1,
 ): HammerHoleTeams | null => {
   if (variant === 'team') {
-    const seg = getHammerSegmentForHole(hole, segLen);
-    const a = getHammerTeamAssignment(gameData, gameId, seg, segLen);
+    const seg = getHammerSegmentForHole(hole, segLen, startHole);
+    const a = getHammerTeamAssignment(gameData, gameId, seg, segLen, startHole);
     if (!a) return null;
     return { teamA: a.teamA, teamB: a.teamB };
   }
@@ -169,7 +179,7 @@ export const calculateHammerHole = (
 ): HammerHoleResult | null => {
   const variant = getHammerVariant(game);
   const segLen = getHammerSegmentLength(game);
-  const teams = getHammerHoleTeams(round.gameData, game.id, hole, variant, segLen);
+  const teams = getHammerHoleTeams(round.gameData, game.id, hole, variant, segLen, roundStart(round));
   if (!teams) return null;
 
   const holeData = round.course.holes.find(h => h.number === hole);
@@ -307,7 +317,7 @@ export const calculateHammerHolePayouts = (
 
   const variant = getHammerVariant(game);
   const segLen = getHammerSegmentLength(game);
-  const teams = getHammerHoleTeams(round.gameData, game.id, hole, variant, segLen);
+  const teams = getHammerHoleTeams(round.gameData, game.id, hole, variant, segLen, roundStart(round));
   if (!teams) return null;
 
   const payouts: { [pid: string]: number } = {};
@@ -359,8 +369,8 @@ export const calculateHammer = (round: Round, game: GameSettings): GameResult =>
 
     const result = calculateHammerHole(round, game, h)!;
     const winnerNames = (result.winningTeam === 'A'
-      ? (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game))?.teamA || [])
-      : (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game))?.teamB || []))
+      ? (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game), roundStart(round))?.teamA || [])
+      : (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game), roundStart(round))?.teamB || []))
       .map(pid => round.players.find(p => p.id === pid)?.name || '?').join(' & ');
     const { concededBy } = getHammerHoleState(round.gameData, game.id, h);
     if (concededBy) {
