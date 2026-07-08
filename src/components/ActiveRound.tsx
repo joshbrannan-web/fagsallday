@@ -120,7 +120,7 @@ const ActiveRound: React.FC = () => {
     }
   }, [currentRound, activeHole, roundStartHole]);
 
-  // Bloody Banker "Down the Most" logic for holes 16, 17, 18
+  // Bloody Banker "Down the Most" logic for the final 3 played holes
   const bloodyBankerDownPlayer = useMemo(() => {
     if (!currentRound) return null;
     
@@ -131,10 +131,10 @@ const ActiveRound: React.FC = () => {
     );
     if (bloodyBankerGames.length === 0) return null;
     
-    // Check if current hole is 16, 17, or 18
-    if (activeHole < 16 || activeHole > 18) return null;
+    // Trigger on the last 3 played holes (play-order positions 16/17/18)
+    if (!isInLastNPlayed(activeHole, roundStartHole, 3)) return null;
     
-    const previousHole = activeHole - 1; // 15, 16, or 17
+    const previousHole = getPrevHole(activeHole, roundStartHole);
     
     // Check if all previous holes are complete
     if (!areHolesComplete(currentRound, previousHole)) return null;
@@ -164,7 +164,7 @@ const ActiveRound: React.FC = () => {
     });
     
     return downPlayers.length > 0 ? downPlayers : null;
-  }, [currentRound, activeHole]);
+  }, [currentRound, activeHole, roundStartHole]);
 
   // Stockton 6's: Check if we need to show team setup (must be before early return!)
   const stockton6NeedsSetup = useMemo(() => {
