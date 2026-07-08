@@ -2290,9 +2290,15 @@ export const isHoleComplete = (round: Round, holeNumber: number): boolean => {
   return round.players.every(p => typeof holeScores[p.id] === 'number');
 };
 
-// Check if first N holes are complete (all players have scores)
+// Check if the first N played holes are complete (all players have scores).
+// `throughHole` is interpreted as a *physical* hole number; the check walks in play order
+// from the round's start hole through that physical hole (inclusive).
 export const areHolesComplete = (round: Round, throughHole: number): boolean => {
-  for (let h = 1; h <= throughHole; h++) {
+  const startHole = (round as any).startHole || 1;
+  const targetPos = ((throughHole - startHole + 18) % 18) + 1;
+  for (let pos = 1; pos <= targetPos; pos++) {
+    const zeroIdx = ((startHole - 1) + (pos - 1)) % 18;
+    const h = zeroIdx + 1;
     if (!isHoleComplete(round, h)) return false;
   }
   return true;
