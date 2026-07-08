@@ -1251,14 +1251,16 @@ export const getFBOTeamPressEligibilityOverall = (
   team: 'A' | 'B',
   currentHole: number
 ): { canPress: boolean; pressLevel: number; reason?: string } => {
-  if (currentHole <= 9) return { canPress: false, pressLevel: 1, reason: 'Overall presses only available on back 9' };
+  const startHole = roundStart(round);
+  if (getPlayOrder(currentHole, startHole) <= 9) return { canPress: false, pressLevel: 1, reason: 'Overall presses only available on back 9' };
 
   const fboGameData = round.gameData?.[game.id] || {};
   const presses: FBOPressState[] = fboGameData[1]?._META_PRESSES || [];
   const teamPresses = presses.filter(p => String(p.playerId) === team && p.segment === 'overall');
 
   const fboData = round.gameData?.[game.id] || {};
-  const holesRemaining = 18 - currentHole + 1;
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
 
   if (teamPresses.length === 0) {
     const status = getFBOTeamOverallDormieStatus(round, game, currentHole);
@@ -1269,12 +1271,15 @@ export const getFBOTeamPressEligibilityOverall = (
 
   const latestPress = teamPresses.reduce((a, b) => a.startHole > b.startHole ? a : b);
   const nextPressLevel = (latestPress.pressLevel || 1) + 1;
-  if (latestPress.startHole >= currentHole) {
+  const latestPressPos = getPlayOrder(latestPress.startHole, startHole);
+  if (latestPressPos >= currentPos) {
     return { canPress: false, pressLevel: nextPressLevel, reason: 'Already pressed this hole' };
   }
 
+  const played = getPlayedHoles(startHole);
   let aDots = 0, bDots = 0;
-  for (let h = latestPress.startHole; h < currentHole; h++) {
+  for (let pos = latestPressPos; pos < currentPos; pos++) {
+    const h = played[pos - 1];
     const td = fboData[h]?.teamDot;
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
