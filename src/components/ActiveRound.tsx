@@ -61,10 +61,13 @@ const ActiveRound: React.FC = () => {
     isReadOnly,
   );
 
-  // Initialize active hole from navigation state if available
+  // Round-level start hole (defaults to 1). Used to remap hole positions for game logic.
+  const roundStartHole = currentRound?.startHole || 1;
+
+  // Initialize active hole from navigation state, else the round's configured start hole.
   const [activeHole, setActiveHole] = useState(() => {
     const state = location.state as { startHole?: number } | null;
-    return state?.startHole || 1;
+    return state?.startHole || currentRound?.startHole || 1;
   });
   const [isListening, setIsListening] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
