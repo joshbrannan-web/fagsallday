@@ -232,13 +232,20 @@ export const useRounds = () => {
     };
   }, [rounds.filter(r => r.isShared && r.status === 'ACTIVE').map(r => r.id).join(',')]);
 
-  const createRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>): Promise<Round | null> => {
+  const createRound = async (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>, startHole: number = 1): Promise<Round | null> => {
     if (!user) {
       toast.error('Please sign in to start a round');
       return null;
     }
 
     try {
+      const mergedGameData: Record<string, any> = {
+        ...(initialGameData || {}),
+        _ROUND_META: {
+          ...((initialGameData as any)?._ROUND_META || {}),
+          startHole: startHole || 1,
+        },
+      };
       const { data, error } = await supabase
         .from('rounds')
         .insert({
@@ -247,7 +254,7 @@ export const useRounds = () => {
           players_data: players as unknown as Record<string, unknown>[],
           games_data: games as unknown as Record<string, unknown>[],
           scores: {},
-          game_data: initialGameData || {},
+          game_data: mergedGameData,
           status: 'ACTIVE',
           start_time: new Date().toISOString()
         } as any)
