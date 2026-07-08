@@ -455,7 +455,7 @@ export const calculateNassau = (round: Round, game: GameSettings): GameResult =>
     const net1 = holeScores[p1.id]! - effectiveStrokes1;
     const net2 = holeScores[p2.id]! - effectiveStrokes2;
 
-    const scoreDiff = h <= 9 ? front9Score : back9Score;
+    const scoreDiff = getPlayHalf(h, roundStart(round)) === 'front' ? front9Score : back9Score;
 
     if (net1 < net2) {
       scoreDiff[p1.id] += 1;
