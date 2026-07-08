@@ -369,8 +369,8 @@ export const calculateHammer = (round: Round, game: GameSettings): GameResult =>
 
     const result = calculateHammerHole(round, game, h)!;
     const winnerNames = (result.winningTeam === 'A'
-      ? (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game, roundStart(round)))?.teamA || [])
-      : (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game, roundStart(round)))?.teamB || []))
+      ? (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game), roundStart(round))?.teamA || [])
+      : (getHammerHoleTeams(round.gameData, game.id, h, getHammerVariant(game), getHammerSegmentLength(game), roundStart(round))?.teamB || []))
       .map(pid => round.players.find(p => p.id === pid)?.name || '?').join(' & ');
     const { concededBy } = getHammerHoleState(round.gameData, game.id, h);
     if (concededBy) {
