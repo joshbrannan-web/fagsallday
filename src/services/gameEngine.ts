@@ -968,13 +968,17 @@ export const getFBOMatchupOverallDormieStatus = (
   player2: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
 } => {
   const fboData = round.gameData?.[game.id] || {};
-  const holesRemaining = 18 - currentHole + 1;
-  
+  const startHole = roundStart(round);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
+
   const key1 = `${player1Id}_${player2Id}`;
   const key2 = `${player2Id}_${player1Id}`;
-  
+
   let p1Dots = 0, p2Dots = 0;
-  for (let h = 1; h < currentHole; h++) {
+  const played = getPlayedHoles(startHole);
+  for (let i = 0; i < currentPos - 1; i++) {
+    const h = played[i];
     const matchupDots = fboData[h]?.matchupDots || {};
     const winner = matchupDots[key1] ?? matchupDots[key2];
     if (String(winner) === String(player1Id)) p1Dots++;
