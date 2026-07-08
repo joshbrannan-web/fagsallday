@@ -245,6 +245,12 @@ export interface Round {
   gameData: GameData;
   status: 'SETUP' | 'ACTIVE' | 'COMPLETE' | 'LOCKED';
   startTime: number;
+  /**
+   * Physical hole number (1-18) where this round is teed off. Defaults to 1.
+   * Games with segments/stretches/fixed-hole triggers use play-order relative to this hole.
+   * Persisted inside gameData._ROUND_META.startHole (no DB schema change).
+   */
+  startHole?: number;
   isFavorite?: boolean;
   isShared?: boolean;
   ownerName?: string;
