@@ -1,18 +1,28 @@
 import { Round, GameSettings, GameResult, SixesTeamAssignment, SixesPressState, Player } from "../types";
 import { getNetScore } from "./gameEngine";
+import { getPlayedHoles, getPlayOrder, getHoleByPlayOrder } from "../lib/holeOrder";
 
 // Type for stretch numbers
 export type SixesStretch = 1 | 2 | 3 | 4 | 5 | 6;
 export type SixesMode = 'sixes' | 'threes';
 
-// Stretch definitions for 6's mode (6 holes each)
+const roundStart = (round: Round): number => (round as any).startHole || 1;
+
+// Get physical hole numbers for a stretch, in play order.
+// 6's mode: 3 stretches of 6 played holes; 3's mode: 6 stretches of 3 played holes.
+export const getStretchHolesForMode = (stretch: SixesStretch, mode: SixesMode = 'sixes', startHole: number = 1): number[] => {
+  const played = getPlayedHoles(startHole);
+  const size = mode === 'threes' ? 3 : 6;
+  const startIdx = (stretch - 1) * size;
+  return played.slice(startIdx, startIdx + size);
+};
+
+// Legacy shape: physical scorecard stretch hole numbers (kept for anywhere expecting startHole=1).
 export const SIXES_STRETCH_HOLES: { [key: number]: number[] } = {
   1: [1, 2, 3, 4, 5, 6],
   2: [7, 8, 9, 10, 11, 12],
   3: [13, 14, 15, 16, 17, 18],
 };
-
-// Stretch definitions for 3's mode (3 holes each)
 export const THREES_STRETCH_HOLES: { [key: number]: number[] } = {
   1: [1, 2, 3],
   2: [4, 5, 6],
@@ -22,62 +32,41 @@ export const THREES_STRETCH_HOLES: { [key: number]: number[] } = {
   6: [16, 17, 18],
 };
 
-// Get stretch holes based on mode
-export const getStretchHolesForMode = (stretch: SixesStretch, mode: SixesMode = 'sixes'): number[] => {
+// Get stretch number (1-based) for a hole given the round's mode and startHole.
+export const getSixesStretchForHole = (hole: number, mode: SixesMode = 'sixes', startHole: number = 1): SixesStretch => {
+  const pos = getPlayOrder(hole, startHole);
   if (mode === 'threes') {
-    return THREES_STRETCH_HOLES[stretch] || [];
+    return (Math.floor((pos - 1) / 3) + 1) as SixesStretch;
   }
-  return SIXES_STRETCH_HOLES[stretch] || [];
+  return (Math.floor((pos - 1) / 6) + 1) as SixesStretch;
 };
 
-// Get stretch number for a hole (1-18)
-export const getSixesStretchForHole = (hole: number, mode: SixesMode = 'sixes'): SixesStretch => {
-  if (mode === 'threes') {
-    if (hole <= 3) return 1;
-    if (hole <= 6) return 2;
-    if (hole <= 9) return 3;
-    if (hole <= 12) return 4;
-    if (hole <= 15) return 5;
-    return 6;
-  }
-  // 6's mode (original)
-  if (hole <= 6) return 1;
-  if (hole <= 12) return 2;
-  return 3;
+// Is this the first played hole of any stretch?
+export const isSixesStretchStartHole = (hole: number, mode: SixesMode = 'sixes', startHole: number = 1): boolean => {
+  const pos = getPlayOrder(hole, startHole);
+  const size = mode === 'threes' ? 3 : 6;
+  return ((pos - 1) % size) === 0;
 };
 
-// Is this a stretch start hole?
-export const isSixesStretchStartHole = (hole: number, mode: SixesMode = 'sixes'): boolean => {
-  if (mode === 'threes') {
-    return [1, 4, 7, 10, 13, 16].includes(hole);
-  }
-  return hole === 1 || hole === 7 || hole === 13;
+// Is this the last played hole of any stretch?
+export const isSixesStretchEndHole = (hole: number, mode: SixesMode = 'sixes', startHole: number = 1): boolean => {
+  const pos = getPlayOrder(hole, startHole);
+  const size = mode === 'threes' ? 3 : 6;
+  return (pos % size) === 0;
 };
 
-// Is this a stretch end hole?
-export const isSixesStretchEndHole = (hole: number, mode: SixesMode = 'sixes'): boolean => {
-  if (mode === 'threes') {
-    return [3, 6, 9, 12, 15, 18].includes(hole);
-  }
-  return hole === 6 || hole === 12 || hole === 18;
+// Physical hole number of a stretch's first played hole.
+export const getStretchStartHole = (stretch: SixesStretch, mode: SixesMode = 'sixes', startHole: number = 1): number => {
+  const size = mode === 'threes' ? 3 : 6;
+  const pos = (stretch - 1) * size + 1;
+  return getHoleByPlayOrder(pos, startHole);
 };
 
-// Get the start hole for a stretch
-export const getStretchStartHole = (stretch: SixesStretch, mode: SixesMode = 'sixes'): number => {
-  if (mode === 'threes') {
-    const starts = [1, 4, 7, 10, 13, 16];
-    return starts[stretch - 1] || 1;
-  }
-  return (stretch - 1) * 6 + 1;
-};
-
-// Get the end hole for a stretch
-export const getStretchEndHole = (stretch: SixesStretch, mode: SixesMode = 'sixes'): number => {
-  if (mode === 'threes') {
-    const ends = [3, 6, 9, 12, 15, 18];
-    return ends[stretch - 1] || 3;
-  }
-  return stretch * 6;
+// Physical hole number of a stretch's last played hole.
+export const getStretchEndHole = (stretch: SixesStretch, mode: SixesMode = 'sixes', startHole: number = 1): number => {
+  const size = mode === 'threes' ? 3 : 6;
+  const pos = stretch * size;
+  return getHoleByPlayOrder(pos, startHole);
 };
 
 // Get holes per stretch
