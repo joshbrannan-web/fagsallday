@@ -1011,13 +1011,18 @@ export const isFBOPlayerDormieOnOverallPress = (
   const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
   const fboData = round.gameData?.[game.id] || {};
   
-  const holesRemaining = 18 - currentHole + 1;
-  
-  // Count dots from press.startHole to currentHole-1 (completed holes)
+  const startHole = roundStart(round);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
+
+  // Count dots from press.startHole (play-order position) to currentHole-1 (completed play-order holes)
   const pressDots: { [id: string]: number } = {};
   fboPlayers.forEach(p => pressDots[String(p.id)] = 0);
-  
-  for (let h = press.startHole; h < currentHole; h++) {
+
+  const played = getPlayedHoles(startHole);
+  const pressStartPos = getPlayOrder(press.startHole, startHole);
+  for (let pos = pressStartPos; pos < currentPos; pos++) {
+    const h = played[pos - 1];
     const holeDots: (string | number)[] = fboData[h]?.dots || [];
     holeDots.forEach((pid: string | number) => {
       const normalizedId = String(pid);
