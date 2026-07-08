@@ -865,13 +865,17 @@ export const getFBOOverallDormieStatus = (
   const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
   const fboData = round.gameData?.[game.id] || {};
   
-  const holesRemaining = 18 - currentHole + 1;
-  
-  // Count dots earned so far (holes 1 to currentHole-1)
+  const startHole = roundStart(round);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
+
+  // Count dots earned so far (played holes before currentHole in play order)
   const dotCounts: { [id: string]: number } = {};
   fboPlayers.forEach(p => dotCounts[p.id] = 0);
-  
-  for (let h = 1; h < currentHole; h++) {
+
+  const played = getPlayedHoles(startHole);
+  for (let i = 0; i < currentPos - 1; i++) {
+    const h = played[i];
     const holeDots: (string | number)[] = fboData[h]?.dots || [];
     holeDots.forEach((playerId: string | number) => {
       const normalizedId = String(playerId);
