@@ -171,9 +171,9 @@ const ActiveRound: React.FC = () => {
     if (!currentRound) return false;
     const stockton6Games = currentRound.games.filter(g => g.type === GameType.STOCKTON_6);
     const stockton6Game = stockton6Games[0];
-    if (!stockton6Game || !isStretchStartHole(activeHole)) return false;
-    const stretch = getStretchForHole(activeHole);
-    const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
+    if (!stockton6Game || !isStretchStartHole(activeHole, roundStartHole)) return false;
+    const stretch = getStretchForHole(activeHole, roundStartHole);
+    const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch, roundStartHole);
     return !teamAssignment;
   }, [currentRound, activeHole]);
 
@@ -183,10 +183,10 @@ const ActiveRound: React.FC = () => {
     const sixesGames = currentRound.games.filter(g => g.type === GameType.SIXES);
     const sixesGame = sixesGames[0];
     if (!sixesGame) return false;
-    const mode = getSixesMode(currentRound.gameData, sixesGame.id);
-    if (!isSixesStretchStartHole(activeHole, mode)) return false;
-    const stretch = getSixesStretchForHole(activeHole, mode);
-    const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch, mode);
+    const mode = getSixesMode(currentRound.gameData, sixesGame.id, roundStartHole);
+    if (!isSixesStretchStartHole(activeHole, mode, roundStartHole)) return false;
+    const stretch = getSixesStretchForHole(activeHole, mode, roundStartHole);
+    const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch, mode, roundStartHole);
     return !teamAssignment;
   }, [currentRound, activeHole]);
 
@@ -210,8 +210,8 @@ const ActiveRound: React.FC = () => {
     // Check Stockton 6's first
     const stockton6Game = currentRound.games.find(g => g.type === GameType.STOCKTON_6);
     if (stockton6Game) {
-      const stretch = getStretchForHole(activeHole);
-      const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
+      const stretch = getStretchForHole(activeHole, roundStartHole);
+      const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch, roundStartHole);
       if (teamAssignment) {
         if (teamAssignment.teamA.includes(playerId)) return 'A';
         if (teamAssignment.teamB.includes(playerId)) return 'B';
@@ -221,9 +221,9 @@ const ActiveRound: React.FC = () => {
     // Then check 6's
     const sixesGame = currentRound.games.find(g => g.type === GameType.SIXES);
     if (sixesGame) {
-      const mode = getSixesMode(currentRound.gameData, sixesGame.id);
-      const stretch = getSixesStretchForHole(activeHole, mode);
-      const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch, mode);
+      const mode = getSixesMode(currentRound.gameData, sixesGame.id, roundStartHole);
+      const stretch = getSixesStretchForHole(activeHole, mode, roundStartHole);
+      const teamAssignment = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, stretch, mode, roundStartHole);
       if (teamAssignment) {
         if (teamAssignment.teamA.includes(playerId)) return 'A';
         if (teamAssignment.teamB.includes(playerId)) return 'B';
@@ -702,9 +702,9 @@ const ActiveRound: React.FC = () => {
     if (!sixesGame) return;
     
     // Get mode from Stretch 1 metadata (where it's always stored)
-    const mode = getSixesMode(currentRound.gameData, gameId);
-    const stretch = getSixesStretchForHole(activeHole, mode);
-    const stretchStartHole = getStretchStartHole(stretch, mode);
+    const mode = getSixesMode(currentRound.gameData, gameId, roundStartHole);
+    const stretch = getSixesStretchForHole(activeHole, mode, roundStartHole);
+    const stretchStartHole = getStretchStartHole(stretch, mode, roundStartHole);
     const sixesData = currentRound.gameData?.[gameId]?.[stretchStartHole] || {};
     const existingPresses: SixesPressState[] = sixesData._META_PRESSES || [];
     const unitValue = sixesData._META_UNIT_VALUE || sixesGame.unitStake;
@@ -932,18 +932,18 @@ const ActiveRound: React.FC = () => {
 
       {/* Stockton 6's Team Setup - Show at stretch starts if teams not set */}
       {!isReadOnly && stockton6Game && stockton6NeedsSetup && (() => {
-        const stretch = getStretchForHole(activeHole) as 1 | 2 | 3;
+        const stretch = getStretchForHole(activeHole, roundStartHole) as 1 | 2 | 3;
         
         // Gather previous stretch teams for auto-rotation
         const previousStretchTeams: { teamA: string[]; teamB: string[] }[] = [];
         if (stretch >= 2) {
-          const stretch1Teams = getTeamAssignment(currentRound.gameData, stockton6Game.id, 1);
+          const stretch1Teams = getTeamAssignment(currentRound.gameData, stockton6Game.id, 1, roundStartHole);
           if (stretch1Teams) {
             previousStretchTeams.push({ teamA: stretch1Teams.teamA, teamB: stretch1Teams.teamB });
           }
         }
         if (stretch >= 3) {
-          const stretch2Teams = getTeamAssignment(currentRound.gameData, stockton6Game.id, 2);
+          const stretch2Teams = getTeamAssignment(currentRound.gameData, stockton6Game.id, 2, roundStartHole);
           if (stretch2Teams) {
             previousStretchTeams.push({ teamA: stretch2Teams.teamA, teamB: stretch2Teams.teamB });
           }
@@ -975,19 +975,19 @@ const ActiveRound: React.FC = () => {
 
       {/* 6's Team Setup - Show at stretch starts if teams not set */}
       {!isReadOnly && sixesGame && sixesNeedsSetup && (() => {
-        const mode = getSixesMode(currentRound.gameData, sixesGame.id);
-        const stretch = getSixesStretchForHole(activeHole, mode);
+        const mode = getSixesMode(currentRound.gameData, sixesGame.id, roundStartHole);
+        const stretch = getSixesStretchForHole(activeHole, mode, roundStartHole);
         
         // Get Stretch 1 settings to carry forward to subsequent stretches
         const stretch1Settings = stretch > 1 
-          ? getSixesTeamAssignment(currentRound.gameData, sixesGame.id, 1, mode)
+          ? getSixesTeamAssignment(currentRound.gameData, sixesGame.id, 1, mode, roundStartHole)
           : null;
         
         // Gather previous stretch teams for auto-rotation
         const previousStretchTeams: { teamA: string[]; teamB: string[] }[] = [];
         const totalStretches = mode === 'threes' ? 6 : 3;
         for (let s = 1; s < stretch; s++) {
-          const prevTeams = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, s as 1|2|3|4|5|6, mode);
+          const prevTeams = getSixesTeamAssignment(currentRound.gameData, sixesGame.id, s as 1|2|3|4|5|6, mode, roundStartHole);
           if (prevTeams) {
             previousStretchTeams.push({ teamA: prevTeams.teamA, teamB: prevTeams.teamB });
           }
@@ -1005,7 +1005,7 @@ const ActiveRound: React.FC = () => {
               existingAllowPresses={stretch1Settings?.allowPresses ?? sixesGame.config?.sixes?.allowPresses ?? false}
               previousStretchTeams={previousStretchTeams}
               onConfirm={(teamA, teamB, unitValue, useHandicaps, useSecondBall, allowPresses) => {
-                const stretchStartHole = getStretchStartHole(stretch, mode);
+                const stretchStartHole = getStretchStartHole(stretch, mode, roundStartHole);
                 updateGameDataBatch(sixesGame.id, stretchStartHole, {
                   _META_TEAM_A: teamA,
                   _META_TEAM_B: teamB,
@@ -2151,8 +2151,8 @@ const ActiveRound: React.FC = () => {
 
         {/* Stockton 6's Dots Input — hidden for read-only */}
         {!isReadOnly && stockton6Game && (() => {
-          const stretch = getStretchForHole(activeHole);
-          const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch);
+          const stretch = getStretchForHole(activeHole, roundStartHole);
+          const teamAssignment = getTeamAssignment(currentRound.gameData, stockton6Game.id, stretch, roundStartHole);
           if (!teamAssignment) return null;
           
           const dotsData: { [playerId: string]: import('@/types').PlayerHoleDots } = {};
