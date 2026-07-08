@@ -1212,8 +1212,10 @@ export const getFBOTeamPressEligibility = (
   const teamPresses = presses.filter(p => String(p.playerId) === team && p.segment === segment);
 
   const fboData = round.gameData?.[game.id] || {};
-  const segmentEnd = segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
+  const startHole = roundStart(round);
+  const holesRemaining = segmentHolesRemaining(round, currentHole, segment);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const played = getPlayedHoles(startHole);
 
   if (teamPresses.length === 0) {
     const status = getFBOTeamDormieStatus(round, game, currentHole);
@@ -1224,12 +1226,14 @@ export const getFBOTeamPressEligibility = (
 
   const latestPress = teamPresses.reduce((a, b) => a.startHole > b.startHole ? a : b);
   const nextPressLevel = (latestPress.pressLevel || 1) + 1;
-  if (latestPress.startHole >= currentHole) {
+  const latestPressPos = getPlayOrder(latestPress.startHole, startHole);
+  if (latestPressPos >= currentPos) {
     return { canPress: false, pressLevel: nextPressLevel, reason: 'Already pressed this hole' };
   }
 
   let aDots = 0, bDots = 0;
-  for (let h = latestPress.startHole; h < currentHole; h++) {
+  for (let pos = latestPressPos; pos < currentPos; pos++) {
+    const h = played[pos - 1];
     const td = fboData[h]?.teamDot;
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
