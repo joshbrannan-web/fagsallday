@@ -1581,8 +1581,8 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         return;
       }
 
-      // Count dots in press range (from startHole to segment end)
-      const pressEnd = press.segment === 'front' ? 9 : 18;
+      // Physical holes covered by this press (play-ordered from press.startHole to segment end)
+      const pressHoles = getPressHoles(press.startHole, press.segment as any, startHole);
       
       const pressingPlayer = fboPlayers.find(p => p.id === String(press.playerId));
       const pressLevelLabel = (press.pressLevel || 1) > 1 ? ` (${press.pressLevel}x)` : '';
