@@ -156,8 +156,9 @@ export const getSixesDormieStatus = (
   teamBWins: number;
   stretch: SixesStretch;
 } | null => {
-  const stretch = getSixesStretchForHole(activeHole, mode);
-  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode);
+  const sh = roundStart(round);
+  const stretch = getSixesStretchForHole(activeHole, mode, sh);
+  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode, sh);
   
   if (!teamAssignment) return null;
   
@@ -185,10 +186,13 @@ export const hasExistingSixesPress = (
   stretch: SixesStretch,
   teamDormie: 'A' | 'B',
   currentHole: number,
-  mode: SixesMode = 'sixes'
+  mode: SixesMode = 'sixes',
+  startHole: number = 1,
 ): boolean => {
-  const presses = getSixesPresses(gameData, gameId, stretch, mode);
-  return presses.some(p => p.teamDormie === teamDormie && p.startHole <= currentHole);
+  const presses = getSixesPresses(gameData, gameId, stretch, mode, startHole);
+  // Compare by play-order position so wraparound rounds work.
+  const curPos = getPlayOrder(currentHole, startHole);
+  return presses.some(p => p.teamDormie === teamDormie && getPlayOrder(p.startHole, startHole) <= curPos);
 };
 
 // Calculate strokes for all players on a given hole
