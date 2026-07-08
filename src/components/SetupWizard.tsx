@@ -1788,6 +1788,55 @@ const SetupWizard: React.FC = () => {
               selectedGames={selectedGames}
               onGamesChange={setSelectedGames}
             />
+
+            {/* Starting Hole picker */}
+            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold">Starting Hole</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Not starting on hole 1? Games (Front/Back segments, stretches, Bloody Banker, Wolf rotation, etc.) will treat your starting hole as the first hole of the round.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  variant={startHoleMode === '1' ? 'default' : 'outline'}
+                  onClick={() => { setStartHoleMode('1'); setStartHole(1); }}
+                >
+                  Hole 1
+                </Button>
+                <Button
+                  type="button"
+                  variant={startHoleMode === '10' ? 'default' : 'outline'}
+                  onClick={() => { setStartHoleMode('10'); setStartHole(10); }}
+                >
+                  Hole 10
+                </Button>
+                <Button
+                  type="button"
+                  variant={startHoleMode === 'other' ? 'default' : 'outline'}
+                  onClick={() => { setStartHoleMode('other'); if (startHole === 1 || startHole === 10) setStartHole(2); }}
+                >
+                  Other…
+                </Button>
+              </div>
+              {startHoleMode === 'other' && (
+                <div>
+                  <Label htmlFor="start-hole-select" className="text-xs">Pick a hole (1–18)</Label>
+                  <Select value={String(startHole)} onValueChange={(v) => setStartHole(parseInt(v, 10))}>
+                    <SelectTrigger id="start-hole-select" className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 18 }, (_, i) => i + 1).map(h => (
+                        <SelectItem key={h} value={String(h)}>Hole {h}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
