@@ -553,16 +553,19 @@ export const getHolePressInfo = (
     twoBall: { front: false, back: false }
   };
   
-  const stretch = getStretchForHole(hole);
-  const holeInStretch = getHoleInStretch(hole);
+  const sh = roundStart(round);
+  const stretch = getStretchForHole(hole, sh);
+  const holeInStretch = getHoleInStretch(hole, sh);
   
   // Presses can only start on holes 2, 3 (front) or 5, 6 (back)
   if (holeInStretch === 1 || holeInStretch === 4) return result;
   
-  // Calculate ball state up to previous hole
-  const prevHole = hole - 1;
-  const prevBallState = prevHole >= (stretch - 1) * 6 + 1 
-    ? calculateBallState(round, gameId, stretch, prevHole) 
+  // Calculate ball state up to previous played hole (in this stretch)
+  const stretchHoles = getStretchHoles(stretch, sh);
+  const idxInStretch = stretchHoles.indexOf(hole);
+  const prevHole = idxInStretch > 0 ? stretchHoles[idxInStretch - 1] : null;
+  const prevBallState = prevHole !== null
+    ? calculateBallState(round, gameId, stretch, prevHole)
     : null;
   
   // Calculate ball state up to current hole
