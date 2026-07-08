@@ -1432,10 +1432,10 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       const matchupKey = `${matchup.player1Id}_${matchup.player2Id}`;
 
       // Count dots from matchupDots for this specific matchup
-      const countMatchupDots = (startHole: number, endHole: number): { p1Dots: number; p2Dots: number } => {
+      const countMatchupDots = (holes: number[]): { p1Dots: number; p2Dots: number } => {
         let p1Dots = 0;
         let p2Dots = 0;
-        for (let h = startHole; h <= endHole; h++) {
+        for (const h of holes) {
           const matchupDots = fboData[h]?.matchupDots || {};
           const winner = matchupDots[matchupKey];
           if (String(winner) === String(matchup.player1Id)) p1Dots++;
@@ -1444,13 +1444,13 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         return { p1Dots, p2Dots };
       };
 
-      const calculateH2HSegment = (startHole: number, endHole: number, isComplete: boolean, label: string) => {
+      const calculateH2HSegment = (holes: number[], isComplete: boolean, label: string) => {
         if (!isComplete) {
           details.push(`${p1.name} vs ${p2.name} - ${label}: In progress`);
           return;
         }
 
-        const { p1Dots, p2Dots } = countMatchupDots(startHole, endHole);
+        const { p1Dots, p2Dots } = countMatchupDots(holes);
 
         if (p1Dots > p2Dots) {
           results[p1.id] += matchup.unitValue;
@@ -1465,9 +1465,9 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         }
       };
 
-      calculateH2HSegment(1, 9, frontNineComplete, 'Front 9');
-      calculateH2HSegment(10, 18, backNineComplete, 'Back 9');
-      calculateH2HSegment(1, 18, overallComplete, 'Overall');
+      calculateH2HSegment(frontHoles, frontNineComplete, 'Front 9');
+      calculateH2HSegment(backHoles, backNineComplete, 'Back 9');
+      calculateH2HSegment(allHoles, overallComplete, 'Overall');
     });
   } else {
     // All Together Mode (original behavior)
