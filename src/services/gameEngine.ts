@@ -1046,8 +1046,8 @@ export const getFBOPressEligibilityOverall = (
   playerId: string,
   currentHole: number
 ): { canPress: boolean; pressLevel: number; reason?: string } => {
-  // Only available on back 9 (holes 10-18)
-  if (currentHole <= 9) {
+  // Only available on back 9 (play positions 10–18)
+  if (getPlayOrder(currentHole, roundStart(round)) <= 9) {
     return { canPress: false, pressLevel: 1, reason: 'Overall presses only available on back 9' };
   }
   
