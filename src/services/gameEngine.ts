@@ -919,18 +919,21 @@ export const getFBOMatchupDormieStatus = (
   player2: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
 } => {
   const fboData = round.gameData?.[game.id] || {};
-  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
-  const segmentStart = segment === 'front' ? 1 : 10;
-  const segmentEnd = segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
-  
+  const startHole = roundStart(round);
+  const segment: 'front' | 'back' = getPlayHalf(currentHole, startHole);
+  const segmentHoles = segment === 'front' ? getFrontNineHoles(startHole) : getBackNineHoles(startHole);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const segmentEndPos = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEndPos - currentPos + 1;
+
   // Build matchup keys (try both orderings)
   const key1 = `${player1Id}_${player2Id}`;
   const key2 = `${player2Id}_${player1Id}`;
-  
-  // Count dots from matchupDots for this specific matchup
+
+  // Count dots for this specific matchup on played holes before currentHole in this segment
   let p1Dots = 0, p2Dots = 0;
-  for (let h = segmentStart; h < currentHole; h++) {
+  for (const h of segmentHoles) {
+    if (getPlayOrder(h, startHole) >= currentPos) break;
     const matchupDots = fboData[h]?.matchupDots || {};
     const winner = matchupDots[key1] ?? matchupDots[key2];
     if (String(winner) === String(player1Id)) p1Dots++;
