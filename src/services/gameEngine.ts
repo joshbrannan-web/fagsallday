@@ -15,6 +15,14 @@ const segmentHolesRemaining = (round: Round, currentHole: number, segment: 'fron
   return Math.max(0, endPos - pos + 1);
 };
 
+// Play-ordered physical hole numbers from a press's startHole through its segment end.
+const getPressHoles = (pressStartHole: number, segment: 'front' | 'back' | 'overall', startHole: number): number[] => {
+  const played = getPlayedHoles(startHole);
+  const startPos = getPlayOrder(pressStartHole, startHole);
+  const endPos = segment === 'front' ? 9 : 18; // 'overall' => full 18
+  return played.slice(startPos - 1, endPos);
+};
+
 // Helper: get only the players participating in a specific game
 export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
   const ids = game.config.gamePlayers;
