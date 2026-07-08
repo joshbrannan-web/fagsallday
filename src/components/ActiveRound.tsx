@@ -449,11 +449,11 @@ const ActiveRound: React.FC = () => {
       }
     }
 
-    if (activeHole === 18) {
+    if (getPlayOrder(activeHole, roundStartHole) === TOTAL_HOLES) {
       if (isReadOnly) return; // Read-only users can't finish
       navigate('/summary');
     } else {
-      setActiveHole(h => h + 1);
+      setActiveHole(h => getNextHole(h, roundStartHole));
     }
   };
   const openBetGames = currentRound.games.filter(g => g.type === GameType.OPEN_BETTING);
