@@ -22,6 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
 import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, calculateFBOMatchupHoleWinner, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, getFBOMatchupDormieStatus, getFBOMatchupOverallDormieStatus, calculatePerGameTotals, calculateFBOTeamHoleWinner, getFBOTeamDormieStatus, getFBOTeamOverallDormieStatus, getFBOTeamPressEligibility, getFBOTeamPressEligibilityOverall } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
+import { getPlayOrder, getHoleByPlayOrder, getNextHole, getPrevHole, isInLastNPlayed, TOTAL_HOLES } from '@/lib/holeOrder';
 
 import { Stockton6TeamSetup, Stockton6StatusBar, Stockton6DotsInput } from './stockton6';
 import { isStretchStartHole, getTeamAssignment, getStretchForHole, calculateRelativeStrokes } from '../services/stockton6Engine';
