@@ -1151,13 +1151,16 @@ export const getFBOTeamDormieStatus = (
   teamB: { isDormie: boolean; dotsBehind: number; holesRemaining: number; segment: 'front' | 'back' };
 } => {
   const fboData = round.gameData?.[game.id] || {};
-  const segment: 'front' | 'back' = currentHole <= 9 ? 'front' : 'back';
-  const segmentStart = segment === 'front' ? 1 : 10;
-  const segmentEnd = segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
+  const startHole = roundStart(round);
+  const segment: 'front' | 'back' = getPlayHalf(currentHole, startHole);
+  const segmentHoles = segment === 'front' ? getFrontNineHoles(startHole) : getBackNineHoles(startHole);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const segmentEndPos = segment === 'front' ? 9 : 18;
+  const holesRemaining = segmentEndPos - currentPos + 1;
 
   let aDots = 0, bDots = 0;
-  for (let h = segmentStart; h < currentHole; h++) {
+  for (const h of segmentHoles) {
+    if (getPlayOrder(h, startHole) >= currentPos) break;
     const td = fboData[h]?.teamDot;
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
