@@ -1595,7 +1595,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         const opposingTeam: 'A' | 'B' = pressingTeam === 'A' ? 'B' : 'A';
 
         let aDots = 0, bDots = 0;
-        for (let h = press.startHole; h <= pressEnd; h++) {
+        for (const h of pressHoles) {
           const td = fboData[h]?.teamDot;
           if (td === 'A') aDots++;
           else if (td === 'B') bDots++;
@@ -1630,7 +1630,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         let p1Dots = 0;
         let p2Dots = 0;
         
-        for (let h = press.startHole; h <= pressEnd; h++) {
+        for (const h of pressHoles) {
           const matchupDots = fboData[h]?.matchupDots || {};
           const winner = matchupDots[normalizedMatchupKey];
           if (String(winner) === String(press.playerId)) p1Dots++;
@@ -1656,7 +1656,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
         const pressDots: { [id: string]: number } = {};
         fboPlayers.forEach(p => pressDots[p.id] = 0);
         
-        for (let h = press.startHole; h <= pressEnd; h++) {
+        for (const h of pressHoles) {
           const holeDots = fboData[h]?.dots || [];
           holeDots.forEach((playerId: string | number) => {
             const normalizedId = String(playerId);
