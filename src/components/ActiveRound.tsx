@@ -880,8 +880,8 @@ const ActiveRound: React.FC = () => {
 
         <div className="flex justify-between items-center gap-4">
           <button 
-            disabled={activeHole === 1}
-            onClick={() => setActiveHole(h => h - 1)}
+            disabled={getPlayOrder(activeHole, roundStartHole) === 1}
+            onClick={() => setActiveHole(h => getPrevHole(h, roundStartHole))}
             className="bg-primary p-3 rounded-xl disabled:opacity-30"
           >
             <ChevronLeft className="w-6 h-6" />
@@ -894,7 +894,7 @@ const ActiveRound: React.FC = () => {
               <FileText className="w-4 h-4" /> Scorecard
             </button>
           </div>
-          {activeHole === 18 ? (
+          {getPlayOrder(activeHole, roundStartHole) === TOTAL_HOLES ? (
             isReadOnly ? (
               <button 
                 disabled
