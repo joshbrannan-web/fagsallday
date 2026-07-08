@@ -785,8 +785,7 @@ export const isFBOPlayerDormieOnPress = (
   const fboPlayers = round.players.filter(p => fboPlayerIds.includes(String(p.id)));
   const fboData = round.gameData?.[game.id] || {};
   
-  const segmentEnd = press.segment === 'front' ? 9 : 18;
-  const holesRemaining = segmentEnd - currentHole + 1;
+  const holesRemaining = segmentHolesRemaining(round, currentHole, press.segment as 'front' | 'back');
   
   // Count dots from press.startHole to currentHole-1 (completed holes)
   const pressDots: { [id: string]: number } = {};
