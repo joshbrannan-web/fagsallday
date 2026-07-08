@@ -1182,9 +1182,13 @@ export const getFBOTeamOverallDormieStatus = (
   teamB: { isDormie: boolean; dotsBehind: number; holesRemaining: number };
 } => {
   const fboData = round.gameData?.[game.id] || {};
-  const holesRemaining = 18 - currentHole + 1;
+  const startHole = roundStart(round);
+  const currentPos = getPlayOrder(currentHole, startHole);
+  const holesRemaining = TOTAL_HOLES - currentPos + 1;
+  const played = getPlayedHoles(startHole);
   let aDots = 0, bDots = 0;
-  for (let h = 1; h < currentHole; h++) {
+  for (let i = 0; i < currentPos - 1; i++) {
+    const h = played[i];
     const td = fboData[h]?.teamDot;
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
