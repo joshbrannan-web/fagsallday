@@ -61,9 +61,10 @@ export const getHammerTeamAssignment = (
   gameId: string,
   segment: number,
   segLen: HammerSegmentLength,
+  startHole: number = 1,
 ): HammerTeamAssignment | null => {
-  const startHole = getHammerSegmentStartHole(segment, segLen);
-  const data = gameData?.[gameId]?.[startHole];
+  const segStartHole = getHammerSegmentStartHole(segment, segLen, startHole);
+  const data = gameData?.[gameId]?.[segStartHole];
   if (!data?._META_TEAM_A || !data?._META_TEAM_B) return null;
   return { teamA: data._META_TEAM_A, teamB: data._META_TEAM_B };
 };
