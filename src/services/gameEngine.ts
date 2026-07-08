@@ -3,6 +3,10 @@ import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
 import { calculateTeamBanker } from "./teamBankerEngine";
 import { calculateHammer } from "./hammerEngine";
+import { getPlayHalf, getFrontNineHoles, getBackNineHoles, getPlayedHoles, getPlayOrder, TOTAL_HOLES } from "../lib/holeOrder";
+
+// Read the round's starting hole (physical hole # where round teed off). Defaults to 1.
+const roundStart = (round: Round): number => (round as any).startHole || 1;
 
 // Helper: get only the players participating in a specific game
 export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
