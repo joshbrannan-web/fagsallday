@@ -127,19 +127,17 @@ export const calculateTeamBanker = (round: Round, game: GameSettings): GameResul
   const stretches = getTeamBankerAllStretches(mode);
 
   for (const stretch of stretches) {
-    const assignment = getTeamBankerTeamAssignment(round.gameData, game.id, stretch, mode);
+    const sh = roundStart(round);
+    const assignment = getTeamBankerTeamAssignment(round.gameData, game.id, stretch, mode, sh);
     if (!assignment) continue;
 
     const { teamA, teamB, unitValue, useHandicaps, handicapMode, useSecondBallTiebreaker, birdieMultiplier, eagleMultiplier } = assignment;
     const allPlayerIds = [...teamA, ...teamB];
     const allPlayers = round.players.filter(p => allPlayerIds.includes(p.id));
 
-    // Determine holes for this stretch
-    const stretchStartHole = getTeamBankerStretchStartHole(stretch, mode);
-    let stretchHoles: number[];
-    if (mode === 'eighteen') stretchHoles = EIGHTEEN_STRETCH_HOLES[1];
-    else if (mode === 'threes') stretchHoles = THREES_STRETCH_HOLES[stretch] || [];
-    else stretchHoles = SIXES_STRETCH_HOLES[stretch] || [];
+    // Determine holes for this stretch (in play order, based on round's start hole)
+    const stretchStartHole = getTeamBankerStretchStartHole(stretch, mode, sh);
+    const stretchHoles: number[] = stretchHolesFor(stretch, mode, sh);
 
     for (const holeNumber of stretchHoles) {
       const hole = round.course.holes.find(h => h.number === holeNumber);
