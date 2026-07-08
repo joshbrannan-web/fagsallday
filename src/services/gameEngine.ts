@@ -2264,7 +2264,11 @@ export const calculateBloodyBankerPnL = (
 
   const bankerData = round.gameData?.[game.id] || {};
 
-  for (let h = 1; h <= upToHole; h++) {
+  const startHole = roundStart(round);
+  const upToPos = getPlayOrder(upToHole, startHole);
+  const played = getPlayedHoles(startHole);
+  for (let pi = 0; pi < upToPos; pi++) {
+    const h = played[pi];
     const holeData = course.holes.find((hole) => hole.number === h);
     if (!holeData) continue;
 
