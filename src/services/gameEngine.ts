@@ -1331,9 +1331,15 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     }
   }
 
+  // Segment definitions based on play order (start hole → first 9 played = Front)
+  const startHole = roundStart(round);
+  const frontHoles = getFrontNineHoles(startHole);
+  const backHoles = getBackNineHoles(startHole);
+  const allHoles = [...frontHoles, ...backHoles];
+
   // Check if segments are complete
-  const frontNineComplete = [1, 2, 3, 4, 5, 6, 7, 8, 9].every(h => completedHoles.has(h));
-  const backNineComplete = [10, 11, 12, 13, 14, 15, 16, 17, 18].every(h => completedHoles.has(h));
+  const frontNineComplete = frontHoles.every(h => completedHoles.has(h));
+  const backNineComplete = backHoles.every(h => completedHoles.has(h));
   const overallComplete = frontNineComplete && backNineComplete;
 
   // Get dot data from gameData
@@ -1352,6 +1358,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     dotCounts.overall[p.id] = 0;
   });
 
+  const frontSet = new Set(frontHoles);
   // Count dots from each hole
   for (let h = 1; h <= course.holes.length; h++) {
     const holeDots = fboData[h]?.dots || [];
@@ -1363,7 +1370,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
       const normalizedId = String(playerId);
       if (dotCounts.overall[normalizedId] !== undefined) {
         dotCounts.overall[normalizedId]++;
-        if (h <= 9) {
+        if (frontSet.has(h)) {
           dotCounts.front[normalizedId]++;
         } else {
           dotCounts.back[normalizedId]++;
