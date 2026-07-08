@@ -305,11 +305,12 @@ export const calculateSixesStretchResult = (
   stretch: SixesStretch,
   mode: SixesMode = 'sixes'
 ): { teamAWins: number; teamBWins: number; ties: number; complete: boolean } | null => {
-  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode);
+  const sh = roundStart(round);
+  const teamAssignment = getSixesTeamAssignment(round.gameData, game.id, stretch, mode, sh);
   if (!teamAssignment) return null;
   
   const { teamA, teamB, useHandicaps, useSecondBallTiebreaker, handicapMode } = teamAssignment;
-  const stretchHoles = getStretchHolesForMode(stretch, mode);
+  const stretchHoles = getStretchHolesForMode(stretch, mode, sh);
   const holesPerStretch = getHolesPerStretch(mode);
   
   let teamAWins = 0;
@@ -335,9 +336,9 @@ export const calculateSixesStretchResult = (
   };
 };
 
-// Get stretch name for display
-export const getStretchName = (stretch: SixesStretch, mode: SixesMode = 'sixes'): string => {
-  const holes = getStretchHolesForMode(stretch, mode);
+// Get stretch name for display (shows physical hole numbers of first and last played holes in the stretch)
+export const getStretchName = (stretch: SixesStretch, mode: SixesMode = 'sixes', startHole: number = 1): string => {
+  const holes = getStretchHolesForMode(stretch, mode, startHole);
   if (holes.length === 0) return '';
   return `Holes ${holes[0]}-${holes[holes.length - 1]}`;
 };
