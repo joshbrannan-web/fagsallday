@@ -797,8 +797,8 @@ const SetupWizard: React.FC = () => {
         courseHandicap: calculateCourseHandicap(p.handicapIndex, 72),
       }));
 
-    startNewRound(course, validPlayers, selectedGames, initialGameData);
-    toast.success("Round started!");
+    startNewRound(course, validPlayers, selectedGames, initialGameData, startHole);
+    toast.success(startHole === 1 ? "Round started!" : `Round started on hole ${startHole}!`);
     navigate("/active");
   };
 
