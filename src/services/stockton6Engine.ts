@@ -422,7 +422,7 @@ export const countTeamDots = (
   stretch: 1 | 2 | 3,
   teamPlayerIds: string[]
 ): number => {
-  const stretchHoles = STRETCH_HOLES[stretch];
+  const stretchHoles = getStretchHoles(stretch, roundStart(round));
   let total = 0;
   
   for (const hole of stretchHoles) {
