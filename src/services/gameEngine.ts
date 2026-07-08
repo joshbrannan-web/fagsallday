@@ -787,11 +787,16 @@ export const isFBOPlayerDormieOnPress = (
   
   const holesRemaining = segmentHolesRemaining(round, currentHole, press.segment as 'front' | 'back');
   
-  // Count dots from press.startHole to currentHole-1 (completed holes)
+  // Count dots from press.startHole (play-order) to currentHole-1 (play-order)
   const pressDots: { [id: string]: number } = {};
   fboPlayers.forEach(p => pressDots[String(p.id)] = 0);
-  
-  for (let h = press.startHole; h < currentHole; h++) {
+
+  const startHole = roundStart(round);
+  const played = getPlayedHoles(startHole);
+  const pressStartPos = getPlayOrder(press.startHole, startHole);
+  const curPos = getPlayOrder(currentHole, startHole);
+  for (let pos = pressStartPos; pos < curPos; pos++) {
+    const h = played[pos - 1];
     const holeDots: (string | number)[] = fboData[h]?.dots || [];
     holeDots.forEach((pid: string | number) => {
       const normalizedId = String(pid);
