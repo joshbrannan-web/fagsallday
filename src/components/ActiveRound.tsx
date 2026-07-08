@@ -196,9 +196,9 @@ const ActiveRound: React.FC = () => {
     const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
     if (!tbGame) return false;
     const mode = currentRound.gameData?.[tbGame.id]?.[1]?._META_MODE ?? tbGame.config?.teamBanker?.mode ?? 'sixes';
-    if (!isTeamBankerStretchStartHole(activeHole, mode)) return false;
-    const stretch = getTeamBankerStretchForHole(activeHole, mode);
-    const assignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, stretch, mode);
+    if (!isTeamBankerStretchStartHole(activeHole, mode, roundStartHole)) return false;
+    const stretch = getTeamBankerStretchForHole(activeHole, mode, roundStartHole);
+    const assignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, stretch, mode, roundStartHole);
     return !assignment;
   }, [currentRound, activeHole]);
 
@@ -233,9 +233,9 @@ const ActiveRound: React.FC = () => {
     // Then check Team Banker
     const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
     if (tbGame) {
-      const mode = getTeamBankerMode(currentRound.gameData, tbGame.id);
-      const stretch = getTeamBankerStretchForHole(activeHole, mode);
-      const assignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, stretch, mode);
+      const mode = getTeamBankerMode(currentRound.gameData, tbGame.id, roundStartHole);
+      const stretch = getTeamBankerStretchForHole(activeHole, mode, roundStartHole);
+      const assignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, stretch, mode, roundStartHole);
       if (assignment) {
         if (assignment.teamA.includes(playerId)) return 'A';
         if (assignment.teamB.includes(playerId)) return 'B';
@@ -1031,10 +1031,10 @@ const ActiveRound: React.FC = () => {
         
         const metaMode = currentRound.gameData?.[tbGame.id]?.[1]?._META_MODE;
         const mode = metaMode ?? tbGame.config?.teamBanker?.mode ?? 'sixes';
-        const stretch = getTeamBankerStretchForHole(activeHole, mode);
+        const stretch = getTeamBankerStretchForHole(activeHole, mode, roundStartHole);
         
         // Get Stretch 1 settings to carry forward (use normalized reader to fix legacy swapped metadata)
-        const stretch1Assign = stretch > 1 ? getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, 1, mode) : null;
+        const stretch1Assign = stretch > 1 ? getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, 1, mode, roundStartHole) : null;
         const stretch1Settings = stretch1Assign ? {
           unitValue: stretch1Assign.unitValue,
           useHandicaps: stretch1Assign.useHandicaps,
@@ -1048,7 +1048,7 @@ const ActiveRound: React.FC = () => {
         // Gather previous stretch teams for auto-rotation
         const previousStretchTeams: { teamA: string[]; teamB: string[] }[] = [];
         for (let s = 1; s < stretch; s++) {
-          const prevAssignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, s as any, mode);
+          const prevAssignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, s as any, mode, roundStartHole);
           if (prevAssignment) {
             previousStretchTeams.push({ teamA: prevAssignment.teamA, teamB: prevAssignment.teamB });
           }
@@ -1068,7 +1068,7 @@ const ActiveRound: React.FC = () => {
               existingEagleMultiplier={stretch1Settings?.eagleMultiplier ?? tbGame.config.eagleMultiplier ?? 5}
               previousStretchTeams={previousStretchTeams}
               onConfirm={(teamA, teamB, unitValue, useHandicaps, useSecondBall, handicapMode, birdieMultiplier, eagleMultiplier) => {
-                const stretchStartHole = getTBStretchStartHole(stretch, mode);
+                const stretchStartHole = getTBStretchStartHole(stretch, mode, roundStartHole);
                 updateGameDataBatch(tbGame.id, stretchStartHole, {
                   _META_TEAM_A: teamA,
                   _META_TEAM_B: teamB,
@@ -2445,9 +2445,9 @@ const ActiveRound: React.FC = () => {
               {(() => {
                 const tbGame = currentRound.games.find(g => g.type === GameType.TEAM_BANKER);
                 if (!tbGame) return null;
-                const tbMode = getTeamBankerMode(currentRound.gameData, tbGame.id);
-                const tbStretch = getTeamBankerStretchForHole(activeHole, tbMode);
-                const tbAssignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, tbStretch, tbMode);
+                const tbMode = getTeamBankerMode(currentRound.gameData, tbGame.id, roundStartHole);
+                const tbStretch = getTeamBankerStretchForHole(activeHole, tbMode, roundStartHole);
+                const tbAssignment = getTeamBankerTeamAssignment(currentRound.gameData, tbGame.id, tbStretch, tbMode, roundStartHole);
                 if (!tbAssignment) return null;
                 
                 const tbHoleData = currentRound.gameData?.[tbGame.id]?.[activeHole] || {};
