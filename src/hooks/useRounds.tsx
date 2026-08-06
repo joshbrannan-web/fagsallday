@@ -327,7 +327,11 @@ export const useRounds = () => {
     }
   };
 
-  const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>) => {
+  const updateRound = async (
+    roundId: string,
+    updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>,
+    options?: { localOnly?: boolean }
+  ) => {
     if (!user) return false;
 
     // 1. Always update local state immediately (optimistic update)
@@ -341,9 +345,14 @@ export const useRounds = () => {
     // 2. Cache locally for offline access
     offlineStorage.updateCachedRound(roundId, updates);
 
+    // 2b. Local-only updates (already persisted via atomic patch RPCs) stop here —
+    // queueing a whole-blob write here is what lets stale snapshots clobber holes.
+    if (options?.localOnly) return true;
+
     // 3. Determine whether this is a deferred (scores/gameData/games) or immediate (status/course) update
     const hasDeferred = updates.scores !== undefined || updates.gameData !== undefined || updates.games !== undefined;
     const hasImmediate = updates.status !== undefined || updates.course !== undefined;
+
 
     if (hasDeferred) {
       // Accumulate into pending payload (last write wins per key)
