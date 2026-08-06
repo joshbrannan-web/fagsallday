@@ -4,6 +4,8 @@ import { useAuth } from './useAuth';
 import { Round, Course, Player, GameSettings } from '@/types';
 import { toast } from 'sonner';
 import { offlineStorage } from '@/services/offlineStorage';
+import { mergeScores, mergeGameData, countScoredHoles } from '@/lib/mergeRoundData';
+
 
 interface DbRound {
   id: string;
@@ -86,9 +88,33 @@ export const useRounds = () => {
 
     if (navigator.onLine) {
       try {
+        // Merge against the authoritative server blob so a stale local snapshot
+        // can never wipe holes recorded by another session/device.
+        const writePayload: any = { ...payload };
+        if (payload.scores !== undefined || payload.game_data !== undefined) {
+          const { data: serverRow } = await supabase
+            .from('rounds')
+            .select('scores, game_data')
+            .eq('id', roundId)
+            .maybeSingle();
+
+          if (serverRow) {
+            if (payload.scores !== undefined) {
+              const merged = mergeScores(serverRow.scores, payload.scores);
+              if (countScoredHoles(merged) > countScoredHoles(payload.scores)) {
+                console.warn('[rounds] Stale scores snapshot detected — merged with server copy instead of overwriting');
+              }
+              writePayload.scores = merged;
+            }
+            if (payload.game_data !== undefined) {
+              writePayload.game_data = mergeGameData(serverRow.game_data, payload.game_data);
+            }
+          }
+        }
+
         const { error } = await supabase
           .from('rounds')
-          .update(payload)
+          .update(writePayload)
           .eq('id', roundId)
           .eq('user_id', user.id);
 
@@ -111,6 +137,7 @@ export const useRounds = () => {
       }
     }
   }, [user]);
+
 
   const fetchRounds = useCallback(async () => {
     if (!user) {
@@ -300,7 +327,11 @@ export const useRounds = () => {
     }
   };
 
-  const updateRound = async (roundId: string, updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>) => {
+  const updateRound = async (
+    roundId: string,
+    updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>,
+    options?: { localOnly?: boolean }
+  ) => {
     if (!user) return false;
 
     // 1. Always update local state immediately (optimistic update)
@@ -314,9 +345,14 @@ export const useRounds = () => {
     // 2. Cache locally for offline access
     offlineStorage.updateCachedRound(roundId, updates);
 
+    // 2b. Local-only updates (already persisted via atomic patch RPCs) stop here —
+    // queueing a whole-blob write here is what lets stale snapshots clobber holes.
+    if (options?.localOnly) return true;
+
     // 3. Determine whether this is a deferred (scores/gameData/games) or immediate (status/course) update
     const hasDeferred = updates.scores !== undefined || updates.gameData !== undefined || updates.games !== undefined;
     const hasImmediate = updates.status !== undefined || updates.course !== undefined;
+
 
     if (hasDeferred) {
       // Accumulate into pending payload (last write wins per key)

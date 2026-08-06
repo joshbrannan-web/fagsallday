@@ -51,6 +51,8 @@ import { useSavedCourses } from '@/hooks/useSavedCourses';
 import { useSavedPlayers } from '@/hooks/useSavedPlayers';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
+import { mergeScores, mergeGameData } from '@/lib/mergeRoundData';
+
 import { supabase } from '@/integrations/supabase/client';
 import { AppContext, AppState } from './contexts/AppContext';
 import ConnectionStatusBar from './components/ConnectionStatusBar';
@@ -240,9 +242,26 @@ const AppContent: FC = () => {
 
         for (const item of queue) {
           try {
+            let data = item.data;
+
+            // Never let a replayed offline snapshot remove holes recorded elsewhere
+            if (item.type === 'scores' || item.type === 'gameData') {
+              const { data: serverRow } = await supabase
+                .from('rounds')
+                .select('scores, game_data')
+                .eq('id', item.roundId)
+                .maybeSingle();
+              if (serverRow) {
+                data =
+                  item.type === 'scores'
+                    ? { scores: mergeScores(serverRow.scores, item.data.scores) }
+                    : { game_data: mergeGameData(serverRow.game_data, item.data.game_data) };
+              }
+            }
+
             const { error } = await supabase
               .from('rounds')
-              .update(item.data)
+              .update(data)
               .eq('id', item.roundId)
               .eq('user_id', user.id);
 
@@ -253,6 +272,7 @@ const AppContent: FC = () => {
             console.error('Failed to sync item:', error);
           }
         }
+
 
         offlineStorage.removeFromSyncQueue(successfulIds);
         setIsSyncing(false);
@@ -417,8 +437,8 @@ const AppContent: FC = () => {
     newScores[holeNumber] = { ...newScores[holeNumber], [playerId]: score };
 
     if (isAuthenticated) {
-      // Optimistic update — updates dbCurrentRound immediately, no await so it doesn't fire its own DB write
-      updateRound(currentRound.id, { scores: newScores });
+      // Optimistic local-only update — the DB write happens via the atomic patch RPC below
+      updateRound(currentRound.id, { scores: newScores }, { localOnly: true });
       try {
         const { error } = await supabase.rpc('patch_round_scores', {
           p_round_id: currentRound.id,
@@ -431,6 +451,7 @@ const AppContent: FC = () => {
         console.error('Error patching score, falling back to full update:', error);
         await updateRound(currentRound.id, { scores: newScores });
       }
+
     } else {
       setLocalCurrentRound(prev => prev ? { ...prev, scores: newScores } : null);
     }
@@ -445,7 +466,8 @@ const AppContent: FC = () => {
     newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], [key]: value };
 
     if (isAuthenticated) {
-      updateRound(currentRound.id, { gameData: newGameData });
+      updateRound(currentRound.id, { gameData: newGameData }, { localOnly: true });
+
       try {
         const { error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
@@ -472,7 +494,8 @@ const AppContent: FC = () => {
     newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], ...updates };
 
     if (isAuthenticated) {
-      updateRound(currentRound.id, { gameData: newGameData });
+      updateRound(currentRound.id, { gameData: newGameData }, { localOnly: true });
+
       try {
         const { error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
