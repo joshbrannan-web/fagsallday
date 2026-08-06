@@ -86,9 +86,33 @@ export const useRounds = () => {
 
     if (navigator.onLine) {
       try {
+        // Merge against the authoritative server blob so a stale local snapshot
+        // can never wipe holes recorded by another session/device.
+        const writePayload: any = { ...payload };
+        if (payload.scores !== undefined || payload.game_data !== undefined) {
+          const { data: serverRow } = await supabase
+            .from('rounds')
+            .select('scores, game_data')
+            .eq('id', roundId)
+            .maybeSingle();
+
+          if (serverRow) {
+            if (payload.scores !== undefined) {
+              const merged = mergeScores(serverRow.scores, payload.scores);
+              if (countScoredHoles(merged) > countScoredHoles(payload.scores)) {
+                console.warn('[rounds] Stale scores snapshot detected — merged with server copy instead of overwriting');
+              }
+              writePayload.scores = merged;
+            }
+            if (payload.game_data !== undefined) {
+              writePayload.game_data = mergeGameData(serverRow.game_data, payload.game_data);
+            }
+          }
+        }
+
         const { error } = await supabase
           .from('rounds')
-          .update(payload)
+          .update(writePayload)
           .eq('id', roundId)
           .eq('user_id', user.id);
 
@@ -111,6 +135,7 @@ export const useRounds = () => {
       }
     }
   }, [user]);
+
 
   const fetchRounds = useCallback(async () => {
     if (!user) {
