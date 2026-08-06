@@ -240,9 +240,26 @@ const AppContent: FC = () => {
 
         for (const item of queue) {
           try {
+            let data = item.data;
+
+            // Never let a replayed offline snapshot remove holes recorded elsewhere
+            if (item.type === 'scores' || item.type === 'gameData') {
+              const { data: serverRow } = await supabase
+                .from('rounds')
+                .select('scores, game_data')
+                .eq('id', item.roundId)
+                .maybeSingle();
+              if (serverRow) {
+                data =
+                  item.type === 'scores'
+                    ? { scores: mergeScores(serverRow.scores, item.data.scores) }
+                    : { game_data: mergeGameData(serverRow.game_data, item.data.game_data) };
+              }
+            }
+
             const { error } = await supabase
               .from('rounds')
-              .update(item.data)
+              .update(data)
               .eq('id', item.roundId)
               .eq('user_id', user.id);
 
@@ -253,6 +270,7 @@ const AppContent: FC = () => {
             console.error('Failed to sync item:', error);
           }
         }
+
 
         offlineStorage.removeFromSyncQueue(successfulIds);
         setIsSyncing(false);
