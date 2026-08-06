@@ -4,6 +4,8 @@ import { useAuth } from './useAuth';
 import { Round, Course, Player, GameSettings } from '@/types';
 import { toast } from 'sonner';
 import { offlineStorage } from '@/services/offlineStorage';
+import { mergeScores, mergeGameData, countScoredHoles } from '@/lib/mergeRoundData';
+
 
 interface DbRound {
   id: string;
