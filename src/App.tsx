@@ -417,8 +417,8 @@ const AppContent: FC = () => {
     newScores[holeNumber] = { ...newScores[holeNumber], [playerId]: score };
 
     if (isAuthenticated) {
-      // Optimistic update — updates dbCurrentRound immediately, no await so it doesn't fire its own DB write
-      updateRound(currentRound.id, { scores: newScores });
+      // Optimistic local-only update — the DB write happens via the atomic patch RPC below
+      updateRound(currentRound.id, { scores: newScores }, { localOnly: true });
       try {
         const { error } = await supabase.rpc('patch_round_scores', {
           p_round_id: currentRound.id,
@@ -431,6 +431,7 @@ const AppContent: FC = () => {
         console.error('Error patching score, falling back to full update:', error);
         await updateRound(currentRound.id, { scores: newScores });
       }
+
     } else {
       setLocalCurrentRound(prev => prev ? { ...prev, scores: newScores } : null);
     }
