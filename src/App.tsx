@@ -474,7 +474,8 @@ const AppContent: FC = () => {
     newGameData[gameId][holeNumber] = { ...newGameData[gameId][holeNumber], ...updates };
 
     if (isAuthenticated) {
-      updateRound(currentRound.id, { gameData: newGameData });
+      updateRound(currentRound.id, { gameData: newGameData }, { localOnly: true });
+
       try {
         const { error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
