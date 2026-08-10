@@ -8,6 +8,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import GroupScorecardAdmin from '@/components/tournament-admin/GroupScorecardAdmin';
+import DeleteGroupButton from '@/components/tournament-admin/DeleteGroupButton';
 import { toast } from 'sonner';
 
 const TournamentAdminScorecard: React.FC = () => {
@@ -16,7 +17,7 @@ const TournamentAdminScorecard: React.FC = () => {
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { teams, players, isLoading: detailLoading } = useTournamentDetail(tournamentId);
   const { groups, groupPlayers } = useTournamentGroups(roundId);
-  const { scores, results, isLoading: scorecardLoading, batchOverrideScores } = useTournamentScorecard(groupId);
+  const { scores, results, courseHoles, isLoading: scorecardLoading, batchOverrideScores } = useTournamentScorecard(groupId);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
