@@ -484,6 +484,12 @@ const TournamentRegistrationAdmin: React.FC = () => {
                     <Plus className="w-4 h-4 mr-2" /> Create Tournament
                   </Button>
                 )}
+                {entries.some(e => e.ghin_number && e.handicap_index == null) && (
+                  <Button variant="outline" size="sm" onClick={handleBackfillHandicaps} disabled={backfillingHcp}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${backfillingHcp ? 'animate-spin' : ''}`} />
+                    {backfillingHcp ? 'Fetching…' : 'Fetch missing GHIN handicaps'}
+                  </Button>
+                )}
               </div>
 
 
