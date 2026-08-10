@@ -7,15 +7,11 @@ import { useTournamentScorecard } from '@/hooks/useTournamentScorecard';
 import { useTournamentGroups } from '@/hooks/useTournamentGroups';
 import TournamentTabPanel from '@/components/tournament/TournamentTabPanel';
 import GroupScorecardAdmin from '@/components/tournament-admin/GroupScorecardAdmin';
-import { ArrowLeft, Shield, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import DeleteGroupButton from '@/components/tournament-admin/DeleteGroupButton';
+import { ArrowLeft, Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const TournamentAdminLiveView: React.FC = () => {
@@ -24,7 +20,7 @@ const TournamentAdminLiveView: React.FC = () => {
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { teams, players, tournament, rounds, isLoading: detailLoading } = useTournamentDetail(tournamentId);
   const { groups, groupPlayers } = useTournamentGroups(roundId);
-  const { scores, results, isLoading: scorecardLoading, batchOverrideScores } = useTournamentScorecard(groupId);
+  const { scores, results, courseHoles, isLoading: scorecardLoading, batchOverrideScores } = useTournamentScorecard(groupId);
 
   // Get tournament/round names for overlay
   const round = rounds.find((r: any) => r.id === roundId);
@@ -35,8 +31,6 @@ const TournamentAdminLiveView: React.FC = () => {
 
   const [matchViewOpen, setMatchViewOpen] = useState(true);
   const [scoreEditorOpen, setScoreEditorOpen] = useState(true);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
@@ -63,23 +57,6 @@ const TournamentAdminLiveView: React.FC = () => {
     return { ...gp, display_name: player?.display_name || 'Unknown' };
   });
 
-  const handleDeleteGroup = async () => {
-    if (!groupId) return;
-    setDeleting(true);
-    try {
-      // Delete in order: results, scores, group_players, group
-      await supabase.from('tournament_hole_results').delete().eq('tournament_group_id', groupId);
-      await supabase.from('tournament_hole_scores').delete().eq('tournament_group_id', groupId);
-      await supabase.from('tournament_group_players').delete().eq('tournament_group_id', groupId);
-      await supabase.from('tournament_groups').delete().eq('id', groupId);
-      toast.success('Group round deleted');
-      navigate(`/tournament-admin/${tournamentId}`);
-    } catch (e) {
-      toast.error('Failed to delete group data');
-    }
-    setDeleting(false);
-  };
-
   return (
     <div className="min-h-screen bg-background animate-fade-in">
       {/* Admin Mode Banner */}
@@ -102,7 +79,7 @@ const TournamentAdminLiveView: React.FC = () => {
           </div>
         </div>
 
-        <div className="max-w-lg mx-auto space-y-4">
+        <div className="max-w-4xl mx-auto space-y-4">
           {/* Match View Section */}
           <Collapsible open={matchViewOpen} onOpenChange={setMatchViewOpen}>
             <CollapsibleTrigger className="w-full flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50 text-sm font-semibold">
@@ -144,46 +121,20 @@ const TournamentAdminLiveView: React.FC = () => {
                 teams={teams}
                 scores={scores}
                 results={results}
+                courseHoles={courseHoles}
                 onBatchSave={batchOverrideScores}
               />
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Danger Zone */}
-          <div className="border border-destructive/30 rounded-xl p-4 space-y-3">
-            <p className="text-sm font-semibold text-destructive">Danger Zone</p>
-            <Button
-              variant="destructive"
-              className="w-full"
-              onClick={() => setShowDeleteDialog(true)}
-              disabled={deleting}
-            >
-              <Trash2 className="w-4 h-4 mr-2" /> Delete Group Round
-            </Button>
-          </div>
+          <DeleteGroupButton
+            groupId={groupId}
+            groupNumber={group?.group_number}
+            tournamentId={tournamentId}
+          />
         </div>
       </div>
 
-      {/* Delete Confirmation */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Group Round?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete all scores, results, and player assignments for Group {group?.group_number || '?'}. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDeleteGroup}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

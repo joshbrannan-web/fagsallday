@@ -8,6 +8,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import GroupScorecardAdmin from '@/components/tournament-admin/GroupScorecardAdmin';
+import DeleteGroupButton from '@/components/tournament-admin/DeleteGroupButton';
 import { toast } from 'sonner';
 
 const TournamentAdminScorecard: React.FC = () => {
@@ -16,7 +17,7 @@ const TournamentAdminScorecard: React.FC = () => {
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { teams, players, isLoading: detailLoading } = useTournamentDetail(tournamentId);
   const { groups, groupPlayers } = useTournamentGroups(roundId);
-  const { scores, results, isLoading: scorecardLoading, batchOverrideScores } = useTournamentScorecard(groupId);
+  const { scores, results, courseHoles, isLoading: scorecardLoading, batchOverrideScores } = useTournamentScorecard(groupId);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
@@ -62,13 +63,19 @@ const TournamentAdminScorecard: React.FC = () => {
         </Button>
       </div>
 
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-4xl mx-auto space-y-4">
         <GroupScorecardAdmin
           groupPlayers={enrichedPlayers}
           teams={teams}
           scores={scores}
           results={results}
+          courseHoles={courseHoles}
           onBatchSave={batchOverrideScores}
+        />
+        <DeleteGroupButton
+          groupId={groupId}
+          groupNumber={group?.group_number}
+          tournamentId={tournamentId}
         />
       </div>
     </div>

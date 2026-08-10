@@ -265,5 +265,5 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
     await fetchData();
   };
 
-  return { scores, results, isLoading, overrideScore, batchOverrideScores, refetch: fetchData };
+  return { scores, results, courseHoles, isLoading, overrideScore, batchOverrideScores, refetch: fetchData };
 };
