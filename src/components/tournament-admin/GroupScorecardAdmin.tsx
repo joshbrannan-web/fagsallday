@@ -217,7 +217,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
             </tr>
           )}
 
-          {groupPlayers.map((gp: any) => {
+          {orderedPlayers.map((gp: any) => {
             const playerId = gp.tournament_player_id || gp.id;
             const color = teamColor(gp);
             return (
