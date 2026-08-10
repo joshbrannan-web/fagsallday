@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { lookupGhinHandicap } from "../_shared/ghin.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -80,7 +81,7 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(JSON.stringify({ error: "Missing config_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const handicapIndex =
+    let handicapIndex =
       entry.handicap_index === null || entry.handicap_index === undefined || entry.handicap_index === ""
         ? null
         : Number(entry.handicap_index);
@@ -91,6 +92,12 @@ const handler = async (req: Request): Promise<Response> => {
     const ghinNumber = entry.ghin_number ? String(entry.ghin_number).trim() : null;
     if (ghinNumber && !/^\d{5,9}$/.test(ghinNumber)) {
       return new Response(JSON.stringify({ error: "Invalid GHIN number" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Safety net: if a GHIN was provided but the registrant never synced, fetch it now.
+    if (ghinNumber && handicapIndex === null) {
+      const looked = await lookupGhinHandicap(ghinNumber);
+      if (looked !== null) handicapIndex = looked;
     }
 
     const supabase = createClient(
