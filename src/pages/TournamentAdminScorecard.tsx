@@ -63,13 +63,19 @@ const TournamentAdminScorecard: React.FC = () => {
         </Button>
       </div>
 
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-4xl mx-auto space-y-4">
         <GroupScorecardAdmin
           groupPlayers={enrichedPlayers}
           teams={teams}
           scores={scores}
           results={results}
+          courseHoles={courseHoles}
           onBatchSave={batchOverrideScores}
+        />
+        <DeleteGroupButton
+          groupId={groupId}
+          groupNumber={group?.group_number}
+          tournamentId={tournamentId}
         />
       </div>
     </div>
