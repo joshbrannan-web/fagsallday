@@ -303,6 +303,7 @@ const TournamentRegistration: React.FC = () => {
                           setGhinNumber(e.target.value.replace(/\D/g, '').slice(0, 9));
                           setGhinSyncedAt(null);
                         }}
+                        onBlur={handleGhinBlur}
                         placeholder="GHIN # (5-9 digits)"
                         maxLength={9}
                       />
