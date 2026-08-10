@@ -209,6 +209,20 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
+    // 3b) Keep the player's profile in sync with the GHIN handicap
+    if (finalUserId && ghinNumber && handicapIndex !== null) {
+      await supabase
+        .from("profiles")
+        .update({
+          handicap_index: handicapIndex,
+          ghin_number: ghinNumber,
+          ghin_last_synced: new Date().toISOString(),
+        })
+        .eq("id", finalUserId);
+    }
+
+
+
     // 4) Build shared registration confirmation block
     const venmoButtonHtml = venmoLink
       ? `
