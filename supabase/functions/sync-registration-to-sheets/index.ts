@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { lookupGhinHandicap } from "../_shared/ghin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,6 +47,17 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "Entry not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       entry = fetched;
+    }
+
+    // If a GHIN exists but no handicap, fetch it before writing the row
+    if (entry?.ghin_number && (entry.handicap_index === null || entry.handicap_index === undefined)) {
+      const hcp = await lookupGhinHandicap(String(entry.ghin_number));
+      if (hcp !== null) {
+        entry.handicap_index = hcp;
+        if (entry.id) {
+          await supabase.from("tournament_registration_entries").update({ handicap_index: hcp }).eq("id", entry.id);
+        }
+      }
     }
 
     const { data: config } = await supabase.from("tournament_registration_configs").select("google_sheet_id, google_refresh_token").eq("id", config_id).single();

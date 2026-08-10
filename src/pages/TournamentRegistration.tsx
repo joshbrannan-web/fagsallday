@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -49,6 +49,7 @@ const TournamentRegistration: React.FC = () => {
   const [ghinNumber, setGhinNumber] = useState('');
   const [ghinSyncing, setGhinSyncing] = useState(false);
   const [ghinSyncedAt, setGhinSyncedAt] = useState<string | null>(null);
+  const lastSyncedGhinRef = useRef<string | null>(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
 
@@ -93,10 +94,9 @@ const TournamentRegistration: React.FC = () => {
     loadProfile();
   }, [user]);
 
-  const handleSyncGhin = async () => {
-    const ghin = ghinNumber.trim();
+  const syncGhin = async (ghin: string, silent = false) => {
     if (!/^\d{5,9}$/.test(ghin)) {
-      toast.error('GHIN number must be 5-9 digits');
+      if (!silent) toast.error('GHIN number must be 5-9 digits');
       return;
     }
     setGhinSyncing(true);
@@ -105,19 +105,33 @@ const TournamentRegistration: React.FC = () => {
         body: { ghin_number: ghin },
       });
       if (error || !data || data.error) {
-        toast.error(data?.error || 'Failed to look up GHIN number');
+        if (!silent) toast.error(data?.error || 'Failed to look up GHIN number');
         return;
       }
       setHandicapIndex(String(data.handicap_index));
       setGhinSyncedAt(new Date().toISOString());
+      lastSyncedGhinRef.current = ghin;
       toast.success(`Handicap synced: ${data.handicap_index}`);
     } catch (err) {
       console.error('GHIN sync error:', err);
-      toast.error('Failed to look up GHIN number');
+      if (!silent) toast.error('Failed to look up GHIN number');
     } finally {
       setGhinSyncing(false);
     }
   };
+
+  const handleSyncGhin = () => syncGhin(ghinNumber.trim());
+
+  // Auto-sync when the registrant enters a valid GHIN and doesn't press Sync
+  const handleGhinBlur = () => {
+    const ghin = ghinNumber.trim();
+    if (hcpSource !== 'ghin') return;
+    if (!/^\d{5,9}$/.test(ghin)) return;
+    if (lastSyncedGhinRef.current === ghin) return;
+    if (ghinSyncing) return;
+    syncGhin(ghin, true);
+  };
+
 
   const handleHcpSourceChange = (val: 'ghin' | 'manual') => {
     setHcpSource(val);
@@ -289,6 +303,7 @@ const TournamentRegistration: React.FC = () => {
                           setGhinNumber(e.target.value.replace(/\D/g, '').slice(0, 9));
                           setGhinSyncedAt(null);
                         }}
+                        onBlur={handleGhinBlur}
                         placeholder="GHIN # (5-9 digits)"
                         maxLength={9}
                       />

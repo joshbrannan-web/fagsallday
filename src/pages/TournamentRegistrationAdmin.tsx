@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Copy, ExternalLink, Plus, Users, Link as LinkIcon, Unplug, Trash2 } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Plus, Users, Link as LinkIcon, Unplug, Trash2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -48,6 +48,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [pendingTournamentChange, setPendingTournamentChange] = useState<{ newId: string | null; approvedCount: number; oldName: string; newName: string } | null>(null);
   const [relinking, setRelinking] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [backfillingHcp, setBackfillingHcp] = useState(false);
 
   const handleDeleteConfig = async () => {
     if (!configToDelete) return;
@@ -249,6 +250,29 @@ const TournamentRegistrationAdmin: React.FC = () => {
       setSyncingAll(false);
     }
   };
+
+  const handleBackfillHandicaps = async () => {
+    if (!selectedConfig) return;
+    setBackfillingHcp(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('backfill-registration-handicaps', {
+        body: { config_id: selectedConfig.id },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      const failed = data?.failed?.length ?? 0;
+      toast.success(
+        `Updated ${data?.updated ?? 0} handicap(s)${failed ? `, ${failed} GHIN(s) not found` : ''}`,
+      );
+      await loadEntries(selectedConfig.id);
+    } catch (err: any) {
+      console.error('Handicap backfill error:', err);
+      toast.error(err?.message || 'Failed to fetch handicaps');
+    } finally {
+      setBackfillingHcp(false);
+    }
+  };
+
+
 
   const copyShareLink = (shareCode: string) => {
     const url = `https://fagsallday.com/#/register/${shareCode}`;
@@ -458,6 +482,12 @@ const TournamentRegistrationAdmin: React.FC = () => {
                     onClick={() => navigate(`/tournament-admin/create?linkConfigId=${selectedConfig.id}`)}
                   >
                     <Plus className="w-4 h-4 mr-2" /> Create Tournament
+                  </Button>
+                )}
+                {entries.some(e => e.ghin_number && e.handicap_index == null) && (
+                  <Button variant="outline" size="sm" onClick={handleBackfillHandicaps} disabled={backfillingHcp}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${backfillingHcp ? 'animate-spin' : ''}`} />
+                    {backfillingHcp ? 'Fetching…' : 'Fetch missing GHIN handicaps'}
                   </Button>
                 )}
               </div>
