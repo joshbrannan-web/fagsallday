@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Copy, ExternalLink, Plus, Users, Link as LinkIcon, Unplug, Trash2 } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Plus, Users, Link as LinkIcon, Unplug, Trash2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -48,6 +48,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [pendingTournamentChange, setPendingTournamentChange] = useState<{ newId: string | null; approvedCount: number; oldName: string; newName: string } | null>(null);
   const [relinking, setRelinking] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [backfillingHcp, setBackfillingHcp] = useState(false);
 
   const handleDeleteConfig = async () => {
     if (!configToDelete) return;
