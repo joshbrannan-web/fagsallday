@@ -93,10 +93,9 @@ const TournamentRegistration: React.FC = () => {
     loadProfile();
   }, [user]);
 
-  const handleSyncGhin = async () => {
-    const ghin = ghinNumber.trim();
+  const syncGhin = async (ghin: string, silent = false) => {
     if (!/^\d{5,9}$/.test(ghin)) {
-      toast.error('GHIN number must be 5-9 digits');
+      if (!silent) toast.error('GHIN number must be 5-9 digits');
       return;
     }
     setGhinSyncing(true);
@@ -105,19 +104,33 @@ const TournamentRegistration: React.FC = () => {
         body: { ghin_number: ghin },
       });
       if (error || !data || data.error) {
-        toast.error(data?.error || 'Failed to look up GHIN number');
+        if (!silent) toast.error(data?.error || 'Failed to look up GHIN number');
         return;
       }
       setHandicapIndex(String(data.handicap_index));
       setGhinSyncedAt(new Date().toISOString());
+      lastSyncedGhinRef.current = ghin;
       toast.success(`Handicap synced: ${data.handicap_index}`);
     } catch (err) {
       console.error('GHIN sync error:', err);
-      toast.error('Failed to look up GHIN number');
+      if (!silent) toast.error('Failed to look up GHIN number');
     } finally {
       setGhinSyncing(false);
     }
   };
+
+  const handleSyncGhin = () => syncGhin(ghinNumber.trim());
+
+  // Auto-sync when the registrant enters a valid GHIN and doesn't press Sync
+  const handleGhinBlur = () => {
+    const ghin = ghinNumber.trim();
+    if (hcpSource !== 'ghin') return;
+    if (!/^\d{5,9}$/.test(ghin)) return;
+    if (lastSyncedGhinRef.current === ghin) return;
+    if (ghinSyncing) return;
+    syncGhin(ghin, true);
+  };
+
 
   const handleHcpSourceChange = (val: 'ghin' | 'manual') => {
     setHcpSource(val);
