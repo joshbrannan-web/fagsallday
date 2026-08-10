@@ -269,6 +269,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
                       ) : (
                         <button
                           type="button"
+                          style={score && !score.isPending ? winnerStyle(gp, playerId, hole) : undefined}
                           className={`w-11 h-11 rounded-md text-sm font-mono transition-colors ${
                             score?.isPending
                               ? 'bg-primary/20 ring-1 ring-primary text-primary font-bold'
