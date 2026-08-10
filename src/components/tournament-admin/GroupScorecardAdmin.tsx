@@ -1,5 +1,4 @@
-import React, { useState, useCallback } from 'react';
-import { Input } from '@/components/ui/input';
+import React, { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Save } from 'lucide-react';
@@ -18,60 +17,101 @@ interface Props {
   teams: any[];
   scores: any[];
   results: any[];
+  courseHoles?: { number: number; par: number; handicapIndex?: number }[];
   onBatchSave: (edits: ScoreEdit[]) => Promise<void>;
 }
 
-const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, results, onBatchSave }) => {
+const FRONT = Array.from({ length: 9 }, (_, i) => i + 1);
+const BACK = Array.from({ length: 9 }, (_, i) => i + 10);
+
+const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, results, courseHoles = [], onBatchSave }) => {
   const [editCell, setEditCell] = useState<{ playerId: string; hole: number } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [pendingEdits, setPendingEdits] = useState<Map<string, ScoreEdit>>(new Map());
   const [saving, setSaving] = useState(false);
+  const editValueRef = useRef('');
 
   const makeKey = (playerId: string, hole: number) => `${playerId}:${hole}`;
 
+  const playerIds = useMemo(
+    () => groupPlayers.map((gp: any) => gp.tournament_player_id || gp.id),
+    [groupPlayers],
+  );
+
+  const savedScore = (playerId: string, hole: number) =>
+    scores.find((s: any) => s.tournament_player_id === playerId && s.hole_number === hole);
+
   const getScore = (playerId: string, hole: number) => {
-    const key = makeKey(playerId, hole);
-    const pending = pendingEdits.get(key);
+    const pending = pendingEdits.get(makeKey(playerId, hole));
     if (pending) return { gross: pending.score, isOverride: true, isPending: true };
-    const s = scores.find((s: any) => s.tournament_player_id === playerId && s.hole_number === hole);
-    return s ? { gross: s.gross_score, isOverride: s.is_super_user_override, isPending: false } : null;
+    const s = savedScore(playerId, hole);
+    return s && s.gross_score != null
+      ? { gross: s.gross_score as number, isOverride: s.is_super_user_override, isPending: false }
+      : null;
   };
 
   const getResult = (hole: number) => results.find((r: any) => r.hole_number === hole);
 
+  const parFor = (hole: number) => courseHoles.find(h => h.number === hole)?.par;
+
+  const sumPars = (holes: number[]) =>
+    holes.reduce((acc, h) => acc + (parFor(h) ?? 0), 0);
+
+  const sumScores = (playerId: string, holes: number[]) =>
+    holes.reduce((acc, h) => acc + (getScore(playerId, h)?.gross ?? 0), 0);
+
   const startEdit = (playerId: string, hole: number) => {
-    const key = makeKey(playerId, hole);
-    const pending = pendingEdits.get(key);
-    const existing = scores.find((s: any) => s.tournament_player_id === playerId && s.hole_number === hole);
-    const currentValue = pending?.score ?? existing?.gross_score;
+    const current = getScore(playerId, hole)?.gross;
     setEditCell({ playerId, hole });
-    setEditValue(currentValue?.toString() || '');
+    const v = current?.toString() || '';
+    setEditValue(v);
+    editValueRef.current = v;
   };
 
-  const commitEdit = () => {
-    if (!editCell) return;
-    const val = parseInt(editValue);
-    if (isNaN(val) || val < 1) { setEditCell(null); return; }
-
-    const key = makeKey(editCell.playerId, editCell.hole);
-    // Check if it's actually a change from the saved score
-    const existing = scores.find((s: any) => s.tournament_player_id === editCell.playerId && s.hole_number === editCell.hole);
+  const applyValue = (playerId: string, hole: number, raw: string) => {
+    const key = makeKey(playerId, hole);
+    const val = parseInt(raw, 10);
+    const existing = savedScore(playerId, hole);
+    if (isNaN(val) || val < 1) return;
     if (existing?.gross_score === val) {
-      // Remove from pending if it was there
       setPendingEdits(prev => { const next = new Map(prev); next.delete(key); return next; });
     } else {
-      setPendingEdits(prev => new Map(prev).set(key, { playerId: editCell.playerId, hole: editCell.hole, score: val }));
+      setPendingEdits(prev => new Map(prev).set(key, { playerId, hole, score: val }));
     }
-    setEditCell(null);
+  };
+
+  const commitEdit = (moveTo?: { playerId: string; hole: number } | null) => {
+    if (!editCell) return;
+    applyValue(editCell.playerId, editCell.hole, editValueRef.current);
+    if (moveTo) startEdit(moveTo.playerId, moveTo.hole);
+    else setEditCell(null);
+  };
+
+  const neighbor = (playerId: string, hole: number, dir: 'next' | 'prev' | 'up' | 'down') => {
+    const pIdx = playerIds.indexOf(playerId);
+    if (dir === 'up' || dir === 'down') {
+      const nextIdx = dir === 'up' ? pIdx - 1 : pIdx + 1;
+      if (nextIdx < 0 || nextIdx >= playerIds.length) return null;
+      return { playerId: playerIds[nextIdx], hole };
+    }
+    if (dir === 'next') {
+      if (pIdx < playerIds.length - 1) return { playerId: playerIds[pIdx + 1], hole };
+      if (hole < 18) return { playerId: playerIds[0], hole: hole + 1 };
+      return null;
+    }
+    if (pIdx > 0) return { playerId: playerIds[pIdx - 1], hole };
+    if (hole > 1) return { playerId: playerIds[playerIds.length - 1], hole: hole - 1 };
+    return null;
   };
 
   const handleSaveAll = async () => {
     if (pendingEdits.size === 0) return;
     setSaving(true);
+    const count = pendingEdits.size;
     try {
       await onBatchSave(Array.from(pendingEdits.values()));
       setPendingEdits(new Map());
-      toast.success(`Saved ${pendingEdits.size} score${pendingEdits.size > 1 ? 's' : ''}`);
+      toast.success(`Saved ${count} score${count > 1 ? 's' : ''}`);
     } catch {
       toast.error('Failed to save scores');
     }
@@ -94,6 +134,131 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
     return { holeNumber: i + 1, isPlayed: true, isHalved: false, winningTeamColor: winTeam?.color };
   });
 
+  const teamColor = (gp: any) => teams.find((t: any) => t.id === gp.team_id)?.color;
+
+  const shortResult = (hole: number) => {
+    const r = getResult(hole);
+    if (!r) return '';
+    const label = r.result_label as string | undefined;
+    return label || '';
+  };
+
+  const renderNine = (holes: number[], label: 'OUT' | 'IN') => (
+    <div className="overflow-x-auto rounded-lg border border-border">
+      <table className="w-full border-collapse text-xs">
+        <thead>
+          <tr className="bg-muted/60">
+            <th className="sticky left-0 z-10 bg-muted/60 text-left px-2 py-2 font-semibold min-w-[92px]">Hole</th>
+            {holes.map(h => (
+              <th key={h} className="px-1 py-2 font-semibold text-center min-w-[44px]">{h}</th>
+            ))}
+            <th className="px-2 py-2 font-bold text-center min-w-[44px]">{label}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {courseHoles.length > 0 && (
+            <tr className="border-t border-border bg-muted/20 text-muted-foreground">
+              <td className="sticky left-0 z-10 bg-muted/20 px-2 py-1.5 font-medium">Par</td>
+              {holes.map(h => (
+                <td key={h} className="px-1 py-1.5 text-center font-mono">{parFor(h) ?? '—'}</td>
+              ))}
+              <td className="px-2 py-1.5 text-center font-mono font-semibold">{sumPars(holes) || '—'}</td>
+            </tr>
+          )}
+
+          {groupPlayers.map((gp: any) => {
+            const playerId = gp.tournament_player_id || gp.id;
+            const color = teamColor(gp);
+            return (
+              <tr key={gp.id} className="border-t border-border">
+                <td
+                  className="sticky left-0 z-10 bg-background px-2 py-1 font-medium truncate max-w-[120px] border-l-4"
+                  style={{ borderLeftColor: color || 'transparent' }}
+                  title={gp.display_name}
+                >
+                  {gp.display_name || playerId?.slice(0, 6)}
+                </td>
+                {holes.map(hole => {
+                  const score = getScore(playerId, hole);
+                  const isEditing = editCell?.playerId === playerId && editCell?.hole === hole;
+                  return (
+                    <td key={hole} className="p-0.5 text-center">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={editValue}
+                          onChange={e => {
+                            const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
+                            setEditValue(v);
+                            editValueRef.current = v;
+                          }}
+                          onFocus={e => e.currentTarget.select()}
+                          onBlur={() => commitEdit(null)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === 'Tab') {
+                              e.preventDefault();
+                              commitEdit(neighbor(playerId, hole, e.shiftKey ? 'prev' : 'next'));
+                            } else if (e.key === 'Escape') {
+                              setEditCell(null);
+                            } else if (e.key === 'ArrowRight') {
+                              e.preventDefault(); commitEdit(neighbor(playerId, hole, 'next'));
+                            } else if (e.key === 'ArrowLeft') {
+                              e.preventDefault(); commitEdit(neighbor(playerId, hole, 'prev'));
+                            } else if (e.key === 'ArrowUp') {
+                              e.preventDefault(); commitEdit(neighbor(playerId, hole, 'up'));
+                            } else if (e.key === 'ArrowDown') {
+                              e.preventDefault(); commitEdit(neighbor(playerId, hole, 'down'));
+                            }
+                          }}
+                          className="w-11 h-11 rounded-md text-center text-sm font-mono bg-background ring-2 ring-primary outline-none"
+                          autoFocus
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className={`w-11 h-11 rounded-md text-sm font-mono transition-colors ${
+                            score?.isPending
+                              ? 'bg-primary/20 ring-1 ring-primary text-primary font-bold'
+                              : score
+                                ? 'bg-muted hover:bg-accent'
+                                : 'text-muted-foreground/30 hover:bg-muted'
+                          }`}
+                          onClick={() => startEdit(playerId, hole)}
+                        >
+                          {score?.gross ?? '—'}
+                          {score?.isOverride && !score?.isPending && (
+                            <span className="text-[hsl(var(--brand-gold))]">*</span>
+                          )}
+                        </button>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="px-2 text-center font-mono font-semibold">
+                  {sumScores(playerId, holes) || '—'}
+                </td>
+              </tr>
+            );
+          })}
+
+          <tr className="border-t border-border bg-muted/20 text-muted-foreground">
+            <td className="sticky left-0 z-10 bg-muted/20 px-2 py-1.5 font-medium">Result</td>
+            {holes.map(h => (
+              <td key={h} className="px-1 py-1.5 text-center text-[10px] leading-tight">
+                {shortResult(h) || '—'}
+              </td>
+            ))}
+            <td className="px-2 py-1.5" />
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const totalPar = sumPars([...FRONT, ...BACK]);
+
   return (
     <div className="space-y-4">
       <MatchStatusBar
@@ -104,10 +269,10 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
       />
 
       {pendingEdits.size > 0 && (
-        <div className="flex items-center justify-between bg-primary/10 rounded-lg px-3 py-2">
+        <div className="flex items-center justify-between bg-primary/10 rounded-lg px-3 py-2 sticky top-14 z-30">
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="text-xs">{pendingEdits.size} unsaved</Badge>
-            <span className="text-xs text-muted-foreground">Click Save to apply changes</span>
+            <span className="text-xs text-muted-foreground">Tap a score to edit</span>
           </div>
           <Button size="sm" onClick={handleSaveAll} disabled={saving}>
             <Save className="w-3.5 h-3.5 mr-1.5" />
@@ -116,61 +281,44 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      {renderNine(FRONT, 'OUT')}
+      {renderNine(BACK, 'IN')}
+
+      {/* Totals */}
+      <div className="rounded-lg border border-border overflow-x-auto">
         <table className="w-full text-xs border-collapse">
           <thead>
-            <tr className="text-muted-foreground">
-              <th className="text-left p-1.5 font-medium">Hole</th>
-              {groupPlayers.map((gp: any) => (
-                <th key={gp.id} className="p-1.5 font-medium text-center">{gp.display_name || gp.tournament_player_id?.slice(0, 6)}</th>
-              ))}
-              <th className="p-1.5 font-medium text-center">Result</th>
+            <tr className="bg-muted/60">
+              <th className="text-left px-2 py-2 font-semibold">Player</th>
+              <th className="px-2 py-2 text-center font-semibold">OUT</th>
+              <th className="px-2 py-2 text-center font-semibold">IN</th>
+              <th className="px-2 py-2 text-center font-semibold">TOTAL</th>
+              {totalPar > 0 && <th className="px-2 py-2 text-center font-semibold">+/-</th>}
             </tr>
           </thead>
           <tbody>
-            {Array.from({ length: 18 }, (_, i) => i + 1).map(hole => {
-              const result = getResult(hole);
+            {groupPlayers.map((gp: any) => {
+              const playerId = gp.tournament_player_id || gp.id;
+              const out = sumScores(playerId, FRONT);
+              const inn = sumScores(playerId, BACK);
+              const tot = out + inn;
+              const diff = tot - totalPar;
               return (
-                <tr key={hole} className="border-t border-border">
-                  <td className="p-1.5 font-medium text-muted-foreground">{hole}</td>
-                  {groupPlayers.map((gp: any) => {
-                    const playerId = gp.tournament_player_id || gp.id;
-                    const score = getScore(playerId, hole);
-                    const isEditing = editCell?.playerId === playerId && editCell?.hole === hole;
-                    return (
-                      <td key={gp.id} className="p-1 text-center">
-                        {isEditing ? (
-                          <Input
-                            type="number"
-                            value={editValue}
-                            onChange={e => setEditValue(e.target.value)}
-                            onBlur={commitEdit}
-                            onKeyDown={e => e.key === 'Enter' && commitEdit()}
-                            className="w-10 h-7 text-xs text-center mx-auto"
-                            autoFocus
-                            min={1}
-                          />
-                        ) : (
-                          <button
-                            className={`w-8 h-7 rounded text-xs font-mono ${
-                              score?.isPending
-                                ? 'bg-primary/20 ring-1 ring-primary text-primary font-bold'
-                                : score
-                                  ? 'bg-muted hover:bg-accent'
-                                  : 'text-muted-foreground/30 hover:bg-muted'
-                            }`}
-                            onClick={() => startEdit(playerId, hole)}
-                          >
-                            {score?.gross ?? '—'}
-                            {score?.isOverride && !score?.isPending && <span className="text-[hsl(var(--brand-gold))]">*</span>}
-                          </button>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="p-1.5 text-center text-muted-foreground">
-                    {result?.result_label || '—'}
+                <tr key={gp.id} className="border-t border-border">
+                  <td
+                    className="px-2 py-1.5 font-medium border-l-4"
+                    style={{ borderLeftColor: teamColor(gp) || 'transparent' }}
+                  >
+                    {gp.display_name || playerId?.slice(0, 6)}
                   </td>
+                  <td className="px-2 py-1.5 text-center font-mono">{out || '—'}</td>
+                  <td className="px-2 py-1.5 text-center font-mono">{inn || '—'}</td>
+                  <td className="px-2 py-1.5 text-center font-mono font-bold">{tot || '—'}</td>
+                  {totalPar > 0 && (
+                    <td className="px-2 py-1.5 text-center font-mono">
+                      {tot ? (diff === 0 ? 'E' : diff > 0 ? `+${diff}` : diff) : '—'}
+                    </td>
+                  )}
                 </tr>
               );
             })}
