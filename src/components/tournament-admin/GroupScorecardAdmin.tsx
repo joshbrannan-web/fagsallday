@@ -33,9 +33,23 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
 
   const makeKey = (playerId: string, hole: number) => `${playerId}:${hole}`;
 
+  const orderedPlayers = useMemo(() => {
+    const teamIndex = (teamId: string | null | undefined) => {
+      const idx = teams.findIndex((t: any) => t.id === teamId);
+      return idx === -1 ? teams.length : idx;
+    };
+    return [...groupPlayers]
+      .map((gp: any, i: number) => ({ gp, i }))
+      .sort((a, b) => {
+        const d = teamIndex(a.gp.team_id) - teamIndex(b.gp.team_id);
+        return d !== 0 ? d : a.i - b.i;
+      })
+      .map(x => x.gp);
+  }, [groupPlayers, teams]);
+
   const playerIds = useMemo(
-    () => groupPlayers.map((gp: any) => gp.tournament_player_id || gp.id),
-    [groupPlayers],
+    () => orderedPlayers.map((gp: any) => gp.tournament_player_id || gp.id),
+    [orderedPlayers],
   );
 
   const savedScore = (playerId: string, hole: number) =>
@@ -136,6 +150,43 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
 
   const teamColor = (gp: any) => teams.find((t: any) => t.id === gp.team_id)?.color;
 
+  // Winning team / players for a hole (null when halved or not played)
+  const holeWinner = (hole: number): { teamId?: string; playerIds?: string[] } | null => {
+    const r = getResult(hole);
+    if (!r) return null;
+    const teamPoints = r.team_points as Record<string, number> | undefined;
+    if (teamPoints && Object.keys(teamPoints).length > 0) {
+      const entries = Object.entries(teamPoints);
+      const max = Math.max(...entries.map(([, v]) => v));
+      const winners = entries.filter(([, v]) => v === max);
+      if (winners.length !== 1 || max <= 0) return null;
+      return { teamId: winners[0][0] };
+    }
+    const playerPoints = r.player_points as Record<string, number> | undefined;
+    if (playerPoints && Object.keys(playerPoints).length > 0) {
+      const entries = Object.entries(playerPoints);
+      const max = Math.max(...entries.map(([, v]) => v));
+      if (max <= 0) return null;
+      const winners = entries.filter(([, v]) => v === max).map(([k]) => k);
+      if (winners.length === entries.length) return null;
+      return { playerIds: winners };
+    }
+    return null;
+  };
+
+  const winnerStyle = (gp: any, playerId: string, hole: number): React.CSSProperties | undefined => {
+    const w = holeWinner(hole);
+    if (!w) return undefined;
+    const isWinner = w.teamId ? gp.team_id === w.teamId : w.playerIds?.includes(playerId);
+    if (!isWinner) return undefined;
+    const color = teamColor(gp);
+    if (!color) return undefined;
+    return {
+      border: `2px solid ${color}`,
+      backgroundColor: `color-mix(in srgb, ${color} 18%, transparent)`,
+    };
+  };
+
   const shortResult = (hole: number) => {
     const r = getResult(hole);
     if (!r) return '';
@@ -166,7 +217,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
             </tr>
           )}
 
-          {groupPlayers.map((gp: any) => {
+          {orderedPlayers.map((gp: any) => {
             const playerId = gp.tournament_player_id || gp.id;
             const color = teamColor(gp);
             return (
@@ -218,6 +269,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
                       ) : (
                         <button
                           type="button"
+                          style={score && !score.isPending ? winnerStyle(gp, playerId, hole) : undefined}
                           className={`w-11 h-11 rounded-md text-sm font-mono transition-colors ${
                             score?.isPending
                               ? 'bg-primary/20 ring-1 ring-primary text-primary font-bold'
@@ -297,7 +349,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
             </tr>
           </thead>
           <tbody>
-            {groupPlayers.map((gp: any) => {
+            {orderedPlayers.map((gp: any) => {
               const playerId = gp.tournament_player_id || gp.id;
               const out = sumScores(playerId, FRONT);
               const inn = sumScores(playerId, BACK);
