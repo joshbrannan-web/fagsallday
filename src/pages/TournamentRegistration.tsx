@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -49,6 +49,7 @@ const TournamentRegistration: React.FC = () => {
   const [ghinNumber, setGhinNumber] = useState('');
   const [ghinSyncing, setGhinSyncing] = useState(false);
   const [ghinSyncedAt, setGhinSyncedAt] = useState<string | null>(null);
+  const lastSyncedGhinRef = useRef<string | null>(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
 
