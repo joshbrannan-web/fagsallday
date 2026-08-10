@@ -150,6 +150,43 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
 
   const teamColor = (gp: any) => teams.find((t: any) => t.id === gp.team_id)?.color;
 
+  // Winning team / players for a hole (null when halved or not played)
+  const holeWinner = (hole: number): { teamId?: string; playerIds?: string[] } | null => {
+    const r = getResult(hole);
+    if (!r) return null;
+    const teamPoints = r.team_points as Record<string, number> | undefined;
+    if (teamPoints && Object.keys(teamPoints).length > 0) {
+      const entries = Object.entries(teamPoints);
+      const max = Math.max(...entries.map(([, v]) => v));
+      const winners = entries.filter(([, v]) => v === max);
+      if (winners.length !== 1 || max <= 0) return null;
+      return { teamId: winners[0][0] };
+    }
+    const playerPoints = r.player_points as Record<string, number> | undefined;
+    if (playerPoints && Object.keys(playerPoints).length > 0) {
+      const entries = Object.entries(playerPoints);
+      const max = Math.max(...entries.map(([, v]) => v));
+      if (max <= 0) return null;
+      const winners = entries.filter(([, v]) => v === max).map(([k]) => k);
+      if (winners.length === entries.length) return null;
+      return { playerIds: winners };
+    }
+    return null;
+  };
+
+  const winnerStyle = (gp: any, playerId: string, hole: number): React.CSSProperties | undefined => {
+    const w = holeWinner(hole);
+    if (!w) return undefined;
+    const isWinner = w.teamId ? gp.team_id === w.teamId : w.playerIds?.includes(playerId);
+    if (!isWinner) return undefined;
+    const color = teamColor(gp);
+    if (!color) return undefined;
+    return {
+      border: `2px solid ${color}`,
+      backgroundColor: `color-mix(in srgb, ${color} 18%, transparent)`,
+    };
+  };
+
   const shortResult = (hole: number) => {
     const r = getResult(hole);
     if (!r) return '';
