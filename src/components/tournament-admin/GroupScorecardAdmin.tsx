@@ -33,9 +33,23 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
 
   const makeKey = (playerId: string, hole: number) => `${playerId}:${hole}`;
 
+  const orderedPlayers = useMemo(() => {
+    const teamIndex = (teamId: string | null | undefined) => {
+      const idx = teams.findIndex((t: any) => t.id === teamId);
+      return idx === -1 ? teams.length : idx;
+    };
+    return [...groupPlayers]
+      .map((gp: any, i: number) => ({ gp, i }))
+      .sort((a, b) => {
+        const d = teamIndex(a.gp.team_id) - teamIndex(b.gp.team_id);
+        return d !== 0 ? d : a.i - b.i;
+      })
+      .map(x => x.gp);
+  }, [groupPlayers, teams]);
+
   const playerIds = useMemo(
-    () => groupPlayers.map((gp: any) => gp.tournament_player_id || gp.id),
-    [groupPlayers],
+    () => orderedPlayers.map((gp: any) => gp.tournament_player_id || gp.id),
+    [orderedPlayers],
   );
 
   const savedScore = (playerId: string, hole: number) =>
