@@ -251,6 +251,29 @@ const TournamentRegistrationAdmin: React.FC = () => {
     }
   };
 
+  const handleBackfillHandicaps = async () => {
+    if (!selectedConfig) return;
+    setBackfillingHcp(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('backfill-registration-handicaps', {
+        body: { config_id: selectedConfig.id },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      const failed = data?.failed?.length ?? 0;
+      toast.success(
+        `Updated ${data?.updated ?? 0} handicap(s)${failed ? `, ${failed} GHIN(s) not found` : ''}`,
+      );
+      await loadEntries(selectedConfig.id);
+    } catch (err: any) {
+      console.error('Handicap backfill error:', err);
+      toast.error(err?.message || 'Failed to fetch handicaps');
+    } finally {
+      setBackfillingHcp(false);
+    }
+  };
+
+
+
   const copyShareLink = (shareCode: string) => {
     const url = `https://fagsallday.com/#/register/${shareCode}`;
     navigator.clipboard.writeText(url);
