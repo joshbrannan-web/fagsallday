@@ -41,11 +41,20 @@ const Landing: React.FC = () => {
     if (!meta?.tournamentId) return;
 
     const checkTournament = async () => {
-      const { data } = await supabase
+      // Never self-heal without a confirmed answer from the server — a failed
+      // request is not proof the tournament was deleted.
+      if (!navigator.onLine) return;
+
+      const { data, error } = await supabase
         .from('tournaments')
         .select('id')
         .eq('id', meta.tournamentId)
         .maybeSingle();
+
+      if (error) {
+        console.warn('[Landing] Tournament lookup failed — leaving the active round intact', error);
+        return;
+      }
 
       if (!data) {
         await deleteRound(currentRound.id);
