@@ -425,6 +425,7 @@ export const useRounds = () => {
 
 
     if (hasDeferred) {
+      pendingRoundIdRef.current = roundId;
       // Accumulate into pending payload (last write wins per key)
       if (updates.scores !== undefined) {
         pendingDbUpdatesRef.current.scores = updates.scores;
