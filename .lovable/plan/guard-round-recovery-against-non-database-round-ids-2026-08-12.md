@@ -18,4 +18,15 @@ if (!isDbRoundId) {
 }
 ```
 
+In handleResume, when the id isn't a database UUID, close the dialog and tell the user instead of
+
+just returning — still without clearing the cache:
+
+    setShowRecoveryDialog(false);
+
+    setRecoveryRound(null);
+
+    [toast.info](http://toast.info)("That round was started before you signed in, so it can't be synced to your account.");
+
+    return;  
 No other files change.

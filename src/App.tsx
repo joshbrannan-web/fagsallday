@@ -92,11 +92,18 @@ const RoundRecovery: FC<{
 
       if (ageMs < TWENTY_FOUR_HOURS) {
         if (isAuthenticated) {
+          const isDbRoundId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cached.id);
+          if (!isDbRoundId) {
+            console.warn('[recovery] Cached round has a non-database id — skipping server recovery', cached.id);
+            return;
+          }
+
           const { data: existingRound, error: existErr } = await supabase
             .from('rounds')
             .select('id')
             .eq('id', cached.id)
             .maybeSingle();
+
 
           if (existErr) {
             // Can't verify right now — resume from the local copy rather than discarding scores.
@@ -128,11 +135,21 @@ const RoundRecovery: FC<{
   const handleResume = async () => {
     if (!recoveryRound) return;
     if (isAuthenticated) {
+      const isDbRoundId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recoveryRound.id);
+      if (!isDbRoundId) {
+        console.warn('[recovery] Cached round has a non-database id — skipping server recovery', recoveryRound.id);
+        setShowRecoveryDialog(false);
+        setRecoveryRound(null);
+        toast.info("That round was started before you signed in, so it can't be synced to your account.");
+        return;
+      }
+
       const { data: existingRound, error: existErr } = await supabase
         .from('rounds')
         .select('id')
         .eq('id', recoveryRound.id)
         .maybeSingle();
+
 
       if (existErr) {
         // Can't verify right now — resume from the local copy rather than discarding scores.
