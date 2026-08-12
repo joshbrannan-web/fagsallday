@@ -156,13 +156,15 @@ export const useRounds = () => {
     if (Object.keys(payload).length === 0) return;
 
     pendingDbUpdatesRef.current = {};
+    const replace = replaceBlobsRef.current;
+    replaceBlobsRef.current = false;
 
     if (navigator.onLine) {
       try {
         // Merge against the authoritative server blob so a stale local snapshot
         // can never wipe holes recorded by another session/device.
         const writePayload: any = { ...payload };
-        if (payload.scores !== undefined || payload.game_data !== undefined) {
+        if (!replace && (payload.scores !== undefined || payload.game_data !== undefined)) {
           const { data: serverRow } = await supabase
             .from('rounds')
             .select('scores, game_data')
@@ -182,6 +184,8 @@ export const useRounds = () => {
             }
           }
         }
+
+
 
         const { error } = await supabase
           .from('rounds')
