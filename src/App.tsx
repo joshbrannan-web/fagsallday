@@ -365,7 +365,16 @@ const AppContent: FC = () => {
 
   // Cache the active round for offline recovery
   useEffect(() => {
-    if (currentRound && currentRound.status === 'ACTIVE') {
+    if (!currentRound || currentRound.status !== 'ACTIVE') return;
+    const cached = offlineStorage.getCachedRound();
+    if (cached && cached.id === currentRound.id) {
+      // Keep the cache a superset — it may hold holes whose DB write is still queued.
+      offlineStorage.cacheRound({
+        ...currentRound,
+        scores: fillScoreGaps(currentRound.scores, cached.scores),
+        gameData: fillGameDataGaps(currentRound.gameData, cached.gameData),
+      });
+    } else {
       offlineStorage.cacheRound(currentRound);
     }
   }, [currentRound]);
