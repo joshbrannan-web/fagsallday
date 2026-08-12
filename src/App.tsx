@@ -92,11 +92,18 @@ const RoundRecovery: FC<{
 
       if (ageMs < TWENTY_FOUR_HOURS) {
         if (isAuthenticated) {
+          const isDbRoundId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cached.id);
+          if (!isDbRoundId) {
+            console.warn('[recovery] Cached round has a non-database id — skipping server recovery', cached.id);
+            return;
+          }
+
           const { data: existingRound, error: existErr } = await supabase
             .from('rounds')
             .select('id')
             .eq('id', cached.id)
             .maybeSingle();
+
 
           if (existErr) {
             // Can't verify right now — resume from the local copy rather than discarding scores.
