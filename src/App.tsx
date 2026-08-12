@@ -509,6 +509,13 @@ const AppContent: FC = () => {
   const updateScore = async (holeNumber: number, playerId: string, score: number) => {
     if (!currentRound) return;
 
+    if (!Number.isInteger(score) || score < 1 || score > 99) {
+      console.warn('[updateScore] Ignoring out-of-range score', { holeNumber, playerId, score });
+      return;
+    }
+
+
+
     const newScores = { ...currentRound.scores };
     if (!newScores[holeNumber]) newScores[holeNumber] = {};
     newScores[holeNumber] = { ...newScores[holeNumber], [playerId]: score };
