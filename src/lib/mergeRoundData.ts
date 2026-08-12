@@ -53,3 +53,40 @@ export const countScoredHoles = (scores: any): number =>
   Object.keys((scores as ScoresBlob) || {}).filter(
     (h) => Object.keys(((scores as ScoresBlob)[h]) || {}).length > 0
   ).length;
+
+/**
+ * Fill holes/players missing from `primary` using `secondary` (the local cache).
+ * `primary` always wins on conflict — this can only ADD cells, never change one.
+ */
+export const fillScoreGaps = (primary: any, secondary: any): ScoresBlob => {
+  const out: ScoresBlob = { ...((primary as ScoresBlob) || {}) };
+  const src = (secondary as ScoresBlob) || {};
+  for (const hole of Object.keys(src)) {
+    out[hole] = { ...(src[hole] || {}), ...(out[hole] || {}) };
+  }
+  return out;
+};
+
+/** Same idea for the game-data blob (bets, dots, presses, meta buckets). */
+export const fillGameDataGaps = (primary: any, secondary: any): GameDataBlob => {
+  const out: GameDataBlob = { ...((primary as GameDataBlob) || {}) };
+  const src = (secondary as GameDataBlob) || {};
+  for (const gameId of Object.keys(src)) {
+    const p = out[gameId];
+    const s = src[gameId] || {};
+    if (p === undefined) { out[gameId] = s; continue; }
+    if (!p || typeof p !== 'object' || Array.isArray(p) || typeof s !== 'object' || Array.isArray(s)) continue;
+    const merged: Record<string, any> = { ...s };
+    for (const key of Object.keys(p)) {
+      const pv = (p as any)[key];
+      const sv = (s as any)[key];
+      merged[key] =
+        pv && typeof pv === 'object' && !Array.isArray(pv) &&
+        sv && typeof sv === 'object' && !Array.isArray(sv)
+          ? { ...sv, ...pv }
+          : pv;
+    }
+    out[gameId] = merged;
+  }
+  return out;
+};

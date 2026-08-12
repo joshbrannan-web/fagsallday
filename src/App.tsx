@@ -51,7 +51,7 @@ import { useSavedCourses } from '@/hooks/useSavedCourses';
 import { useSavedPlayers } from '@/hooks/useSavedPlayers';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
-import { mergeScores, mergeGameData } from '@/lib/mergeRoundData';
+import { mergeScores, mergeGameData, fillScoreGaps, fillGameDataGaps } from '@/lib/mergeRoundData';
 
 import { supabase } from '@/integrations/supabase/client';
 import { AppContext, AppState } from './contexts/AppContext';
@@ -92,11 +92,20 @@ const RoundRecovery: FC<{
 
       if (ageMs < TWENTY_FOUR_HOURS) {
         if (isAuthenticated) {
-          const { data: existingRound } = await supabase
+          const { data: existingRound, error: existErr } = await supabase
             .from('rounds')
             .select('id')
             .eq('id', cached.id)
             .maybeSingle();
+
+          if (existErr) {
+            // Can't verify right now — resume from the local copy rather than discarding scores.
+            console.warn('[recovery] Round existence check failed — resuming from cache', existErr);
+            loadPastRound(cached);
+            toast.success('Resuming your round...');
+            navigate('/active');
+            return;
+          }
 
           if (!existingRound) {
             offlineStorage.clearCachedRound();
@@ -119,20 +128,25 @@ const RoundRecovery: FC<{
   const handleResume = async () => {
     if (!recoveryRound) return;
     if (isAuthenticated) {
-      const { data: existingRound } = await supabase
+      const { data: existingRound, error: existErr } = await supabase
         .from('rounds')
         .select('id')
         .eq('id', recoveryRound.id)
         .maybeSingle();
 
-      if (!existingRound) {
+      if (existErr) {
+        // Can't verify right now — resume from the local copy rather than discarding scores.
+        console.warn('[recovery] Round existence check failed — resuming from cache', existErr);
+        loadPastRound(recoveryRound);
+      } else if (!existingRound) {
         offlineStorage.clearCachedRound();
         setShowRecoveryDialog(false);
         setRecoveryRound(null);
         toast.info('That round no longer exists.');
         return;
+      } else {
+        loadPastRound(recoveryRound);
       }
-      loadPastRound(recoveryRound);
     } else {
       setLocalCurrentRound(recoveryRound);
     }
@@ -365,7 +379,16 @@ const AppContent: FC = () => {
 
   // Cache the active round for offline recovery
   useEffect(() => {
-    if (currentRound && currentRound.status === 'ACTIVE') {
+    if (!currentRound || currentRound.status !== 'ACTIVE') return;
+    const cached = offlineStorage.getCachedRound();
+    if (cached && cached.id === currentRound.id) {
+      // Keep the cache a superset — it may hold holes whose DB write is still queued.
+      offlineStorage.cacheRound({
+        ...currentRound,
+        scores: fillScoreGaps(currentRound.scores, cached.scores),
+        gameData: fillGameDataGaps(currentRound.gameData, cached.gameData),
+      });
+    } else {
       offlineStorage.cacheRound(currentRound);
     }
   }, [currentRound]);
