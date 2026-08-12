@@ -127,11 +127,13 @@ export const offlineStorage = {
     }
   },
 
-  // Get all pending sync items
+  // Get all pending sync items (drops only genuinely stale items, never by retry count)
   getSyncQueue: (): SyncQueueItem[] => {
     try {
       const queue = localStorage.getItem(SYNC_QUEUE_KEY);
-      return queue ? JSON.parse(queue) : [];
+      const items: SyncQueueItem[] = queue ? JSON.parse(queue) : [];
+      const now = Date.now();
+      return items.filter(item => now - item.timestamp <= MAX_AGE_MS_ROUND);
     } catch (error) {
       console.error('Failed to get sync queue:', error);
       return [];
