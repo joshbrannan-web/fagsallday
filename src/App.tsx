@@ -509,6 +509,13 @@ const AppContent: FC = () => {
   const updateScore = async (holeNumber: number, playerId: string, score: number) => {
     if (!currentRound) return;
 
+    if (!Number.isInteger(score) || score < 1 || score > 99) {
+      console.warn('[updateScore] Ignoring out-of-range score', { holeNumber, playerId, score });
+      return;
+    }
+
+
+
     const newScores = { ...currentRound.scores };
     if (!newScores[holeNumber]) newScores[holeNumber] = {};
     newScores[holeNumber] = { ...newScores[holeNumber], [playerId]: score };
@@ -552,13 +559,15 @@ const AppContent: FC = () => {
       updateRound(currentRound.id, { gameData: newGameData }, { localOnly: true });
 
       try {
-        const { error } = await supabase.rpc('patch_round_game_data', {
+        const { data: ok, error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
           p_game_id: gameId,
           p_hole: holeNumber,
           p_updates: { [key]: value },
         });
         if (error) throw error;
+        if (ok !== true) throw new Error('Game data was not updated');
+
       } catch (error) {
         console.error('Error patching game data, falling back to full update:', error);
         await updateRound(currentRound.id, { gameData: newGameData });
@@ -580,13 +589,15 @@ const AppContent: FC = () => {
       updateRound(currentRound.id, { gameData: newGameData }, { localOnly: true });
 
       try {
-        const { error } = await supabase.rpc('patch_round_game_data', {
+        const { data: ok, error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
           p_game_id: gameId,
           p_hole: holeNumber,
           p_updates: updates,
         });
         if (error) throw error;
+        if (ok !== true) throw new Error('Game data was not updated');
+
       } catch (error) {
         console.error('Error patching game data batch, falling back to full update:', error);
         await updateRound(currentRound.id, { gameData: newGameData });
@@ -685,7 +696,7 @@ const AppContent: FC = () => {
     const mergedGameData = { ...(initialGameData || {}), ...(existingMeta ? { _TOURNAMENT_META: existingMeta } : {}) };
     const updates = { games: newGames, scores: {} as Record<number, Record<string, number>>, gameData: mergedGameData };
     if (isAuthenticated) {
-      await updateRound(currentRound.id, updates);
+      await updateRound(currentRound.id, updates, { replaceBlobs: true, immediate: true });
     } else {
       setLocalCurrentRound(prev => prev ? { ...prev, ...updates } : null);
     }

@@ -121,6 +121,8 @@ export const useRounds = () => {
   const pendingDbUpdatesRef = useRef<Record<string, any>>({});
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRoundIdRef = useRef<string | null>(null);
+  const replaceBlobsRef = useRef(false);
+
 
   // Park any un-flushed payload in the offline queue when the app is hidden or closed.
   useEffect(() => {
@@ -154,13 +156,15 @@ export const useRounds = () => {
     if (Object.keys(payload).length === 0) return;
 
     pendingDbUpdatesRef.current = {};
+    const replace = replaceBlobsRef.current;
+    replaceBlobsRef.current = false;
 
     if (navigator.onLine) {
       try {
         // Merge against the authoritative server blob so a stale local snapshot
         // can never wipe holes recorded by another session/device.
         const writePayload: any = { ...payload };
-        if (payload.scores !== undefined || payload.game_data !== undefined) {
+        if (!replace && (payload.scores !== undefined || payload.game_data !== undefined)) {
           const { data: serverRow } = await supabase
             .from('rounds')
             .select('scores, game_data')
@@ -180,6 +184,8 @@ export const useRounds = () => {
             }
           }
         }
+
+
 
         const { error } = await supabase
           .from('rounds')
@@ -400,7 +406,7 @@ export const useRounds = () => {
   const updateRound = async (
     roundId: string,
     updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>,
-    options?: { localOnly?: boolean }
+    options?: { localOnly?: boolean; replaceBlobs?: boolean; immediate?: boolean }
   ) => {
     if (!user) return false;
 
@@ -437,13 +443,20 @@ export const useRounds = () => {
         pendingDbUpdatesRef.current.games_data = updates.games;
       }
 
-      // Reset the debounce timer
+      if (options?.replaceBlobs) replaceBlobsRef.current = true;
+
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
-      debounceTimerRef.current = setTimeout(() => {
-        flushPendingUpdates(roundId);
-      }, 3000);
+      if (options?.immediate) {
+        await flushPendingUpdates(roundId);
+      } else {
+        debounceTimerRef.current = setTimeout(() => {
+          flushPendingUpdates(roundId);
+        }, 3000);
+      }
+
     }
 
     if (hasImmediate) {
