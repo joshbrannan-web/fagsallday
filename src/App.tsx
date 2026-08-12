@@ -92,11 +92,20 @@ const RoundRecovery: FC<{
 
       if (ageMs < TWENTY_FOUR_HOURS) {
         if (isAuthenticated) {
-          const { data: existingRound } = await supabase
+          const { data: existingRound, error: existErr } = await supabase
             .from('rounds')
             .select('id')
             .eq('id', cached.id)
             .maybeSingle();
+
+          if (existErr) {
+            // Can't verify right now — resume from the local copy rather than discarding scores.
+            console.warn('[recovery] Round existence check failed — resuming from cache', existErr);
+            loadPastRound(cached);
+            toast.success('Resuming your round...');
+            navigate('/active');
+            return;
+          }
 
           if (!existingRound) {
             offlineStorage.clearCachedRound();
