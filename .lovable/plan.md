@@ -1,21 +1,21 @@
-# Close two gaps left by today's round-persistence work
+# Guard round recovery against non-database round ids
 
-Today's changes were all about one thing: scores disappearing from live rounds. Nothing was removed from the app — no screens, games, or settings changed. Two side effects of the new "never lose a score" caching are worth closing.
+A round started while signed out gets a timestamp-style id (`Date.now().toString()`), not a database UUID. Sending that id to the database as an existence probe is invalid, and a failed probe can lead to the cached round being treated as gone.
 
-## Issue 1 — "Change games" can bring old scores back
+## Change
 
-When you change games mid-round, the scoreboard is cleared on the server. But the device's offline copy still holds the old scores, and the new gap-filling logic treats anything missing on the server as "lost data" — so it restores the old scores locally and even pushes them back to the database.
+In `src/App.tsx`, `RoundRecovery`:
 
-Fix: when games are changed (or a round is reset), wipe the device copy at the same moment instead of merging against it.
+- In the initial recovery effect, before the existence probe, test `cached.id` against the UUID pattern. If it does not match, log a warning and return — skipping the server probe and the auto-resume.
+- Do the same in `handleResume` for `recoveryRound.id`.
+- In both cases the cached round is left untouched — nothing is cleared or deleted.
 
-## Issue 2 — A queued score can be thrown away
+```ts
+const isDbRoundId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cached.id);
+if (!isDbRoundId) {
+  console.warn('[recovery] Cached round has a non-database id — skipping server recovery', cached.id);
+  return;
+}
+```
 
-Queued scores are dropped when the database says "no" — that is correct for a bad value, but the database also says "no" while a round created offline has not been created on the server yet. Those scores get discarded permanently.
-
-Fix: only discard a queued score when the round exists and the rejection is genuinely permanent; otherwise keep retrying, and stop retrying only after the 7-day expiry already in place.
-
-## Technical notes
-
-- `src/App.tsx`: in the active-round caching effect, skip gap-filling when the round's scores were intentionally replaced (flag set by `changeGames`); clear the cached round in `changeGames` before the next cache write.
-- `src/App.tsx` `syncPendingChanges`: on `wasUpdated === false`, verify the round row exists and is owned by the user before treating it as permanently rejected; otherwise `incrementSyncRetry`.
-- `src/hooks/useRounds.tsx` `hydrateFromCache`: unchanged behaviour, but it will no longer see a stale cache after a games change.
+No other files change.
