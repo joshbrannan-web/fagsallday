@@ -7,6 +7,7 @@ const TOURNAMENT_RESULT_QUEUE_KEY = 'fg_tournament_result_queue';
 
 const MAX_RETRY_COUNT = 10;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_AGE_MS_ROUND = 7 * 24 * 60 * 60 * 1000; // 7 days (round scores kept longer)
 
 export interface TournamentSyncQueueItem {
   id: string;
@@ -40,6 +41,8 @@ export interface SyncQueueItem {
   type: 'scorePatch' | 'scores' | 'gameData' | 'status' | 'course' | 'games';
   data: any;
   timestamp: number;
+  retryCount?: number;
+  lastAttempt?: number;
 }
 
 /** Remove expired items (>24h or >10 retries) from a queue array */
@@ -124,11 +127,13 @@ export const offlineStorage = {
     }
   },
 
-  // Get all pending sync items
+  // Get all pending sync items (drops only genuinely stale items, never by retry count)
   getSyncQueue: (): SyncQueueItem[] => {
     try {
       const queue = localStorage.getItem(SYNC_QUEUE_KEY);
-      return queue ? JSON.parse(queue) : [];
+      const items: SyncQueueItem[] = queue ? JSON.parse(queue) : [];
+      const now = Date.now();
+      return items.filter(item => now - item.timestamp <= MAX_AGE_MS_ROUND);
     } catch (error) {
       console.error('Failed to get sync queue:', error);
       return [];
@@ -154,6 +159,23 @@ export const offlineStorage = {
       console.error('Failed to remove from sync queue:', error);
     }
   },
+
+  // Record a failed attempt (network-level) so the drain can back off
+  incrementSyncRetry: (id: string) => {
+    try {
+      const queue = localStorage.getItem(SYNC_QUEUE_KEY);
+      const items: SyncQueueItem[] = queue ? JSON.parse(queue) : [];
+      const item = items.find(i => i.id === id);
+      if (item) {
+        item.retryCount = (item.retryCount ?? 0) + 1;
+        item.lastAttempt = Date.now();
+        localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(items));
+      }
+    } catch (error) {
+      console.error('Failed to increment sync retry count:', error);
+    }
+  },
+
 
   // Get count of pending items
   getPendingSyncCount: (): number => {

@@ -120,6 +120,33 @@ export const useRounds = () => {
   const loadedRoundIdRef = useRef<string | null>(null);
   const pendingDbUpdatesRef = useRef<Record<string, any>>({});
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRoundIdRef = useRef<string | null>(null);
+
+  // Park any un-flushed payload in the offline queue when the app is hidden or closed.
+  useEffect(() => {
+    const stash = () => {
+      const roundId = pendingRoundIdRef.current;
+      const payload = pendingDbUpdatesRef.current;
+      if (!roundId || Object.keys(payload).length === 0) return;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      pendingDbUpdatesRef.current = {};
+      if (payload.scores !== undefined) offlineStorage.addToSyncQueue({ roundId, type: 'scores', data: { scores: payload.scores } });
+      if (payload.game_data !== undefined) offlineStorage.addToSyncQueue({ roundId, type: 'gameData', data: { game_data: payload.game_data } });
+      if (payload.games_data !== undefined) offlineStorage.addToSyncQueue({ roundId, type: 'games', data: { games_data: payload.games_data } });
+    };
+
+    const onHide = () => { if (document.visibilityState === 'hidden') stash(); };
+    window.addEventListener('pagehide', stash);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', stash);
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, []);
+
 
   const flushPendingUpdates = useCallback(async (roundId: string) => {
     if (!user) return;
@@ -398,6 +425,7 @@ export const useRounds = () => {
 
 
     if (hasDeferred) {
+      pendingRoundIdRef.current = roundId;
       // Accumulate into pending payload (last write wins per key)
       if (updates.scores !== undefined) {
         pendingDbUpdatesRef.current.scores = updates.scores;
