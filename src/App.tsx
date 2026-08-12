@@ -696,7 +696,7 @@ const AppContent: FC = () => {
     const mergedGameData = { ...(initialGameData || {}), ...(existingMeta ? { _TOURNAMENT_META: existingMeta } : {}) };
     const updates = { games: newGames, scores: {} as Record<number, Record<string, number>>, gameData: mergedGameData };
     if (isAuthenticated) {
-      await updateRound(currentRound.id, updates);
+      await updateRound(currentRound.id, updates, { replaceBlobs: true, immediate: true });
     } else {
       setLocalCurrentRound(prev => prev ? { ...prev, ...updates } : null);
     }
