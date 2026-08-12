@@ -141,17 +141,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (cachedSession?.user) {
-        // Verify session is still valid server-side
+        // Offline / unreachable auth server: trust the cached token rather than
+        // signing the user out mid-round. Writes are guarded server-side anyway.
+        if (!navigator.onLine) {
+          setSession(cachedSession);
+          setUser(cachedSession.user);
+          setIsLoading(false);
+          initialValidationDone.current = true;
+          fetchProfile(cachedSession.user.id).then(setProfile).catch(() => {});
+          return;
+        }
+
         const { data: userData, error: userError } = await supabase.auth.getUser();
+
+        // Distinguish "token is invalid" from "we could not reach the server".
+        const status = (userError as any)?.status;
+        const isNetworkFailure = !!userError && (
+          userError.name === 'AuthRetryableFetchError' ||
+          status === undefined || status === 0 || status >= 500
+        );
+
+        if (isNetworkFailure) {
+          console.warn('Session validation unreachable — continuing with cached session', userError);
+          setSession(cachedSession);
+          setUser(cachedSession.user);
+          setIsLoading(false);
+          initialValidationDone.current = true;
+          fetchProfile(cachedSession.user.id).then(setProfile).catch(() => {});
+          return;
+        }
+
         if (userError || !userData?.user) {
-          // Session is stale — clear EVERYTHING including the localStorage token
+          // Genuinely stale token — clear auth state, but tell the user their round is safe.
           console.warn('Stale session detected on load, clearing auth state');
-          try {
-            await supabase.auth.signOut();
-          } catch {
-            // signOut may fail if token is already invalid, that's fine
-          }
+          const cachedRound = offlineStorage.getCachedRound();
+          try { await supabase.auth.signOut(); } catch {}
           clearSessionState();
+          if (cachedRound && cachedRound.status === 'ACTIVE') {
+            toast.warning('Signed out — your in-progress round is saved on this device. Sign back in to keep scoring.', { duration: 10000 });
+          }
           setIsLoading(false);
           initialValidationDone.current = true;
           return;
