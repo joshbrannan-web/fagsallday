@@ -559,13 +559,15 @@ const AppContent: FC = () => {
       updateRound(currentRound.id, { gameData: newGameData }, { localOnly: true });
 
       try {
-        const { error } = await supabase.rpc('patch_round_game_data', {
+        const { data: ok, error } = await supabase.rpc('patch_round_game_data', {
           p_round_id: currentRound.id,
           p_game_id: gameId,
           p_hole: holeNumber,
           p_updates: { [key]: value },
         });
         if (error) throw error;
+        if (ok !== true) throw new Error('Game data was not updated');
+
       } catch (error) {
         console.error('Error patching game data, falling back to full update:', error);
         await updateRound(currentRound.id, { gameData: newGameData });
