@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { FC } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { Round, Player, Course, GameSettings } from './types';
