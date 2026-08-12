@@ -121,6 +121,8 @@ export const useRounds = () => {
   const pendingDbUpdatesRef = useRef<Record<string, any>>({});
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRoundIdRef = useRef<string | null>(null);
+  const replaceBlobsRef = useRef(false);
+
 
   // Park any un-flushed payload in the offline queue when the app is hidden or closed.
   useEffect(() => {
