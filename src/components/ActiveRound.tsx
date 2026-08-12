@@ -506,6 +506,10 @@ const ActiveRound: React.FC = () => {
 
   const handleScoreChange = (pid: string, delta: number) => {
     if (isReadOnly) return;
+    if (!courseHole) {
+      toast.error('This hole is missing from the course setup — fix the course before scoring.');
+      return;
+    }
     const current = currentRound.scores[activeHole]?.[pid] || courseHole!.par;
     const newScore = Math.max(1, current + delta);
     const player = currentRound.players.find(p => p.id === pid)!;
@@ -518,6 +522,14 @@ const ActiveRound: React.FC = () => {
 
   const handleScoreClick = (pid: string, displayScore: number) => {
     if (isReadOnly) return;
+    if (!courseHole) {
+      toast.error('This hole is missing from the course setup — fix the course before scoring.');
+      return;
+    }
+    if (!Number.isInteger(displayScore) || displayScore < 1) {
+      toast.error('Enter a score of 1 or more.');
+      return;
+    }
     const player = currentRound.players.find(p => p.id === pid)!;
     const validation = validateHoleInput(displayScore, courseHole!.par, player);
     if (validation.severity === 'warning') {
@@ -525,6 +537,7 @@ const ActiveRound: React.FC = () => {
     }
     updateScore(activeHole, pid, displayScore);
   };
+
 
   const handleStrokeToggle = (pid: string, autoStrokes: number) => {
     if (isReadOnly) return;
