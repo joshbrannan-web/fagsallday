@@ -1111,7 +1111,7 @@ export type Database = {
           p_round_id: string
           p_score: number
         }
-        Returns: undefined
+        Returns: boolean
       }
       search_users_by_name: {
         Args: { search_term: string }
