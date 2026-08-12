@@ -70,7 +70,49 @@ const insertRoundParticipants = async (roundId: string, players: Player[], owner
   }
 };
 
+/**
+ * Fill an ACTIVE round's gaps from the offline cache so holes whose DB write is still
+ * queued stay visible after a reload — and re-queue any cell the server is missing so it
+ * actually gets persisted.
+ */
+const hydrateFromCache = (round: Round): Round => {
+  if (round.status !== 'ACTIVE' || round.isShared) return round;
+  const cached = offlineStorage.getCachedRound();
+  if (!cached || cached.id !== round.id) return round;
+
+  const serverScores = (round.scores || {}) as Record<string, Record<string, number>>;
+  const cachedScores = (cached.scores || {}) as Record<string, Record<string, number>>;
+
+  let requeued = 0;
+  for (const hole of Object.keys(cachedScores)) {
+    const holeNumber = Number(hole);
+    if (!Number.isInteger(holeNumber) || holeNumber < 1 || holeNumber > 18) continue;
+    for (const playerId of Object.keys(cachedScores[hole] || {})) {
+      const score = cachedScores[hole][playerId];
+      if (!Number.isInteger(score) || score < 1 || score > 99) continue;
+      if (serverScores[hole]?.[playerId] !== undefined) continue;
+      offlineStorage.addToSyncQueue({
+        roundId: round.id,
+        type: 'scorePatch',
+        data: { holeNumber, playerId, score },
+      });
+      requeued += 1;
+    }
+  }
+
+  if (requeued > 0) {
+    console.warn(`[rounds] Re-queued ${requeued} cached score(s) missing from the server`);
+  }
+
+  return {
+    ...round,
+    scores: fillScoreGaps(round.scores, cached.scores),
+    gameData: fillGameDataGaps(round.gameData, cached.gameData),
+  };
+};
+
 export const useRounds = () => {
+
   const { user } = useAuth();
   const [rounds, setRounds] = useState<Round[]>([]);
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
