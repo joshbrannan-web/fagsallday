@@ -443,13 +443,20 @@ export const useRounds = () => {
         pendingDbUpdatesRef.current.games_data = updates.games;
       }
 
-      // Reset the debounce timer
+      if (options?.replaceBlobs) replaceBlobsRef.current = true;
+
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
-      debounceTimerRef.current = setTimeout(() => {
-        flushPendingUpdates(roundId);
-      }, 3000);
+      if (options?.immediate) {
+        await flushPendingUpdates(roundId);
+      } else {
+        debounceTimerRef.current = setTimeout(() => {
+          flushPendingUpdates(roundId);
+        }, 3000);
+      }
+
     }
 
     if (hasImmediate) {
