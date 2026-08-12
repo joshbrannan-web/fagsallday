@@ -128,20 +128,25 @@ const RoundRecovery: FC<{
   const handleResume = async () => {
     if (!recoveryRound) return;
     if (isAuthenticated) {
-      const { data: existingRound } = await supabase
+      const { data: existingRound, error: existErr } = await supabase
         .from('rounds')
         .select('id')
         .eq('id', recoveryRound.id)
         .maybeSingle();
 
-      if (!existingRound) {
+      if (existErr) {
+        // Can't verify right now — resume from the local copy rather than discarding scores.
+        console.warn('[recovery] Round existence check failed — resuming from cache', existErr);
+        loadPastRound(recoveryRound);
+      } else if (!existingRound) {
         offlineStorage.clearCachedRound();
         setShowRecoveryDialog(false);
         setRecoveryRound(null);
         toast.info('That round no longer exists.');
         return;
+      } else {
+        loadPastRound(recoveryRound);
       }
-      loadPastRound(recoveryRound);
     } else {
       setLocalCurrentRound(recoveryRound);
     }
