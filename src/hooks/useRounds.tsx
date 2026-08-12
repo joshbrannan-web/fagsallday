@@ -406,7 +406,7 @@ export const useRounds = () => {
   const updateRound = async (
     roundId: string,
     updates: Partial<Pick<Round, 'scores' | 'gameData' | 'status' | 'course' | 'games'>>,
-    options?: { localOnly?: boolean }
+    options?: { localOnly?: boolean; replaceBlobs?: boolean; immediate?: boolean }
   ) => {
     if (!user) return false;
 
