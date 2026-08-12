@@ -7,6 +7,7 @@ const TOURNAMENT_RESULT_QUEUE_KEY = 'fg_tournament_result_queue';
 
 const MAX_RETRY_COUNT = 10;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_AGE_MS_ROUND = 7 * 24 * 60 * 60 * 1000; // 7 days (round scores kept longer)
 
 export interface TournamentSyncQueueItem {
   id: string;
@@ -40,6 +41,8 @@ export interface SyncQueueItem {
   type: 'scorePatch' | 'scores' | 'gameData' | 'status' | 'course' | 'games';
   data: any;
   timestamp: number;
+  retryCount?: number;
+  lastAttempt?: number;
 }
 
 /** Remove expired items (>24h or >10 retries) from a queue array */
