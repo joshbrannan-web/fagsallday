@@ -242,6 +242,19 @@ const AppContent: FC = () => {
 
         for (const item of queue) {
           try {
+            if (item.type === 'scorePatch') {
+              const { data: wasUpdated, error } = await supabase.rpc('patch_round_scores', {
+                p_round_id: item.roundId,
+                p_hole: item.data.holeNumber,
+                p_player_id: item.data.playerId,
+                p_score: item.data.score,
+              });
+              if (!error && wasUpdated === true) {
+                successfulIds.push(item.id);
+              }
+              continue;
+            }
+
             let data = item.data;
 
             // Never let a replayed offline snapshot remove holes recorded elsewhere
@@ -440,16 +453,22 @@ const AppContent: FC = () => {
       // Optimistic local-only update — the DB write happens via the atomic patch RPC below
       updateRound(currentRound.id, { scores: newScores }, { localOnly: true });
       try {
-        const { error } = await supabase.rpc('patch_round_scores', {
+        const { data: wasUpdated, error } = await supabase.rpc('patch_round_scores', {
           p_round_id: currentRound.id,
           p_hole: holeNumber,
           p_player_id: playerId,
           p_score: score,
         });
         if (error) throw error;
+        if (wasUpdated !== true) throw new Error('The round was not updated');
       } catch (error) {
-        console.error('Error patching score, falling back to full update:', error);
-        await updateRound(currentRound.id, { scores: newScores });
+        console.error('Error patching score, queuing atomic retry:', error);
+        offlineStorage.addToSyncQueue({
+          roundId: currentRound.id,
+          type: 'scorePatch',
+          data: { holeNumber, playerId, score },
+        });
+        toast.error('Score saved on this device and will retry automatically');
       }
 
     } else {

@@ -37,7 +37,7 @@ export interface TournamentResultQueueItem {
 export interface SyncQueueItem {
   id: string;
   roundId: string;
-  type: 'scores' | 'gameData' | 'status' | 'course' | 'games';
+  type: 'scorePatch' | 'scores' | 'gameData' | 'status' | 'course' | 'games';
   data: any;
   timestamp: number;
 }
@@ -102,13 +102,21 @@ export const offlineStorage = {
   addToSyncQueue: (item: Omit<SyncQueueItem, 'id' | 'timestamp'>) => {
     try {
       const queue = offlineStorage.getSyncQueue();
+      const dedupedQueue = item.type === 'scorePatch'
+        ? queue.filter(existing => !(
+            existing.type === 'scorePatch' &&
+            existing.roundId === item.roundId &&
+            existing.data?.holeNumber === item.data?.holeNumber &&
+            existing.data?.playerId === item.data?.playerId
+          ))
+        : queue;
       const newItem: SyncQueueItem = {
         ...item,
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         timestamp: Date.now()
       };
-      queue.push(newItem);
-      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+      dedupedQueue.push(newItem);
+      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(dedupedQueue));
       return newItem;
     } catch (error) {
       console.error('Failed to add to sync queue:', error);
