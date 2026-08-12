@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { Round, Course, Player, GameSettings } from '@/types';
 import { toast } from 'sonner';
 import { offlineStorage } from '@/services/offlineStorage';
-import { mergeScores, mergeGameData, countScoredHoles } from '@/lib/mergeRoundData';
+import { mergeScores, mergeGameData, countScoredHoles, fillScoreGaps, fillGameDataGaps } from '@/lib/mergeRoundData';
 
 
 interface DbRound {
@@ -199,7 +199,7 @@ export const useRounds = () => {
 
       if (ownError) throw ownError;
 
-      const ownRounds = (ownData || []).map(d => dbRoundToRound(d as DbRound));
+      const ownRounds = (ownData || []).map(d => hydrateFromCache(dbRoundToRound(d as DbRound)));
 
       // Fetch shared rounds (where user is a participant but not the owner)
       const { data: participantData, error: partError } = await supabase

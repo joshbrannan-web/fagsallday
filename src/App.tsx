@@ -51,7 +51,7 @@ import { useSavedCourses } from '@/hooks/useSavedCourses';
 import { useSavedPlayers } from '@/hooks/useSavedPlayers';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { offlineStorage } from '@/services/offlineStorage';
-import { mergeScores, mergeGameData } from '@/lib/mergeRoundData';
+import { mergeScores, mergeGameData, fillScoreGaps, fillGameDataGaps } from '@/lib/mergeRoundData';
 
 import { supabase } from '@/integrations/supabase/client';
 import { AppContext, AppState } from './contexts/AppContext';
