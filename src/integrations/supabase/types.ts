@@ -1102,7 +1102,7 @@ export type Database = {
           p_round_id: string
           p_updates: Json
         }
-        Returns: undefined
+        Returns: boolean
       }
       patch_round_scores: {
         Args: {
