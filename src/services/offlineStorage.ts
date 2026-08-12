@@ -160,6 +160,23 @@ export const offlineStorage = {
     }
   },
 
+  // Record a failed attempt (network-level) so the drain can back off
+  incrementSyncRetry: (id: string) => {
+    try {
+      const queue = localStorage.getItem(SYNC_QUEUE_KEY);
+      const items: SyncQueueItem[] = queue ? JSON.parse(queue) : [];
+      const item = items.find(i => i.id === id);
+      if (item) {
+        item.retryCount = (item.retryCount ?? 0) + 1;
+        item.lastAttempt = Date.now();
+        localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(items));
+      }
+    } catch (error) {
+      console.error('Failed to increment sync retry count:', error);
+    }
+  },
+
+
   // Get count of pending items
   getPendingSyncCount: (): number => {
     return offlineStorage.getSyncQueue().length;
