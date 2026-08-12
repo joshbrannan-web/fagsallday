@@ -257,7 +257,8 @@ export const useRounds = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     fetchRounds();
