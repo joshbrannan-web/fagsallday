@@ -244,74 +244,115 @@ const AppContent: FC = () => {
   const [recoveryRound, setRecoveryRound] = useState<Round | null>(null);
   const recoveryChecked = useRef(false);
 
-  // Sync pending changes when coming back online
-  useEffect(() => {
-    if (isOnline && isAuthenticated && user) {
-      const syncPendingChanges = async () => {
-        const queue = offlineStorage.getSyncQueue();
-        if (queue.length === 0) return;
+  const syncInFlightRef = useRef(false);
 
-        setIsSyncing(true);
-        const successfulIds: string[] = [];
+  // Drain the round-score sync queue (interval + focus/visibility/online driven)
+  const syncPendingChanges = useCallback(async () => {
+    if (!isAuthenticated || !user) return;
+    if (syncInFlightRef.current) return;
 
-        for (const item of queue) {
-          try {
-            if (item.type === 'scorePatch') {
-              const { data: wasUpdated, error } = await supabase.rpc('patch_round_scores', {
-                p_round_id: item.roundId,
-                p_hole: item.data.holeNumber,
-                p_player_id: item.data.playerId,
-                p_score: item.data.score,
-              });
-              if (!error && wasUpdated === true) {
-                successfulIds.push(item.id);
-              }
-              continue;
-            }
+    const queue = offlineStorage.getSyncQueue();
+    if (queue.length === 0) return;
 
-            let data = item.data;
+    syncInFlightRef.current = true;
+    setIsSyncing(true);
 
-            // Never let a replayed offline snapshot remove holes recorded elsewhere
-            if (item.type === 'scores' || item.type === 'gameData') {
-              const { data: serverRow } = await supabase
-                .from('rounds')
-                .select('scores, game_data')
-                .eq('id', item.roundId)
-                .maybeSingle();
-              if (serverRow) {
-                data =
-                  item.type === 'scores'
-                    ? { scores: mergeScores(serverRow.scores, item.data.scores) }
-                    : { game_data: mergeGameData(serverRow.game_data, item.data.game_data) };
-              }
-            }
+    const successfulIds: string[] = [];
+    const permanentlyRejected: string[] = [];
 
-            const { error } = await supabase
-              .from('rounds')
-              .update(data)
-              .eq('id', item.roundId)
-              .eq('user_id', user.id);
+    for (const item of queue) {
+      // Exponential backoff per item so a dead tower doesn't spin the queue.
+      const attempts = item.retryCount ?? 0;
+      if (attempts > 0) {
+        const backoffMs = Math.min(20_000 * Math.pow(2, attempts - 1), 300_000);
+        if (Date.now() - (item.lastAttempt ?? item.timestamp) < backoffMs) continue;
+      }
 
-            if (!error) {
-              successfulIds.push(item.id);
-            }
-          } catch (error) {
-            console.error('Failed to sync item:', error);
+      try {
+        if (item.type === 'scorePatch') {
+          const { data: wasUpdated, error } = await supabase.rpc('patch_round_scores', {
+            p_round_id: item.roundId,
+            p_hole: item.data.holeNumber,
+            p_player_id: item.data.playerId,
+            p_score: item.data.score,
+          });
+          if (!error && wasUpdated === true) {
+            successfulIds.push(item.id);
+          } else if ((error as any)?.code || wasUpdated === false) {
+            // A Postgres-level rejection (bad value, round missing, not owned) will never
+            // succeed on retry — drop it instead of retrying forever.
+            console.error('[sync] Score patch permanently rejected', item, error);
+            permanentlyRejected.push(item.id);
+          } else {
+            // Network/transport failure — keep it and try again later.
+            offlineStorage.incrementSyncRetry(item.id);
+          }
+          continue;
+        }
+
+        let data = item.data;
+
+        // Never let a replayed offline snapshot remove holes recorded elsewhere
+        if (item.type === 'scores' || item.type === 'gameData') {
+          const { data: serverRow } = await supabase
+            .from('rounds')
+            .select('scores, game_data')
+            .eq('id', item.roundId)
+            .maybeSingle();
+          if (serverRow) {
+            data =
+              item.type === 'scores'
+                ? { scores: mergeScores(serverRow.scores, item.data.scores) }
+                : { game_data: mergeGameData(serverRow.game_data, item.data.game_data) };
           }
         }
 
+        const { error } = await supabase
+          .from('rounds')
+          .update(data)
+          .eq('id', item.roundId)
+          .eq('user_id', user.id);
 
-        offlineStorage.removeFromSyncQueue(successfulIds);
-        setIsSyncing(false);
-
-        if (successfulIds.length > 0) {
-          toast.success(`Synced ${successfulIds.length} offline changes`);
-        }
-      };
-
-      syncPendingChanges();
+        if (!error) successfulIds.push(item.id);
+        else offlineStorage.incrementSyncRetry(item.id);
+      } catch (error) {
+        console.error('Failed to sync item:', error);
+        offlineStorage.incrementSyncRetry(item.id);
+      }
     }
-  }, [isOnline, isAuthenticated, user]);
+
+    offlineStorage.removeFromSyncQueue([...successfulIds, ...permanentlyRejected]);
+    syncInFlightRef.current = false;
+    setIsSyncing(false);
+
+    if (permanentlyRejected.length > 0) {
+      toast.error(`${permanentlyRejected.length} score change${permanentlyRejected.length === 1 ? '' : 's'} could not be saved and may need re-entering.`);
+    }
+
+    if (successfulIds.length > 0) {
+      toast.success(`Synced ${successfulIds.length} offline changes`);
+      // Pull the merged server state back in so the UI reflects what was just synced.
+      await refetchRounds();
+    }
+  }, [isAuthenticated, user, refetchRounds]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    syncPendingChanges();
+    const interval = setInterval(syncPendingChanges, 20_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') syncPendingChanges(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', syncPendingChanges);
+    window.addEventListener('online', syncPendingChanges);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', syncPendingChanges);
+      window.removeEventListener('online', syncPendingChanges);
+    };
+  }, [isAuthenticated, syncPendingChanges]);
 
   // Drain tournament sync queues every 30s while online (scores + results)
   useEffect(() => {
