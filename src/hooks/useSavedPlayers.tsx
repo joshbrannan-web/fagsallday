@@ -49,13 +49,21 @@ export const useSavedPlayers = () => {
       return null;
     }
 
-    // Check if player with same name already exists
-    const existing = savedPlayers.find(p => p.name.toLowerCase() === name.toLowerCase());
+    // Dedup guard: match an existing entry by linked account first, then by name
+    const normalized = name.trim().toLowerCase();
+    const existing =
+      (linkedUserId ? savedPlayers.find(p => p.linked_user_id === linkedUserId) : undefined) ||
+      savedPlayers.find(p => p.name.trim().toLowerCase() === normalized);
     if (existing) {
-      // Update existing player instead
-      await updatePlayer(existing.id, { handicap_index: handicapIndex, tee });
+      // Update existing player instead of creating a duplicate
+      await updatePlayer(existing.id, {
+        handicap_index: handicapIndex,
+        tee,
+        ...(linkedUserId && !existing.linked_user_id ? { linked_user_id: linkedUserId } : {}),
+      });
       return existing;
     }
+
 
     try {
       const { data, error } = await supabase
