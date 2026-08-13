@@ -287,6 +287,12 @@ const Players: React.FC = () => {
                     />
                   </div>
                 </div>
+                {player.linked_user_id && (
+                  <p className="text-xs text-muted-foreground">
+                    Linked account — changing the handicap updates this player's shared handicap everywhere.
+                  </p>
+                )}
+
                 <div>
                   <Label>Preferred Tee</Label>
                   <Input
