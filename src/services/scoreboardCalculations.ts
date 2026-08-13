@@ -153,6 +153,13 @@ export function calcRoundTeamAward(
 
   if (mode === 'per_hole') return cumulative;
 
+  if (mode === 'per_hole_and_round') {
+    out[teamAId] = totalA;
+    out[teamBId] = totalB;
+    awardSegment(totalA, totalB, teamAId, teamBId, pts.round ?? customRoundPoints ?? 3, out);
+    return out;
+  }
+
   if (mode === 'fbo') {
     const sum = (from: number, to: number) => {
       let a = 0, b = 0;
