@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Trophy, CheckCircle } from 'lucide-react';
-import { calcTeamTotals, calcTeamTotalsPerRound, calcPointsToWin } from '@/services/scoreboardCalculations';
+import { calcTeamTotals, calcTeamTotalsPerRound, calcPointsToWin, calcRoundTeamAward } from '@/services/scoreboardCalculations';
 
 interface Props {
   teams: any[];
@@ -30,21 +30,26 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
   const totals: Record<string, number> = {};
   teamIds.forEach(id => { totals[id] = 0; });
 
-  if (isRoundWin) {
-    completedRounds.forEach((r: any) => {
-      const rTotals = perRound[r.id] || {};
-      const rA = rTotals[teamA.id] || 0;
-      const rB = rTotals[teamB.id] || 0;
-      if (rA > rB) { totals[teamA.id] += roundWinValue; }
-      else if (rB > rA) { totals[teamB.id] += roundWinValue; }
-      else { totals[teamA.id] += roundWinValue / 2; totals[teamB.id] += roundWinValue / 2; }
-    });
-  } else {
-    completedRounds.forEach((r: any) => {
-      const rTotals = perRound[r.id] || {};
-      teamIds.forEach(id => { totals[id] += rTotals[id] || 0; });
-    });
-  }
+  const roundHoleResults = (round: any) => {
+    const ids = new Set((groups[round.id] || []).map((g: any) => g.id));
+    return holeResults.filter((r: any) => ids.has(r.tournament_group_id));
+  };
+
+  const awardForRound = (round: any, completed: boolean) =>
+    calcRoundTeamAward(
+      round,
+      perRound[round.id] || {},
+      roundHoleResults(round) as any,
+      [teamA.id, teamB.id],
+      teamScoringMethod,
+      customRoundPoints,
+      completed
+    );
+
+  completedRounds.forEach((r: any) => {
+    const award = awardForRound(r, true);
+    teamIds.forEach(id => { totals[id] += award[id] || 0; });
+  });
 
   const totalA = totals[teamA.id] || 0;
   const totalB = totals[teamB.id] || 0;
@@ -131,13 +136,9 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
               const isActive = round.status === 'active';
               const isCompleted = round.status === 'completed';
 
-              // Display values: in round_win mode show the round win result for completed rounds
-              let displayA = rA;
-              let displayB = rB;
-              if (isRoundWin && isCompleted) {
-                displayA = rA > rB ? roundWinValue : rA === rB ? roundWinValue / 2 : 0;
-                displayB = rB > rA ? roundWinValue : rA === rB ? roundWinValue / 2 : 0;
-              }
+              const award = awardForRound(round, isCompleted);
+              const displayA = award[teamA.id] || 0;
+              const displayB = award[teamB.id] || 0;
 
               return (
                 <div key={round.id} className="flex items-center justify-between text-sm bg-muted/50 rounded-lg px-3 py-2">

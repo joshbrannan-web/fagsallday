@@ -3,6 +3,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { calcRoundTeamAward } from '@/services/scoreboardCalculations';
 
 interface Props {
   teams: any[];
@@ -83,14 +84,19 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
             roundB += pts[teamB.id] || 0;
           });
 
-          const isRoundWin = teamScoringMethod === 'round_win' || teamScoringMethod === 'custom_pts_per_round';
-          const rwValue = teamScoringMethod === 'custom_pts_per_round' ? (customRoundPoints || 3) : 1;
           const isCompleted = round.status === 'completed';
-          let displayA = roundA, displayB = roundB;
-          if (isRoundWin && isCompleted) {
-            displayA = roundA > roundB ? rwValue : roundA === roundB ? rwValue / 2 : 0;
-            displayB = roundB > roundA ? rwValue : roundA === roundB ? rwValue / 2 : 0;
-          }
+          const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
+          const award = calcRoundTeamAward(
+            round,
+            { [teamA.id]: roundA, [teamB.id]: roundB },
+            holeResults.filter((r: any) => roundGroupIds.has(r.tournament_group_id)) as any,
+            [teamA.id, teamB.id],
+            teamScoringMethod,
+            customRoundPoints,
+            isCompleted
+          );
+          const displayA = award[teamA.id] || 0;
+          const displayB = award[teamB.id] || 0;
 
           return (
             <div key={round.id} className="border rounded-lg overflow-hidden">

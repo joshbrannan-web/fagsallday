@@ -20,7 +20,7 @@ const GAME_LABELS: Record<string, string> = {
 };
 
 interface Props {
-  basicInfo: { name: string; description: string; startDate: string; endDate: string; numRounds: number };
+  basicInfo: { name: string; description: string; startDate: string; endDate: string; numRounds: number; teamScoringMethod?: string };
   teams: TeamData[];
   players: PlayerData[];
   rounds: RoundConfigData[];
@@ -70,13 +70,13 @@ const WizardStepReview: React.FC<Props> = ({ basicInfo, teams, players, rounds }
               )}
               {r.roundDate && ` • ${r.roundDate}`}
             </p>
-            {r.teamScoringMode === 'per_hole' && (
+            {basicInfo.teamScoringMethod === 'custom_pts_per_round' && r.teamScoringMode === 'per_hole' && (
               <p className="text-xs text-muted-foreground">Team scoring: per hole</p>
             )}
-            {r.teamScoringMode === 'per_round' && (
+            {basicInfo.teamScoringMethod === 'custom_pts_per_round' && r.teamScoringMode === 'per_round' && (
               <p className="text-xs text-muted-foreground">Team scoring: {r.teamScoringPoints.round} pt(s) for the round win</p>
             )}
-            {r.teamScoringMode === 'fbo' && (
+            {basicInfo.teamScoringMethod === 'custom_pts_per_round' && r.teamScoringMode === 'fbo' && (
               <p className="text-xs text-muted-foreground">
                 Team scoring: Front {r.teamScoringPoints.front} / Back {r.teamScoringPoints.back} / Overall {r.teamScoringPoints.overall}
               </p>
