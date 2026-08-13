@@ -6,9 +6,10 @@ import RoundConfigCard, { RoundConfigData } from './RoundConfigCard';
 interface Props {
   rounds: RoundConfigData[];
   onChange: (rounds: RoundConfigData[]) => void;
+  showTeamScoring?: boolean;
 }
 
-const WizardStepRounds: React.FC<Props> = ({ rounds, onChange }) => {
+const WizardStepRounds: React.FC<Props> = ({ rounds, onChange, showTeamScoring }) => {
   const [openIdx, setOpenIdx] = useState<number>(0);
 
   const updateRound = (idx: number, data: RoundConfigData) => {
@@ -35,7 +36,7 @@ const WizardStepRounds: React.FC<Props> = ({ rounds, onChange }) => {
             </span>
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-3">
-            <RoundConfigCard data={round} onChange={d => updateRound(idx, d)} roundNumber={idx + 1} />
+            <RoundConfigCard data={round} onChange={d => updateRound(idx, d)} roundNumber={idx + 1} showTeamScoring={showTeamScoring} />
           </CollapsibleContent>
         </Collapsible>
       ))}

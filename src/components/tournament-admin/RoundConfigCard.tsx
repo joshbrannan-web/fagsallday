@@ -84,6 +84,8 @@ export interface RoundConfigData {
   holePointOverrides: number[];
   sixesFormat: 'match_play' | 'sum_of_strokes';
   sixesSegmentPoints: [number, number, number];
+  teamScoringMode: 'per_hole' | 'per_round' | 'fbo';
+  teamScoringPoints: { round: number; front: number; back: number; overall: number };
 }
 
 export const defaultRoundConfig = (num: number): RoundConfigData => ({
@@ -107,17 +109,22 @@ export const defaultRoundConfig = (num: number): RoundConfigData => ({
   holePointOverrides: Array(18).fill(1),
   sixesFormat: 'match_play',
   sixesSegmentPoints: [1, 1, 1],
+  teamScoringMode: 'per_round',
+  teamScoringPoints: { round: 3, front: 1, back: 1, overall: 2 },
 });
 
 interface Props {
   data: RoundConfigData;
   onChange: (data: RoundConfigData) => void;
   roundNumber: number;
+  showTeamScoring?: boolean;
 }
 
-const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber }) => {
+const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTeamScoring }) => {
   const [showHolePoints, setShowHolePoints] = useState(false);
   const update = (key: keyof RoundConfigData, value: any) => onChange({ ...data, [key]: value });
+  const updatePoints = (key: 'round' | 'front' | 'back' | 'overall', value: number) =>
+    update('teamScoringPoints', { ...data.teamScoringPoints, [key]: value });
 
   const isComplete = data.name.trim() !== '' && data.gameType !== '';
 
@@ -325,6 +332,64 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber }) => {
               </div>
             </CollapsibleContent>
           </Collapsible>
+        </div>
+      )}
+
+      {showTeamScoring && (
+        <div className="space-y-3 rounded-lg border border-[hsl(var(--brand-gold))]/40 bg-[hsl(var(--brand-gold))]/5 p-3">
+          <div>
+            <Label>Team Scoring for this Round</Label>
+            <Select value={data.teamScoringMode} onValueChange={v => update('teamScoringMode', v)}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="per_hole">Per Hole (use this round's hole points)</SelectItem>
+                <SelectItem value="per_round">Per Round (points for winning the round)</SelectItem>
+                <SelectItem value="fbo">Front / Back / Overall</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {data.teamScoringMode === 'per_hole' && (
+            <p className="text-xs text-muted-foreground">
+              This round contributes its hole-by-hole points ({data.defaultPointsPerHole} per hole, plus any hole overrides) to the team totals.
+            </p>
+          )}
+
+          {data.teamScoringMode === 'per_round' && (
+            <div>
+              <Label className="text-xs">Points for winning this round</Label>
+              <Input
+                type="number"
+                min={0.5}
+                step={0.5}
+                value={data.teamScoringPoints.round}
+                onChange={e => updatePoints('round', Math.max(0, parseFloat(e.target.value) || 0))}
+                className="h-8 w-24 mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">A tied round splits this value in half.</p>
+            </div>
+          )}
+
+          {data.teamScoringMode === 'fbo' && (
+            <div>
+              <div className="grid grid-cols-3 gap-2">
+                {([['front', 'Front 9'], ['back', 'Back 9'], ['overall', 'Overall']] as const).map(([key, label]) => (
+                  <div key={key}>
+                    <Label className="text-xs">{label} pts</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      value={data.teamScoringPoints[key]}
+                      onChange={e => updatePoints(key, Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="h-8 mt-1"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Each tied segment splits its points in half.</p>
+            </div>
+          )}
         </div>
       )}
     </div>

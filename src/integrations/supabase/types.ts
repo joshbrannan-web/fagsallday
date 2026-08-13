@@ -826,6 +826,8 @@ export type Database = {
           round_date: string | null
           round_number: number
           status: string
+          team_scoring_mode: string
+          team_scoring_points: Json
           tournament_id: string
           updated_at: string | null
         }
@@ -838,6 +840,8 @@ export type Database = {
           round_date?: string | null
           round_number: number
           status?: string
+          team_scoring_mode?: string
+          team_scoring_points?: Json
           tournament_id: string
           updated_at?: string | null
         }
@@ -850,6 +854,8 @@ export type Database = {
           round_date?: string | null
           round_number?: number
           status?: string
+          team_scoring_mode?: string
+          team_scoring_points?: Json
           tournament_id?: string
           updated_at?: string | null
         }
