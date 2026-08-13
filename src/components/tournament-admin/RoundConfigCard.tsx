@@ -126,6 +126,9 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
   const updatePoints = (key: 'round' | 'front' | 'back' | 'overall', value: number) =>
     update('teamScoringPoints', { ...data.teamScoringPoints, [key]: value });
 
+  const holePointsCount =
+    !showTeamScoring || data.teamScoringMode === 'per_hole' || data.teamScoringMode === 'per_hole_and_round';
+
   const isComplete = data.name.trim() !== '' && data.gameType !== '';
 
   return (
