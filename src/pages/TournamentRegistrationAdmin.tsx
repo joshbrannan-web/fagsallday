@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Copy, ExternalLink, Plus, Users, Link as LinkIcon, Unplug, Trash2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Plus, Users, Link as LinkIcon, Unplug, Trash2, RefreshCw, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -49,6 +49,8 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [relinking, setRelinking] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [backfillingHcp, setBackfillingHcp] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
 
   const handleDeleteConfig = async () => {
     if (!configToDelete) return;
@@ -137,6 +139,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
           description: formData.description || null,
           location: formData.location,
           event_dates: formData.event_dates,
+          payment_required: formData.payment_required,
           amount: formData.amount,
           amount_label: formData.amount_label,
           venmo_link: formData.venmo_link,
@@ -157,6 +160,40 @@ const TournamentRegistrationAdmin: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  const handleUpdateConfig = async (formData: any) => {
+    if (!selectedConfig) return;
+    setIsSubmitting(true);
+    try {
+      const patch = {
+        name: formData.name,
+        description: formData.description || null,
+        location: formData.location,
+        event_dates: formData.event_dates,
+        payment_required: formData.payment_required,
+        amount: formData.amount,
+        amount_label: formData.amount_label,
+        venmo_link: formData.venmo_link,
+      };
+      const { error } = await supabase
+        .from('tournament_registration_configs')
+        .update(patch)
+        .eq('id', selectedConfig.id);
+      if (error) throw error;
+
+      const updated = { ...selectedConfig, ...patch };
+      setSelectedConfig(updated);
+      setConfigs(prev => prev.map(c => (c.id === updated.id ? { ...c, ...patch } : c)));
+      setIsEditing(false);
+      toast.success('Registration updated');
+    } catch (err: any) {
+      console.error('Update config error:', err);
+      toast.error('Failed to update registration');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   const toggleOpen = async (cfgId: string, currentlyOpen: boolean) => {
     const { error } = await supabase
@@ -426,10 +463,32 @@ const TournamentRegistrationAdmin: React.FC = () => {
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <h1 className="text-xl font-bold flex-1">{selectedConfig.name}</h1>
+            <Button variant="outline" size="sm" onClick={() => setIsEditing(v => !v)}>
+              <Pencil className="w-4 h-4 mr-1" /> {isEditing ? 'Close' : 'Edit Details'}
+            </Button>
             <Badge variant={selectedConfig.is_open ? 'default' : 'secondary'}>
               {selectedConfig.is_open ? 'Open' : 'Closed'}
             </Badge>
           </div>
+
+          {isEditing && (
+            <RegistrationConfigForm
+              mode="edit"
+              isSubmitting={isSubmitting}
+              onSubmit={handleUpdateConfig}
+              onCancel={() => setIsEditing(false)}
+              initialValues={{
+                name: selectedConfig.name || '',
+                description: selectedConfig.description || '',
+                location: selectedConfig.location || '',
+                event_dates: selectedConfig.event_dates || '',
+                payment_required: selectedConfig.payment_required !== false,
+                amount: selectedConfig.amount,
+                amount_label: selectedConfig.amount_label,
+                venmo_link: selectedConfig.venmo_link,
+              }}
+            />
+          )}
 
           {/* Share link */}
           <Card>
@@ -443,6 +502,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
               </Button>
             </CardContent>
           </Card>
+
 
           {/* Controls */}
           <Card>

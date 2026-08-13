@@ -236,16 +236,20 @@ const TournamentRegistration: React.FC = () => {
               <MapPin className="w-4 h-4 text-muted-foreground" />
               <span>{config.location}</span>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <DollarSign className="w-4 h-4 text-muted-foreground" />
-              <span>{config.amount_label}: ${config.amount}</span>
-            </div>
-            {config.venmo_link && (
-              <Button asChild variant="outline" size="sm" className="mt-2">
-                <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
-                </a>
-              </Button>
+            {config.payment_required !== false && (
+              <>
+                <div className="flex items-center gap-2 text-sm">
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
+                  <span>{config.amount_label}: ${config.amount}</span>
+                </div>
+                {config.venmo_link && (
+                  <Button asChild variant="outline" size="sm" className="mt-2">
+                    <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
+                    </a>
+                  </Button>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -338,23 +342,25 @@ const TournamentRegistration: React.FC = () => {
                 )}
               </div>
 
-              <div className="border rounded-lg p-4 space-y-3 bg-secondary/30">
-                <h4 className="font-medium text-sm">Payment</h4>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="r-paid"
-                    checked={paymentConfirmed}
-                    onCheckedChange={(checked) => setPaymentConfirmed(checked === true)}
-                  />
-                  <Label htmlFor="r-paid" className="text-sm">I have sent / will send my payment</Label>
-                </div>
-                {paymentConfirmed && (
-                  <div className="space-y-2">
-                    <Label htmlFor="r-amount">Amount Sent ($)</Label>
-                    <Input id="r-amount" type="number" min="0" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder={String(config.amount)} />
+              {config.payment_required !== false && (
+                <div className="border rounded-lg p-4 space-y-3 bg-secondary/30">
+                  <h4 className="font-medium text-sm">Payment</h4>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="r-paid"
+                      checked={paymentConfirmed}
+                      onCheckedChange={(checked) => setPaymentConfirmed(checked === true)}
+                    />
+                    <Label htmlFor="r-paid" className="text-sm">I have sent / will send my payment</Label>
                   </div>
-                )}
-              </div>
+                  {paymentConfirmed && (
+                    <div className="space-y-2">
+                      <Label htmlFor="r-amount">Amount Sent ($)</Label>
+                      <Input id="r-amount" type="number" min="0" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder={String(config.amount ?? '')} />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {user && (
                 <p className="text-xs text-muted-foreground">

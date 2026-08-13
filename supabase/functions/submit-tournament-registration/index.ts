@@ -111,19 +111,22 @@ const handler = async (req: Request): Promise<Response> => {
     let venmoLink: string | null = null;
     let amount: number | null = null;
     let amountLabel: string = "entry fee";
+    let paymentRequired = true;
     {
       const { data: cfg } = await supabase
         .from("tournament_registration_configs")
-        .select("name, venmo_link, amount, amount_label")
+        .select("name, venmo_link, amount, amount_label, payment_required")
         .eq("id", configId)
         .maybeSingle();
       if (cfg) {
         tournamentName = cfg.name || tournamentName;
-        venmoLink = cfg.venmo_link || null;
-        amount = cfg.amount ?? null;
+        paymentRequired = cfg.payment_required !== false;
+        venmoLink = paymentRequired ? (cfg.venmo_link || null) : null;
+        amount = paymentRequired ? (cfg.amount ?? null) : null;
         amountLabel = cfg.amount_label || amountLabel;
       }
     }
+
 
     const ensureUrl = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
 
@@ -237,13 +240,11 @@ const handler = async (req: Request): Promise<Response> => {
       ? ` your ${amountLabel.toLowerCase()} of $${amount}`
       : " your payment";
 
-    const registrationBlockHtml = `
-      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:20px; margin:24px 0;">
-        <h2 style="color:#16a34a; margin:0 0 12px 0; font-size:20px;">🏆 You're registered for ${tournamentName}!</h2>
-        <p style="color:#4b5563; font-size:16px; line-height:1.6; margin:0 0 12px 0;">
-          Congratulations — your registration for <strong>${tournamentName}</strong> has been received.
-        </p>
-        ${venmoLink
+    const paymentSectionHtml = !paymentRequired
+      ? `<p style="color:#4b5563; font-size:16px; line-height:1.6; margin:0;">
+           No payment is required for this event.
+         </p>`
+      : `${venmoLink
           ? `<p style="color:#4b5563; font-size:16px; line-height:1.6; margin:0;">
               If you haven't already, please submit${amountText} via Venmo below.
             </p>
@@ -254,7 +255,15 @@ const handler = async (req: Request): Promise<Response> => {
         }
         <p style="color:#4b5563; font-size:14px; line-height:1.6; margin:12px 0 0 0;">
           Once your payment is confirmed, you'll receive an email from the Tournament Masters letting you know you're all set.
+        </p>`;
+
+    const registrationBlockHtml = `
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:20px; margin:24px 0;">
+        <h2 style="color:#16a34a; margin:0 0 12px 0; font-size:20px;">🏆 You're registered for ${tournamentName}!</h2>
+        <p style="color:#4b5563; font-size:16px; line-height:1.6; margin:0 0 12px 0;">
+          Congratulations — your registration for <strong>${tournamentName}</strong> has been received.
         </p>
+        ${paymentSectionHtml}
       </div>
     `;
 
