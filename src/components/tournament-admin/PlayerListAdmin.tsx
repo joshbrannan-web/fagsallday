@@ -21,8 +21,27 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<{ id: string; display_name: string; handicap_index?: number }[]>([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [pendingTeams, setPendingTeams] = useState<Record<string, string | null>>({});
+  const [savingTeams, setSavingTeams] = useState(false);
 
   const getTeam = (teamId: string) => teams.find((t: any) => t.id === teamId);
+
+  const pendingCount = Object.keys(pendingTeams).length;
+
+  const saveTeams = async () => {
+    setSavingTeams(true);
+    try {
+      for (const [playerId, teamId] of Object.entries(pendingTeams)) {
+        await onUpdatePlayer(playerId, { team_id: teamId });
+      }
+      setPendingTeams({});
+      toast.success('Team assignments saved');
+    } catch {
+      toast.error('Failed to save team assignments');
+    }
+    setSavingTeams(false);
+  };
+
 
   const startEdit = (player: any) => {
     setEditingId(player.id);
