@@ -109,6 +109,8 @@ export const defaultRoundConfig = (num: number): RoundConfigData => ({
   holePointOverrides: Array(18).fill(1),
   sixesFormat: 'match_play',
   sixesSegmentPoints: [1, 1, 1],
+  teamScoringMode: 'per_round',
+  teamScoringPoints: { round: 3, front: 1, back: 1, overall: 2 },
 });
 
 interface Props {
