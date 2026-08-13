@@ -1129,6 +1129,10 @@ export type Database = {
         Args: { p_linked_user_id: string }
         Returns: undefined
       }
+      update_linked_player_handicap: {
+        Args: { p_handicap: number; p_linked_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
