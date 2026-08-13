@@ -473,7 +473,9 @@ const TournamentAdminDashboard: React.FC = () => {
                       data={roundConfigDraft}
                       onChange={setRoundConfigDraft}
                       roundNumber={r.round_number}
+                      showTeamScoring={tournament?.team_scoring_method === 'custom_pts_per_round'}
                     />
+
                   </div>
                 ) : (
                   <>
