@@ -514,7 +514,11 @@ const TournamentAdminDashboard: React.FC = () => {
                     </div>
                     {r.round_date && <p className="text-xs text-muted-foreground">{format(new Date(r.round_date), 'MMM d, yyyy')}</p>}
                     {game && <p className="text-xs text-muted-foreground">{game.game_type?.replace(/_/g, ' ')} • {game.default_points_per_hole} pts/hole</p>}
+                    {tournament?.team_scoring_method === 'custom_pts_per_round' && teamScoringSummary(r) && (
+                      <p className="text-xs text-[hsl(var(--brand-gold))]">{teamScoringSummary(r)}</p>
+                    )}
                     {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
+
                     {r.status === 'active' && (
                       <div className="bg-[hsl(var(--brand-gold))]/10 rounded-lg p-2 text-xs text-[hsl(var(--brand-gold))]">
                         ⚠️ This round is active. Changes apply immediately.
