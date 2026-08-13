@@ -463,10 +463,32 @@ const TournamentRegistrationAdmin: React.FC = () => {
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <h1 className="text-xl font-bold flex-1">{selectedConfig.name}</h1>
+            <Button variant="outline" size="sm" onClick={() => setIsEditing(v => !v)}>
+              <Pencil className="w-4 h-4 mr-1" /> {isEditing ? 'Close' : 'Edit Details'}
+            </Button>
             <Badge variant={selectedConfig.is_open ? 'default' : 'secondary'}>
               {selectedConfig.is_open ? 'Open' : 'Closed'}
             </Badge>
           </div>
+
+          {isEditing && (
+            <RegistrationConfigForm
+              mode="edit"
+              isSubmitting={isSubmitting}
+              onSubmit={handleUpdateConfig}
+              onCancel={() => setIsEditing(false)}
+              initialValues={{
+                name: selectedConfig.name || '',
+                description: selectedConfig.description || '',
+                location: selectedConfig.location || '',
+                event_dates: selectedConfig.event_dates || '',
+                payment_required: selectedConfig.payment_required !== false,
+                amount: selectedConfig.amount,
+                amount_label: selectedConfig.amount_label,
+                venmo_link: selectedConfig.venmo_link,
+              }}
+            />
+          )}
 
           {/* Share link */}
           <Card>
@@ -480,6 +502,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
               </Button>
             </CardContent>
           </Card>
+
 
           {/* Controls */}
           <Card>
