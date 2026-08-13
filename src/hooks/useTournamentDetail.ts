@@ -71,6 +71,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
       console.error(err);
       toast.error('Failed to load tournament details');
     }
+    hasLoadedRef.current = true;
     setIsLoading(false);
   }, [tournamentId, user]);
 
