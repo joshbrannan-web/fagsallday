@@ -160,7 +160,10 @@ const TournamentAdminDashboard: React.FC = () => {
       round_date: d.roundDate || null,
       course_data: d.courseData || {},
       notes: d.notes || null,
+      team_scoring_mode: d.teamScoringMode,
+      team_scoring_points: d.teamScoringPoints,
     });
+
 
     if (game) {
       const oldPlayerCount = GAME_TYPE_PLAYER_COUNT[game.game_type] || 4;
