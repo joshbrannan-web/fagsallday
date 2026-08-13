@@ -107,6 +107,8 @@ const CreateTournamentWizard: React.FC = () => {
           sixesConfig: r.gameType === 'tournament_sixes' ? r.sixesConfig : undefined,
           rulesText: r.notes || undefined,
         },
+        teamScoringMode: r.teamScoringMode,
+        teamScoringPoints: r.teamScoringPoints,
         holePointOverrides: r.holePointOverrides
           .map((pts, hi) => ({ holeNumber: hi + 1, points: pts }))
           .filter(hp => hp.points !== r.defaultPointsPerHole),
@@ -163,7 +165,7 @@ const CreateTournamentWizard: React.FC = () => {
         {step === 0 && <WizardStepBasicInfo data={basicInfo} onChange={handleBasicInfoChange} />}
         {step === 1 && <WizardStepTeams teams={teams} onChange={setTeams} />}
         {step === 2 && <WizardStepPlayers players={players} teams={teams} onChange={setPlayers} />}
-        {step === 3 && <WizardStepRounds rounds={rounds} onChange={setRounds} />}
+        {step === 3 && <WizardStepRounds rounds={rounds} onChange={setRounds} showTeamScoring={basicInfo.teamScoringMethod === 'custom_pts_per_round'} />}
         {step === 4 && <WizardStepReview basicInfo={basicInfo} teams={teams} players={players} rounds={rounds} />}
 
         <div className="flex gap-3 mt-8">

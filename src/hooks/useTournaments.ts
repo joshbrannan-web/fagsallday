@@ -62,6 +62,8 @@ export interface CreateTournamentData {
       rulesText?: string;
     };
     holePointOverrides?: { holeNumber: number; points: number }[];
+    teamScoringMode?: 'per_hole' | 'per_round' | 'fbo';
+    teamScoringPoints?: { round: number; front: number; back: number; overall: number };
   }[];
 }
 
@@ -173,7 +175,9 @@ export const useTournaments = () => {
             round_date: round.roundDate || null,
             notes: round.notes || null,
             status: 'pending',
-          })
+            team_scoring_mode: round.teamScoringMode || 'per_round',
+            team_scoring_points: round.teamScoringPoints || { round: 3, front: 1, back: 1, overall: 2 },
+          } as any)
           .select()
           .single();
         if (roundErr || !roundData) throw roundErr || new Error('No round returned');
