@@ -137,6 +137,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
           description: formData.description || null,
           location: formData.location,
           event_dates: formData.event_dates,
+          payment_required: formData.payment_required,
           amount: formData.amount,
           amount_label: formData.amount_label,
           venmo_link: formData.venmo_link,
@@ -157,6 +158,40 @@ const TournamentRegistrationAdmin: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  const handleUpdateConfig = async (formData: any) => {
+    if (!selectedConfig) return;
+    setIsSubmitting(true);
+    try {
+      const patch = {
+        name: formData.name,
+        description: formData.description || null,
+        location: formData.location,
+        event_dates: formData.event_dates,
+        payment_required: formData.payment_required,
+        amount: formData.amount,
+        amount_label: formData.amount_label,
+        venmo_link: formData.venmo_link,
+      };
+      const { error } = await supabase
+        .from('tournament_registration_configs')
+        .update(patch)
+        .eq('id', selectedConfig.id);
+      if (error) throw error;
+
+      const updated = { ...selectedConfig, ...patch };
+      setSelectedConfig(updated);
+      setConfigs(prev => prev.map(c => (c.id === updated.id ? { ...c, ...patch } : c)));
+      setIsEditing(false);
+      toast.success('Registration updated');
+    } catch (err: any) {
+      console.error('Update config error:', err);
+      toast.error('Failed to update registration');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   const toggleOpen = async (cfgId: string, currentlyOpen: boolean) => {
     const { error } = await supabase
