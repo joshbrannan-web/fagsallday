@@ -49,6 +49,8 @@ const TournamentRegistrationAdmin: React.FC = () => {
   const [relinking, setRelinking] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
   const [backfillingHcp, setBackfillingHcp] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
 
   const handleDeleteConfig = async () => {
     if (!configToDelete) return;
