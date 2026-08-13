@@ -338,7 +338,10 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
         holesPlayed={holesPlayed}
         isComplete={holesPlayed === 18}
         resultLabel={holesPlayed === 0 ? 'Not Started' : `${holesPlayed} holes played`}
+        teamA={matchTeams?.[0]}
+        teamB={matchTeams?.[1]}
       />
+
 
       {pendingEdits.size > 0 && (
         <div className="flex items-center justify-between bg-primary/10 rounded-lg px-3 py-2 sticky top-14 z-30">
