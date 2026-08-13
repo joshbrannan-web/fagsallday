@@ -103,14 +103,24 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
 
       <div className="space-y-2">
         {players.map((p: any) => {
-          const team = getTeam(p.team_id);
+          const isPending = Object.prototype.hasOwnProperty.call(pendingTeams, p.id);
+          const effectiveTeamId = isPending ? pendingTeams[p.id] : p.team_id;
+          const team = effectiveTeamId ? getTeam(effectiveTeamId) : null;
           return (
             <div key={p.id} className="flex items-center gap-2 bg-card border border-border rounded-lg p-2.5">
               <Select
-                value={p.team_id ?? 'none'}
-                onValueChange={v => onUpdatePlayer(p.id, { team_id: v === 'none' ? null : v })}
+                value={effectiveTeamId ?? 'none'}
+                onValueChange={v => {
+                  const next = v === 'none' ? null : v;
+                  setPendingTeams(prev => {
+                    const copy = { ...prev };
+                    if ((p.team_id ?? null) === next) delete copy[p.id];
+                    else copy[p.id] = next;
+                    return copy;
+                  });
+                }}
               >
-                <SelectTrigger className="h-7 w-[110px] shrink-0 text-xs px-2">
+                <SelectTrigger className={`h-7 w-[110px] shrink-0 text-xs px-2 ${isPending ? 'border-primary opacity-80' : ''}`}>
                   <span className="flex items-center gap-1.5 truncate">
                     {team ? (
                       <>
@@ -122,6 +132,7 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
                     )}
                   </span>
                 </SelectTrigger>
+
                 <SelectContent>
                   <SelectItem value="none">No team</SelectItem>
                   {teams.map((t: any) => (
