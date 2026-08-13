@@ -236,16 +236,20 @@ const TournamentRegistration: React.FC = () => {
               <MapPin className="w-4 h-4 text-muted-foreground" />
               <span>{config.location}</span>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <DollarSign className="w-4 h-4 text-muted-foreground" />
-              <span>{config.amount_label}: ${config.amount}</span>
-            </div>
-            {config.venmo_link && (
-              <Button asChild variant="outline" size="sm" className="mt-2">
-                <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
-                </a>
-              </Button>
+            {config.payment_required !== false && (
+              <>
+                <div className="flex items-center gap-2 text-sm">
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
+                  <span>{config.amount_label}: ${config.amount}</span>
+                </div>
+                {config.venmo_link && (
+                  <Button asChild variant="outline" size="sm" className="mt-2">
+                    <a href={ensureUrl(config.venmo_link)} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4 mr-2" /> Pay via Venmo
+                    </a>
+                  </Button>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
