@@ -682,8 +682,8 @@ export type Database = {
       }
       tournament_registration_configs: {
         Row: {
-          amount: number
-          amount_label: string
+          amount: number | null
+          amount_label: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -696,13 +696,14 @@ export type Database = {
           is_open: boolean
           location: string
           name: string
+          payment_required: boolean
           share_code: string
           tournament_id: string | null
-          venmo_link: string
+          venmo_link: string | null
         }
         Insert: {
-          amount?: number
-          amount_label?: string
+          amount?: number | null
+          amount_label?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -715,13 +716,14 @@ export type Database = {
           is_open?: boolean
           location?: string
           name: string
+          payment_required?: boolean
           share_code?: string
           tournament_id?: string | null
-          venmo_link?: string
+          venmo_link?: string | null
         }
         Update: {
-          amount?: number
-          amount_label?: string
+          amount?: number | null
+          amount_label?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -734,9 +736,10 @@ export type Database = {
           is_open?: boolean
           location?: string
           name?: string
+          payment_required?: boolean
           share_code?: string
           tournament_id?: string | null
-          venmo_link?: string
+          venmo_link?: string | null
         }
         Relationships: [
           {
