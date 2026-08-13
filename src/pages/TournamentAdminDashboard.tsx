@@ -72,6 +72,7 @@ const TournamentAdminDashboard: React.FC = () => {
     addTeam, deleteTeam, addGroup, deleteGroup,
   } = useTournamentDetail(tournamentId);
 
+  const [activeTab, setActiveTab] = useState('overview');
   const [deletingTournament, setDeletingTournament] = useState(false);
   
   const [roundToDelete, setRoundToDelete] = useState<string | null>(null);
@@ -194,7 +195,7 @@ const TournamentAdminDashboard: React.FC = () => {
     }
   }, [tournament?.id, tournament?.status, rounds, isLoading]);
 
-  if (adminLoading || isLoading) {
+  if (adminLoading || (isLoading && !tournament)) {
     return (
       <div className="min-h-screen bg-background p-4 space-y-4">
         <Skeleton className="h-8 w-48" />
@@ -312,7 +313,7 @@ const TournamentAdminDashboard: React.FC = () => {
         </SheetContent>
       </Sheet>
 
-      <Tabs defaultValue="overview" className="max-w-lg mx-auto">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="max-w-lg mx-auto">
         <TabsList className="w-full grid grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="rounds">Rounds</TabsTrigger>

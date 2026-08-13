@@ -21,8 +21,27 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<{ id: string; display_name: string; handicap_index?: number }[]>([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [pendingTeams, setPendingTeams] = useState<Record<string, string | null>>({});
+  const [savingTeams, setSavingTeams] = useState(false);
 
   const getTeam = (teamId: string) => teams.find((t: any) => t.id === teamId);
+
+  const pendingCount = Object.keys(pendingTeams).length;
+
+  const saveTeams = async () => {
+    setSavingTeams(true);
+    try {
+      for (const [playerId, teamId] of Object.entries(pendingTeams)) {
+        await onUpdatePlayer(playerId, { team_id: teamId });
+      }
+      setPendingTeams({});
+      toast.success('Team assignments saved');
+    } catch {
+      toast.error('Failed to save team assignments');
+    }
+    setSavingTeams(false);
+  };
+
 
   const startEdit = (player: any) => {
     setEditingId(player.id);
@@ -84,14 +103,24 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
 
       <div className="space-y-2">
         {players.map((p: any) => {
-          const team = getTeam(p.team_id);
+          const isPending = Object.prototype.hasOwnProperty.call(pendingTeams, p.id);
+          const effectiveTeamId = isPending ? pendingTeams[p.id] : p.team_id;
+          const team = effectiveTeamId ? getTeam(effectiveTeamId) : null;
           return (
             <div key={p.id} className="flex items-center gap-2 bg-card border border-border rounded-lg p-2.5">
               <Select
-                value={p.team_id ?? 'none'}
-                onValueChange={v => onUpdatePlayer(p.id, { team_id: v === 'none' ? null : v })}
+                value={effectiveTeamId ?? 'none'}
+                onValueChange={v => {
+                  const next = v === 'none' ? null : v;
+                  setPendingTeams(prev => {
+                    const copy = { ...prev };
+                    if ((p.team_id ?? null) === next) delete copy[p.id];
+                    else copy[p.id] = next;
+                    return copy;
+                  });
+                }}
               >
-                <SelectTrigger className="h-7 w-[110px] shrink-0 text-xs px-2">
+                <SelectTrigger className={`h-7 w-[110px] shrink-0 text-xs px-2 ${isPending ? 'border-primary opacity-80' : ''}`}>
                   <span className="flex items-center gap-1.5 truncate">
                     {team ? (
                       <>
@@ -103,6 +132,7 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
                     )}
                   </span>
                 </SelectTrigger>
+
                 <SelectContent>
                   <SelectItem value="none">No team</SelectItem>
                   {teams.map((t: any) => (
@@ -141,6 +171,20 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
           );
         })}
       </div>
+
+      {pendingCount > 0 && (
+        <div className="sticky bottom-2 flex items-center justify-between gap-2 bg-card border border-primary/40 rounded-lg p-2.5 shadow-lg">
+          <span className="text-xs text-muted-foreground">
+            {pendingCount} player{pendingCount > 1 ? 's' : ''} with unsaved team changes
+          </span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={savingTeams} onClick={() => setPendingTeams({})}>Cancel</Button>
+            <Button size="sm" className="h-7 text-xs" disabled={savingTeams} onClick={saveTeams}>
+              {savingTeams ? 'Saving...' : 'Save team assignments'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
@@ -15,9 +15,11 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   const [groupPlayers, setGroupPlayers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const hasLoadedRef = useRef(false);
+
   const fetchAll = useCallback(async () => {
     if (!tournamentId || !user) { setIsLoading(false); return; }
-    setIsLoading(true);
+    if (!hasLoadedRef.current) setIsLoading(true);
     try {
       const [tRes, teamsRes, playersRes, roundsRes, sbRes] = await Promise.all([
         supabase.from('tournaments').select('*').eq('id', tournamentId).single(),
@@ -69,6 +71,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
       console.error(err);
       toast.error('Failed to load tournament details');
     }
+    hasLoadedRef.current = true;
     setIsLoading(false);
   }, [tournamentId, user]);
 
