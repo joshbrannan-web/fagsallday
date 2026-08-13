@@ -57,8 +57,27 @@ function dbToRoundConfig(round: any, game: any): RoundConfigData {
     secondBallTiebreaker: game?.second_ball_tiebreaker ?? false,
     sixesConfig: game?.sixes_config || base.sixesConfig,
     holePointOverrides: base.holePointOverrides, // hole_points handled by scoring hooks; admin preview uses defaults
+    teamScoringMode: (round.team_scoring_mode as RoundConfigData['teamScoringMode']) || base.teamScoringMode,
+    teamScoringPoints: { ...base.teamScoringPoints, ...(round.team_scoring_points || {}) },
   };
 }
+
+const teamScoringSummary = (round: any): string | null => {
+  const pts = round.team_scoring_points || {};
+  switch (round.team_scoring_mode) {
+    case 'per_hole':
+      return 'Team scoring: per hole only';
+    case 'per_round':
+      return `Team scoring: per round — ${pts.round ?? 0} pts`;
+    case 'per_hole_and_round':
+      return `Team scoring: per hole + per round — ${pts.round ?? 0} pts`;
+    case 'fbo':
+      return `Team scoring: Front/Back/Overall — ${pts.front ?? 0} / ${pts.back ?? 0} / ${pts.overall ?? 0}`;
+    default:
+      return null;
+  }
+};
+
 
 const TournamentAdminDashboard: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
@@ -141,7 +160,10 @@ const TournamentAdminDashboard: React.FC = () => {
       round_date: d.roundDate || null,
       course_data: d.courseData || {},
       notes: d.notes || null,
+      team_scoring_mode: d.teamScoringMode,
+      team_scoring_points: d.teamScoringPoints,
     });
+
 
     if (game) {
       const oldPlayerCount = GAME_TYPE_PLAYER_COUNT[game.game_type] || 4;
@@ -451,7 +473,9 @@ const TournamentAdminDashboard: React.FC = () => {
                       data={roundConfigDraft}
                       onChange={setRoundConfigDraft}
                       roundNumber={r.round_number}
+                      showTeamScoring={tournament?.team_scoring_method === 'custom_pts_per_round'}
                     />
+
                   </div>
                 ) : (
                   <>
@@ -490,7 +514,11 @@ const TournamentAdminDashboard: React.FC = () => {
                     </div>
                     {r.round_date && <p className="text-xs text-muted-foreground">{format(new Date(r.round_date), 'MMM d, yyyy')}</p>}
                     {game && <p className="text-xs text-muted-foreground">{game.game_type?.replace(/_/g, ' ')} • {game.default_points_per_hole} pts/hole</p>}
+                    {tournament?.team_scoring_method === 'custom_pts_per_round' && teamScoringSummary(r) && (
+                      <p className="text-xs text-[hsl(var(--brand-gold))]">{teamScoringSummary(r)}</p>
+                    )}
                     {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
+
                     {r.status === 'active' && (
                       <div className="bg-[hsl(var(--brand-gold))]/10 rounded-lg p-2 text-xs text-[hsl(var(--brand-gold))]">
                         ⚠️ This round is active. Changes apply immediately.
