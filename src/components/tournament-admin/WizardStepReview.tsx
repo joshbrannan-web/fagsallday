@@ -76,6 +76,9 @@ const WizardStepReview: React.FC<Props> = ({ basicInfo, teams, players, rounds }
             {basicInfo.teamScoringMethod === 'custom_pts_per_round' && r.teamScoringMode === 'per_round' && (
               <p className="text-xs text-muted-foreground">Team scoring: {r.teamScoringPoints.round} pt(s) for the round win</p>
             )}
+            {basicInfo.teamScoringMethod === 'custom_pts_per_round' && r.teamScoringMode === 'per_hole_and_round' && (
+              <p className="text-xs text-muted-foreground">Team scoring: per hole + {r.teamScoringPoints.round} pt(s) for the round win</p>
+            )}
             {basicInfo.teamScoringMethod === 'custom_pts_per_round' && r.teamScoringMode === 'fbo' && (
               <p className="text-xs text-muted-foreground">
                 Team scoring: Front {r.teamScoringPoints.front} / Back {r.teamScoringPoints.back} / Overall {r.teamScoringPoints.overall}

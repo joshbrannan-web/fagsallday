@@ -84,7 +84,7 @@ export interface RoundConfigData {
   holePointOverrides: number[];
   sixesFormat: 'match_play' | 'sum_of_strokes';
   sixesSegmentPoints: [number, number, number];
-  teamScoringMode: 'per_hole' | 'per_round' | 'fbo';
+  teamScoringMode: 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo';
   teamScoringPoints: { round: number; front: number; back: number; overall: number };
 }
 
@@ -339,23 +339,42 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
         <div className="space-y-3 rounded-lg border border-[hsl(var(--brand-gold))]/40 bg-[hsl(var(--brand-gold))]/5 p-3">
           <div>
             <Label>Team Scoring for this Round</Label>
-            <Select value={data.teamScoringMode} onValueChange={v => update('teamScoringMode', v)}>
-              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="per_hole">Per Hole (use this round's hole points)</SelectItem>
-                <SelectItem value="per_round">Per Round (points for winning the round)</SelectItem>
-                <SelectItem value="fbo">Front / Back / Overall</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              {([
+                ['per_hole', 'Per Hole only'],
+                ['per_round', 'Per Round only'],
+                ['per_hole_and_round', 'Per Hole + Per Round'],
+                ['fbo', 'Front / Back / Overall'],
+              ] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => update('teamScoringMode', mode)}
+                  className={`rounded-md border px-3 py-2 text-xs font-medium transition-colors ${
+                    data.teamScoringMode === mode
+                      ? 'border-[hsl(var(--brand-gold))] bg-[hsl(var(--brand-gold))]/20 text-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {data.teamScoringMode === 'per_hole' && (
             <p className="text-xs text-muted-foreground">
-              This round contributes its hole-by-hole points ({data.defaultPointsPerHole} per hole, plus any hole overrides) to the team totals.
+              This round contributes its hole-by-hole points ({data.defaultPointsPerHole} per hole, plus any hole overrides) to the team totals. No round-win bonus.
             </p>
           )}
 
-          {data.teamScoringMode === 'per_round' && (
+          {data.teamScoringMode === 'per_hole_and_round' && (
+            <p className="text-xs text-muted-foreground">
+              Hole-by-hole points count toward the team totals, plus a bonus for winning the round.
+            </p>
+          )}
+
+          {(data.teamScoringMode === 'per_round' || data.teamScoringMode === 'per_hole_and_round') && (
             <div>
               <Label className="text-xs">Points for winning this round</Label>
               <Input

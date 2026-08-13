@@ -97,7 +97,7 @@ export function calcTeamTotalsPerRound(
 // ── PER-ROUND TEAM AWARD (scoring method aware) ──────────────
 
 export type TeamScoringMethod = 'cumulative' | 'round_win' | 'custom_pts_per_round';
-export type RoundTeamScoringMode = 'per_hole' | 'per_round' | 'fbo';
+export type RoundTeamScoringMode = 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo';
 
 export interface RoundTeamScoringPoints {
   round?: number;
@@ -152,6 +152,13 @@ export function calcRoundTeamAward(
   const pts: RoundTeamScoringPoints = (round?.team_scoring_points as RoundTeamScoringPoints) || {};
 
   if (mode === 'per_hole') return cumulative;
+
+  if (mode === 'per_hole_and_round') {
+    out[teamAId] = totalA;
+    out[teamBId] = totalB;
+    awardSegment(totalA, totalB, teamAId, teamBId, pts.round ?? customRoundPoints ?? 3, out);
+    return out;
+  }
 
   if (mode === 'fbo') {
     const sum = (from: number, to: number) => {
