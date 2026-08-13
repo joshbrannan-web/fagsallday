@@ -20,8 +20,6 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
   const teamA = teams[0];
   const teamB = teams[1];
   const teamIds = [teamA.id, teamB.id];
-  const isRoundWin = teamScoringMethod === 'round_win' || teamScoringMethod === 'custom_pts_per_round';
-  const roundWinValue = teamScoringMethod === 'custom_pts_per_round' ? (customRoundPoints || 3) : 1;
 
   const perRound = calcTeamTotalsPerRound(rounds, groups, holeResults, teamIds);
 
@@ -130,9 +128,6 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
         {startedRounds.length > 0 && (
           <div className="space-y-2">
             {startedRounds.map((round: any) => {
-              const rTotals = perRound[round.id] || {};
-              const rA = rTotals[teamA.id] || 0;
-              const rB = rTotals[teamB.id] || 0;
               const isActive = round.status === 'active';
               const isCompleted = round.status === 'completed';
 
