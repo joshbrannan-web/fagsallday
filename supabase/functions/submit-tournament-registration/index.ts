@@ -111,19 +111,22 @@ const handler = async (req: Request): Promise<Response> => {
     let venmoLink: string | null = null;
     let amount: number | null = null;
     let amountLabel: string = "entry fee";
+    let paymentRequired = true;
     {
       const { data: cfg } = await supabase
         .from("tournament_registration_configs")
-        .select("name, venmo_link, amount, amount_label")
+        .select("name, venmo_link, amount, amount_label, payment_required")
         .eq("id", configId)
         .maybeSingle();
       if (cfg) {
         tournamentName = cfg.name || tournamentName;
-        venmoLink = cfg.venmo_link || null;
-        amount = cfg.amount ?? null;
+        paymentRequired = cfg.payment_required !== false;
+        venmoLink = paymentRequired ? (cfg.venmo_link || null) : null;
+        amount = paymentRequired ? (cfg.amount ?? null) : null;
         amountLabel = cfg.amount_label || amountLabel;
       }
     }
+
 
     const ensureUrl = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`);
 
