@@ -117,11 +117,14 @@ interface Props {
   data: RoundConfigData;
   onChange: (data: RoundConfigData) => void;
   roundNumber: number;
+  showTeamScoring?: boolean;
 }
 
-const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber }) => {
+const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTeamScoring }) => {
   const [showHolePoints, setShowHolePoints] = useState(false);
   const update = (key: keyof RoundConfigData, value: any) => onChange({ ...data, [key]: value });
+  const updatePoints = (key: 'round' | 'front' | 'back' | 'overall', value: number) =>
+    update('teamScoringPoints', { ...data.teamScoringPoints, [key]: value });
 
   const isComplete = data.name.trim() !== '' && data.gameType !== '';
 
