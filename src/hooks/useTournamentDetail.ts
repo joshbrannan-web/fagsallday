@@ -80,7 +80,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else await fetchAll();
   };
 
-  const updatePlayer = async (playerId: string, updates: { handicap_override?: number | null; team_id?: string; display_name?: string }) => {
+  const updatePlayer = async (playerId: string, updates: { handicap_override?: number | null; team_id?: string | null; display_name?: string }) => {
     const { error } = await supabase.from('tournament_players').update(updates).eq('id', playerId);
     if (error) toast.error('Failed to update player');
     else await fetchAll();
