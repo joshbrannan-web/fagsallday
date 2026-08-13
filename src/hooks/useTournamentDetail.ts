@@ -17,7 +17,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
 
   const fetchAll = useCallback(async () => {
     if (!tournamentId || !user) { setIsLoading(false); return; }
-    setIsLoading(true);
+    setTournament((prev: any) => { if (!prev) setIsLoading(true); return prev; });
     try {
       const [tRes, teamsRes, playersRes, roundsRes, sbRes] = await Promise.all([
         supabase.from('tournaments').select('*').eq('id', tournamentId).single(),
