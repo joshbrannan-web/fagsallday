@@ -150,6 +150,26 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
 
   const teamColor = (gp: any) => teams.find((t: any) => t.id === gp.team_id)?.color;
 
+  // Team point totals for this group's match (saved results only)
+  const matchTeams = useMemo(() => {
+    const ids = teams
+      .filter((t: any) => groupPlayers.some((gp: any) => gp.team_id === t.id))
+      .map((t: any) => t.id);
+    if (ids.length < 2) return null;
+    const totals: Record<string, number> = {};
+    ids.forEach((id: string) => { totals[id] = 0; });
+    results.forEach((r: any) => {
+      const tp = r?.team_points as Record<string, number> | undefined;
+      if (!tp) return;
+      ids.forEach((id: string) => { totals[id] += Number(tp[id]) || 0; });
+    });
+    return ids.slice(0, 2).map((id: string) => {
+      const t = teams.find((x: any) => x.id === id);
+      return { id, name: t?.name || 'Team', color: t?.color, points: totals[id] };
+    });
+  }, [teams, groupPlayers, results]);
+
+
   // Winning team / players for a hole (null when halved or not played)
   const holeWinner = (hole: number): { teamId?: string; playerIds?: string[] } | null => {
     const r = getResult(hole);
