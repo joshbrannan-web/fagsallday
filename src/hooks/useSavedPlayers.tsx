@@ -97,9 +97,28 @@ export const useSavedPlayers = () => {
         .eq('user_id', user.id);
 
       if (error) throw error;
-      
-      setSavedPlayers(prev => 
-        prev.map(p => p.id === id ? { ...p, ...updates } as SavedPlayer : p)
+
+      // Linked players display the handicap from their real account profile,
+      // so a local-only edit would appear to revert. Push it to the profile too.
+      const existing = savedPlayers.find(p => p.id === id);
+      const linkedUserId = updates.linked_user_id ?? existing?.linked_user_id;
+      if (linkedUserId && updates.handicap_index !== undefined) {
+        const { error: rpcError } = await supabase.rpc('update_linked_player_handicap', {
+          p_linked_user_id: linkedUserId,
+          p_handicap: updates.handicap_index,
+        } as any);
+        if (rpcError) console.error('Error syncing linked profile handicap:', rpcError);
+      }
+
+      setSavedPlayers(prev =>
+        prev.map(p => {
+          if (p.id === id) return { ...p, ...updates } as SavedPlayer;
+          // Keep duplicate local copies of the same linked player in sync
+          if (linkedUserId && p.linked_user_id === linkedUserId && updates.handicap_index !== undefined) {
+            return { ...p, handicap_index: updates.handicap_index } as SavedPlayer;
+          }
+          return p;
+        })
       );
       return true;
     } catch (error) {
@@ -107,6 +126,7 @@ export const useSavedPlayers = () => {
       return false;
     }
   };
+
 
   const deletePlayer = async (id: string) => {
     if (!user) return false;
