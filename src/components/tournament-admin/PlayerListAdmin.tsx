@@ -86,7 +86,34 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
           const team = getTeam(p.team_id);
           return (
             <div key={p.id} className="flex items-center gap-2 bg-card border border-border rounded-lg p-2.5">
-              {team && <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: team.color }} />}
+              <Select
+                value={p.team_id ?? 'none'}
+                onValueChange={v => onUpdatePlayer(p.id, { team_id: v === 'none' ? null : v })}
+              >
+                <SelectTrigger className="h-7 w-[110px] shrink-0 text-xs px-2">
+                  <span className="flex items-center gap-1.5 truncate">
+                    {team ? (
+                      <>
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
+                        <span className="truncate">{team.name}</span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">No team</span>
+                    )}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No team</SelectItem>
+                  {teams.map((t: any) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      <span className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                        {t.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <span className="flex-1 text-sm font-medium truncate">{p.display_name}</span>
               {p.handicap_override !== null && (
                 <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30">
