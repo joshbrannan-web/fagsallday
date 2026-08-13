@@ -193,8 +193,13 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
         <div className="space-y-4 bg-muted/50 rounded-lg p-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Points Per Hole</Label>
+              <Label>{holePointsCount ? 'Points Per Hole' : 'Points Per Hole (tiebreak only)'}</Label>
               <Input type="number" value={data.defaultPointsPerHole} onChange={e => update('defaultPointsPerHole', parseFloat(e.target.value) || 1)} min={0.5} step={0.5} />
+              {!holePointsCount && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  These points only decide who wins each hole. They do not add to team totals in this mode.
+                </p>
+              )}
             </div>
             <div>
               <Label>Halved Hole</Label>
