@@ -171,6 +171,20 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
           );
         })}
       </div>
+
+      {pendingCount > 0 && (
+        <div className="sticky bottom-2 flex items-center justify-between gap-2 bg-card border border-primary/40 rounded-lg p-2.5 shadow-lg">
+          <span className="text-xs text-muted-foreground">
+            {pendingCount} player{pendingCount > 1 ? 's' : ''} with unsaved team changes
+          </span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={savingTeams} onClick={() => setPendingTeams({})}>Cancel</Button>
+            <Button size="sm" className="h-7 text-xs" disabled={savingTeams} onClick={saveTeams}>
+              {savingTeams ? 'Saving...' : 'Save team assignments'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
