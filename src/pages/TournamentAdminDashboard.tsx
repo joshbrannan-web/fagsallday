@@ -513,7 +513,15 @@ const TournamentAdminDashboard: React.FC = () => {
                       </div>
                     </div>
                     {r.round_date && <p className="text-xs text-muted-foreground">{format(new Date(r.round_date), 'MMM d, yyyy')}</p>}
-                    {game && <p className="text-xs text-muted-foreground">{game.game_type?.replace(/_/g, ' ')} • {game.default_points_per_hole} pts/hole</p>}
+                    {game && (
+                      <p className="text-xs text-muted-foreground">
+                        {game.game_type?.replace(/_/g, ' ')}
+                        {(tournament?.team_scoring_method !== 'custom_pts_per_round' ||
+                          !r.team_scoring_mode ||
+                          r.team_scoring_mode === 'per_hole' ||
+                          r.team_scoring_mode === 'per_hole_and_round') && <> • {game.default_points_per_hole} pts/hole</>}
+                      </p>
+                    )}
                     {tournament?.team_scoring_method === 'custom_pts_per_round' && teamScoringSummary(r) && (
                       <p className="text-xs text-[hsl(var(--brand-gold))]">{teamScoringSummary(r)}</p>
                     )}

@@ -126,6 +126,9 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
   const updatePoints = (key: 'round' | 'front' | 'back' | 'overall', value: number) =>
     update('teamScoringPoints', { ...data.teamScoringPoints, [key]: value });
 
+  const holePointsCount =
+    !showTeamScoring || data.teamScoringMode === 'per_hole' || data.teamScoringMode === 'per_hole_and_round';
+
   const isComplete = data.name.trim() !== '' && data.gameType !== '';
 
   return (
@@ -190,8 +193,13 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
         <div className="space-y-4 bg-muted/50 rounded-lg p-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Points Per Hole</Label>
+              <Label>{holePointsCount ? 'Points Per Hole' : 'Points Per Hole (tiebreak only)'}</Label>
               <Input type="number" value={data.defaultPointsPerHole} onChange={e => update('defaultPointsPerHole', parseFloat(e.target.value) || 1)} min={0.5} step={0.5} />
+              {!holePointsCount && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  These points only decide who wins each hole. They do not add to team totals in this mode.
+                </p>
+              )}
             </div>
             <div>
               <Label>Halved Hole</Label>
@@ -308,7 +316,7 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
           <Collapsible open={showHolePoints} onOpenChange={setShowHolePoints}>
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary">
               <ChevronDown className={`w-4 h-4 transition-transform ${showHolePoints ? 'rotate-180' : ''}`} />
-              Customize hole points
+              {holePointsCount ? 'Customize hole points' : 'Customize hole points (tiebreak only)'}
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2">
               <div className="grid grid-cols-6 gap-1.5">
