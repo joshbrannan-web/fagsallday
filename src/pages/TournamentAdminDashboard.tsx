@@ -57,8 +57,27 @@ function dbToRoundConfig(round: any, game: any): RoundConfigData {
     secondBallTiebreaker: game?.second_ball_tiebreaker ?? false,
     sixesConfig: game?.sixes_config || base.sixesConfig,
     holePointOverrides: base.holePointOverrides, // hole_points handled by scoring hooks; admin preview uses defaults
+    teamScoringMode: (round.team_scoring_mode as RoundConfigData['teamScoringMode']) || base.teamScoringMode,
+    teamScoringPoints: { ...base.teamScoringPoints, ...(round.team_scoring_points || {}) },
   };
 }
+
+const teamScoringSummary = (round: any): string | null => {
+  const pts = round.team_scoring_points || {};
+  switch (round.team_scoring_mode) {
+    case 'per_hole':
+      return 'Team scoring: per hole only';
+    case 'per_round':
+      return `Team scoring: per round — ${pts.round ?? 0} pts`;
+    case 'per_hole_and_round':
+      return `Team scoring: per hole + per round — ${pts.round ?? 0} pts`;
+    case 'fbo':
+      return `Team scoring: Front/Back/Overall — ${pts.front ?? 0} / ${pts.back ?? 0} / ${pts.overall ?? 0}`;
+    default:
+      return null;
+  }
+};
+
 
 const TournamentAdminDashboard: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
