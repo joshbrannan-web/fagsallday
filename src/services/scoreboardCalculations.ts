@@ -94,6 +94,89 @@ export function calcTeamTotalsPerRound(
   return result;
 }
 
+// ── PER-ROUND TEAM AWARD (scoring method aware) ──────────────
+
+export type TeamScoringMethod = 'cumulative' | 'round_win' | 'custom_pts_per_round';
+export type RoundTeamScoringMode = 'per_hole' | 'per_round' | 'fbo';
+
+export interface RoundTeamScoringPoints {
+  round?: number;
+  front?: number;
+  back?: number;
+  overall?: number;
+}
+
+const awardSegment = (
+  a: number,
+  b: number,
+  teamAId: string,
+  teamBId: string,
+  value: number,
+  out: Record<string, number>
+) => {
+  if (a > b) out[teamAId] += value;
+  else if (b > a) out[teamBId] += value;
+  else { out[teamAId] += value / 2; out[teamBId] += value / 2; }
+};
+
+/**
+ * Points a round contributes to each team's grand total, honoring the
+ * tournament scoring method and (for custom points) the round's own mode.
+ */
+export function calcRoundTeamAward(
+  round: any,
+  roundTotals: Record<string, number>,
+  roundHoleResults: HoleResultRow[],
+  teamIds: [string, string],
+  method: TeamScoringMethod | undefined,
+  customRoundPoints?: number,
+  isCompleted?: boolean
+): Record<string, number> {
+  const [teamAId, teamBId] = teamIds;
+  const totalA = roundTotals[teamAId] || 0;
+  const totalB = roundTotals[teamBId] || 0;
+  const cumulative = { [teamAId]: totalA, [teamBId]: totalB };
+
+  if (method !== 'round_win' && method !== 'custom_pts_per_round') return cumulative;
+  const completed = isCompleted ?? round?.status === 'completed';
+  if (!completed) return cumulative;
+
+  const out: Record<string, number> = { [teamAId]: 0, [teamBId]: 0 };
+
+  if (method === 'round_win') {
+    awardSegment(totalA, totalB, teamAId, teamBId, 1, out);
+    return out;
+  }
+
+  const mode: RoundTeamScoringMode = (round?.team_scoring_mode as RoundTeamScoringMode) || 'per_round';
+  const pts: RoundTeamScoringPoints = (round?.team_scoring_points as RoundTeamScoringPoints) || {};
+
+  if (mode === 'per_hole') return cumulative;
+
+  if (mode === 'fbo') {
+    const sum = (from: number, to: number) => {
+      let a = 0, b = 0;
+      roundHoleResults.forEach(r => {
+        if (r.hole_number >= from && r.hole_number <= to) {
+          const tp = (r.team_points || {}) as Record<string, number>;
+          a += Number(tp[teamAId] || 0);
+          b += Number(tp[teamBId] || 0);
+        }
+      });
+      return [a, b] as const;
+    };
+    const [frontA, frontB] = sum(1, 9);
+    const [backA, backB] = sum(10, 18);
+    awardSegment(frontA, frontB, teamAId, teamBId, pts.front ?? 1, out);
+    awardSegment(backA, backB, teamAId, teamBId, pts.back ?? 1, out);
+    awardSegment(totalA, totalB, teamAId, teamBId, pts.overall ?? 2, out);
+    return out;
+  }
+
+  awardSegment(totalA, totalB, teamAId, teamBId, pts.round ?? customRoundPoints ?? 3, out);
+  return out;
+}
+
 // ── INDIVIDUAL GROSS SCORE PER ROUND ────────────────────────
 
 export function calcPlayerGrossPerRound(
