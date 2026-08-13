@@ -316,7 +316,7 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
           <Collapsible open={showHolePoints} onOpenChange={setShowHolePoints}>
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary">
               <ChevronDown className={`w-4 h-4 transition-transform ${showHolePoints ? 'rotate-180' : ''}`} />
-              Customize hole points
+              {holePointsCount ? 'Customize hole points' : 'Customize hole points (tiebreak only)'}
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2">
               <div className="grid grid-cols-6 gap-1.5">
