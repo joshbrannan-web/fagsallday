@@ -137,12 +137,21 @@ const TournamentAdminDashboard: React.FC = () => {
   const [savingRound, setSavingRound] = useState(false);
   const [expandedScoreRoundId, setExpandedScoreRoundId] = useState<string | null>(null);
 
-  const startEditRound = (roundId: string) => {
+  const startEditRound = async (roundId: string) => {
     const round = rounds.find((r: any) => r.id === roundId);
     const game = games.find((g: any) => g.tournament_round_id === roundId);
     if (!round) return;
     setRoundConfigDraft(dbToRoundConfig(round, game));
     setEditingRoundId(roundId);
+    if (game?.id) {
+      const { data: holePoints } = await supabase
+        .from('tournament_hole_points')
+        .select('hole_number, points')
+        .eq('tournament_game_id', game.id);
+      if (holePoints && holePoints.length > 0) {
+        setRoundConfigDraft(dbToRoundConfig(round, game, holePoints));
+      }
+    }
   };
 
   const GAME_TYPE_PLAYER_COUNT: Record<string, number> = {
@@ -186,7 +195,20 @@ const TournamentAdminDashboard: React.FC = () => {
         max_score_per_hole: d.maxScoreEnabled ? d.maxScorePerHole : null,
         second_ball_tiebreaker: d.secondBallTiebreaker,
         sixes_config: d.sixesConfig,
+        sixes_format: d.sixesFormat,
+        sixes_segment_points: d.sixesSegmentPoints,
       });
+
+      // Round-trip hole point overrides: clear then re-insert only the customised holes
+      await supabase.from('tournament_hole_points').delete().eq('tournament_game_id', game.id);
+      if (d.holePointsCustomized) {
+        const rows = d.holePointOverrides
+          .map((points, i) => ({ tournament_game_id: game.id, hole_number: i + 1, points }))
+          .filter(r => r.points !== d.defaultPointsPerHole);
+        if (rows.length > 0) {
+          await supabase.from('tournament_hole_points').insert(rows);
+        }
+      }
 
       // Clear stale pairings if game type changed to a different player count
       if (game.game_type !== d.gameType && oldPlayerCount !== newPlayerCount) {
