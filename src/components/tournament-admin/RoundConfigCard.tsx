@@ -82,6 +82,7 @@ export interface RoundConfigData {
   secondBallTiebreaker: boolean;
   sixesConfig: { rules: string; formatNotes: string }[];
   holePointOverrides: number[];
+  holePointsCustomized: boolean;
   sixesFormat: 'match_play' | 'sum_of_strokes';
   sixesSegmentPoints: [number, number, number];
   teamScoringMode: 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo';
@@ -107,6 +108,7 @@ export const defaultRoundConfig = (num: number): RoundConfigData => ({
     { rules: '', formatNotes: '' },
   ],
   holePointOverrides: Array(18).fill(1),
+  holePointsCustomized: false,
   sixesFormat: 'match_play',
   sixesSegmentPoints: [1, 1, 1],
   teamScoringMode: 'per_round',
@@ -125,6 +127,16 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
   const update = (key: keyof RoundConfigData, value: any) => onChange({ ...data, [key]: value });
   const updatePoints = (key: 'round' | 'front' | 'back' | 'overall', value: number) =>
     update('teamScoringPoints', { ...data.teamScoringPoints, [key]: value });
+
+  const updateDefaultPointsPerHole = (value: number) => {
+    if (data.holePointsCustomized) {
+      onChange({ ...data, defaultPointsPerHole: value });
+      return;
+    }
+    onChange({ ...data, defaultPointsPerHole: value, holePointOverrides: Array(18).fill(value) });
+  };
+
+  const customizedHoleCount = data.holePointOverrides.filter(p => p !== data.defaultPointsPerHole).length;
 
   const holePointsCount =
     !showTeamScoring || data.teamScoringMode === 'per_hole' || data.teamScoringMode === 'per_hole_and_round';
@@ -194,7 +206,7 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{holePointsCount ? 'Points Per Hole' : 'Points Per Hole (tiebreak only)'}</Label>
-              <Input type="number" value={data.defaultPointsPerHole} onChange={e => update('defaultPointsPerHole', parseFloat(e.target.value) || 1)} min={0.5} step={0.5} />
+              <Input type="number" value={data.defaultPointsPerHole} onChange={e => updateDefaultPointsPerHole(parseFloat(e.target.value) || 1)} min={0.5} step={0.5} />
               {!holePointsCount && (
                 <p className="text-xs text-muted-foreground mt-1">
                   These points only decide who wins each hole. They do not add to team totals in this mode.
@@ -317,6 +329,11 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary">
               <ChevronDown className={`w-4 h-4 transition-transform ${showHolePoints ? 'rotate-180' : ''}`} />
               {holePointsCount ? 'Customize hole points' : 'Customize hole points (tiebreak only)'}
+              {data.holePointsCustomized && customizedHoleCount > 0 && (
+                <span className="text-muted-foreground">
+                  ({customizedHoleCount} hole{customizedHoleCount === 1 ? '' : 's'} customised)
+                </span>
+              )}
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2">
               <div className="grid grid-cols-6 gap-1.5">
@@ -329,7 +346,7 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
                       onChange={e => {
                         const next = [...data.holePointOverrides];
                         next[i] = parseFloat(e.target.value) || 1;
-                        update('holePointOverrides', next);
+                        onChange({ ...data, holePointOverrides: next, holePointsCustomized: true });
                       }}
                       className="h-8 text-xs text-center px-1"
                       min={0}

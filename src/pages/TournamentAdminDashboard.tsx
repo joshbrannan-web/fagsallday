@@ -39,7 +39,7 @@ const roundStatusColors: Record<string, string> = {
 };
 
 /* ── helpers: map DB ↔ RoundConfigData ── */
-function dbToRoundConfig(round: any, game: any): RoundConfigData {
+function dbToRoundConfig(round: any, game: any, holePoints?: any[]): RoundConfigData {
   const base = defaultRoundConfig(round.round_number);
   return {
     ...base,
@@ -56,7 +56,15 @@ function dbToRoundConfig(round: any, game: any): RoundConfigData {
     maxScorePerHole: game?.max_score_per_hole || 4,
     secondBallTiebreaker: game?.second_ball_tiebreaker ?? false,
     sixesConfig: game?.sixes_config || base.sixesConfig,
-    holePointOverrides: base.holePointOverrides, // hole_points handled by scoring hooks; admin preview uses defaults
+    sixesFormat: (game?.sixes_format as RoundConfigData['sixesFormat']) || base.sixesFormat,
+    sixesSegmentPoints: (game?.sixes_segment_points as RoundConfigData['sixesSegmentPoints']) || base.sixesSegmentPoints,
+    holePointOverrides: holePoints && holePoints.length > 0
+      ? Array.from({ length: 18 }, (_, i) => {
+          const row = holePoints.find((hp: any) => hp.hole_number === i + 1);
+          return row ? Number(row.points) : (game?.default_points_per_hole ?? 1);
+        })
+      : Array(18).fill(game?.default_points_per_hole ?? 1),
+    holePointsCustomized: !!(holePoints && holePoints.length > 0),
     teamScoringMode: (round.team_scoring_mode as RoundConfigData['teamScoringMode']) || base.teamScoringMode,
     teamScoringPoints: { ...base.teamScoringPoints, ...(round.team_scoring_points || {}) },
   };
@@ -129,12 +137,21 @@ const TournamentAdminDashboard: React.FC = () => {
   const [savingRound, setSavingRound] = useState(false);
   const [expandedScoreRoundId, setExpandedScoreRoundId] = useState<string | null>(null);
 
-  const startEditRound = (roundId: string) => {
+  const startEditRound = async (roundId: string) => {
     const round = rounds.find((r: any) => r.id === roundId);
     const game = games.find((g: any) => g.tournament_round_id === roundId);
     if (!round) return;
     setRoundConfigDraft(dbToRoundConfig(round, game));
     setEditingRoundId(roundId);
+    if (game?.id) {
+      const { data: holePoints } = await supabase
+        .from('tournament_hole_points')
+        .select('hole_number, points')
+        .eq('tournament_game_id', game.id);
+      if (holePoints && holePoints.length > 0) {
+        setRoundConfigDraft(dbToRoundConfig(round, game, holePoints));
+      }
+    }
   };
 
   const GAME_TYPE_PLAYER_COUNT: Record<string, number> = {
@@ -178,7 +195,20 @@ const TournamentAdminDashboard: React.FC = () => {
         max_score_per_hole: d.maxScoreEnabled ? d.maxScorePerHole : null,
         second_ball_tiebreaker: d.secondBallTiebreaker,
         sixes_config: d.sixesConfig,
+        sixes_format: d.sixesFormat,
+        sixes_segment_points: d.sixesSegmentPoints,
       });
+
+      // Round-trip hole point overrides: clear then re-insert only the customised holes
+      await supabase.from('tournament_hole_points').delete().eq('tournament_game_id', game.id);
+      if (d.holePointsCustomized) {
+        const rows = d.holePointOverrides
+          .map((points, i) => ({ tournament_game_id: game.id, hole_number: i + 1, points }))
+          .filter(r => r.points !== d.defaultPointsPerHole);
+        if (rows.length > 0) {
+          await supabase.from('tournament_hole_points').insert(rows);
+        }
+      }
 
       // Clear stale pairings if game type changed to a different player count
       if (game.game_type !== d.gameType && oldPlayerCount !== newPlayerCount) {
@@ -520,6 +550,13 @@ const TournamentAdminDashboard: React.FC = () => {
                           !r.team_scoring_mode ||
                           r.team_scoring_mode === 'per_hole' ||
                           r.team_scoring_mode === 'per_hole_and_round') && <> • {game.default_points_per_hole} pts/hole</>}
+                      </p>
+                    )}
+                    {game?.game_type === 'tournament_sixes' && (
+                      <p className="text-xs text-muted-foreground">
+                        Sixes: {game.sixes_format === 'sum_of_strokes' ? 'Sum of Strokes' : 'Match Play'}
+                        {game.sixes_format === 'sum_of_strokes' &&
+                          ` · ${(game.sixes_segment_points as any[] | null)?.join('/') ?? '1/1/1'} pts`}
                       </p>
                     )}
                     {tournament?.team_scoring_method === 'custom_pts_per_round' && teamScoringSummary(r) && (
