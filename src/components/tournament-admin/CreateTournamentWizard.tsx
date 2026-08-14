@@ -105,13 +105,17 @@ const CreateTournamentWizard: React.FC = () => {
           handicapAllowancePercent: r.handicapAllowancePercent,
           maxScorePerHole: r.maxScoreEnabled ? r.maxScorePerHole : undefined,
           sixesConfig: r.gameType === 'tournament_sixes' ? r.sixesConfig : undefined,
+          sixesFormat: r.gameType === 'tournament_sixes' ? r.sixesFormat : undefined,
+          sixesSegmentPoints: r.gameType === 'tournament_sixes' ? r.sixesSegmentPoints : undefined,
           rulesText: r.notes || undefined,
         },
         teamScoringMode: r.teamScoringMode,
         teamScoringPoints: r.teamScoringPoints,
-        holePointOverrides: r.holePointOverrides
-          .map((pts, hi) => ({ holeNumber: hi + 1, points: pts }))
-          .filter(hp => hp.points !== r.defaultPointsPerHole),
+        holePointOverrides: r.holePointsCustomized
+          ? r.holePointOverrides
+              .map((pts, hi) => ({ holeNumber: hi + 1, points: pts }))
+              .filter(hp => hp.points !== r.defaultPointsPerHole)
+          : [],
       })),
     });
 

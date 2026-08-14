@@ -59,6 +59,8 @@ export interface CreateTournamentData {
       handicapAllowancePercent: number;
       maxScorePerHole?: number;
       sixesConfig?: any;
+      sixesFormat?: 'match_play' | 'sum_of_strokes';
+      sixesSegmentPoints?: [number, number, number];
       rulesText?: string;
     };
     holePointOverrides?: { holeNumber: number; points: number }[];
