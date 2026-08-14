@@ -70,6 +70,17 @@ const WizardStepReview: React.FC<Props> = ({ basicInfo, teams, players, rounds }
               )}
               {r.roundDate && ` • ${r.roundDate}`}
             </p>
+            {r.gameType === 'tournament_sixes' && (
+              <p className="text-xs text-muted-foreground">
+                Sixes: {r.sixesFormat === 'sum_of_strokes' ? 'Sum of Strokes' : 'Match Play'}
+                {r.sixesFormat === 'sum_of_strokes' && ` · ${r.sixesSegmentPoints.join('/')} pts`}
+              </p>
+            )}
+            {r.holePointsCustomized && (
+              <p className="text-xs text-muted-foreground">
+                Custom hole points: {r.holePointOverrides.filter(p => p !== r.defaultPointsPerHole).length} hole(s) differ from {r.defaultPointsPerHole}
+              </p>
+            )}
             {basicInfo.teamScoringMethod === 'custom_pts_per_round' && r.teamScoringMode === 'per_hole' && (
               <p className="text-xs text-muted-foreground">Team scoring: per hole</p>
             )}

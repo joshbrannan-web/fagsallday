@@ -56,7 +56,15 @@ function dbToRoundConfig(round: any, game: any): RoundConfigData {
     maxScorePerHole: game?.max_score_per_hole || 4,
     secondBallTiebreaker: game?.second_ball_tiebreaker ?? false,
     sixesConfig: game?.sixes_config || base.sixesConfig,
-    holePointOverrides: base.holePointOverrides, // hole_points handled by scoring hooks; admin preview uses defaults
+    sixesFormat: (game?.sixes_format as RoundConfigData['sixesFormat']) || base.sixesFormat,
+    sixesSegmentPoints: (game?.sixes_segment_points as RoundConfigData['sixesSegmentPoints']) || base.sixesSegmentPoints,
+    holePointOverrides: holePoints && holePoints.length > 0
+      ? Array.from({ length: 18 }, (_, i) => {
+          const row = holePoints.find((hp: any) => hp.hole_number === i + 1);
+          return row ? Number(row.points) : (game?.default_points_per_hole ?? 1);
+        })
+      : Array(18).fill(game?.default_points_per_hole ?? 1),
+    holePointsCustomized: !!(holePoints && holePoints.length > 0),
     teamScoringMode: (round.team_scoring_mode as RoundConfigData['teamScoringMode']) || base.teamScoringMode,
     teamScoringPoints: { ...base.teamScoringPoints, ...(round.team_scoring_points || {}) },
   };
