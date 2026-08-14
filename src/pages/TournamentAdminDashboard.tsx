@@ -39,7 +39,7 @@ const roundStatusColors: Record<string, string> = {
 };
 
 /* ── helpers: map DB ↔ RoundConfigData ── */
-function dbToRoundConfig(round: any, game: any): RoundConfigData {
+function dbToRoundConfig(round: any, game: any, holePoints?: any[]): RoundConfigData {
   const base = defaultRoundConfig(round.round_number);
   return {
     ...base,
