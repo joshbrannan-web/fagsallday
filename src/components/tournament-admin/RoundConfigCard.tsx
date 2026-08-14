@@ -196,7 +196,7 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{holePointsCount ? 'Points Per Hole' : 'Points Per Hole (tiebreak only)'}</Label>
-              <Input type="number" value={data.defaultPointsPerHole} onChange={e => update('defaultPointsPerHole', parseFloat(e.target.value) || 1)} min={0.5} step={0.5} />
+              <Input type="number" value={data.defaultPointsPerHole} onChange={e => updateDefaultPointsPerHole(parseFloat(e.target.value) || 1)} min={0.5} step={0.5} />
               {!holePointsCount && (
                 <p className="text-xs text-muted-foreground mt-1">
                   These points only decide who wins each hole. They do not add to team totals in this mode.
@@ -319,6 +319,11 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary">
               <ChevronDown className={`w-4 h-4 transition-transform ${showHolePoints ? 'rotate-180' : ''}`} />
               {holePointsCount ? 'Customize hole points' : 'Customize hole points (tiebreak only)'}
+              {data.holePointsCustomized && customizedHoleCount > 0 && (
+                <span className="text-muted-foreground">
+                  ({customizedHoleCount} hole{customizedHoleCount === 1 ? '' : 's'} customised)
+                </span>
+              )}
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2">
               <div className="grid grid-cols-6 gap-1.5">
@@ -331,7 +336,7 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
                       onChange={e => {
                         const next = [...data.holePointOverrides];
                         next[i] = parseFloat(e.target.value) || 1;
-                        update('holePointOverrides', next);
+                        onChange({ ...data, holePointOverrides: next, holePointsCustomized: true });
                       }}
                       className="h-8 text-xs text-center px-1"
                       min={0}
