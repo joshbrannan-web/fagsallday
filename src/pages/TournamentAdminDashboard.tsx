@@ -552,6 +552,13 @@ const TournamentAdminDashboard: React.FC = () => {
                           r.team_scoring_mode === 'per_hole_and_round') && <> • {game.default_points_per_hole} pts/hole</>}
                       </p>
                     )}
+                    {game?.game_type === 'tournament_sixes' && (
+                      <p className="text-xs text-muted-foreground">
+                        Sixes: {game.sixes_format === 'sum_of_strokes' ? 'Sum of Strokes' : 'Match Play'}
+                        {game.sixes_format === 'sum_of_strokes' &&
+                          ` · ${(game.sixes_segment_points as any[] | null)?.join('/') ?? '1/1/1'} pts`}
+                      </p>
+                    )}
                     {tournament?.team_scoring_method === 'custom_pts_per_round' && teamScoringSummary(r) && (
                       <p className="text-xs text-[hsl(var(--brand-gold))]">{teamScoringSummary(r)}</p>
                     )}
