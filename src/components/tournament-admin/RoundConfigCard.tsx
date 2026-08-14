@@ -128,6 +128,16 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
   const updatePoints = (key: 'round' | 'front' | 'back' | 'overall', value: number) =>
     update('teamScoringPoints', { ...data.teamScoringPoints, [key]: value });
 
+  const updateDefaultPointsPerHole = (value: number) => {
+    if (data.holePointsCustomized) {
+      onChange({ ...data, defaultPointsPerHole: value });
+      return;
+    }
+    onChange({ ...data, defaultPointsPerHole: value, holePointOverrides: Array(18).fill(value) });
+  };
+
+  const customizedHoleCount = data.holePointOverrides.filter(p => p !== data.defaultPointsPerHole).length;
+
   const holePointsCount =
     !showTeamScoring || data.teamScoringMode === 'per_hole' || data.teamScoringMode === 'per_hole_and_round';
 
