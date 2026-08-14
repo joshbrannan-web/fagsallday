@@ -196,6 +196,8 @@ export const useTournaments = () => {
             handicap_allowance_percent: round.game.handicapAllowancePercent,
             max_score_per_hole: round.game.maxScorePerHole || null,
             sixes_config: round.game.sixesConfig || null,
+            sixes_format: round.game.sixesFormat ?? 'match_play',
+            sixes_segment_points: round.game.sixesSegmentPoints ?? [1, 1, 1],
             rules_text: round.game.rulesText || null,
           })
           .select()
