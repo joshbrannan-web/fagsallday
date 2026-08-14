@@ -82,6 +82,7 @@ export interface RoundConfigData {
   secondBallTiebreaker: boolean;
   sixesConfig: { rules: string; formatNotes: string }[];
   holePointOverrides: number[];
+  holePointsCustomized: boolean;
   sixesFormat: 'match_play' | 'sum_of_strokes';
   sixesSegmentPoints: [number, number, number];
   teamScoringMode: 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo';
@@ -107,6 +108,7 @@ export const defaultRoundConfig = (num: number): RoundConfigData => ({
     { rules: '', formatNotes: '' },
   ],
   holePointOverrides: Array(18).fill(1),
+  holePointsCustomized: false,
   sixesFormat: 'match_play',
   sixesSegmentPoints: [1, 1, 1],
   teamScoringMode: 'per_round',
