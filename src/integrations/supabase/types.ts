@@ -511,7 +511,8 @@ export type Database = {
           points_value: number
           result_label: string | null
           team_points: Json
-          tournament_group_id: string
+          tournament_group_id: string | null
+          tournament_match_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -521,7 +522,8 @@ export type Database = {
           points_value?: number
           result_label?: string | null
           team_points?: Json
-          tournament_group_id: string
+          tournament_group_id?: string | null
+          tournament_match_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -531,7 +533,8 @@ export type Database = {
           points_value?: number
           result_label?: string | null
           team_points?: Json
-          tournament_group_id?: string
+          tournament_group_id?: string | null
+          tournament_match_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -540,6 +543,13 @@ export type Database = {
             columns: ["tournament_group_id"]
             isOneToOne: false
             referencedRelation: "tournament_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_hole_results_tournament_match_id_fkey"
+            columns: ["tournament_match_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_round_matches"
             referencedColumns: ["id"]
           },
         ]
@@ -812,6 +822,64 @@ export type Database = {
             columns: ["config_id"]
             isOneToOne: false
             referencedRelation: "tournament_registration_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournament_round_matches: {
+        Row: {
+          created_at: string
+          id: string
+          match_number: number
+          side_a: Json
+          side_b: Json
+          team_a_id: string | null
+          team_b_id: string | null
+          tournament_round_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_number: number
+          side_a?: Json
+          side_b?: Json
+          team_a_id?: string | null
+          team_b_id?: string | null
+          tournament_round_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_number?: number
+          side_a?: Json
+          side_b?: Json
+          team_a_id?: string | null
+          team_b_id?: string | null
+          tournament_round_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_round_matches_team_a_id_fkey"
+            columns: ["team_a_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_round_matches_team_b_id_fkey"
+            columns: ["team_b_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournament_round_matches_tournament_round_id_fkey"
+            columns: ["tournament_round_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_rounds"
             referencedColumns: ["id"]
           },
         ]
