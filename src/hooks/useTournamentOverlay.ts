@@ -315,7 +315,8 @@ export const useTournamentOverlay = (
         teamAssignments: assignments, scores: scoresMap, courseHoles: holes,
         teamNames: teamNameMap, subMatchups: extractedSubMatchups,
       };
-          const result = calcTournamentHoleResults(engineInput);
+          const result = calcTournamentHoleResults(await withRoundLevelInput(engineInput));
+
 
           const holeResults: Record<number, any> = {};
           const teamTotals: Record<string, number> = {};
