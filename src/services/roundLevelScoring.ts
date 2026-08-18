@@ -99,8 +99,8 @@ export async function buildRoundLevelContext(
     }
   });
 
-  const players: TournamentPlayer[] = allPlayers
-    .filter(p => roundPlayerIds.has(p.id) && !!teamAssignments[p.id])
+  const allRoundPlayers: TournamentPlayer[] = allPlayers
+    .filter(p => roundPlayerIds.has(p.id))
     .map(p => ({
       id: p.id,
       tournamentId: p.tournament_id,
@@ -111,7 +111,10 @@ export async function buildRoundLevelContext(
       teamId: teamAssignments[p.id],
     }));
 
+  const players = allRoundPlayers.filter(p => !!p.teamId);
+
   if (players.length === 0) return null;
+
 
   const scores: Record<string, Record<number, number>> = {};
   (scoresRes.data || []).forEach((s: any) => {
