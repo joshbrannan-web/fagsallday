@@ -477,7 +477,7 @@ const TournamentRegistration: React.FC = () => {
 
               {user && (
                 <p className="text-xs text-muted-foreground">
-                  ✓ Logged in as {user.email} — your registration will be linked to your account.
+                  Your registration will be linked to your account.
                 </p>
               )}
 
