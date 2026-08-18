@@ -535,6 +535,14 @@ export const useTournamentOverlay = (
       }
 
       // 4. Run engine and upsert results for this hole
+      // Round-level formats are recomputed for the whole round (all foursomes).
+      if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
+        await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
+        syncedHolesRef.current.add(holeNumber);
+        dirtyHolesRef.current.delete(holeNumber);
+        return true;
+      }
+
       const teamNameMap: Record<string, string> = {};
       Object.entries(state.teams).forEach(([id, t]) => { teamNameMap[id] = t.name; });
 
@@ -566,6 +574,7 @@ export const useTournamentOverlay = (
           throw resultErr;
         }
       }
+
 
       // Mark hole as synced and remove from dirty set
       syncedHolesRef.current.add(holeNumber);
