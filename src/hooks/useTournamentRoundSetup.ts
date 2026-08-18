@@ -162,6 +162,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       .from('tournament_groups')
       .select('*')
       .eq('tournament_round_id', round.id)
+      .eq('is_test', false)
       .order('group_number');
     
     const allGroups = groups || [];
