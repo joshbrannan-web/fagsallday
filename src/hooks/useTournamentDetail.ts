@@ -13,7 +13,20 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   const [scoreboards, setScoreboards] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [groupPlayers, setGroupPlayers] = useState<any[]>([]);
+  const [roundMatches, setRoundMatches] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const fetchRoundMatches = useCallback(async (roundIdsArg?: string[]) => {
+    const ids = roundIdsArg ?? rounds.map((r: any) => r.id);
+    if (ids.length === 0) { setRoundMatches([]); return; }
+    const { data } = await supabase
+      .from('tournament_round_matches')
+      .select('*')
+      .in('tournament_round_id', ids)
+      .order('match_number');
+    setRoundMatches(data || []);
+  }, [rounds]);
+
 
   const hasLoadedRef = useRef(false);
 
@@ -42,7 +55,9 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
           .select('*')
           .in('tournament_round_id', roundIds);
         setGames(gamesData || []);
+        await fetchRoundMatches(roundIds);
       }
+
 
       // Fetch groups for all rounds
       if (roundIds.length > 0) {
@@ -291,12 +306,47 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     await fetchAll();
   };
 
+  // ── Cross-group round matches ──────────────────────────────
+  const addRoundMatch = async (
+    roundId: string,
+    sideA: string[],
+    sideB: string[],
+  ) => {
+    if (sideA.length === 0 || sideB.length === 0) { toast.error('Pick players for both sides'); return; }
+    const { count } = await supabase
+      .from('tournament_round_matches')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_round_id', roundId);
+    const teamAId = players.find((p: any) => p.id === sideA[0])?.team_id || null;
+    const teamBId = players.find((p: any) => p.id === sideB[0])?.team_id || null;
+    const { error } = await supabase.from('tournament_round_matches').insert({
+      tournament_round_id: roundId,
+      match_number: (count || 0) + 1,
+      side_a: sideA,
+      side_b: sideB,
+      team_a_id: teamAId,
+      team_b_id: teamBId,
+    });
+    if (error) { console.error(error); toast.error('Failed to create match'); return; }
+    toast.success('Match added');
+    await fetchRoundMatches();
+  };
+
+  const deleteRoundMatch = async (matchId: string) => {
+    await supabase.from('tournament_hole_results').delete().eq('tournament_match_id', matchId);
+    const { error } = await supabase.from('tournament_round_matches').delete().eq('id', matchId);
+    if (error) toast.error('Failed to delete match');
+    else { toast.success('Match deleted'); await fetchRoundMatches(); }
+  };
+
   return {
-    tournament, teams, players, rounds, games, scoreboards, groups, groupPlayers, isLoading,
+    tournament, teams, players, rounds, games, scoreboards, groups, groupPlayers, roundMatches, isLoading,
     refetch: fetchAll,
     updateTournament, deleteTournament, updateTeam, updatePlayer, addPlayer, removePlayer,
     startRound, completeRound, updateRound, updateGame, addRound, deleteRound,
     addScoreboard, updateScoreboard, deleteScoreboard,
     addTeam, deleteTeam, addGroup, deleteGroup,
+    addRoundMatch, deleteRoundMatch,
   };
+
 };

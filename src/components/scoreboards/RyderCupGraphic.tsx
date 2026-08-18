@@ -30,7 +30,9 @@ const RyderCupGraphic: React.FC<Props> = ({ teams, rounds, groups, holeResults, 
 
   const roundHoleResults = (round: any) => {
     const ids = new Set((groups[round.id] || []).map((g: any) => g.id));
-    return holeResults.filter((r: any) => ids.has(r.tournament_group_id));
+    return holeResults.filter((r: any) =>
+      ids.has(r.tournament_group_id) || r.tournament_round_id === round.id
+    );
   };
 
   const awardForRound = (round: any, completed: boolean) =>

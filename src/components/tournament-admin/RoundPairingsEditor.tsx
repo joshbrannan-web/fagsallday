@@ -46,6 +46,14 @@ interface SubMatchup {
 
 const ONE_V_ONE_TYPES = ['match_play_individual', 'alternate_shot_twosomes', 'scramble_2'];
 
+interface RoundMatchRow {
+  id: string;
+  tournament_round_id: string;
+  match_number: number;
+  side_a: string[];
+  side_b: string[];
+}
+
 interface RoundPairingsEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -58,11 +66,15 @@ interface RoundPairingsEditorProps {
   gameType?: string;
   onAddGroup: (roundId: string, playerIds: string[], subMatchups?: SubMatchup[], leaderPlayerId?: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
+  roundMatches?: RoundMatchRow[];
+  onAddMatch?: (roundId: string, sideA: string[], sideB: string[]) => Promise<void>;
+  onDeleteMatch?: (matchId: string) => Promise<void>;
 }
 
 const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
   open, onOpenChange, roundId, roundName, players, teams, groups, groupPlayers,
   gameType, onAddGroup, onDeleteGroup,
+  roundMatches = [], onAddMatch, onDeleteMatch,
 }) => {
   const [adding, setAdding] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -71,6 +83,9 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
   const [match1A, setMatch1A] = useState<string>('');
   const [match1B, setMatch1B] = useState<string>('');
   const [leaderId, setLeaderId] = useState<string>('');
+  const [addingMatch, setAddingMatch] = useState(false);
+  const [matchSides, setMatchSides] = useState<Record<string, 'A' | 'B'>>({});
+  const [savingMatch, setSavingMatch] = useState(false);
 
   const is1v1 = gameType ? ONE_V_ONE_TYPES.includes(gameType) : false;
   const needs1v1Step = is1v1 && selectedIds.length === 4;
@@ -134,6 +149,10 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
     setMatch1B('');
     setLeaderId('');
   };
+
+  const roundMatchesForRound = roundMatches.filter(m => m.tournament_round_id === roundId);
+  const sideAIds = Object.entries(matchSides).filter(([, s]) => s === 'A').map(([id]) => id);
+  const sideBIds = Object.entries(matchSides).filter(([, s]) => s === 'B').map(([id]) => id);
 
   const getTeam = (teamId: string | null) => teams.find(t => t.id === teamId);
   const getPlayer = (playerId: string) => players.find(p => p.id === playerId);
@@ -223,6 +242,94 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
               </Card>
             );
           })}
+
+          {/* Cross-group matches */}
+          {onAddMatch && onDeleteMatch && (
+            <Card className="p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Matches (cross-group)</span>
+                {!addingMatch && (
+                  <Button size="sm" variant="ghost" onClick={() => setAddingMatch(true)}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Add Match
+                  </Button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Use this when teammates or opponents are playing in different foursomes. Scores are pooled
+                across the whole round, so a match is scored the same no matter which group each player is in.
+              </p>
+
+              {roundMatchesForRound.map(m => (
+                <div key={m.id} className="flex items-start justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5">
+                  <div className="text-xs">
+                    <span className="font-medium">Match {m.match_number}: </span>
+                    {(m.side_a || []).map(id => getPlayer(id)?.display_name || '?').join(' & ')}
+                    <span className="text-muted-foreground"> vs </span>
+                    {(m.side_b || []).map(id => getPlayer(id)?.display_name || '?').join(' & ')}
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-6 px-1 text-destructive hover:text-destructive"
+                    onClick={() => onDeleteMatch(m.id)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+              {roundMatchesForRound.length === 0 && !addingMatch && (
+                <p className="text-xs text-muted-foreground">No cross-group matches — scoring stays per foursome.</p>
+              )}
+
+              {addingMatch && (
+                <div className="space-y-2 pt-1 border-t border-border">
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {players.map(p => {
+                      const team = getTeam(p.team_id);
+                      const side = matchSides[p.id];
+                      return (
+                        <div key={p.id} className="flex items-center gap-2 p-1.5 rounded-md">
+                          {team && <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: team.color }} />}
+                          <span className="text-sm flex-1">{p.display_name}</span>
+                          {(['A', 'B'] as const).map(s => (
+                            <Button
+                              key={s}
+                              size="sm"
+                              variant={side === s ? 'default' : 'outline'}
+                              className="h-6 w-8 p-0 text-[11px]"
+                              onClick={() => setMatchSides(prev => {
+                                const next = { ...prev };
+                                if (next[p.id] === s) delete next[p.id];
+                                else next[p.id] = s;
+                                return next;
+                              })}
+                            >
+                              {s}
+                            </Button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => { setAddingMatch(false); setMatchSides({}); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      disabled={savingMatch || sideAIds.length === 0 || sideBIds.length === 0}
+                      onClick={async () => {
+                        setSavingMatch(true);
+                        await onAddMatch(roundId, sideAIds, sideBIds);
+                        setMatchSides({});
+                        setAddingMatch(false);
+                        setSavingMatch(false);
+                      }}
+                    >
+                      Save Match ({sideAIds.length}v{sideBIds.length})
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Add group form */}
           {adding ? (

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { calcTournamentHoleResults, type EngineInput, type CourseHole } from '@/services/tournamentEngine';
-import { isRoundLevelGameType, recalcRoundLevelResults } from '@/services/roundLevelScoring';
+import { isRoundLevelGameType, recalcRoundLevelResults, fetchRoundMatches, recalcRoundMatchResults } from '@/services/roundLevelScoring';
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints } from '@/types/tournament';
 
@@ -159,6 +159,16 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
       // Formats like Gross Best Ball (6/6/6) are one team match for the whole
       // round — pool every team member across all foursomes instead of scoring
       // this group in isolation.
+      // Cross-group matches (partners/opponents split across foursomes) are
+      // scored from the round-wide score pool, keyed by match.
+      if (tournamentGame.tournamentRoundId) {
+        const matches = await fetchRoundMatches(tournamentGame.tournamentRoundId);
+        if (matches.length > 0) {
+          await recalcRoundMatchResults(tournamentGame.tournamentRoundId);
+          return;
+        }
+      }
+
       if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
         await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
         return;
