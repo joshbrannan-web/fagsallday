@@ -163,16 +163,16 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
       // this group in isolation.
       // Cross-group matches (partners/opponents split across foursomes) are
       // scored from the round-wide score pool, keyed by match.
-      if (!isTestGroup && tournamentGame.tournamentRoundId) {
-        const matches = await fetchRoundMatches(tournamentGame.tournamentRoundId);
+      if (tournamentGame.tournamentRoundId) {
+        const matches = await fetchRoundMatches(tournamentGame.tournamentRoundId, { isTest: isTestGroup });
         if (matches.length > 0) {
-          await recalcRoundMatchResults(tournamentGame.tournamentRoundId);
+          await recalcRoundMatchResults(tournamentGame.tournamentRoundId, { isTest: isTestGroup });
           return;
         }
       }
 
-      if (!isTestGroup && isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
-        await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
+      if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
+        await recalcRoundLevelResults(tournamentGame.tournamentRoundId, { isTest: isTestGroup });
         return;
       }
 
@@ -196,6 +196,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         player_points: hr.playerPoints,
         points_value: hr.pointsValue,
         result_label: hr.resultLabel,
+        is_test: isTestGroup,
         updated_at: new Date().toISOString(),
       }));
 

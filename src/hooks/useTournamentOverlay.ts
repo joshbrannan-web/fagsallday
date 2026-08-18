@@ -79,14 +79,14 @@ export const useTournamentOverlay = (
   const subMatchupsRef = useRef<{ playerA: string; playerB: string }[] | undefined>(undefined);
   // Cross-group matches: this round is scored per match, not per foursome.
   const hasRoundMatchesRef = useRef(false);
-  // Test rounds are isolated: never pooled with real round/match scoring.
+  // Test rounds mirror the real round but are pooled only with other TEST data.
   const isTestGroupRef = useRef(false);
 
   useEffect(() => {
     const roundId = tournamentGame?.tournamentRoundId;
-    if (!roundId || isTestGroupRef.current) { hasRoundMatchesRef.current = false; return; }
+    if (!roundId) { hasRoundMatchesRef.current = false; return; }
     let cancelled = false;
-    fetchRoundMatches(roundId).then(m => { if (!cancelled) hasRoundMatchesRef.current = m.length > 0; });
+    fetchRoundMatches(roundId, { isTest: isTestGroupRef.current }).then(m => { if (!cancelled) hasRoundMatchesRef.current = m.length > 0; });
     return () => { cancelled = true; };
   }, [tournamentGame?.tournamentRoundId]);
 
@@ -97,10 +97,9 @@ export const useTournamentOverlay = (
    * are layered on top of the round-wide scores from the database.
    */
   const withRoundLevelInput = async (base: EngineInput): Promise<EngineInput> => {
-    if (isTestGroupRef.current) return base;
     if (!isRoundLevelGameType(base.game.gameType) || !base.game.tournamentRoundId) return base;
     try {
-      const ctx = await buildRoundLevelContext(base.game.tournamentRoundId);
+      const ctx = await buildRoundLevelContext(base.game.tournamentRoundId, { isTest: isTestGroupRef.current });
       if (!ctx) return base;
       const scores: Record<string, Record<number, number>> = {};
       Object.entries(ctx.engineInput.scores).forEach(([pid, holes]) => { scores[pid] = { ...holes }; });
@@ -551,16 +550,16 @@ export const useTournamentOverlay = (
 
       // 4. Run engine and upsert results for this hole
       // Cross-group matches own the scoring for the round.
-      if (!isTestGroupRef.current && hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
-        await recalcRoundMatchResults(tournamentGame.tournamentRoundId);
+      if (hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
+        await recalcRoundMatchResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
         syncedHolesRef.current.add(holeNumber);
         dirtyHolesRef.current.delete(holeNumber);
         return true;
       }
 
       // Round-level formats are recomputed for the whole round (all foursomes).
-      if (!isTestGroupRef.current && isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
-        await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
+      if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
+        await recalcRoundLevelResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
         syncedHolesRef.current.add(holeNumber);
         dirtyHolesRef.current.delete(holeNumber);
         return true;
@@ -686,13 +685,13 @@ export const useTournamentOverlay = (
       }
 
       // 4. Re-run engine and upsert results (using mergedScores which includes admin overrides)
-      if (!isTestGroupRef.current && hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
-        await recalcRoundMatchResults(tournamentGame.tournamentRoundId);
+      if (hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
+        await recalcRoundMatchResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
         return true;
       }
 
-      if (!isTestGroupRef.current && isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
-        await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
+      if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
+        await recalcRoundLevelResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
         return true;
       }
 
