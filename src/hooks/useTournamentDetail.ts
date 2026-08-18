@@ -55,7 +55,9 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
           .select('*')
           .in('tournament_round_id', roundIds);
         setGames(gamesData || []);
+        await fetchRoundMatches(roundIds);
       }
+
 
       // Fetch groups for all rounds
       if (roundIds.length > 0) {
