@@ -57,12 +57,13 @@ function mapGame(g: any): TournamentGame {
  */
 export async function buildRoundLevelContext(
   tournamentRoundId: string,
-  opts?: { allowAnyGameType?: boolean },
+  opts?: { allowAnyGameType?: boolean; isTest?: boolean },
 ): Promise<RoundLevelContext | null> {
+  const isTest = !!opts?.isTest;
   const [roundRes, gameRes, groupsRes] = await Promise.all([
     supabase.from('tournament_rounds').select('id, tournament_id, course_data').eq('id', tournamentRoundId).maybeSingle(),
     supabase.from('tournament_games').select('*').eq('tournament_round_id', tournamentRoundId).maybeSingle(),
-    supabase.from('tournament_groups').select('id, group_number').eq('tournament_round_id', tournamentRoundId).eq('is_test', false).order('group_number', { ascending: true }),
+    supabase.from('tournament_groups').select('id, group_number').eq('tournament_round_id', tournamentRoundId).eq('is_test', isTest).order('group_number', { ascending: true }),
   ]);
 
   const round = roundRes.data;
@@ -164,8 +165,10 @@ export async function buildRoundLevelContext(
  */
 export async function recalcRoundLevelResults(
   tournamentRoundId: string,
+  opts?: { isTest?: boolean },
 ): Promise<{ anchorGroupId: string; result: RoundResult } | null> {
-  const ctx = await buildRoundLevelContext(tournamentRoundId);
+  const isTest = !!opts?.isTest;
+  const ctx = await buildRoundLevelContext(tournamentRoundId, { isTest });
   if (!ctx) return null;
 
   let result: RoundResult;
@@ -188,6 +191,7 @@ export async function recalcRoundLevelResults(
     player_points: hr.playerPoints,
     points_value: hr.pointsValue,
     result_label: hr.resultLabel,
+    is_test: isTest,
     updated_at: new Date().toISOString(),
   }));
 
@@ -241,11 +245,15 @@ function mapMatch(row: any): RoundMatch {
   };
 }
 
-export async function fetchRoundMatches(tournamentRoundId: string): Promise<RoundMatch[]> {
+export async function fetchRoundMatches(
+  tournamentRoundId: string,
+  opts?: { isTest?: boolean },
+): Promise<RoundMatch[]> {
   const { data } = await supabase
     .from('tournament_round_matches')
     .select('*')
     .eq('tournament_round_id', tournamentRoundId)
+    .eq('is_test', !!opts?.isTest)
     .order('match_number');
   return (data || []).map(mapMatch);
 }
@@ -256,6 +264,7 @@ export async function fetchRoundMatchesForRounds(roundIds: string[]): Promise<Ro
     .from('tournament_round_matches')
     .select('*')
     .in('tournament_round_id', roundIds)
+    .eq('is_test', false)
     .order('match_number');
   return (data || []).map(mapMatch);
 }
@@ -267,11 +276,13 @@ export async function fetchRoundMatchesForRounds(roundIds: string[]): Promise<Ro
  */
 export async function recalcRoundMatchResults(
   tournamentRoundId: string,
+  opts?: { isTest?: boolean },
 ): Promise<{ matchId: string; result: RoundResult }[] | null> {
-  const matches = await fetchRoundMatches(tournamentRoundId);
+  const isTest = !!opts?.isTest;
+  const matches = await fetchRoundMatches(tournamentRoundId, { isTest });
   if (matches.length === 0) return null;
 
-  const ctx = await buildRoundLevelContext(tournamentRoundId, { allowAnyGameType: true });
+  const ctx = await buildRoundLevelContext(tournamentRoundId, { allowAnyGameType: true, isTest });
   if (!ctx) return null;
 
   const playerById = new Map(ctx.allRoundPlayers.map(p => [p.id, p]));
@@ -322,6 +333,7 @@ export async function recalcRoundMatchResults(
       player_points: hr.playerPoints,
       points_value: hr.pointsValue,
       result_label: hr.resultLabel,
+      is_test: isTest,
       updated_at: new Date().toISOString(),
     }));
     if (payload.length > 0) {
