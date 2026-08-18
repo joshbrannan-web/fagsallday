@@ -35,7 +35,6 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       include: ["react", "react-dom", "@radix-ui/react-tooltip", "@tanstack/react-query"],
-      force: true,
     },
   };
 });
