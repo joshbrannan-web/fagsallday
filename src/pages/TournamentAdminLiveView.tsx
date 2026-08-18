@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournamentDetail } from '@/hooks/useTournamentDetail';
 import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
@@ -12,14 +12,17 @@ import { ArrowLeft, Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import { toast } from 'sonner';
 
 const TournamentAdminLiveView: React.FC = () => {
   const { tournamentId, roundId, groupId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isTest = searchParams.get('test') === '1';
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { teams, players, tournament, rounds, isLoading: detailLoading } = useTournamentDetail(tournamentId);
-  const { groups, groupPlayers } = useTournamentGroups(roundId);
+  const { groups, groupPlayers } = useTournamentGroups(roundId, { isTest });
   const { scores, results, courseHoles, isLoading: scorecardLoading, batchOverrideScores } = useTournamentScorecard(groupId);
 
   // Get tournament/round names for overlay
@@ -67,6 +70,15 @@ const TournamentAdminLiveView: React.FC = () => {
 
       {/* Header */}
       <div className="p-4">
+        {isTest && roundId && (
+          <div className="mb-4">
+            <TestRoundBanner
+              tournamentRoundId={roundId}
+              tournamentId={tournamentId}
+              resetRedirect={`/tournament-admin/${tournamentId}`}
+            />
+          </div>
+        )}
         <div className="flex items-center gap-3 mb-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(`/tournament-admin/${tournamentId}`)}>
             <ArrowLeft className="w-5 h-5" />
