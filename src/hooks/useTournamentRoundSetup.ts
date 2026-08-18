@@ -230,11 +230,12 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
     return groupedPlayerIds.has(playerId);
   }, [groupedPlayerIds]);
 
-  const startRound = useCallback(async () => {
+  const startRound = useCallback(async (opts?: { test?: boolean }) => {
     if (!user || !tournament || !selectedRound || !tournamentGame) return;
+    const isTest = !!opts?.test;
 
     // Check group leader enforcement for pre-assigned groups
-    if (selectedGroupId) {
+    if (!isTest && selectedGroupId) {
       const selectedGroup = roundGroups.find((g: any) => g.id === selectedGroupId);
       if (selectedGroup?.leader_player_id) {
         const leaderPlayer = allPlayers.find(p => p.id === selectedGroup.leader_player_id);
