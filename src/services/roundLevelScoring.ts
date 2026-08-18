@@ -143,6 +143,8 @@ export async function buildRoundLevelContext(
   return {
     anchorGroupId: groups[0].id,
     groupIds,
+    allRoundPlayers,
+
     engineInput: {
       game: mapGame(gameRow),
       holePointOverrides,
