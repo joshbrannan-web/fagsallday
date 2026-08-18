@@ -1131,6 +1131,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_read_round_match: { Args: { _match_id: string }; Returns: boolean }
+      can_write_round_match: { Args: { _match_id: string }; Returns: boolean }
       current_user_has_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
