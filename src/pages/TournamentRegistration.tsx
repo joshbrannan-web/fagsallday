@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MapPin, Calendar, DollarSign, ExternalLink, Loader2, Trophy, RefreshCw } from 'lucide-react';
+import { MapPin, Calendar, DollarSign, ExternalLink, Loader2, Trophy, RefreshCw, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ensureUrl = (url: string) =>
@@ -53,6 +53,15 @@ const TournamentRegistration: React.FC = () => {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
 
+  // Sign-in panel
+  const [showSignIn, setShowSignIn] = useState(false);
+  const [signInEmail, setSignInEmail] = useState('');
+  const [signInPassword, setSignInPassword] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const [editIdentity, setEditIdentity] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
   useEffect(() => {
     const loadConfig = async () => {
       if (!shareCode) return;
@@ -72,7 +81,10 @@ const TournamentRegistration: React.FC = () => {
 
   // Auto-fill from profile if logged in
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setProfileLoaded(false);
+      return;
+    }
     const loadProfile = async () => {
       const { data } = await supabase
         .from('profiles')
@@ -81,18 +93,59 @@ const TournamentRegistration: React.FC = () => {
         .maybeSingle();
       if (data) {
         if (data.display_name && !fullName) setFullName(data.display_name);
-        if (data.ghin_number && !ghinNumber) {
-          setGhinNumber(data.ghin_number);
-          setHcpSource('ghin');
-        }
         if (data.handicap_index != null && !handicapIndex) {
           setHandicapIndex(String(data.handicap_index));
         }
+        if (data.ghin_number && !ghinNumber) {
+          setGhinNumber(data.ghin_number);
+          setHcpSource('ghin');
+          // Auto-sync so the index is fresh without the registrant clicking anything
+          syncGhin(data.ghin_number, true);
+        }
       }
       if (user.email && !email) setEmail(user.email);
+      setShowSignIn(false);
+      setProfileLoaded(true);
     };
     loadProfile();
   }, [user]);
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const em = signInEmail.trim();
+    if (!em || !signInPassword) {
+      setSignInError('Email and password are required');
+      return;
+    }
+    setSigningIn(true);
+    setSignInError(null);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email: em, password: signInPassword });
+      if (error) {
+        setSignInError(error.message);
+        toast.error(error.message);
+        return;
+      }
+      setSignInPassword('');
+      toast.success('Signed in — we grabbed your details');
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const handleUseDifferentAccount = async () => {
+    await supabase.auth.signOut();
+    setFullName('');
+    setEmail('');
+    setGhinNumber('');
+    setHandicapIndex('');
+    setGhinSyncedAt(null);
+    lastSyncedGhinRef.current = null;
+    setProfileLoaded(false);
+    setEditIdentity(false);
+    setShowSignIn(true);
+  };
+
 
   const syncGhin = async (ghin: string, silent = false) => {
     if (!/^\d{5,9}$/.test(ghin)) {
@@ -259,17 +312,77 @@ const TournamentRegistration: React.FC = () => {
           <CardHeader>
             <CardTitle className="text-lg">Register</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {!user ? (
+              <div className="rounded-lg border p-3 space-y-3 bg-secondary/30">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm">
+                    <span className="font-medium">Already have an account?</span>{' '}
+                    <span className="text-muted-foreground">Sign in and we'll fill this out for you.</span>
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowSignIn(v => !v)}>
+                    <LogIn className="w-4 h-4 mr-1" /> {showSignIn ? 'Cancel' : 'Sign in'}
+                  </Button>
+                </div>
+
+                {showSignIn && (
+                  <form onSubmit={handleSignIn} className="space-y-3 pt-1">
+                    <div className="space-y-2">
+                      <Label htmlFor="si-email">Email</Label>
+                      <Input id="si-email" type="email" autoComplete="email" value={signInEmail} onChange={e => setSignInEmail(e.target.value)} placeholder="john@example.com" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="si-password">Password</Label>
+                      <Input id="si-password" type="password" autoComplete="current-password" value={signInPassword} onChange={e => setSignInPassword(e.target.value)} />
+                    </div>
+                    {signInError && <p className="text-xs text-destructive">{signInError}</p>}
+                    <div className="flex items-center justify-between gap-2">
+                      <Button type="submit" size="sm" disabled={signingIn}>
+                        {signingIn ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Signing in...</> : 'Sign in'}
+                      </Button>
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground underline"
+                        onClick={() => navigate('/auth?mode=forgot')}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-2">
+                <p className="text-sm">
+                  ✓ Signed in as <strong>{fullName || user.email}</strong>
+                  {fullName && <span className="text-muted-foreground"> ({user.email})</span>}
+                </p>
+                <button type="button" className="text-xs underline text-muted-foreground shrink-0" onClick={handleUseDifferentAccount}>
+                  Use a different account
+                </button>
+              </div>
+            )}
+
+            {user && profileLoaded && (
+              <h4 className="text-sm font-medium pt-1">Just a few more details</h4>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="r-name">Full Name *</Label>
-                <Input id="r-name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="John Smith" maxLength={200} required />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="r-name">Full Name *</Label>
+                  {user && !editIdentity && (
+                    <button type="button" className="text-xs underline text-muted-foreground" onClick={() => setEditIdentity(true)}>Edit</button>
+                  )}
+                </div>
+                <Input id="r-name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="John Smith" maxLength={200} required readOnly={!!user && !editIdentity} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="r-email">Email *</Label>
-                <Input id="r-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" maxLength={255} required />
+                <Input id="r-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" maxLength={255} required readOnly={!!user && !editIdentity} />
               </div>
+
 
               <div className="space-y-2">
                 <Label htmlFor="r-phone">Phone</Label>
@@ -364,7 +477,7 @@ const TournamentRegistration: React.FC = () => {
 
               {user && (
                 <p className="text-xs text-muted-foreground">
-                  ✓ Logged in as {user.email} — your registration will be linked to your account.
+                  Your registration will be linked to your account.
                 </p>
               )}
 
