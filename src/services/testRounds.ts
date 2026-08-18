@@ -1,4 +1,12 @@
 import { supabase } from '@/integrations/supabase/client';
+import { calcTournamentHoleResults } from '@/services/tournamentEngine';
+import {
+  buildRoundLevelContext,
+  fetchRoundMatches,
+  isRoundLevelGameType,
+  recalcRoundLevelResults,
+  recalcRoundMatchResults,
+} from '@/services/roundLevelScoring';
 
 /**
  * Test rounds are fully isolated practice copies of a real tournament round.
@@ -280,4 +288,194 @@ export async function resetTestRound(tournamentRoundId: string): Promise<number>
   }
 
   return groups.length;
+}
+
+// ── RANDOM SCORE FILL ────────────────────────────────────────
+//
+// Fills every hole for every player in a test round with plausible random
+// gross scores, then runs the exact same scoring path a real round uses
+// (cross-group matches → round-level pooled → per-group engine) so the admin
+// can verify the round's scoring end to end.
+
+/** Weighted score relative to par: eagle rare, birdie/par/bogey common. */
+function randomGross(par: number, courseHandicap: number): number {
+  const r = Math.random();
+  let delta: number;
+  if (r < 0.02) delta = -2;
+  else if (r < 0.16) delta = -1;
+  else if (r < 0.5) delta = 0;
+  else if (r < 0.82) delta = 1;
+  else if (r < 0.95) delta = 2;
+  else delta = 3;
+  // Higher handicaps drift a touch higher.
+  if (courseHandicap >= 12 && Math.random() < 0.25) delta += 1;
+  return Math.max(1, par + delta);
+}
+
+export async function fillTestRoundScores(
+  tournamentRoundId: string,
+  opts?: { groupId?: string },
+): Promise<number> {
+  const allGroups = await fetchTestGroups(tournamentRoundId);
+  const groups = opts?.groupId ? allGroups.filter(g => g.id === opts.groupId) : allGroups;
+  if (groups.length === 0) return 0;
+
+  const { data: round } = await supabase
+    .from('tournament_rounds')
+    .select('id, tournament_id, course_data')
+    .eq('id', tournamentRoundId)
+    .maybeSingle();
+  if (!round) return 0;
+
+  const cd = round.course_data as any;
+  const holes: { number: number; par: number }[] = (cd?.holes || []).map((h: any, i: number) => ({
+    number: i + 1,
+    par: h?.par || 4,
+  }));
+  if (holes.length === 0) return 0;
+
+  const groupIds = groups.map(g => g.id);
+  const [gpRes, playersRes] = await Promise.all([
+    supabase.from('tournament_group_players').select('*').in('tournament_group_id', groupIds),
+    supabase.from('tournament_players').select('*').eq('tournament_id', round.tournament_id),
+  ]);
+  const gps = gpRes.data || [];
+  const playerById = new Map((playersRes.data || []).map(p => [p.id, p]));
+
+  const payload: any[] = [];
+  const scoresByGroup: Record<string, Record<string, Record<number, number>>> = {};
+
+  gps.forEach(gp => {
+    const tp = playerById.get(gp.tournament_player_id);
+    const hcp = Math.round((tp?.handicap_override ?? tp?.handicap_index ?? 0) as number);
+    holes.forEach(h => {
+      const gross = randomGross(h.par, hcp);
+      payload.push({
+        tournament_group_id: gp.tournament_group_id,
+        tournament_player_id: gp.tournament_player_id,
+        hole_number: h.number,
+        gross_score: gross,
+        is_super_user_override: false,
+      });
+      if (!scoresByGroup[gp.tournament_group_id]) scoresByGroup[gp.tournament_group_id] = {};
+      const g = scoresByGroup[gp.tournament_group_id];
+      if (!g[gp.tournament_player_id]) g[gp.tournament_player_id] = {};
+      g[gp.tournament_player_id][h.number] = gross;
+    });
+  });
+
+  if (payload.length === 0) return 0;
+
+  const { error } = await supabase
+    .from('tournament_hole_scores')
+    .upsert(payload, { onConflict: 'tournament_group_id,tournament_player_id,hole_number' });
+  if (error) throw error;
+
+  // Mirror the scores into each test group's practice `rounds` row so the
+  // scorecards show the same numbers.
+  for (const g of groups) {
+    if (!g.round_id) continue;
+    const { data: r } = await supabase
+      .from('rounds')
+      .select('id, game_data, scores')
+      .eq('id', g.round_id)
+      .maybeSingle();
+    if (!r) continue;
+    const meta = (r.game_data as any)?._TOURNAMENT_META;
+    const mapping: Record<string, string> = meta?.playerMapping || {};
+    const localByTournamentId: Record<string, string> = {};
+    Object.entries(mapping).forEach(([localId, tpId]) => { localByTournamentId[tpId as string] = localId; });
+
+    const blob: Record<number, Record<string, number>> = {};
+    Object.entries(scoresByGroup[g.id] || {}).forEach(([tpId, byHole]) => {
+      const localId = localByTournamentId[tpId];
+      if (!localId) return;
+      Object.entries(byHole).forEach(([holeStr, score]) => {
+        const hole = Number(holeStr);
+        if (!blob[hole]) blob[hole] = {};
+        blob[hole][localId] = score;
+      });
+    });
+
+    await supabase.from('rounds').update({ scores: blob as any }).eq('id', g.round_id);
+  }
+
+  await recalcTestRoundResults(tournamentRoundId);
+
+  return payload.length;
+}
+
+/** Recompute every test result for a round using the round's real scoring path. */
+export async function recalcTestRoundResults(tournamentRoundId: string): Promise<void> {
+  const matches = await fetchRoundMatches(tournamentRoundId, { isTest: true });
+  if (matches.length > 0) {
+    await recalcRoundMatchResults(tournamentRoundId, { isTest: true });
+    return;
+  }
+
+  const { data: game } = await supabase
+    .from('tournament_games')
+    .select('game_type')
+    .eq('tournament_round_id', tournamentRoundId)
+    .maybeSingle();
+
+  if (isRoundLevelGameType(game?.game_type)) {
+    await recalcRoundLevelResults(tournamentRoundId, { isTest: true });
+    return;
+  }
+
+  // Per-group formats: run the engine once per test group.
+  const ctx = await buildRoundLevelContext(tournamentRoundId, { allowAnyGameType: true, isTest: true });
+  if (!ctx) return;
+
+  const groups = await fetchTestGroups(tournamentRoundId);
+  const { data: gps } = await supabase
+    .from('tournament_group_players')
+    .select('tournament_group_id, tournament_player_id')
+    .in('tournament_group_id', groups.map(g => g.id));
+
+  const playerById = new Map(ctx.allRoundPlayers.map(p => [p.id, p]));
+
+  for (const g of groups) {
+    const ids = (gps || []).filter(x => x.tournament_group_id === g.id).map(x => x.tournament_player_id);
+    const players = ids.map(id => playerById.get(id)).filter(Boolean) as any[];
+    if (players.length === 0) continue;
+
+    const teamAssignments: Record<string, string> = {};
+    players.forEach(p => { if (p.teamId) teamAssignments[p.id] = p.teamId; });
+
+    const scores: Record<string, Record<number, number>> = {};
+    players.forEach(p => { if (ctx.engineInput.scores[p.id]) scores[p.id] = ctx.engineInput.scores[p.id]; });
+
+    let result;
+    try {
+      result = calcTournamentHoleResults({
+        ...ctx.engineInput,
+        players: players.filter(p => !!p.teamId),
+        teamAssignments,
+        scores,
+      });
+    } catch (e) {
+      console.error('Test round engine error', g.id, e);
+      continue;
+    }
+
+    await supabase.from('tournament_hole_results').delete().eq('tournament_group_id', g.id);
+
+    const resultPayload = result.holeResults
+      .filter(hr => hr.resultLabel !== undefined)
+      .map(hr => ({
+        tournament_group_id: g.id,
+        hole_number: hr.holeNumber,
+        team_points: hr.teamPoints,
+        player_points: hr.playerPoints,
+        points_value: hr.pointsValue,
+        result_label: hr.resultLabel,
+        is_test: true,
+        updated_at: new Date().toISOString(),
+      }));
+    if (resultPayload.length > 0) {
+      await supabase.from('tournament_hole_results').insert(resultPayload as any);
+    }
+  }
 }
