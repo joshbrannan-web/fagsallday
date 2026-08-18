@@ -19,6 +19,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
   const [subMatchups, setSubMatchups] = useState<{ playerA: string; playerB: string }[] | undefined>(undefined);
+  const [isTestGroup, setIsTestGroup] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!groupId) { setIsLoading(false); return; }
@@ -38,11 +39,12 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
     const loadEngineData = async () => {
       const { data: group } = await supabase
         .from('tournament_groups')
-        .select('tournament_round_id, team_matchup')
+        .select('tournament_round_id, team_matchup, is_test')
         .eq('id', groupId)
         .single();
       if (!group) return;
 
+      setIsTestGroup(!!(group as any).is_test);
       const tm = group.team_matchup as any;
       const extractedSubMatchups: { playerA: string; playerB: string }[] | undefined =
         tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
@@ -161,7 +163,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
       // this group in isolation.
       // Cross-group matches (partners/opponents split across foursomes) are
       // scored from the round-wide score pool, keyed by match.
-      if (tournamentGame.tournamentRoundId) {
+      if (!isTestGroup && tournamentGame.tournamentRoundId) {
         const matches = await fetchRoundMatches(tournamentGame.tournamentRoundId);
         if (matches.length > 0) {
           await recalcRoundMatchResults(tournamentGame.tournamentRoundId);
@@ -169,7 +171,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         }
       }
 
-      if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
+      if (!isTestGroup && isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
         await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
         return;
       }
