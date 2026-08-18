@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { calcTournamentHoleResults, type EngineInput, type RoundResult, type CourseHole } from '@/services/tournamentEngine';
-import { isRoundLevelGameType, buildRoundLevelContext } from '@/services/roundLevelScoring';
+import { isRoundLevelGameType, buildRoundLevelContext, recalcRoundLevelResults } from '@/services/roundLevelScoring';
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints, MatchState } from '@/types/tournament';
 import { offlineStorage } from '@/services/offlineStorage';
