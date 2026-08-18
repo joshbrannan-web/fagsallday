@@ -425,6 +425,7 @@ export type Database = {
           created_at: string | null
           group_number: number
           id: string
+          is_test: boolean
           leader_player_id: string | null
           round_id: string | null
           status: string
@@ -436,6 +437,7 @@ export type Database = {
           created_at?: string | null
           group_number: number
           id?: string
+          is_test?: boolean
           leader_player_id?: string | null
           round_id?: string | null
           status?: string
@@ -447,6 +449,7 @@ export type Database = {
           created_at?: string | null
           group_number?: number
           id?: string
+          is_test?: boolean
           leader_player_id?: string | null
           round_id?: string | null
           status?: string
@@ -507,6 +510,7 @@ export type Database = {
         Row: {
           hole_number: number
           id: string
+          is_test: boolean
           player_points: Json
           points_value: number
           result_label: string | null
@@ -518,6 +522,7 @@ export type Database = {
         Insert: {
           hole_number: number
           id?: string
+          is_test?: boolean
           player_points?: Json
           points_value?: number
           result_label?: string | null
@@ -529,6 +534,7 @@ export type Database = {
         Update: {
           hole_number?: number
           id?: string
+          is_test?: boolean
           player_points?: Json
           points_value?: number
           result_label?: string | null
