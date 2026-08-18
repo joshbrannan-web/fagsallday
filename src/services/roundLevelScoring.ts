@@ -28,7 +28,10 @@ export interface RoundLevelContext {
   engineInput: EngineInput;
   anchorGroupId: string;
   groupIds: string[];
+  /** Every player in the round, including those without a team assignment. */
+  allRoundPlayers: TournamentPlayer[];
 }
+
 
 function mapGame(g: any): TournamentGame {
   return {
