@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { calcTournamentHoleResults, type EngineInput, type CourseHole } from '@/services/tournamentEngine';
+import { isRoundLevelGameType, recalcRoundLevelResults } from '@/services/roundLevelScoring';
+
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints } from '@/types/tournament';
 
 export const useTournamentScorecard = (groupId: string | undefined) => {
