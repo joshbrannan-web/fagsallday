@@ -128,7 +128,38 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                     <TableCell className="font-medium whitespace-nowrap">{entry.full_name}</TableCell>
                     <TableCell className="text-sm">{entry.email}</TableCell>
                     <TableCell className="text-sm">{entry.phone || '—'}</TableCell>
-                    <TableCell className="text-sm">{entry.handicap_index != null ? entry.handicap_index : '—'}</TableCell>
+                    <TableCell className="text-sm">
+                      {onUpdateHandicap ? (
+                        editingId === entry.id ? (
+                          <Input
+                            aria-label="Handicap"
+                            type="number"
+                            step="0.1"
+                            min={-10}
+                            max={54}
+                            autoFocus
+                            value={editValue}
+                            onChange={e => setEditValue(e.target.value)}
+                            onBlur={() => commitEdit(entry)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') commitEdit(entry);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                            className="w-20 h-7 text-xs text-center"
+                          />
+                        ) : (
+                          <button
+                            className="underline decoration-dotted underline-offset-2 hover:text-primary"
+                            title="Edit handicap"
+                            onClick={() => startEdit(entry)}
+                          >
+                            {entry.handicap_index != null ? entry.handicap_index : '—'}
+                          </button>
+                        )
+                      ) : (
+                        entry.handicap_index != null ? entry.handicap_index : '—'
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm">{entry.ghin_number || '—'}</TableCell>
                     <TableCell>
                       {entry.payment_confirmed ? (
