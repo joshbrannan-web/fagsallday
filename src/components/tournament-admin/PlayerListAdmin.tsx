@@ -49,7 +49,12 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
   };
 
   const saveEdit = async (playerId: string) => {
-    await onUpdatePlayer(playerId, { handicap_override: parseFloat(editValue) || 0 });
+    const parsed = parseFloat(editValue);
+    if (Number.isNaN(parsed) || parsed < -10 || parsed > 54) {
+      toast.error('Handicap must be between -10 and 54');
+      return;
+    }
+    await onUpdatePlayer(playerId, { handicap_override: parsed });
     setEditingId(null);
   };
 
