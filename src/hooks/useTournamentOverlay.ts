@@ -79,10 +79,12 @@ export const useTournamentOverlay = (
   const subMatchupsRef = useRef<{ playerA: string; playerB: string }[] | undefined>(undefined);
   // Cross-group matches: this round is scored per match, not per foursome.
   const hasRoundMatchesRef = useRef(false);
+  // Test rounds are isolated: never pooled with real round/match scoring.
+  const isTestGroupRef = useRef(false);
 
   useEffect(() => {
     const roundId = tournamentGame?.tournamentRoundId;
-    if (!roundId) { hasRoundMatchesRef.current = false; return; }
+    if (!roundId || isTestGroupRef.current) { hasRoundMatchesRef.current = false; return; }
     let cancelled = false;
     fetchRoundMatches(roundId).then(m => { if (!cancelled) hasRoundMatchesRef.current = m.length > 0; });
     return () => { cancelled = true; };
@@ -95,6 +97,7 @@ export const useTournamentOverlay = (
    * are layered on top of the round-wide scores from the database.
    */
   const withRoundLevelInput = async (base: EngineInput): Promise<EngineInput> => {
+    if (isTestGroupRef.current) return base;
     if (!isRoundLevelGameType(base.game.gameType) || !base.game.tournamentRoundId) return base;
     try {
       const ctx = await buildRoundLevelContext(base.game.tournamentRoundId);
@@ -207,11 +210,13 @@ export const useTournamentOverlay = (
 
       const { data: group } = await supabase
         .from('tournament_groups')
-        .select('tournament_round_id, team_matchup')
+        .select('tournament_round_id, team_matchup, is_test')
         .eq('id', tournamentGroupId)
         .single();
 
       if (!group) { setIsLoading(false); return; }
+
+      isTestGroupRef.current = !!(group as any).is_test;
 
       // Extract subMatchups from team_matchup JSONB
       const tm = group.team_matchup as any;
@@ -546,7 +551,7 @@ export const useTournamentOverlay = (
 
       // 4. Run engine and upsert results for this hole
       // Cross-group matches own the scoring for the round.
-      if (hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
+      if (!isTestGroupRef.current && hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
         await recalcRoundMatchResults(tournamentGame.tournamentRoundId);
         syncedHolesRef.current.add(holeNumber);
         dirtyHolesRef.current.delete(holeNumber);
@@ -554,7 +559,7 @@ export const useTournamentOverlay = (
       }
 
       // Round-level formats are recomputed for the whole round (all foursomes).
-      if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
+      if (!isTestGroupRef.current && isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
         await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
         syncedHolesRef.current.add(holeNumber);
         dirtyHolesRef.current.delete(holeNumber);
@@ -681,12 +686,12 @@ export const useTournamentOverlay = (
       }
 
       // 4. Re-run engine and upsert results (using mergedScores which includes admin overrides)
-      if (hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
+      if (!isTestGroupRef.current && hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
         await recalcRoundMatchResults(tournamentGame.tournamentRoundId);
         return true;
       }
 
-      if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
+      if (!isTestGroupRef.current && isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
         await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
         return true;
       }
