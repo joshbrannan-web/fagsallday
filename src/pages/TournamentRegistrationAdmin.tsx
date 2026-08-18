@@ -607,6 +607,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
             onReject={handleReject}
             onDelete={handleDelete}
             onSyncToSheet={selectedConfig?.google_sheet_id ? handleSyncToSheet : undefined}
+            onUpdateHandicap={handleUpdateHandicap}
             processingId={processingEntryId}
           />
 
