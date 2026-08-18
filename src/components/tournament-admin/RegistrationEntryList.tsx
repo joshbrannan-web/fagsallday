@@ -26,6 +26,7 @@ interface RegistrationEntryListProps {
   onReject?: (entry: Entry) => Promise<void>;
   onDelete?: (entry: Entry) => Promise<void>;
   onSyncToSheet?: (entry: Entry) => Promise<void>;
+  onUpdateHandicap?: (entry: Entry, value: number | null) => Promise<void>;
   processingId?: string | null;
 }
 
