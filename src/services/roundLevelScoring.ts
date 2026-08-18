@@ -54,6 +54,7 @@ function mapGame(g: any): TournamentGame {
  */
 export async function buildRoundLevelContext(
   tournamentRoundId: string,
+  opts?: { allowAnyGameType?: boolean },
 ): Promise<RoundLevelContext | null> {
   const [roundRes, gameRes, groupsRes] = await Promise.all([
     supabase.from('tournament_rounds').select('id, tournament_id, course_data').eq('id', tournamentRoundId).maybeSingle(),
@@ -65,7 +66,8 @@ export async function buildRoundLevelContext(
   const gameRow = gameRes.data;
   const groups = groupsRes.data || [];
   if (!round || !gameRow || groups.length === 0) return null;
-  if (!isRoundLevelGameType(gameRow.game_type)) return null;
+  if (!opts?.allowAnyGameType && !isRoundLevelGameType(gameRow.game_type)) return null;
+
 
   const groupIds = groups.map(g => g.id);
 
