@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { calcTournamentHoleResults, type EngineInput, type CourseHole } from '@/services/tournamentEngine';
+import { isRoundLevelGameType, recalcRoundLevelResults } from '@/services/roundLevelScoring';
+
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints } from '@/types/tournament';
 
 export const useTournamentScoreboards = (tournamentId: string | undefined) => {
@@ -123,8 +125,57 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     allHolePoints: any[],
     allTeams: any[],
   ) => {
+    // ── Round-level formats (Gross Best Ball 6/6/6) ───────────────────────
+    // One team match for the entire round: pool all team members across every
+    // foursome, score once, store on the round's anchor group.
+    const roundLevelRoundIds = Object.keys(allGroups).filter(rid => isRoundLevelGameType(allGames[rid]?.game_type));
+    for (const rid of roundLevelRoundIds) {
+      const rGroups = [...(allGroups[rid] || [])].sort((a: any, b: any) => a.group_number - b.group_number);
+      const anchorId = rGroups[0]?.id;
+      if (!anchorId) continue;
+      const rGroupIds = new Set(rGroups.map((g: any) => g.id));
+
+      const roundPlayerIds = new Set(
+        rGroups.flatMap((g: any) => (allGroupPlayers[g.id] || []).map((gp: any) => gp.tournament_player_id)),
+      );
+      if (roundPlayerIds.size === 0) continue;
+
+      const scored = fetchedScores.filter((s: any) => rGroupIds.has(s.tournament_group_id) && s.gross_score !== null);
+      if (scored.length === 0) continue;
+
+      const byHole: Record<number, Set<string>> = {};
+      scored.forEach((s: any) => {
+        if (!byHole[s.hole_number]) byHole[s.hole_number] = new Set();
+        byHole[s.hole_number].add(s.tournament_player_id);
+      });
+      const completeHoles = Object.values(byHole).filter(set => set.size >= roundPlayerIds.size).length;
+      const anchorResultHoles = new Set(
+        fetchedResults.filter((r: any) => r.tournament_group_id === anchorId).map((r: any) => r.hole_number),
+      ).size;
+      const hasStrayResults = fetchedResults.some(
+        (r: any) => rGroupIds.has(r.tournament_group_id) && r.tournament_group_id !== anchorId,
+      );
+
+      if (completeHoles === anchorResultHoles && !hasStrayResults) continue;
+
+      const recalced = await recalcRoundLevelResults(rid);
+      if (!recalced) continue;
+
+      const { data: refreshed } = await supabase
+        .from('tournament_hole_results')
+        .select('*')
+        .in('tournament_group_id', Array.from(rGroupIds));
+      setHoleResults(prev => [
+        ...prev.filter((r: any) => !rGroupIds.has(r.tournament_group_id)),
+        ...(refreshed || []),
+      ]);
+      setLastUpdated(new Date());
+    }
+
+    const roundLevelRoundIdSet = new Set(roundLevelRoundIds);
     const allGroupsList = Object.values(allGroups).flat();
     const groupsToBackfill = allGroupsList.filter((g: any) => {
+      if (roundLevelRoundIdSet.has(g.tournament_round_id)) return false;
       const hasScores = fetchedScores.some((s: any) => s.tournament_group_id === g.id && s.gross_score !== null);
       const holesScored = new Set(fetchedScores.filter((s: any) => s.tournament_group_id === g.id && s.gross_score !== null).map((s: any) => s.hole_number));
       const holesWithResults = new Set(fetchedResults.filter((r: any) => r.tournament_group_id === g.id).map((r: any) => r.hole_number));
@@ -132,6 +183,8 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     });
 
     if (groupsToBackfill.length === 0) return;
+
+
 
     for (const group of groupsToBackfill) {
       const gameData = allGames[group.tournament_round_id];

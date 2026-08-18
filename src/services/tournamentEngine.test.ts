@@ -622,3 +622,56 @@ describe('Match State', () => {
     expect(ms.resultLabel).toBe('Halved');
   });
 });
+
+// ── ROUND-LEVEL POOLING (uneven foursomes) ───────────────────
+
+describe('Gross Best Ball — round-level pooling across foursomes', () => {
+  const makeTeamOfFour = () => {
+    const usa = ['u1', 'u2', 'u3', 'u4'].map((id, i) => makePlayer(id, `USA${i + 1}`, 0));
+    const eur = ['e1', 'e2', 'e3', 'e4'].map((id, i) => makePlayer(id, `EUR${i + 1}`, 0));
+    return { usa, eur };
+  };
+  const allTeams = {
+    u1: 'USA', u2: 'USA', u3: 'USA', u4: 'USA',
+    e1: 'EUR', e2: 'EUR', e3: 'EUR', e4: 'EUR',
+  };
+  const scores = {
+    u1: { 13: 3 }, u2: { 13: 4 }, u3: { 13: 5 }, u4: { 13: 6 },
+    e1: { 13: 3 }, e2: { 13: 4 }, e3: { 13: 5 }, e4: { 13: 7 },
+  };
+
+  it('a 3-vs-1 split scores identically to a balanced split when pooled by round', () => {
+    const { usa, eur } = makeTeamOfFour();
+    const game = makeGame('match_play_gross_best_ball');
+    const hole = makeHole(13, 4, 13);
+
+    // Foursome layout is irrelevant: same pooled roster, same scores.
+    const balanced: EngineInput = {
+      game, holePointOverrides: [], players: [...usa, ...eur],
+      teamAssignments: allTeams, scores, courseHoles: [hole],
+    };
+    const uneven: EngineInput = {
+      game, holePointOverrides: [], players: [usa[0], usa[1], usa[2], eur[0], usa[3], eur[1], eur[2], eur[3]],
+      teamAssignments: allTeams, scores, courseHoles: [hole],
+    };
+
+    const a = calcGrossBestBall(balanced);
+    const b = calcGrossBestBall(uneven);
+    expect(b.holeResults[0].teamPoints).toEqual(a.holeResults[0].teamPoints);
+    expect(a.holeResults[0].teamPoints['USA']).toBe(1);
+  });
+
+  it('skips a hole when a team has fewer players than the required number of balls', () => {
+    const { usa, eur } = makeTeamOfFour();
+    const game = makeGame('match_play_gross_best_ball');
+    const hole = makeHole(13, 4, 13); // needs 4 balls per team
+
+    // A single foursome scored in isolation: 3 USA vs 1 EUR
+    const input: EngineInput = {
+      game, holePointOverrides: [], players: [usa[0], usa[1], usa[2], eur[0]],
+      teamAssignments: allTeams, scores, courseHoles: [hole],
+    };
+    const r = calcGrossBestBall(input);
+    expect(r.holeResults.length).toBe(0);
+  });
+});
