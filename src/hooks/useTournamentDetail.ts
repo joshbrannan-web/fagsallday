@@ -65,6 +65,7 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
           .from('tournament_groups')
           .select('*')
           .in('tournament_round_id', roundIds)
+          .eq('is_test', false)
           .order('group_number');
         setGroups(groupsData || []);
 

@@ -62,7 +62,7 @@ export async function buildRoundLevelContext(
   const [roundRes, gameRes, groupsRes] = await Promise.all([
     supabase.from('tournament_rounds').select('id, tournament_id, course_data').eq('id', tournamentRoundId).maybeSingle(),
     supabase.from('tournament_games').select('*').eq('tournament_round_id', tournamentRoundId).maybeSingle(),
-    supabase.from('tournament_groups').select('id, group_number').eq('tournament_round_id', tournamentRoundId).order('group_number', { ascending: true }),
+    supabase.from('tournament_groups').select('id, group_number').eq('tournament_round_id', tournamentRoundId).eq('is_test', false).order('group_number', { ascending: true }),
   ]);
 
   const round = roundRes.data;
