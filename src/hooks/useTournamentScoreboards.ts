@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { calcTournamentHoleResults, type EngineInput, type CourseHole } from '@/services/tournamentEngine';
-import { isRoundLevelGameType, recalcRoundLevelResults } from '@/services/roundLevelScoring';
+import { isRoundLevelGameType, recalcRoundLevelResults, recalcRoundMatchResults, fetchRoundMatchesForRounds, type RoundMatch } from '@/services/roundLevelScoring';
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints } from '@/types/tournament';
 
@@ -24,6 +24,9 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   const [customRoundPoints, setCustomRoundPoints] = useState<number>(3);
   const isInitialLoad = useRef(true);
   const allGroupIdsRef = useRef<string[]>([]);
+  // Cross-group round matches: results are keyed by match, not by group.
+  const [roundMatches, setRoundMatches] = useState<RoundMatch[]>([]);
+  const roundMatchesRef = useRef<RoundMatch[]>([]);
 
   // Fetch all core data
   const fetchAll = useCallback(async () => {
@@ -58,6 +61,10 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
       const gamesMap: Record<string, any> = {};
       (gamesRes.data || []).forEach((g: any) => { gamesMap[g.tournament_round_id] = g; });
       setGames(gamesMap);
+
+      const matches = await fetchRoundMatchesForRounds(roundIds);
+      roundMatchesRef.current = matches;
+      setRoundMatches(matches);
 
       const groupsData = groupsRes.data || [];
       const groupsByRound: Record<string, any[]> = {};
@@ -101,12 +108,24 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
 
   const fetchScoresAndResults = useCallback(async (groupIds: string[]) => {
     if (groupIds.length === 0) return;
-    const [scoresRes, resultsRes] = await Promise.all([
+    const matchIds = roundMatchesRef.current.map(m => m.id);
+    const [scoresRes, resultsRes, matchResultsRes] = await Promise.all([
       supabase.from('tournament_hole_scores').select('*').in('tournament_group_id', groupIds),
       supabase.from('tournament_hole_results').select('*').in('tournament_group_id', groupIds),
+      matchIds.length > 0
+        ? supabase.from('tournament_hole_results').select('*').in('tournament_match_id', matchIds)
+        : Promise.resolve({ data: [] as any[] }),
     ]);
     const fetchedScores = scoresRes.data || [];
-    const fetchedResults = resultsRes.data || [];
+    const matchRoundById: Record<string, string> = {};
+    roundMatchesRef.current.forEach(m => { matchRoundById[m.id] = m.tournamentRoundId; });
+    const fetchedResults = [
+      ...(resultsRes.data || []),
+      ...((matchResultsRes.data || []) as any[]).map((r: any) => ({
+        ...r,
+        tournament_round_id: matchRoundById[r.tournament_match_id],
+      })),
+    ];
     setHoleScores(fetchedScores);
     setHoleResults(fetchedResults);
     setLastUpdated(new Date());
@@ -125,10 +144,35 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     allHolePoints: any[],
     allTeams: any[],
   ) => {
+    // ── Cross-group matches ───────────────────────────────────────────────
+    // When an admin has defined matches for a round, those matches own the
+    // scoring: pool the round's scores, score each match, ignore group rows.
+    const matchRoundIds = new Set(roundMatchesRef.current.map(m => m.tournamentRoundId));
+    for (const rid of matchRoundIds) {
+      const rGroupIds = new Set((allGroups[rid] || []).map((g: any) => g.id));
+      const scored = fetchedScores.filter((s: any) => rGroupIds.has(s.tournament_group_id) && s.gross_score !== null);
+      if (scored.length === 0) continue;
+
+      const recalced = await recalcRoundMatchResults(rid);
+      if (!recalced) continue;
+
+      const rMatchIds = roundMatchesRef.current.filter(m => m.tournamentRoundId === rid).map(m => m.id);
+      const { data: refreshed } = await supabase
+        .from('tournament_hole_results')
+        .select('*')
+        .in('tournament_match_id', rMatchIds);
+      setHoleResults(prev => [
+        ...prev.filter((r: any) => !rMatchIds.includes(r.tournament_match_id) && !rGroupIds.has(r.tournament_group_id)),
+        ...((refreshed || []) as any[]).map((r: any) => ({ ...r, tournament_round_id: rid })),
+      ]);
+      setLastUpdated(new Date());
+    }
+
     // ── Round-level formats (Gross Best Ball 6/6/6) ───────────────────────
     // One team match for the entire round: pool all team members across every
     // foursome, score once, store on the round's anchor group.
-    const roundLevelRoundIds = Object.keys(allGroups).filter(rid => isRoundLevelGameType(allGames[rid]?.game_type));
+    const roundLevelRoundIds = Object.keys(allGroups)
+      .filter(rid => !matchRoundIds.has(rid) && isRoundLevelGameType(allGames[rid]?.game_type));
     for (const rid of roundLevelRoundIds) {
       const rGroups = [...(allGroups[rid] || [])].sort((a: any, b: any) => a.group_number - b.group_number);
       const anchorId = rGroups[0]?.id;
@@ -176,6 +220,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     const allGroupsList = Object.values(allGroups).flat();
     const groupsToBackfill = allGroupsList.filter((g: any) => {
       if (roundLevelRoundIdSet.has(g.tournament_round_id)) return false;
+      if (matchRoundIds.has(g.tournament_round_id)) return false;
       const hasScores = fetchedScores.some((s: any) => s.tournament_group_id === g.id && s.gross_score !== null);
       const holesScored = new Set(fetchedScores.filter((s: any) => s.tournament_group_id === g.id && s.gross_score !== null).map((s: any) => s.hole_number));
       const holesWithResults = new Set(fetchedResults.filter((r: any) => r.tournament_group_id === g.id).map((r: any) => r.hole_number));
