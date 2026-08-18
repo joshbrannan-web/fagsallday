@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export const useTournamentGroups = (roundId: string | undefined) => {
+export const useTournamentGroups = (
+  roundId: string | undefined,
+  opts?: { isTest?: boolean },
+) => {
+  const isTest = !!opts?.isTest;
   const [groups, setGroups] = useState<any[]>([]);
   const [groupPlayers, setGroupPlayers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -14,7 +18,7 @@ export const useTournamentGroups = (roundId: string | undefined) => {
       .from('tournament_groups')
       .select('*')
       .eq('tournament_round_id', roundId)
-      .eq('is_test', false)
+      .eq('is_test', isTest)
       .order('group_number');
     setGroups(gData || []);
 
@@ -27,7 +31,7 @@ export const useTournamentGroups = (roundId: string | undefined) => {
       setGroupPlayers(gpData || []);
     }
     setIsLoading(false);
-  }, [roundId]);
+  }, [roundId, isTest]);
 
   useEffect(() => { fetchGroups(); }, [fetchGroups]);
 
