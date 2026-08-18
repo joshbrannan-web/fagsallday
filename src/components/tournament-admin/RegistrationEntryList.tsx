@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ interface RegistrationEntryListProps {
   onReject?: (entry: Entry) => Promise<void>;
   onDelete?: (entry: Entry) => Promise<void>;
   onSyncToSheet?: (entry: Entry) => Promise<void>;
+  onUpdateHandicap?: (entry: Entry, value: number | null) => Promise<void>;
   processingId?: string | null;
 }
 
@@ -45,8 +47,30 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
   onReject,
   onDelete,
   onSyncToSheet,
+  onUpdateHandicap,
   processingId,
 }) => {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  const startEdit = (entry: Entry) => {
+    setEditingId(entry.id);
+    setEditValue(entry.handicap_index != null ? String(entry.handicap_index) : '');
+  };
+
+  const commitEdit = async (entry: Entry) => {
+    if (!onUpdateHandicap) return;
+    const raw = editValue.trim();
+    let value: number | null = null;
+    if (raw !== '') {
+      const parsed = parseFloat(raw);
+      if (Number.isNaN(parsed) || parsed < -10 || parsed > 54) return;
+      value = parsed;
+    }
+    setEditingId(null);
+    await onUpdateHandicap(entry, value);
+  };
+
   if (isLoading) {
     return <div className="text-center py-8 text-muted-foreground">Loading registrants...</div>;
   }
@@ -104,7 +128,38 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
                     <TableCell className="font-medium whitespace-nowrap">{entry.full_name}</TableCell>
                     <TableCell className="text-sm">{entry.email}</TableCell>
                     <TableCell className="text-sm">{entry.phone || '—'}</TableCell>
-                    <TableCell className="text-sm">{entry.handicap_index != null ? entry.handicap_index : '—'}</TableCell>
+                    <TableCell className="text-sm">
+                      {onUpdateHandicap ? (
+                        editingId === entry.id ? (
+                          <Input
+                            aria-label="Handicap"
+                            type="number"
+                            step="0.1"
+                            min={-10}
+                            max={54}
+                            autoFocus
+                            value={editValue}
+                            onChange={e => setEditValue(e.target.value)}
+                            onBlur={() => commitEdit(entry)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') commitEdit(entry);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                            className="w-20 h-7 text-xs text-center"
+                          />
+                        ) : (
+                          <button
+                            className="underline decoration-dotted underline-offset-2 hover:text-primary"
+                            title="Edit handicap"
+                            onClick={() => startEdit(entry)}
+                          >
+                            {entry.handicap_index != null ? entry.handicap_index : '—'}
+                          </button>
+                        )
+                      ) : (
+                        entry.handicap_index != null ? entry.handicap_index : '—'
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm">{entry.ghin_number || '—'}</TableCell>
                     <TableCell>
                       {entry.payment_confirmed ? (

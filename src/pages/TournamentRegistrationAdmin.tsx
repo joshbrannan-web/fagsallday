@@ -420,6 +420,35 @@ const TournamentRegistrationAdmin: React.FC = () => {
 
 
 
+  const handleUpdateHandicap = async (entry: any, value: number | null) => {
+    setProcessingEntryId(entry.id);
+    try {
+      const { error } = await supabase
+        .from('tournament_registration_entries')
+        .update({ handicap_index: value })
+        .eq('id', entry.id);
+      if (error) throw error;
+
+      if (entry.user_id && value != null) {
+        await supabase.from('profiles').update({ handicap_index: value }).eq('id', entry.user_id);
+      }
+
+      setEntries(prev => prev.map(e => (e.id === entry.id ? { ...e, handicap_index: value } : e)));
+
+      if (selectedConfig?.google_sheet_id) {
+        await supabase.functions.invoke('sync-registration-to-sheets', {
+          body: { config_id: selectedConfig.id, entry_id: entry.id },
+        });
+      }
+      toast.success('Handicap updated');
+    } catch (err: any) {
+      console.error('Handicap update error:', err);
+      toast.error('Failed to update handicap');
+    } finally {
+      setProcessingEntryId(null);
+    }
+  };
+
   const handleCreateSheet = async () => {
     if (!user || !selectedConfig) return;
     setCreatingSheet(true);
@@ -578,6 +607,7 @@ const TournamentRegistrationAdmin: React.FC = () => {
             onReject={handleReject}
             onDelete={handleDelete}
             onSyncToSheet={selectedConfig?.google_sheet_id ? handleSyncToSheet : undefined}
+            onUpdateHandicap={handleUpdateHandicap}
             processingId={processingEntryId}
           />
 

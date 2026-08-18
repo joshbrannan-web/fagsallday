@@ -49,7 +49,12 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
   };
 
   const saveEdit = async (playerId: string) => {
-    await onUpdatePlayer(playerId, { handicap_override: parseFloat(editValue) || 0 });
+    const parsed = parseFloat(editValue);
+    if (Number.isNaN(parsed) || parsed < -10 || parsed > 54) {
+      toast.error('Handicap must be between -10 and 54');
+      return;
+    }
+    await onUpdatePlayer(playerId, { handicap_override: parsed });
     setEditingId(null);
   };
 
@@ -153,7 +158,8 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
               )}
               {editingId === p.id ? (
                 <div className="flex items-center gap-1">
-                  <Input type="number" value={editValue} onChange={e => setEditValue(e.target.value)} className="w-16 h-7 text-xs text-center" step="0.1" autoFocus onKeyDown={e => e.key === 'Enter' && saveEdit(p.id)} />
+                  <span className="text-[10px] text-muted-foreground">Handicap</span>
+                  <Input aria-label="Handicap" type="number" min={-10} max={54} value={editValue} onChange={e => setEditValue(e.target.value)} className="w-16 h-7 text-xs text-center" step="0.1" autoFocus onKeyDown={e => { if (e.key === 'Enter') saveEdit(p.id); if (e.key === 'Escape') setEditingId(null); }} />
                   <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => saveEdit(p.id)}>Save</Button>
                 </div>
               ) : (
