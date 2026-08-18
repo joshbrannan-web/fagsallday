@@ -428,6 +428,7 @@ export type Database = {
           is_test: boolean
           leader_player_id: string | null
           round_id: string | null
+          source_group_id: string | null
           status: string
           submitted_at: string | null
           team_matchup: Json | null
@@ -440,6 +441,7 @@ export type Database = {
           is_test?: boolean
           leader_player_id?: string | null
           round_id?: string | null
+          source_group_id?: string | null
           status?: string
           submitted_at?: string | null
           team_matchup?: Json | null
@@ -452,6 +454,7 @@ export type Database = {
           is_test?: boolean
           leader_player_id?: string | null
           round_id?: string | null
+          source_group_id?: string | null
           status?: string
           submitted_at?: string | null
           team_matchup?: Json | null
@@ -836,9 +839,11 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_test: boolean
           match_number: number
           side_a: Json
           side_b: Json
+          source_match_id: string | null
           team_a_id: string | null
           team_b_id: string | null
           tournament_round_id: string
@@ -847,9 +852,11 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_test?: boolean
           match_number: number
           side_a?: Json
           side_b?: Json
+          source_match_id?: string | null
           team_a_id?: string | null
           team_b_id?: string | null
           tournament_round_id: string
@@ -858,9 +865,11 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_test?: boolean
           match_number?: number
           side_a?: Json
           side_b?: Json
+          source_match_id?: string | null
           team_a_id?: string | null
           team_b_id?: string | null
           tournament_round_id?: string

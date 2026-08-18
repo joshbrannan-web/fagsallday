@@ -1106,7 +1106,11 @@ const ActiveRound: React.FC = () => {
 
       {isTestRound && tournamentRoundIdMeta && (
         <div className="px-4 pt-2">
-          <TestRoundBanner tournamentRoundId={tournamentRoundIdMeta} onReset={refetchRounds} />
+          <TestRoundBanner
+            tournamentRoundId={tournamentRoundIdMeta}
+            tournamentId={meta?.tournamentId as string | undefined}
+            onReset={refetchRounds}
+          />
         </div>
       )}
 
