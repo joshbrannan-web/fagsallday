@@ -210,3 +210,131 @@ export async function recalcRoundLevelResults(
 
   return { anchorGroupId: ctx.anchorGroupId, result };
 }
+
+// ── CROSS-GROUP ROUND MATCHES ────────────────────────────────
+//
+// A "round match" defines who plays who for the round (side A vs side B)
+// independently of which foursome each player tees off in. This lets a 2v2
+// (or 1v1) match be scored correctly when partners/opponents are spread across
+// different groups. Results are stored on tournament_hole_results keyed by
+// tournament_match_id (tournament_group_id stays NULL).
+
+export interface RoundMatch {
+  id: string;
+  tournamentRoundId: string;
+  matchNumber: number;
+  sideA: string[];
+  sideB: string[];
+  teamAId?: string | null;
+  teamBId?: string | null;
+}
+
+function mapMatch(row: any): RoundMatch {
+  return {
+    id: row.id,
+    tournamentRoundId: row.tournament_round_id,
+    matchNumber: row.match_number,
+    sideA: Array.isArray(row.side_a) ? row.side_a : [],
+    sideB: Array.isArray(row.side_b) ? row.side_b : [],
+    teamAId: row.team_a_id,
+    teamBId: row.team_b_id,
+  };
+}
+
+export async function fetchRoundMatches(tournamentRoundId: string): Promise<RoundMatch[]> {
+  const { data } = await supabase
+    .from('tournament_round_matches')
+    .select('*')
+    .eq('tournament_round_id', tournamentRoundId)
+    .order('match_number');
+  return (data || []).map(mapMatch);
+}
+
+export async function fetchRoundMatchesForRounds(roundIds: string[]): Promise<RoundMatch[]> {
+  if (roundIds.length === 0) return [];
+  const { data } = await supabase
+    .from('tournament_round_matches')
+    .select('*')
+    .in('tournament_round_id', roundIds)
+    .order('match_number');
+  return (data || []).map(mapMatch);
+}
+
+/**
+ * Recalculate every defined match for a round from the round-wide score pool
+ * and persist the hole results against the match. Group-level result rows for
+ * the round are removed so team totals are not counted twice.
+ */
+export async function recalcRoundMatchResults(
+  tournamentRoundId: string,
+): Promise<{ matchId: string; result: RoundResult }[] | null> {
+  const matches = await fetchRoundMatches(tournamentRoundId);
+  if (matches.length === 0) return null;
+
+  const ctx = await buildRoundLevelContext(tournamentRoundId, { allowAnyGameType: true });
+  if (!ctx) return null;
+
+  const playerById = new Map(ctx.allRoundPlayers.map(p => [p.id, p]));
+  const out: { matchId: string; result: RoundResult }[] = [];
+
+  for (const match of matches) {
+    const teamAId = match.teamAId || playerById.get(match.sideA[0])?.teamId || `match-${match.id}-a`;
+    const teamBId = match.teamBId || playerById.get(match.sideB[0])?.teamId || `match-${match.id}-b`;
+    if (teamAId === teamBId) continue;
+    if (match.sideA.length === 0 || match.sideB.length === 0) continue;
+
+    const teamAssignments: Record<string, string> = {};
+    match.sideA.forEach(id => { teamAssignments[id] = teamAId; });
+    match.sideB.forEach(id => { teamAssignments[id] = teamBId; });
+
+    const players = [...match.sideA, ...match.sideB]
+      .map(id => playerById.get(id))
+      .filter(Boolean)
+      .map(p => ({ ...(p as any), teamId: teamAssignments[(p as any).id] }));
+    if (players.length !== match.sideA.length + match.sideB.length) continue;
+
+    const scores: Record<string, Record<number, number>> = {};
+    players.forEach(p => {
+      if (ctx.engineInput.scores[p.id]) scores[p.id] = ctx.engineInput.scores[p.id];
+    });
+
+    let result: RoundResult;
+    try {
+      result = calcTournamentHoleResults({
+        ...ctx.engineInput,
+        players,
+        teamAssignments,
+        scores,
+        subMatchups: undefined,
+      });
+    } catch (e) {
+      console.error('Round match engine error', match.id, e);
+      continue;
+    }
+
+    await supabase.from('tournament_hole_results').delete().eq('tournament_match_id', match.id);
+
+    const payload = result.holeResults.map(hr => ({
+      tournament_match_id: match.id,
+      tournament_group_id: null,
+      hole_number: hr.holeNumber,
+      team_points: hr.teamPoints,
+      player_points: hr.playerPoints,
+      points_value: hr.pointsValue,
+      result_label: hr.resultLabel,
+      updated_at: new Date().toISOString(),
+    }));
+    if (payload.length > 0) {
+      await supabase.from('tournament_hole_results').insert(payload as any);
+    }
+
+    out.push({ matchId: match.id, result });
+  }
+
+  // Group-level rows for this round would double count against match rows.
+  if (ctx.groupIds.length > 0) {
+    await supabase.from('tournament_hole_results').delete().in('tournament_group_id', ctx.groupIds);
+  }
+
+  return out;
+}
