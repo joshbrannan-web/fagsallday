@@ -154,6 +154,14 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
   const runEngineRecalc = async (scoresMap: Record<string, Record<number, number>>) => {
     if (!tournamentGame || !groupId) return;
     try {
+      // Formats like Gross Best Ball (6/6/6) are one team match for the whole
+      // round — pool every team member across all foursomes instead of scoring
+      // this group in isolation.
+      if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
+        await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
+        return;
+      }
+
       const engineInput: EngineInput = {
         game: tournamentGame,
         holePointOverrides,
@@ -187,6 +195,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
       console.error('Tournament engine error on override:', e);
     }
   };
+
 
   const overrideScore = async (playerId: string, holeNumber: number, grossScore: number) => {
     const existing = scores.find((s: any) => s.tournament_player_id === playerId && s.hole_number === holeNumber);
