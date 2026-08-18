@@ -1,4 +1,4 @@
-const CACHE_NAME = 'golf-app-v2';
+const CACHE_NAME = 'golf-app-v3';
 const PRECACHE_URLS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
@@ -29,6 +29,15 @@ self.addEventListener('fetch', (event) => {
 
   // Skip external origins entirely
   if (url.origin !== self.location.origin) return;
+
+  // Never cache development-server modules. Their query hashes change whenever
+  // Vite re-optimizes dependencies, and mixing old/new chunks breaks React hooks.
+  if (
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/@vite/') ||
+    url.pathname.startsWith('/@react-refresh')
+  ) return;
 
   // Skip Supabase API paths
   if (
