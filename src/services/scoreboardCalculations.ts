@@ -6,7 +6,9 @@
 // ── TYPES ────────────────────────────────────────────────────
 
 interface HoleResultRow {
-  tournament_group_id: string;
+  tournament_group_id: string | null;
+  /** Set client-side for cross-group match results (group id is null). */
+  tournament_round_id?: string | null;
   hole_number: number;
   team_points: Record<string, number>;
   player_points: Record<string, number>;
@@ -88,7 +90,10 @@ export function calcTeamTotalsPerRound(
   const result: Record<string, Record<string, number>> = {};
   rounds.forEach(round => {
     const roundGroupIds = new Set((groups[round.id] || []).map(g => g.id));
-    const roundResults = allHoleResults.filter(r => roundGroupIds.has(r.tournament_group_id));
+    const roundResults = allHoleResults.filter(r =>
+      (r.tournament_group_id && roundGroupIds.has(r.tournament_group_id)) ||
+      r.tournament_round_id === round.id
+    );
     result[round.id] = calcTeamTotals(roundResults, teamIds);
   });
   return result;
@@ -265,7 +270,10 @@ export function calcPlayerPointsPerRound(
   );
   if (!group) return null;
 
-  const results = allHoleResults.filter(r => r.tournament_group_id === group.id);
+  const results = allHoleResults.filter(r =>
+    r.tournament_group_id === group.id ||
+    (r.tournament_round_id === roundId && (r.player_points || {})[playerId] !== undefined)
+  );
   if (results.length === 0) return null;
 
   return results.reduce((total, r) => {
