@@ -312,17 +312,77 @@ const TournamentRegistration: React.FC = () => {
           <CardHeader>
             <CardTitle className="text-lg">Register</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {!user ? (
+              <div className="rounded-lg border p-3 space-y-3 bg-secondary/30">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm">
+                    <span className="font-medium">Already have an account?</span>{' '}
+                    <span className="text-muted-foreground">Sign in and we'll fill this out for you.</span>
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowSignIn(v => !v)}>
+                    <LogIn className="w-4 h-4 mr-1" /> {showSignIn ? 'Cancel' : 'Sign in'}
+                  </Button>
+                </div>
+
+                {showSignIn && (
+                  <form onSubmit={handleSignIn} className="space-y-3 pt-1">
+                    <div className="space-y-2">
+                      <Label htmlFor="si-email">Email</Label>
+                      <Input id="si-email" type="email" autoComplete="email" value={signInEmail} onChange={e => setSignInEmail(e.target.value)} placeholder="john@example.com" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="si-password">Password</Label>
+                      <Input id="si-password" type="password" autoComplete="current-password" value={signInPassword} onChange={e => setSignInPassword(e.target.value)} />
+                    </div>
+                    {signInError && <p className="text-xs text-destructive">{signInError}</p>}
+                    <div className="flex items-center justify-between gap-2">
+                      <Button type="submit" size="sm" disabled={signingIn}>
+                        {signingIn ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Signing in...</> : 'Sign in'}
+                      </Button>
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground underline"
+                        onClick={() => navigate('/auth?mode=forgot')}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-2">
+                <p className="text-sm">
+                  ✓ Signed in as <strong>{fullName || user.email}</strong>
+                  {fullName && <span className="text-muted-foreground"> ({user.email})</span>}
+                </p>
+                <button type="button" className="text-xs underline text-muted-foreground shrink-0" onClick={handleUseDifferentAccount}>
+                  Use a different account
+                </button>
+              </div>
+            )}
+
+            {user && profileLoaded && (
+              <h4 className="text-sm font-medium pt-1">Just a few more details</h4>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="r-name">Full Name *</Label>
-                <Input id="r-name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="John Smith" maxLength={200} required />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="r-name">Full Name *</Label>
+                  {user && !editIdentity && (
+                    <button type="button" className="text-xs underline text-muted-foreground" onClick={() => setEditIdentity(true)}>Edit</button>
+                  )}
+                </div>
+                <Input id="r-name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="John Smith" maxLength={200} required readOnly={!!user && !editIdentity} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="r-email">Email *</Label>
-                <Input id="r-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" maxLength={255} required />
+                <Input id="r-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="john@example.com" maxLength={255} required readOnly={!!user && !editIdentity} />
               </div>
+
 
               <div className="space-y-2">
                 <Label htmlFor="r-phone">Phone</Label>
