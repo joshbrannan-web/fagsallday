@@ -13,7 +13,20 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   const [scoreboards, setScoreboards] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [groupPlayers, setGroupPlayers] = useState<any[]>([]);
+  const [roundMatches, setRoundMatches] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const fetchRoundMatches = useCallback(async (roundIdsArg?: string[]) => {
+    const ids = roundIdsArg ?? rounds.map((r: any) => r.id);
+    if (ids.length === 0) { setRoundMatches([]); return; }
+    const { data } = await supabase
+      .from('tournament_round_matches')
+      .select('*')
+      .in('tournament_round_id', ids)
+      .order('match_number');
+    setRoundMatches(data || []);
+  }, [rounds]);
+
 
   const hasLoadedRef = useRef(false);
 
