@@ -40,4 +40,4 @@ If the round has no pairings set yet, Test Start says so and points the admin to
 **Admin UI**
 - Rewrite `src/components/tournament-admin/TestRoundLauncher.tsx` as a clone-preview + launch/reset sheet (drops the manual player checklist).
 - New `src/pages/TournamentAdminTestConsole.tsx` (route `/tournament-admin/:tournamentId/test/:roundId`): lists test groups with player names and thru counts, links into the existing admin group scorecard for score entry, and holds Reset Test.
-- `src/components/tournament/TestRoundBanner.tsx` keeps the gold TEST banner and gains a link back to the Test Console.
+- `src/components/tournament/TestRoundBanner.tsx` keeps the gold TEST banner with an always-visible Reset Test action (confirmed via `AlertDialog`) plus a link back to the Test Console, and is rendered on every test surface: the active round view, `TournamentGroupScorecard`, the admin group scorecard/live view, and the Test Console header. Reset always resolves the round id from `_TOURNAMENT_META.tournamentRoundId`, so it works from any of those entry points.
