@@ -53,6 +53,15 @@ const TournamentRegistration: React.FC = () => {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
 
+  // Sign-in panel
+  const [showSignIn, setShowSignIn] = useState(false);
+  const [signInEmail, setSignInEmail] = useState('');
+  const [signInPassword, setSignInPassword] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const [editIdentity, setEditIdentity] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
   useEffect(() => {
     const loadConfig = async () => {
       if (!shareCode) return;
@@ -72,7 +81,10 @@ const TournamentRegistration: React.FC = () => {
 
   // Auto-fill from profile if logged in
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setProfileLoaded(false);
+      return;
+    }
     const loadProfile = async () => {
       const { data } = await supabase
         .from('profiles')
@@ -81,18 +93,59 @@ const TournamentRegistration: React.FC = () => {
         .maybeSingle();
       if (data) {
         if (data.display_name && !fullName) setFullName(data.display_name);
-        if (data.ghin_number && !ghinNumber) {
-          setGhinNumber(data.ghin_number);
-          setHcpSource('ghin');
-        }
         if (data.handicap_index != null && !handicapIndex) {
           setHandicapIndex(String(data.handicap_index));
         }
+        if (data.ghin_number && !ghinNumber) {
+          setGhinNumber(data.ghin_number);
+          setHcpSource('ghin');
+          // Auto-sync so the index is fresh without the registrant clicking anything
+          syncGhin(data.ghin_number, true);
+        }
       }
       if (user.email && !email) setEmail(user.email);
+      setShowSignIn(false);
+      setProfileLoaded(true);
     };
     loadProfile();
   }, [user]);
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const em = signInEmail.trim();
+    if (!em || !signInPassword) {
+      setSignInError('Email and password are required');
+      return;
+    }
+    setSigningIn(true);
+    setSignInError(null);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email: em, password: signInPassword });
+      if (error) {
+        setSignInError(error.message);
+        toast.error(error.message);
+        return;
+      }
+      setSignInPassword('');
+      toast.success('Signed in — we grabbed your details');
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const handleUseDifferentAccount = async () => {
+    await supabase.auth.signOut();
+    setFullName('');
+    setEmail('');
+    setGhinNumber('');
+    setHandicapIndex('');
+    setGhinSyncedAt(null);
+    lastSyncedGhinRef.current = null;
+    setProfileLoaded(false);
+    setEditIdentity(false);
+    setShowSignIn(true);
+  };
+
 
   const syncGhin = async (ghin: string, silent = false) => {
     if (!/^\d{5,9}$/.test(ghin)) {
