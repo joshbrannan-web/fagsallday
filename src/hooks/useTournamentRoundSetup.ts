@@ -274,7 +274,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       // Resolve activeGroupId BEFORE creating the round
       let activeGroupId: string;
 
-      if (selectedGroupId) {
+      if (!isTest && selectedGroupId) {
         activeGroupId = selectedGroupId;
       } else {
         // Create new group with round_id: null (will update after round INSERT)
@@ -291,6 +291,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
             team_matchup: teamMatchup as any,
             round_id: null,
             status: 'active',
+            is_test: isTest,
           })
           .select('id')
           .single();
@@ -306,6 +307,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         }));
         await supabase.from('tournament_group_players').insert(gpInserts);
       }
+
 
       // INSERT round with COMPLETE _TOURNAMENT_META (tournamentGroupId included)
       const { data: newRound, error: roundError } = await supabase
