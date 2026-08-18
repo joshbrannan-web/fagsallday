@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 
 const TournamentGroupScorecard: React.FC = () => {
   const { joinCode, roundId, groupId } = useParams<{ joinCode: string; roundId: string; groupId: string }>();
@@ -113,7 +114,13 @@ const TournamentGroupScorecard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background animate-fade-in">
-      <div className="p-4">
+      <div className="p-4 space-y-3">
+        {group.is_test && (
+          <TestRoundBanner
+            tournamentRoundId={group.tournament_round_id}
+            tournamentId={round.tournament_id}
+          />
+        )}
         <Button variant="ghost" size="sm" onClick={() => navigate(`/tournament/${joinCode}/scoreboards`)}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Scoreboards
         </Button>
