@@ -686,6 +686,16 @@ const TournamentAdminDashboard: React.FC = () => {
           onDeleteMatch={deleteRoundMatch}
         />
       )}
+
+      {/* Test Start */}
+      {testRound && tournamentId && (
+        <TestRoundLauncher
+          tournamentId={tournamentId}
+          round={testRound}
+          open={!!testRound}
+          onOpenChange={open => { if (!open) setTestRound(null); }}
+        />
+      )}
     </div>
   );
 };
