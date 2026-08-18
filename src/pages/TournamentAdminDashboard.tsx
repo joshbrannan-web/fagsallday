@@ -97,6 +97,7 @@ const TournamentAdminDashboard: React.FC = () => {
     startRound, completeRound, updateRound, updateGame, addRound, deleteRound,
     addScoreboard, updateScoreboard, deleteScoreboard,
     addTeam, deleteTeam, addGroup, deleteGroup,
+    roundMatches, addRoundMatch, deleteRoundMatch,
   } = useTournamentDetail(tournamentId);
 
   const [activeTab, setActiveTab] = useState('overview');
@@ -669,6 +670,9 @@ const TournamentAdminDashboard: React.FC = () => {
           gameType={games.find((g: any) => g.tournament_round_id === pairingsRoundId)?.game_type}
           onAddGroup={addGroup}
           onDeleteGroup={deleteGroup}
+          roundMatches={roundMatches}
+          onAddMatch={addRoundMatch}
+          onDeleteMatch={deleteRoundMatch}
         />
       )}
     </div>
