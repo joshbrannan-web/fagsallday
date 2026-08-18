@@ -1,4 +1,12 @@
 import { supabase } from '@/integrations/supabase/client';
+import { calcTournamentHoleResults } from '@/services/tournamentEngine';
+import {
+  buildRoundLevelContext,
+  fetchRoundMatches,
+  isRoundLevelGameType,
+  recalcRoundLevelResults,
+  recalcRoundMatchResults,
+} from '@/services/roundLevelScoring';
 
 /**
  * Test rounds are fully isolated practice copies of a real tournament round.
