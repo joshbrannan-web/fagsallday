@@ -459,7 +459,10 @@ export function calcGrossBestBall(input: EngineInput): RoundResult {
     const n = scoresNeeded(hole.number);
 
     const getTeamSum = (tid: string): number | null => {
-      const teamScrs = (teamPlayers[tid] || []).map(p => {
+      const roster = teamPlayers[tid] || [];
+      // Not enough balls on this team to satisfy the 6/6/6 requirement for this hole.
+      if (roster.length < n) return null;
+      const teamScrs = roster.map(p => {
         const g = scores[p.id]?.[hole.number];
         if (g === undefined) return null;
         const adj = Math.min(g, max);
@@ -468,6 +471,7 @@ export function calcGrossBestBall(input: EngineInput): RoundResult {
       if (teamScrs.includes(null)) return null;
       return (teamScrs as number[]).sort((a, b) => a - b).slice(0, n).reduce((s, v) => s + v, 0);
     };
+
 
     const aSum = getTeamSum(teamAId);
     const bSum = getTeamSum(teamBId);
