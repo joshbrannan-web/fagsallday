@@ -8,7 +8,7 @@ Today Test Start creates one ad-hoc group with hand-picked players and deliberat
 2. Launching creates a test copy of every group in the round (with the same players, team assignments, group numbers, and leaders) plus a test copy of every cross-group match.
 3. A **Test Console** view lists all test groups. The admin can open any group's scorecard, punch in scores for any player, and jump between groups — no need to be a member of the group.
 4. Scoring, status bars, match results and round-level pooled formats (Gross Best Ball 6/6/6, cross-group 2v2) behave exactly as they will live, but computed only from test data.
-5. **Reset Test** wipes every test group, test match, test score/result and the linked practice `rounds` rows, returning the round untouched. Test Start can then be run again.
+5. **Reset Test** is always one tap away while a test is running — it sits in the gold TEST banner that shows on every test surface (active round scoring view, group scorecard, match/overlay views) and in the Test Console and the round's Test Start sheet. It wipes every test group, test match, test score/result and the linked practice `rounds` rows, returning the round untouched, then drops the admin back on the round so Test Start can be run again immediately.
 
 If the round has no pairings set yet, Test Start says so and points the admin to Set Pairings first (falling back to a manual player picker is not part of this).
 
