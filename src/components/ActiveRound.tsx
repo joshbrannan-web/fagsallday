@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle, Grid3X3, Share2, Loader2, Trophy } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -52,6 +53,8 @@ const ActiveRound: React.FC = () => {
   const tournamentName = tournamentState.tournamentName || meta?.tournamentName;
   const tournamentRoundName = tournamentState.tournamentRoundName || meta?.roundName;
   const teamMatchup = tournamentState.teamMatchup || meta?.teamMatchup;
+  const isTestRound = Boolean(tournamentState.isTest ?? meta?.isTest);
+  const tournamentRoundIdMeta = meta?.tournamentRoundId as string | undefined;
   const tournamentOverlay = useTournamentOverlay(
     tournamentGroupId,
     tournamentName,
@@ -1100,6 +1103,12 @@ const ActiveRound: React.FC = () => {
           </div>
         );
       })()}
+
+      {isTestRound && tournamentRoundIdMeta && (
+        <div className="px-4 pt-2">
+          <TestRoundBanner tournamentRoundId={tournamentRoundIdMeta} onReset={refetchRounds} />
+        </div>
+      )}
 
       {/* Tournament Toggle Tabs */}
       {!stockton6NeedsSetup && !sixesNeedsSetup && !teamBankerNeedsSetup && tournamentGroupId && (

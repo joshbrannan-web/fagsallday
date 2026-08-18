@@ -14,6 +14,7 @@ export const useTournamentGroups = (roundId: string | undefined) => {
       .from('tournament_groups')
       .select('*')
       .eq('tournament_round_id', roundId)
+      .eq('is_test', false)
       .order('group_number');
     setGroups(gData || []);
 

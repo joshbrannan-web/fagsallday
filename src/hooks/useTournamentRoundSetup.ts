@@ -162,6 +162,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       .from('tournament_groups')
       .select('*')
       .eq('tournament_round_id', round.id)
+      .eq('is_test', false)
       .order('group_number');
     
     const allGroups = groups || [];
@@ -229,11 +230,12 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
     return groupedPlayerIds.has(playerId);
   }, [groupedPlayerIds]);
 
-  const startRound = useCallback(async () => {
+  const startRound = useCallback(async (opts?: { test?: boolean }) => {
     if (!user || !tournament || !selectedRound || !tournamentGame) return;
+    const isTest = !!opts?.test;
 
     // Check group leader enforcement for pre-assigned groups
-    if (selectedGroupId) {
+    if (!isTest && selectedGroupId) {
       const selectedGroup = roundGroups.find((g: any) => g.id === selectedGroupId);
       if (selectedGroup?.leader_player_id) {
         const leaderPlayer = allPlayers.find(p => p.id === selectedGroup.leader_player_id);
@@ -272,7 +274,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       // Resolve activeGroupId BEFORE creating the round
       let activeGroupId: string;
 
-      if (selectedGroupId) {
+      if (!isTest && selectedGroupId) {
         activeGroupId = selectedGroupId;
       } else {
         // Create new group with round_id: null (will update after round INSERT)
@@ -289,6 +291,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
             team_matchup: teamMatchup as any,
             round_id: null,
             status: 'active',
+            is_test: isTest,
           })
           .select('id')
           .single();
@@ -305,6 +308,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
         await supabase.from('tournament_group_players').insert(gpInserts);
       }
 
+
       // INSERT round with COMPLETE _TOURNAMENT_META (tournamentGroupId included)
       const { data: newRound, error: roundError } = await supabase
         .from('rounds')
@@ -320,10 +324,12 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
               tournamentName: tournament.name,
               roundNumber: selectedRound.round_number,
               roundName: selectedRound.name || `Round ${selectedRound.round_number}`,
-              displayName: `${tournament.name} — Round ${selectedRound.round_number}`,
+              displayName: `${isTest ? 'TEST — ' : ''}${tournament.name} — Round ${selectedRound.round_number}`,
               tournamentGroupId: activeGroupId,
+              tournamentRoundId: selectedRound.id,
               playerMapping: pMapping,
               teamMatchup,
+              isTest,
             },
           } as any,
           status: 'ACTIVE',
@@ -334,7 +340,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
       if (roundError || !newRound) throw roundError;
 
       // Link the group to the round
-      if (selectedGroupId) {
+      if (!isTest && selectedGroupId) {
         const { error: updateErr } = await supabase
           .from('tournament_groups')
           .update({ status: 'active', round_id: newRound.id })
@@ -347,47 +353,49 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
           .eq('id', activeGroupId);
       }
 
-      // Insert round_participants for linked players
-      const participantInserts = players
-        .filter(p => p.linkedUserId)
-        .map(p => ({
-          round_id: newRound.id,
-          user_id: p.linkedUserId!,
-          player_name: p.name,
-        }));
-      if (participantInserts.length > 0) {
-        await supabase.from('round_participants').insert(participantInserts);
-      }
+      if (!isTest) {
+        // Insert round_participants for linked players
+        const participantInserts = players
+          .filter(p => p.linkedUserId)
+          .map(p => ({
+            round_id: newRound.id,
+            user_id: p.linkedUserId!,
+            player_name: p.name,
+          }));
+        if (participantInserts.length > 0) {
+          await supabase.from('round_participants').insert(participantInserts);
+        }
 
-      // Ensure linked players are tournament members (catches edge cases)
-      const memberUpserts = players
-        .filter(p => p.linkedUserId)
-        .map(p => ({ tournament_id: tournament.id, user_id: p.linkedUserId! }));
-      if (memberUpserts.length > 0) {
-        await supabase.from('tournament_members').upsert(memberUpserts, {
-          onConflict: 'tournament_id,user_id',
-        });
-      }
+        // Ensure linked players are tournament members (catches edge cases)
+        const memberUpserts = players
+          .filter(p => p.linkedUserId)
+          .map(p => ({ tournament_id: tournament.id, user_id: p.linkedUserId! }));
+        if (memberUpserts.length > 0) {
+          await supabase.from('tournament_members').upsert(memberUpserts, {
+            onConflict: 'tournament_id,user_id',
+          });
+        }
 
-      // Auto-activate tournament round if still pending
-      if (selectedRound.status === 'pending') {
-        await supabase
-          .from('tournament_rounds')
-          .update({ status: 'active' })
-          .eq('id', selectedRound.id);
-      }
+        // Auto-activate tournament round if still pending
+        if (selectedRound.status === 'pending') {
+          await supabase
+            .from('tournament_rounds')
+            .update({ status: 'active' })
+            .eq('id', selectedRound.id);
+        }
 
-      // Auto-activate tournament if still in setup
-      if (tournament.status === 'setup') {
-        await supabase
-          .from('tournaments')
-          .update({ status: 'active' })
-          .eq('id', tournament.id);
+        // Auto-activate tournament if still in setup
+        if (tournament.status === 'setup') {
+          await supabase
+            .from('tournaments')
+            .update({ status: 'active' })
+            .eq('id', tournament.id);
+        }
       }
 
       await refetchRounds();
 
-      toast.success('Round started! 🏌️');
+      toast.success(isTest ? 'Test round started 🧪' : 'Round started! 🏌️');
       navigate('/active', {
         state: {
           tournamentGroupId: activeGroupId,
@@ -395,6 +403,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
           tournamentRoundName: selectedRound.name || `Round ${selectedRound.round_number}`,
           playerMapping: pMapping,
           teamMatchup,
+          isTest,
         },
       });
     } catch (err: any) {

@@ -3,7 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournamentDetail } from '@/hooks/useTournamentDetail';
-import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus, ChevronDown, ChevronRight, FlaskConical } from 'lucide-react';
+import TestRoundLauncher from '@/components/tournament-admin/TestRoundLauncher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -105,6 +106,7 @@ const TournamentAdminDashboard: React.FC = () => {
   
   const [roundToDelete, setRoundToDelete] = useState<string | null>(null);
   const [pairingsRoundId, setPairingsRoundId] = useState<string | null>(null);
+  const [testRound, setTestRound] = useState<any | null>(null);
 
   /* ── edit basic info state ── */
   const [editOpen, setEditOpen] = useState(false);
@@ -436,6 +438,15 @@ const TournamentAdminDashboard: React.FC = () => {
                     <Users className="w-3.5 h-3.5 mr-1" />
                     Set Pairings{pairingCount > 0 ? ` (${pairingCount} groups)` : ''}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setTestRound(r)}
+                  >
+                    <FlaskConical className="w-3.5 h-3.5 mr-1" />
+                    Test Start
+                  </Button>
                 </Card>
               );
             })}
@@ -673,6 +684,16 @@ const TournamentAdminDashboard: React.FC = () => {
           roundMatches={roundMatches}
           onAddMatch={addRoundMatch}
           onDeleteMatch={deleteRoundMatch}
+        />
+      )}
+
+      {/* Test Start */}
+      {testRound && tournamentId && (
+        <TestRoundLauncher
+          tournamentId={tournamentId}
+          round={testRound}
+          open={!!testRound}
+          onOpenChange={open => { if (!open) setTestRound(null); }}
         />
       )}
     </div>

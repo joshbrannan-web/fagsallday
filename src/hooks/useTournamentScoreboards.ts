@@ -55,7 +55,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     if (roundIds.length > 0) {
       const [gamesRes, groupsRes] = await Promise.all([
         supabase.from('tournament_games').select('*').in('tournament_round_id', roundIds),
-        supabase.from('tournament_groups').select('*').in('tournament_round_id', roundIds).order('group_number'),
+        supabase.from('tournament_groups').select('*').in('tournament_round_id', roundIds).eq('is_test', false).order('group_number'),
       ]);
 
       const gamesMap: Record<string, any> = {};
