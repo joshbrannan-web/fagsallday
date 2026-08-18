@@ -47,8 +47,30 @@ const RegistrationEntryList: React.FC<RegistrationEntryListProps> = ({
   onReject,
   onDelete,
   onSyncToSheet,
+  onUpdateHandicap,
   processingId,
 }) => {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  const startEdit = (entry: Entry) => {
+    setEditingId(entry.id);
+    setEditValue(entry.handicap_index != null ? String(entry.handicap_index) : '');
+  };
+
+  const commitEdit = async (entry: Entry) => {
+    if (!onUpdateHandicap) return;
+    const raw = editValue.trim();
+    let value: number | null = null;
+    if (raw !== '') {
+      const parsed = parseFloat(raw);
+      if (Number.isNaN(parsed) || parsed < -10 || parsed > 54) return;
+      value = parsed;
+    }
+    setEditingId(null);
+    await onUpdateHandicap(entry, value);
+  };
+
   if (isLoading) {
     return <div className="text-center py-8 text-muted-foreground">Loading registrants...</div>;
   }
