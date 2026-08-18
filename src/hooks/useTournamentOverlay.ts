@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { calcTournamentHoleResults, type EngineInput, type RoundResult, type CourseHole } from '@/services/tournamentEngine';
-import { isRoundLevelGameType, buildRoundLevelContext, recalcRoundLevelResults } from '@/services/roundLevelScoring';
+import { isRoundLevelGameType, buildRoundLevelContext, recalcRoundLevelResults, fetchRoundMatches, recalcRoundMatchResults } from '@/services/roundLevelScoring';
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints, MatchState } from '@/types/tournament';
 import { offlineStorage } from '@/services/offlineStorage';
@@ -77,6 +77,16 @@ export const useTournamentOverlay = (
   const teamAssignmentsRef = useRef<Record<string, string>>({});
   const courseHolesRef = useRef<CourseHole[]>([]);
   const subMatchupsRef = useRef<{ playerA: string; playerB: string }[] | undefined>(undefined);
+  // Cross-group matches: this round is scored per match, not per foursome.
+  const hasRoundMatchesRef = useRef(false);
+
+  useEffect(() => {
+    const roundId = tournamentGame?.tournamentRoundId;
+    if (!roundId) { hasRoundMatchesRef.current = false; return; }
+    let cancelled = false;
+    fetchRoundMatches(roundId).then(m => { if (!cancelled) hasRoundMatchesRef.current = m.length > 0; });
+    return () => { cancelled = true; };
+  }, [tournamentGame?.tournamentRoundId]);
 
   /**
    * For round-level formats (Gross Best Ball 6/6/6) the match is one team-vs-team
@@ -535,6 +545,14 @@ export const useTournamentOverlay = (
       }
 
       // 4. Run engine and upsert results for this hole
+      // Cross-group matches own the scoring for the round.
+      if (hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
+        await recalcRoundMatchResults(tournamentGame.tournamentRoundId);
+        syncedHolesRef.current.add(holeNumber);
+        dirtyHolesRef.current.delete(holeNumber);
+        return true;
+      }
+
       // Round-level formats are recomputed for the whole round (all foursomes).
       if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
         await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
@@ -663,6 +681,11 @@ export const useTournamentOverlay = (
       }
 
       // 4. Re-run engine and upsert results (using mergedScores which includes admin overrides)
+      if (hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
+        await recalcRoundMatchResults(tournamentGame.tournamentRoundId);
+        return true;
+      }
+
       if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
         await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
         return true;
