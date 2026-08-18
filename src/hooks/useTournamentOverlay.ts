@@ -76,7 +76,35 @@ export const useTournamentOverlay = (
   const courseHolesRef = useRef<CourseHole[]>([]);
   const subMatchupsRef = useRef<{ playerA: string; playerB: string }[] | undefined>(undefined);
 
+  /**
+   * For round-level formats (Gross Best Ball 6/6/6) the match is one team-vs-team
+   * contest across the whole round, so the engine must see every team member in
+   * the round — not just this foursome. Local (possibly unsynced) group scores
+   * are layered on top of the round-wide scores from the database.
+   */
+  const withRoundLevelInput = async (base: EngineInput): Promise<EngineInput> => {
+    if (!isRoundLevelGameType(base.game.gameType) || !base.game.tournamentRoundId) return base;
+    try {
+      const ctx = await buildRoundLevelContext(base.game.tournamentRoundId);
+      if (!ctx) return base;
+      const scores: Record<string, Record<number, number>> = {};
+      Object.entries(ctx.engineInput.scores).forEach(([pid, holes]) => { scores[pid] = { ...holes }; });
+      Object.entries(base.scores).forEach(([pid, holes]) => {
+        scores[pid] = { ...(scores[pid] || {}), ...holes };
+      });
+      return {
+        ...ctx.engineInput,
+        scores,
+        teamNames: base.teamNames ?? ctx.engineInput.teamNames,
+      };
+    } catch (e) {
+      console.error('Round-level input build failed, falling back to group scoring', e);
+      return base;
+    }
+  };
+
   // Reload function: fetches latest scores + results and re-runs engine
+
   const reload = useCallback(async () => {
     if (!tournamentGroupId) return;
 
