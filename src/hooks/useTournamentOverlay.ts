@@ -663,7 +663,13 @@ export const useTournamentOverlay = (
       }
 
       // 4. Re-run engine and upsert results (using mergedScores which includes admin overrides)
+      if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
+        await recalcRoundLevelResults(tournamentGame.tournamentRoundId);
+        return true;
+      }
+
       const teamNameMap: Record<string, string> = {};
+
       Object.entries(state.teams).forEach(([id, t]) => { teamNameMap[id] = t.name; });
 
       const engineInput: EngineInput = {
