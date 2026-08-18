@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MapPin, Calendar, DollarSign, ExternalLink, Loader2, Trophy, RefreshCw } from 'lucide-react';
+import { MapPin, Calendar, DollarSign, ExternalLink, Loader2, Trophy, RefreshCw, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ensureUrl = (url: string) =>
