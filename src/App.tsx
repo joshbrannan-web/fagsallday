@@ -94,33 +94,9 @@ const RoundRecovery: FC<{
 
       if (ageMs < TWENTY_FOUR_HOURS) {
         if (isAuthenticated) {
-          const isDbRoundId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cached.id);
-          if (!isDbRoundId) {
-            console.warn('[recovery] Cached round has a non-database id — skipping server recovery', cached.id);
-            return;
-          }
-
-          const { data: existingRound, error: existErr } = await supabase
-            .from('rounds')
-            .select('id')
-            .eq('id', cached.id)
-            .maybeSingle();
-
-
-          if (existErr) {
-            // Can't verify right now — resume from the local copy rather than discarding scores.
-            console.warn('[recovery] Round existence check failed — resuming from cache', existErr);
-            loadPastRound(cached);
-            toast.success('Resuming your round...');
-            navigate('/active');
-            return;
-          }
-
-          if (!existingRound) {
-            offlineStorage.clearCachedRound();
-            return;
-          }
-          loadPastRound(cached);
+          const resolved = await resolveCachedRound(cached);
+          if (resolved.outcome === 'missing') return;
+          loadPastRound(resolved.round);
         } else {
           setLocalCurrentRound(cached);
         }
@@ -133,6 +109,7 @@ const RoundRecovery: FC<{
     };
     run();
   }, [isLoading, currentRound]);
+
 
   const handleResume = async () => {
     if (!recoveryRound) return;
