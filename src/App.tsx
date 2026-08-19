@@ -48,7 +48,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
-import { useRounds } from '@/hooks/useRounds';
+import { useRounds, dbRoundToRound, queuedScoresForRound, UUID_RE, type DbRound } from '@/hooks/useRounds';
 import { useSavedCourses } from '@/hooks/useSavedCourses';
 import { useSavedPlayers } from '@/hooks/useSavedPlayers';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -65,7 +65,60 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1 } }
 });
 
+/**
+ * Resolve a cached round against the server before resuming it.
+ * The server copy wins (so edits/deletions made on another device show up); only writes
+ * still sitting in the offline queue are merged back in. If the server can't be reached,
+ * we fall back to the local copy rather than losing scores.
+ */
+const resolveCachedRound = async (
+  cached: Round
+): Promise<{ outcome: 'ok' | 'missing'; round: Round }> => {
+  if (!UUID_RE.test(cached.id)) {
+    console.warn('[recovery] Cached round has a non-database id — skipping server recovery', cached.id);
+    return { outcome: 'missing', round: cached };
+  }
+
+  const { data: serverRow, error } = await supabase
+    .from('rounds')
+    .select('*')
+    .eq('id', cached.id)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[recovery] Round lookup failed — resuming from cache', error);
+    return { outcome: 'ok', round: cached };
+  }
+
+  if (!serverRow || (serverRow as any).status !== 'ACTIVE') {
+    offlineStorage.clearCachedRound();
+    offlineStorage.removeSyncQueueForRound(cached.id);
+    return { outcome: 'missing', round: cached };
+  }
+
+  const serverRound = dbRoundToRound(serverRow as unknown as DbRound);
+
+  if (offlineStorage.isCacheStale(cached.id, (serverRow as any).updated_at)) {
+    // Someone changed this round elsewhere — trust the server, keep only unsynced writes.
+    const merged = {
+      ...serverRound,
+      scores: fillScoreGaps(serverRound.scores, queuedScoresForRound(cached.id)),
+    };
+    offlineStorage.cacheRound(merged, (serverRow as any).updated_at);
+    return { outcome: 'ok', round: merged };
+  }
+
+  const merged = {
+    ...serverRound,
+    scores: fillScoreGaps(serverRound.scores, cached.scores),
+    gameData: fillGameDataGaps(serverRound.gameData, cached.gameData),
+  };
+  offlineStorage.cacheRound(merged, (serverRow as any).updated_at);
+  return { outcome: 'ok', round: merged };
+};
+
 // Round recovery component - must be inside HashRouter for useNavigate
+
 const RoundRecovery: FC<{
   currentRound: Round | null;
   isLoading: boolean;
@@ -94,33 +147,9 @@ const RoundRecovery: FC<{
 
       if (ageMs < TWENTY_FOUR_HOURS) {
         if (isAuthenticated) {
-          const isDbRoundId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cached.id);
-          if (!isDbRoundId) {
-            console.warn('[recovery] Cached round has a non-database id — skipping server recovery', cached.id);
-            return;
-          }
-
-          const { data: existingRound, error: existErr } = await supabase
-            .from('rounds')
-            .select('id')
-            .eq('id', cached.id)
-            .maybeSingle();
-
-
-          if (existErr) {
-            // Can't verify right now — resume from the local copy rather than discarding scores.
-            console.warn('[recovery] Round existence check failed — resuming from cache', existErr);
-            loadPastRound(cached);
-            toast.success('Resuming your round...');
-            navigate('/active');
-            return;
-          }
-
-          if (!existingRound) {
-            offlineStorage.clearCachedRound();
-            return;
-          }
-          loadPastRound(cached);
+          const resolved = await resolveCachedRound(cached);
+          if (resolved.outcome === 'missing') return;
+          loadPastRound(resolved.round);
         } else {
           setLocalCurrentRound(cached);
         }
@@ -134,41 +163,22 @@ const RoundRecovery: FC<{
     run();
   }, [isLoading, currentRound]);
 
+
   const handleResume = async () => {
     if (!recoveryRound) return;
     if (isAuthenticated) {
-      const isDbRoundId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recoveryRound.id);
-      if (!isDbRoundId) {
-        console.warn('[recovery] Cached round has a non-database id — skipping server recovery', recoveryRound.id);
+      const resolved = await resolveCachedRound(recoveryRound);
+      if (resolved.outcome === 'missing') {
         setShowRecoveryDialog(false);
         setRecoveryRound(null);
-        toast.info("That round was started before you signed in, so it can't be synced to your account.");
+        toast.info('That round is no longer available.');
         return;
       }
-
-      const { data: existingRound, error: existErr } = await supabase
-        .from('rounds')
-        .select('id')
-        .eq('id', recoveryRound.id)
-        .maybeSingle();
-
-
-      if (existErr) {
-        // Can't verify right now — resume from the local copy rather than discarding scores.
-        console.warn('[recovery] Round existence check failed — resuming from cache', existErr);
-        loadPastRound(recoveryRound);
-      } else if (!existingRound) {
-        offlineStorage.clearCachedRound();
-        setShowRecoveryDialog(false);
-        setRecoveryRound(null);
-        toast.info('That round no longer exists.');
-        return;
-      } else {
-        loadPastRound(recoveryRound);
-      }
+      loadPastRound(resolved.round);
     } else {
       setLocalCurrentRound(recoveryRound);
     }
+
     setShowRecoveryDialog(false);
     setRecoveryRound(null);
     toast.success('Resuming your round...');
