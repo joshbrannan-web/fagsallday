@@ -21,7 +21,10 @@ interface DbRound {
   updated_at: string;
 }
 
-const dbRoundToRound = (dbRound: DbRound, isShared = false, ownerName?: string): Round => {
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const dbRoundToRound = (dbRound: DbRound, isShared = false, ownerName?: string): Round => {
+
   const gd = (dbRound.game_data || {}) as any;
   const startHole = gd?._ROUND_META?.startHole;
   return {
