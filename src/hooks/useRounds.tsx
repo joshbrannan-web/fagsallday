@@ -273,7 +273,7 @@ export const useRounds = () => {
 
       // Cross-device invalidation: drop a cached round the server no longer has as ACTIVE.
       const cachedRound = offlineStorage.getCachedRound();
-      if (cachedRound) {
+      if (cachedRound && !cachedRound.isShared && UUID_RE.test(cachedRound.id)) {
         const serverRow = ownRows.find(r => r.id === cachedRound.id);
         if (!serverRow) {
           console.warn('[rounds] Cached round no longer exists on the server — clearing local copy');
