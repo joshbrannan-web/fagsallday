@@ -46,7 +46,33 @@ self.addEventListener('fetch', (event) => {
     url.pathname.includes('/functions/')
   ) return;
 
-  // Stale-while-revalidate for same-origin assets
+  // Network-first for the app shell so an online device always gets the current build.
+  // The cached shell is only used when the network is unavailable.
+  const isAppShell =
+    event.request.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname === '/index.html';
+
+  if (isAppShell) {
+    event.respondWith(
+      fetch(event.request)
+        .then(networkResponse => {
+          if (networkResponse.ok) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put('/index.html', copy));
+          }
+          return networkResponse;
+        })
+        .catch(() =>
+          caches.open(CACHE_NAME).then(cache =>
+            cache.match(event.request).then(hit => hit || cache.match('/index.html'))
+          )
+        )
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for hashed/static assets (immutable by build hash)
   event.respondWith(
     caches.open(CACHE_NAME).then(cache => {
       return cache.match(event.request).then(cachedResponse => {
@@ -55,17 +81,12 @@ self.addEventListener('fetch', (event) => {
             cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
-        }).catch(() => {
-          // Network failed — if navigating, serve index.html from cache
-          if (event.request.mode === 'navigate') {
-            return cache.match('/index.html');
-          }
-          return undefined;
-        });
+        }).catch(() => undefined);
 
         // Return cached version immediately, or wait for network
         return cachedResponse || fetchPromise;
       });
     })
   );
+
 });
