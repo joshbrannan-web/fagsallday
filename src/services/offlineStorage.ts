@@ -1,6 +1,16 @@
 import { Round } from '@/types';
 
 const OFFLINE_ROUND_KEY = 'fg_offline_round';
+const OFFLINE_ROUND_META_KEY = 'fg_offline_round_meta';
+
+export interface OfflineRoundMeta {
+  roundId: string;
+  /** When this device last wrote the cache */
+  cachedAt: number;
+  /** Server `updated_at` this cache was based on, when known */
+  serverUpdatedAt: string | null;
+}
+
 const SYNC_QUEUE_KEY = 'fg_sync_queue';
 const TOURNAMENT_SYNC_QUEUE_KEY = 'fg_tournament_sync_queue';
 const TOURNAMENT_RESULT_QUEUE_KEY = 'fg_tournament_result_queue';
