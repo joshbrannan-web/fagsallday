@@ -1,4 +1,4 @@
-const CACHE_NAME = 'golf-app-v3';
+const CACHE_NAME = 'golf-app-v4';
 const PRECACHE_URLS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
