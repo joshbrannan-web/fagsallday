@@ -167,38 +167,18 @@ const RoundRecovery: FC<{
   const handleResume = async () => {
     if (!recoveryRound) return;
     if (isAuthenticated) {
-      const isDbRoundId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recoveryRound.id);
-      if (!isDbRoundId) {
-        console.warn('[recovery] Cached round has a non-database id — skipping server recovery', recoveryRound.id);
+      const resolved = await resolveCachedRound(recoveryRound);
+      if (resolved.outcome === 'missing') {
         setShowRecoveryDialog(false);
         setRecoveryRound(null);
-        toast.info("That round was started before you signed in, so it can't be synced to your account.");
+        toast.info('That round is no longer available.');
         return;
       }
-
-      const { data: existingRound, error: existErr } = await supabase
-        .from('rounds')
-        .select('id')
-        .eq('id', recoveryRound.id)
-        .maybeSingle();
-
-
-      if (existErr) {
-        // Can't verify right now — resume from the local copy rather than discarding scores.
-        console.warn('[recovery] Round existence check failed — resuming from cache', existErr);
-        loadPastRound(recoveryRound);
-      } else if (!existingRound) {
-        offlineStorage.clearCachedRound();
-        setShowRecoveryDialog(false);
-        setRecoveryRound(null);
-        toast.info('That round no longer exists.');
-        return;
-      } else {
-        loadPastRound(recoveryRound);
-      }
+      loadPastRound(resolved.round);
     } else {
       setLocalCurrentRound(recoveryRound);
     }
+
     setShowRecoveryDialog(false);
     setRecoveryRound(null);
     toast.success('Resuming your round...');
