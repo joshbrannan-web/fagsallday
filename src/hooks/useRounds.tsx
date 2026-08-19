@@ -430,7 +430,7 @@ export const useRounds = () => {
       await insertRoundParticipants(data.id, players, user.id);
       
       // Cache for offline play
-      offlineStorage.cacheRound(newRound);
+      offlineStorage.cacheRound(newRound, (data as any).updated_at ?? null);
       
       return newRound;
     } catch (error) {
