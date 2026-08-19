@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FlaskConical, ClipboardList, Dices, RefreshCw } from 'lucide-react';
+import { ArrowLeft, FlaskConical, ClipboardList, Dices, RefreshCw, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -297,6 +297,13 @@ const TournamentAdminTestConsole: React.FC = () => {
                   <div className="flex items-center gap-2 shrink-0">
                     <Button size="sm" variant="outline" onClick={() => handleFill(g.id)} disabled={isFilling}>
                       <Dices className="w-3.5 h-3.5 mr-1" /> Fill
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => navigate(`/tournament-admin/${tournamentId}/test/${roundId}/scorecard`)}
+                    >
+                      <Table2 className="w-3.5 h-3.5 mr-1" /> Scorecard
                     </Button>
                     <Button
                       size="sm"
