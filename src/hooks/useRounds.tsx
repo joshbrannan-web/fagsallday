@@ -268,7 +268,23 @@ export const useRounds = () => {
 
       if (ownError) throw ownError;
 
-      const ownRounds = (ownData || []).map(d => hydrateFromCache(dbRoundToRound(d as DbRound)));
+      const ownRows = (ownData || []) as DbRound[];
+      const ownRounds = ownRows.map(d => hydrateFromCache(dbRoundToRound(d), d.updated_at));
+
+      // Cross-device invalidation: drop a cached round the server no longer has as ACTIVE.
+      const cachedRound = offlineStorage.getCachedRound();
+      if (cachedRound) {
+        const serverRow = ownRows.find(r => r.id === cachedRound.id);
+        if (!serverRow) {
+          console.warn('[rounds] Cached round no longer exists on the server — clearing local copy');
+          offlineStorage.clearCachedRound();
+          offlineStorage.removeSyncQueueForRound(cachedRound.id);
+        } else if (serverRow.status !== 'ACTIVE') {
+          console.warn('[rounds] Cached round is no longer active on the server — clearing local copy');
+          offlineStorage.clearCachedRound();
+        }
+      }
+
 
       // Fetch shared rounds (where user is a participant but not the owner)
       const { data: participantData, error: partError } = await supabase
