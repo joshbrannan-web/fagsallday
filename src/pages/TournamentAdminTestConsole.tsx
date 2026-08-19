@@ -273,6 +273,13 @@ const TournamentAdminTestConsole: React.FC = () => {
               <Button variant="outline" onClick={handleRecheck} disabled={isFilling}>
                 <RefreshCw className="w-4 h-4 mr-1" /> Recheck results
               </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => navigate(`/tournament-admin/${tournamentId}/test/${roundId}/scorecard`)}
+              >
+                <ClipboardList className="w-4 h-4 mr-1" /> View Scorecard & Results
+              </Button>
             </div>
 
             {groups.map(g => (
