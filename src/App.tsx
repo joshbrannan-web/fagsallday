@@ -65,7 +65,60 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1 } }
 });
 
+/**
+ * Resolve a cached round against the server before resuming it.
+ * The server copy wins (so edits/deletions made on another device show up); only writes
+ * still sitting in the offline queue are merged back in. If the server can't be reached,
+ * we fall back to the local copy rather than losing scores.
+ */
+const resolveCachedRound = async (
+  cached: Round
+): Promise<{ outcome: 'ok' | 'missing'; round: Round }> => {
+  if (!UUID_RE.test(cached.id)) {
+    console.warn('[recovery] Cached round has a non-database id — skipping server recovery', cached.id);
+    return { outcome: 'missing', round: cached };
+  }
+
+  const { data: serverRow, error } = await supabase
+    .from('rounds')
+    .select('*')
+    .eq('id', cached.id)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[recovery] Round lookup failed — resuming from cache', error);
+    return { outcome: 'ok', round: cached };
+  }
+
+  if (!serverRow || (serverRow as any).status !== 'ACTIVE') {
+    offlineStorage.clearCachedRound();
+    offlineStorage.removeSyncQueueForRound(cached.id);
+    return { outcome: 'missing', round: cached };
+  }
+
+  const serverRound = dbRoundToRound(serverRow as unknown as DbRound);
+
+  if (offlineStorage.isCacheStale(cached.id, (serverRow as any).updated_at)) {
+    // Someone changed this round elsewhere — trust the server, keep only unsynced writes.
+    const merged = {
+      ...serverRound,
+      scores: fillScoreGaps(serverRound.scores, queuedScoresForRound(cached.id)),
+    };
+    offlineStorage.cacheRound(merged, (serverRow as any).updated_at);
+    return { outcome: 'ok', round: merged };
+  }
+
+  const merged = {
+    ...serverRound,
+    scores: fillScoreGaps(serverRound.scores, cached.scores),
+    gameData: fillGameDataGaps(serverRound.gameData, cached.gameData),
+  };
+  offlineStorage.cacheRound(merged, (serverRow as any).updated_at);
+  return { outcome: 'ok', round: merged };
+};
+
 // Round recovery component - must be inside HashRouter for useNavigate
+
 const RoundRecovery: FC<{
   currentRound: Round | null;
   isLoading: boolean;
