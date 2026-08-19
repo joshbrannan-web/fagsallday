@@ -56,13 +56,59 @@ function pruneExpired<T extends { timestamp: number; retryCount?: number }>(item
 }
 
 export const offlineStorage = {
-  // Save current round to localStorage for offline access
-  cacheRound: (round: Round) => {
+  // Save current round to localStorage for offline access.
+  // `serverUpdatedAt` (ISO string) records which server revision this cache was based on.
+  cacheRound: (round: Round, serverUpdatedAt?: string | null) => {
     try {
       localStorage.setItem(OFFLINE_ROUND_KEY, JSON.stringify(round));
+      const prev = offlineStorage.getCacheMeta();
+      const meta: OfflineRoundMeta = {
+        roundId: round.id,
+        cachedAt: Date.now(),
+        serverUpdatedAt:
+          serverUpdatedAt ?? (prev && prev.roundId === round.id ? prev.serverUpdatedAt : null),
+      };
+      localStorage.setItem(OFFLINE_ROUND_META_KEY, JSON.stringify(meta));
     } catch (error) {
       console.error('Failed to cache round:', error);
     }
+  },
+
+  getCacheMeta: (): OfflineRoundMeta | null => {
+    try {
+      const raw = localStorage.getItem(OFFLINE_ROUND_META_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /** Record the server revision the current cache is known to be in sync with. */
+  setCacheBaseline: (roundId: string, serverUpdatedAt: string | null) => {
+    try {
+      const prev = offlineStorage.getCacheMeta();
+      if (!prev || prev.roundId !== roundId) return;
+      localStorage.setItem(
+        OFFLINE_ROUND_META_KEY,
+        JSON.stringify({ ...prev, serverUpdatedAt, cachedAt: Date.now() })
+      );
+    } catch {
+      /* non-critical */
+    }
+  },
+
+  /**
+   * True when the server row has been modified after this device last wrote its cache
+   * (i.e. someone else — or this user on another device — changed the round since).
+   */
+  isCacheStale: (roundId: string, serverUpdatedAt?: string | null): boolean => {
+    if (!serverUpdatedAt) return false;
+    const meta = offlineStorage.getCacheMeta();
+    if (!meta || meta.roundId !== roundId) return true;
+    const serverMs = new Date(serverUpdatedAt).getTime();
+    if (!Number.isFinite(serverMs)) return false;
+    // Small grace window: our own write lands on the server moments after we cache it.
+    return serverMs > meta.cachedAt + 1000;
   },
 
   // Get cached round
@@ -96,10 +142,28 @@ export const offlineStorage = {
   clearCachedRound: () => {
     try {
       localStorage.removeItem(OFFLINE_ROUND_KEY);
+      localStorage.removeItem(OFFLINE_ROUND_META_KEY);
     } catch (error) {
       console.error('Failed to clear cached round:', error);
     }
   },
+
+  /** Drop every queued write belonging to a round (used when the round no longer exists). */
+  removeSyncQueueForRound: (roundId: string) => {
+    try {
+      const raw = localStorage.getItem(SYNC_QUEUE_KEY);
+      const items: SyncQueueItem[] = raw ? JSON.parse(raw) : [];
+      const filtered = items.filter(item => item.roundId !== roundId);
+      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(filtered));
+    } catch (error) {
+      console.error('Failed to clear sync queue for round:', error);
+    }
+  },
+
+  /** Queued (not yet persisted) items for a round. */
+  getSyncQueueForRound: (roundId: string): SyncQueueItem[] =>
+    offlineStorage.getSyncQueue().filter(item => item.roundId === roundId),
+
 
   // Add item to sync queue for later upload
   addToSyncQueue: (item: Omit<SyncQueueItem, 'id' | 'timestamp'>) => {
