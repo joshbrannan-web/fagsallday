@@ -7,7 +7,7 @@ import { offlineStorage } from '@/services/offlineStorage';
 import { mergeScores, mergeGameData, countScoredHoles, fillScoreGaps, fillGameDataGaps } from '@/lib/mergeRoundData';
 
 
-interface DbRound {
+export interface DbRound {
   id: string;
   user_id: string;
   course_data: any;
