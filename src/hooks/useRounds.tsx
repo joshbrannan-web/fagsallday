@@ -70,15 +70,50 @@ const insertRoundParticipants = async (roundId: string, players: Player[], owner
   }
 };
 
+/** Scores that are still sitting in the offline write queue for a round. */
+export const queuedScoresForRound = (roundId: string): Record<string, Record<string, number>> => {
+  const out: Record<string, Record<string, number>> = {};
+  for (const item of offlineStorage.getSyncQueueForRound(roundId)) {
+    if (item.type === 'scorePatch') {
+      const { holeNumber, playerId, score } = item.data || {};
+      if (!Number.isInteger(holeNumber) || !playerId || !Number.isInteger(score)) continue;
+      out[String(holeNumber)] = { ...(out[String(holeNumber)] || {}), [playerId]: score };
+    } else if (item.type === 'scores' && item.data?.scores) {
+      for (const hole of Object.keys(item.data.scores)) {
+        out[hole] = { ...(out[hole] || {}), ...(item.data.scores[hole] || {}) };
+      }
+    }
+  }
+  return out;
+};
+
 /**
  * Fill an ACTIVE round's gaps from the offline cache so holes whose DB write is still
  * queued stay visible after a reload — and re-queue any cell the server is missing so it
  * actually gets persisted.
+ *
+ * If the server row was modified after this device last wrote its cache, the server wins:
+ * the cache is discarded rather than gap-filled, so deletions/edits made elsewhere can't be
+ * resurrected (or pushed back up) by a stale local copy. Anything still in the write queue
+ * is always preserved — that's genuinely unsynced work.
  */
-const hydrateFromCache = (round: Round): Round => {
+const hydrateFromCache = (round: Round, serverUpdatedAt?: string | null): Round => {
   if (round.status !== 'ACTIVE' || round.isShared) return round;
   const cached = offlineStorage.getCachedRound();
   if (!cached || cached.id !== round.id) return round;
+
+  const queued = queuedScoresForRound(round.id);
+  const hasQueuedWork = offlineStorage.getSyncQueueForRound(round.id).length > 0;
+
+  if (offlineStorage.isCacheStale(round.id, serverUpdatedAt)) {
+    console.warn('[rounds] Server copy is newer than the local cache — using server data');
+    if (!hasQueuedWork) {
+      offlineStorage.clearCachedRound();
+      return round;
+    }
+    // Keep only work that never made it to the server.
+    return { ...round, scores: fillScoreGaps(round.scores, queued) };
+  }
 
   const serverScores = (round.scores || {}) as Record<string, Record<string, number>>;
   const cachedScores = (cached.scores || {}) as Record<string, Record<string, number>>;
@@ -110,6 +145,7 @@ const hydrateFromCache = (round: Round): Round => {
     gameData: fillGameDataGaps(round.gameData, cached.gameData),
   };
 };
+
 
 export const useRounds = () => {
 
