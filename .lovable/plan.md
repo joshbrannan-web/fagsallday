@@ -1,45 +1,36 @@
-# Front / Back / Overall points (2-2-2) for round scoring
+# Show Front / Back / Overall points in the test round
 
-## Why the test round shows 9.5 – 8.5
+## What's actually happening
 
-Round 1's game is **Gross Best Ball (6/6/6)** with **1 point per hole**. The engine awards a point on every hole (half each when tied), so all 18 holes hand out points: 9.5 vs 8.5.
+Round 1 is already set to **Front/Back/Overall — 2 / 2 / 2** (confirmed in the database: the round's team scoring mode is `fbo` with front 2, back 2, overall 2, and the tournament uses Custom Pts per Round).
 
-The `2/2/2` idea exists nowhere in this round's config. The only segment-points feature in the app today applies to the separate "Tournament Sixes – sum of strokes" game and splits the round into three 6-hole blocks. Gross Best Ball has no segment/aggregate points path at all, so nothing you set could have produced 2-2-2.
+Two different numbers are in play, and the test views only show the first one:
 
-## What to build
+1. **Hole points** — the round's game (Gross Best Ball 6/6/6) awards 1 point per hole, half each when tied. Over 18 holes that's the **9.5 – 8.5** you see. These are the raw inputs.
+2. **Round award** — those hole totals are then converted into Front (2), Back (2), Overall (2) for the tournament standings. That conversion lives in `calcRoundTeamAward` and today runs only in the tournament scoreboards (Ryder Cup graphic, Team Points breakdown), and only once the round's status is `completed`.
 
-A per-round **Points model** setting with two options:
+So nothing is broken — the test console and test scorecard just never apply step 2, and a test round is never marked completed, so even the scoreboards wouldn't show it.
 
-- **Per hole** (current behavior, stays the default).
-- **Front / Back / Overall** — three separate match-play matches decided by holes won:
-  - Front: holes 1–9, default 2 pts
-  - Back: holes 10–18, default 2 pts
-  - Overall: all 18 holes, default 2 pts
-  - Each value is editable; a tie splits the points (1–1 by default), honoring the round's existing halved-hole rule.
+For this test data the award would be: Front (holes 1–9) and Back (holes 10–18) compared on hole points, plus Overall on the 9.5 – 8.5 total → Sul takes Overall's 2 points; Front and Back go to whoever leads that nine, halved 1–1 if tied. Six points total instead of 18.
 
-Hole winners are still determined exactly as they are now (Gross Best Ball 6/6/6 net best-ball, or whichever game the round uses) — the change is only how those hole wins convert into points.
+## What to change
 
-### Behavior details
+Add a **Round Points Award** panel to the test views so the admin can verify the real tournament payout, not just the raw hole points:
 
-- Front/Back/Overall points are awarded when the segment is complete; partial segments show a live "leads 2 up" style status instead of points.
-- Overall is its own match over 18 holes, not the sum of Front and Back, so a team can lose Front and Back yet still win Overall only if it wins more total holes (ties split).
-- Max total for the round becomes 6 points instead of 18.
-
-### Where it shows up
-
-- Round setup (Rounds tab / round config card): new "Points model" selector plus three point inputs, shown for any team-vs-team game type.
-- Test Console and Test Scorecard: totals reflect the new model, plus a small Front / Back / Overall breakdown line (e.g. `Front: Sul 2 · Back: Wil 2 · Overall: halved 1–1`).
-- Live scoreboards, round summary, and Ryder-cup graphic use the same totals automatically since they read the same engine output.
+- **Test Scorecard page** — under the pooled round match, a new card showing:
+  - Front 9: hole points A–B → who takes the 2 pts (or 1–1 halved)
+  - Back 9: same
+  - Overall: same, using the full-round hole totals
+  - Round award line: `Team SulRakVanJen 4 — Team WilDonBraSah 2`
+  - A one-line explainer: "Hole points decide each segment; the round contributes these 6 points to the tournament standings."
+- **Test Console** — the existing results block gains the same round-award summary line beneath the raw team totals.
+- Segments still in progress are labeled "in progress" rather than awarded, so a partly filled test round doesn't imply a false result.
+- Raw hole totals stay visible — they're what the segments are decided on.
 
 ## Technical notes
 
-- Migration on `tournament_games`: add `points_model text not null default 'per_hole'` and `segment_points jsonb default '{"front":2,"back":2,"overall":2}'`. Existing rows keep per-hole behavior, so no other round changes.
-- `src/services/tournamentEngine.ts`: after the existing per-hole calculation, when `pointsModel = 'fbo'`, zero out per-hole point values and award segment points on the closing hole of each segment (9, 18, and 18 for Overall), with result labels like `Team X wins Front 9 (5-3)`. Applies to whichever calc function the game type resolves to.
-- `src/services/roundLevelScoring.ts`, `useTournamentScoreboards.ts`, `useTournamentScorecard.ts`, `useTournamentOverlay.ts`: pass the two new fields through to the engine config (they already thread `sixesSegmentPoints` the same way).
-- `RoundConfigCard.tsx`, `CreateTournamentWizard.tsx`, `WizardStepReview.tsx`, `useTournaments.ts`, `TournamentAdminDashboard.tsx`: read/write the new fields.
-- Test scorecard section gains a segment summary row.
-- Unit tests in `tournamentEngine.test.ts` for: front win, back win, overall halved, and partial-round (no points yet).
-
-## After the change
-
-Switch Round 1 to Front/Back/Overall with 2/2/2, re-run Fill All Scores, and the test round should total 6 points across the two teams.
+- Reuse `calcRoundTeamAward` from `src/services/scoreboardCalculations.ts` with `isCompleted: true` (the test round is a sandbox, so treat it as final for preview purposes) and the round's own `team_scoring_mode` / `team_scoring_points`.
+- `src/pages/TournamentAdminTestScorecard.tsx`: already loads the round row and the test hole results; add the tournament's `team_scoring_method` and `custom_round_points` to the existing fetch, then render a new `TestRoundAwardCard`.
+- New `src/components/tournament-admin/TestRoundAwardCard.tsx`: pure presentation, takes hole results, team ids/names, mode and points.
+- `src/pages/TournamentAdminTestConsole.tsx`: render the same card in the results block.
+- No database or scoring-engine changes — the award math already exists and is used by the live scoreboards.
