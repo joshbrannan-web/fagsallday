@@ -26,12 +26,14 @@ interface Props {
   results: TestScorecardResult[];
   pointsPerHole?: number;
   bestBall?: boolean;
+  /** How many balls count for a team on a given hole (best-ball formats). Defaults to 1. */
+  ballsCounted?: (holeNumber: number) => number;
   action?: React.ReactNode;
 }
 
 const TestScorecardSection: React.FC<Props> = ({
   title, subtitle, players, teams, teamAId, teamBId, courseHoles, scores, results,
-  pointsPerHole = 1, bestBall = false, action,
+  pointsPerHole = 1, bestBall = false, ballsCounted, action,
 }) => {
   const frontNine = courseHoles.filter(h => h.number <= 9);
   const backNine = courseHoles.filter(h => h.number > 9);
@@ -53,13 +55,17 @@ const TestScorecardSection: React.FC<Props> = ({
   const sum = (pid: string, holes: { number: number }[]) =>
     holes.reduce((s, h) => s + (gross(pid, h.number) || 0), 0);
 
-  const bestForTeam = (teamId: string | null, hole: number) => {
+  /** Player ids whose ball counts for their team on this hole (best-ball formats). */
+  const countingIds = (teamId: string | null, hole: number): Set<string> | undefined => {
     if (!bestBall || !teamId) return undefined;
-    const vals = players
+    const entries = players
       .filter(p => p.teamId === teamId)
-      .map(p => gross(p.id, hole))
-      .filter((v): v is number => typeof v === 'number');
-    return vals.length ? Math.min(...vals) : undefined;
+      .map(p => ({ id: p.id, g: gross(p.id, hole) }))
+      .filter((e): e is { id: string; g: number } => typeof e.g === 'number')
+      .sort((a, b) => a.g - b.g);
+    if (!entries.length) return undefined;
+    const n = Math.max(1, ballsCounted ? ballsCounted(hole) : 1);
+    return new Set(entries.slice(0, n).map(e => e.id));
   };
 
   // Match status
@@ -101,8 +107,8 @@ const TestScorecardSection: React.FC<Props> = ({
   const renderScoreCells = (p: TestScorecardPlayer, holes: { number: number; par: number }[]) =>
     holes.map(h => {
       const g = gross(p.id, h.number);
-      const best = bestForTeam(p.teamId, h.number);
-      const muted = bestBall && g !== undefined && best !== undefined && g > best;
+      const counting = countingIds(p.teamId, h.number);
+      const muted = bestBall && g !== undefined && !!counting && !counting.has(p.id);
       return (
         <td
           key={h.number}

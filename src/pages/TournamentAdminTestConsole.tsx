@@ -16,7 +16,7 @@ import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import {
   fetchTestGroupSummaries, fillTestRoundScores, recalcTestRoundResults, type TestGroupSummary,
 } from '@/services/testRounds';
-import { fetchRoundMatches, type RoundMatch } from '@/services/roundLevelScoring';
+import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/services/roundLevelScoring';
 import { toast } from 'sonner';
 
 interface HoleResultRow {
@@ -35,6 +35,7 @@ const TournamentAdminTestConsole: React.FC = () => {
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);
   const [matches, setMatches] = useState<RoundMatch[]>([]);
   const [round, setRound] = useState<any>(null);
+  const [gameType, setGameType] = useState<string | null>(null);
   const [thru, setThru] = useState<Record<string, number>>({});
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
   const [teams, setTeams] = useState<Record<string, { name: string; color: string }>>({});
@@ -52,14 +53,16 @@ const TournamentAdminTestConsole: React.FC = () => {
   const load = useCallback(async () => {
     if (!roundId) return;
     setIsLoading(true);
-    const [g, m, rRes] = await Promise.all([
+    const [g, m, rRes, gameRes] = await Promise.all([
       fetchTestGroupSummaries(roundId),
       fetchRoundMatches(roundId, { isTest: true }),
       supabase.from('tournament_rounds').select('*').eq('id', roundId).maybeSingle(),
+      supabase.from('tournament_games').select('game_type').eq('tournament_round_id', roundId).maybeSingle(),
     ]);
     setGroups(g);
     setMatches(m);
     setRound(rRes.data);
+    setGameType(gameRes.data?.game_type ?? null);
 
     if (rRes.data) {
       const [tpRes, teamRes] = await Promise.all([
@@ -208,6 +211,20 @@ const TournamentAdminTestConsole: React.FC = () => {
 
   const hasResults = results.length > 0;
 
+  // Round-level formats pool all groups into one match stored on the anchor group.
+  const isRoundLevel = matches.length === 0 && isRoundLevelGameType(gameType) && groups.length > 0;
+  const anchorGroupId = groups[0]?.id;
+  const roundRosterLabel = (() => {
+    const byTeam: Record<string, string[]> = {};
+    groups.forEach(g => g.players.forEach(p => {
+      if (!p.team_id) return;
+      (byTeam[p.team_id] = byTeam[p.team_id] || []).push(p.display_name);
+    }));
+    return Object.entries(byTeam)
+      .map(([tid, names]) => `${teams[tid]?.name || 'Team'} (${names.join(', ')})`)
+      .join('  vs  ');
+  })();
+
   return (
     <div className="min-h-screen bg-background p-4 animate-fade-in">
       <div className="max-w-3xl mx-auto space-y-4">
@@ -293,6 +310,11 @@ const TournamentAdminTestConsole: React.FC = () => {
                     <p className="text-xs text-muted-foreground truncate">
                       {g.players.map(p => p.display_name).join(' • ') || 'No players'}
                     </p>
+                    {isRoundLevel && (
+                      <p className="text-[11px] text-muted-foreground italic">
+                        Scores feed the round match
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Button size="sm" variant="outline" onClick={() => handleFill(g.id)} disabled={isFilling}>
@@ -343,14 +365,30 @@ const TournamentAdminTestConsole: React.FC = () => {
                           results.filter(r => r.tournament_match_id === m.id),
                         ),
                       )
-                    : groups
-                        .filter(g => results.some(r => r.tournament_group_id === g.id))
-                        .map(g =>
-                          renderResultBlock(
-                            `Group ${g.group_number}`,
-                            results.filter(r => r.tournament_group_id === g.id),
-                          ),
-                        )}
+                    : isRoundLevel
+                      ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground">
+                            This format scores the whole round as one team-vs-team match —
+                            every group's scores are pooled into the single result below.
+                          </p>
+                          {renderResultBlock(
+                            'Round match — all groups',
+                            results.filter(r => r.tournament_group_id === anchorGroupId),
+                          )}
+                          {roundRosterLabel && (
+                            <p className="text-[11px] text-muted-foreground">{roundRosterLabel}</p>
+                          )}
+                        </div>
+                      )
+                      : groups
+                          .filter(g => results.some(r => r.tournament_group_id === g.id))
+                          .map(g =>
+                            renderResultBlock(
+                              `Group ${g.group_number}`,
+                              results.filter(r => r.tournament_group_id === g.id),
+                            ),
+                          )}
                 </CardContent>
               </Card>
             )}
