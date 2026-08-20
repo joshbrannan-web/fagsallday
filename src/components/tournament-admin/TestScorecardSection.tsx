@@ -55,13 +55,17 @@ const TestScorecardSection: React.FC<Props> = ({
   const sum = (pid: string, holes: { number: number }[]) =>
     holes.reduce((s, h) => s + (gross(pid, h.number) || 0), 0);
 
-  const bestForTeam = (teamId: string | null, hole: number) => {
+  /** Player ids whose ball counts for their team on this hole (best-ball formats). */
+  const countingIds = (teamId: string | null, hole: number): Set<string> | undefined => {
     if (!bestBall || !teamId) return undefined;
-    const vals = players
+    const entries = players
       .filter(p => p.teamId === teamId)
-      .map(p => gross(p.id, hole))
-      .filter((v): v is number => typeof v === 'number');
-    return vals.length ? Math.min(...vals) : undefined;
+      .map(p => ({ id: p.id, g: gross(p.id, hole) }))
+      .filter((e): e is { id: string; g: number } => typeof e.g === 'number')
+      .sort((a, b) => a.g - b.g);
+    if (!entries.length) return undefined;
+    const n = Math.max(1, ballsCounted ? ballsCounted(hole) : 1);
+    return new Set(entries.slice(0, n).map(e => e.id));
   };
 
   // Match status
