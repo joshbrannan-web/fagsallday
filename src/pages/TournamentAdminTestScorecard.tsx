@@ -335,7 +335,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
             );
           })
         )}
-        {!isRoundLevel && groups.length > 0 && awardCard}
+        
       </div>
     </div>
   );
