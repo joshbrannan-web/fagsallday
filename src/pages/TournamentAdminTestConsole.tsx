@@ -310,6 +310,11 @@ const TournamentAdminTestConsole: React.FC = () => {
                     <p className="text-xs text-muted-foreground truncate">
                       {g.players.map(p => p.display_name).join(' • ') || 'No players'}
                     </p>
+                    {isRoundLevel && (
+                      <p className="text-[11px] text-muted-foreground italic">
+                        Scores feed the round match
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Button size="sm" variant="outline" onClick={() => handleFill(g.id)} disabled={isFilling}>
