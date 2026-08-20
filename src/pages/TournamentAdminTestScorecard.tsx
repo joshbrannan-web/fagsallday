@@ -204,9 +204,51 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 results={results.filter(r => r.tournament_match_id === m.id)}
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
+                ballsCounted={ballsCounted}
               />
             );
           })
+        ) : isRoundLevel ? (
+          <>
+            <TestScorecardSection
+              title="Round match — all groups"
+              subtitle={
+                roundLevelTeamIds.length === 2
+                  ? `${teams[roundLevelTeamIds[0]]?.name || 'Team A'} (${rosterFor(roundLevelTeamIds[0])}) vs ${teams[roundLevelTeamIds[1]]?.name || 'Team B'} (${rosterFor(roundLevelTeamIds[1])})`
+                  : 'All test players pooled by team'
+              }
+              players={roundLevelPlayers}
+              teams={teams}
+              teamAId={roundLevelTeamIds[0]}
+              teamBId={roundLevelTeamIds[1]}
+              courseHoles={courseHoles}
+              scores={scores}
+              results={results.filter(r => r.tournament_group_id === anchorGroupId)}
+              pointsPerHole={pointsPerHole}
+              bestBall={bestBall}
+              ballsCounted={ballsCounted}
+            />
+            <Card>
+              <CardContent className="p-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  This format scores the whole round as one team-vs-team match, so every
+                  foursome's scores feed the single result above.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {groups.map(g => (
+                    <Button
+                      key={g.id}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/tournament-admin/${tournamentId}/round/${roundId}/group/${g.id}?test=1`)}
+                    >
+                      <ClipboardList className="w-3.5 h-3.5 mr-1" /> Group {g.group_number} scores
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </>
         ) : (
           groups.map(g => {
             const teamIds = Array.from(new Set(g.players.map(p => p.team_id).filter(Boolean)));
@@ -227,6 +269,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 results={results.filter(r => r.tournament_group_id === g.id)}
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
+                ballsCounted={ballsCounted}
                 action={
                   <Button
                     size="sm"
