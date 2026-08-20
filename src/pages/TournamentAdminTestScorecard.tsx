@@ -125,15 +125,27 @@ const TournamentAdminTestScorecard: React.FC = () => {
     );
   }
 
-  const courseHoles: { number: number; par: number }[] = (round?.course_data?.holes || []).map((h: any) => ({
-    number: h.number,
-    par: h.par,
+  const courseHoles: { number: number; par: number }[] = (round?.course_data?.holes || []).map((h: any, i: number) => ({
+    number: h.number ?? i + 1,
+    par: h.par ?? 4,
   }));
   const pointsPerHole = Number(game?.default_points_per_hole) || 1;
   const bestBall = !!game?.game_type?.includes('best_ball');
   const roundLabel = round?.name || `Round ${round?.round_number ?? ''}`;
+  const ballsCounted = bestBall ? (hole: number) => scoresNeeded(hole) : undefined;
 
   const teamOfPlayer = (id: string) => players[id]?.teamId ?? null;
+
+  // Round-level formats pool every player on each team across all foursomes and
+  // store one consolidated result set on the anchor group (lowest group number).
+  const isRoundLevel = matches.length === 0 && isRoundLevelGameType(game?.game_type) && groups.length > 0;
+  const anchorGroupId = groups[0]?.id;
+  const roundLevelPlayers = groups.flatMap(g =>
+    g.players.map(p => ({ id: p.tournament_player_id, name: p.display_name, teamId: p.team_id })),
+  );
+  const roundLevelTeamIds = Array.from(new Set(roundLevelPlayers.map(p => p.teamId).filter(Boolean))) as string[];
+  const rosterFor = (tid: string) =>
+    roundLevelPlayers.filter(p => p.teamId === tid).map(p => p.name).join(', ');
 
   return (
     <div className="min-h-screen bg-background p-4 animate-fade-in">
