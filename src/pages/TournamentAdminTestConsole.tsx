@@ -16,7 +16,7 @@ import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import {
   fetchTestGroupSummaries, fillTestRoundScores, recalcTestRoundResults, type TestGroupSummary,
 } from '@/services/testRounds';
-import { fetchRoundMatches, type RoundMatch } from '@/services/roundLevelScoring';
+import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/services/roundLevelScoring';
 import { toast } from 'sonner';
 
 interface HoleResultRow {
