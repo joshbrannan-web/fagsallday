@@ -12,6 +12,7 @@ import { fetchTestGroupSummaries, recalcTestRoundResults, type TestGroupSummary 
 import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/services/roundLevelScoring';
 import { scoresNeeded } from '@/services/tournamentEngine';
 import TestRoundAwardCard from '@/components/tournament-admin/TestRoundAwardCard';
+import { calcRoundTeamAward } from '@/services/scoreboardCalculations';
 import { toast } from 'sonner';
 
 const TournamentAdminTestScorecard: React.FC = () => {
