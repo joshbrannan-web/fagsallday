@@ -53,14 +53,16 @@ const TournamentAdminTestConsole: React.FC = () => {
   const load = useCallback(async () => {
     if (!roundId) return;
     setIsLoading(true);
-    const [g, m, rRes] = await Promise.all([
+    const [g, m, rRes, gameRes] = await Promise.all([
       fetchTestGroupSummaries(roundId),
       fetchRoundMatches(roundId, { isTest: true }),
       supabase.from('tournament_rounds').select('*').eq('id', roundId).maybeSingle(),
+      supabase.from('tournament_games').select('game_type').eq('tournament_round_id', roundId).maybeSingle(),
     ]);
     setGroups(g);
     setMatches(m);
     setRound(rRes.data);
+    setGameType(gameRes.data?.game_type ?? null);
 
     if (rRes.data) {
       const [tpRes, teamRes] = await Promise.all([
