@@ -33,7 +33,7 @@ interface Props {
 
 const TestScorecardSection: React.FC<Props> = ({
   title, subtitle, players, teams, teamAId, teamBId, courseHoles, scores, results,
-  pointsPerHole = 1, bestBall = false, action,
+  pointsPerHole = 1, bestBall = false, ballsCounted, action,
 }) => {
   const frontNine = courseHoles.filter(h => h.number <= 9);
   const backNine = courseHoles.filter(h => h.number > 9);
