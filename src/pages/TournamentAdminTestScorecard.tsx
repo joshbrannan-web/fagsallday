@@ -12,6 +12,7 @@ import { fetchTestGroupSummaries, recalcTestRoundResults, type TestGroupSummary 
 import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/services/roundLevelScoring';
 import { scoresNeeded } from '@/services/tournamentEngine';
 import TestRoundAwardCard from '@/components/tournament-admin/TestRoundAwardCard';
+import { calcRoundTeamAward } from '@/services/scoreboardCalculations';
 import { toast } from 'sonner';
 
 const TournamentAdminTestScorecard: React.FC = () => {
@@ -157,7 +158,8 @@ const TournamentAdminTestScorecard: React.FC = () => {
   const awardResults = isRoundLevel
     ? results.filter(r => r.tournament_group_id === anchorGroupId)
     : results;
-  const awardCard = awardTeamIds.length === 2 && groups.length > 0 ? (
+  const hasAward = awardTeamIds.length === 2 && groups.length > 0;
+  const awardCard = hasAward ? (
     <TestRoundAwardCard
       round={round}
       holeResults={awardResults as any}
@@ -168,6 +170,30 @@ const TournamentAdminTestScorecard: React.FC = () => {
       courseHoleNumbers={courseHoles.map(h => h.number)}
     />
   ) : null;
+
+  let awardLine: string | undefined;
+  if (hasAward) {
+    const [ta, tb] = [awardTeamIds[0], awardTeamIds[1]];
+    const totalsForAward: Record<string, number> = { [ta]: 0, [tb]: 0 };
+    awardResults.forEach(r => {
+      const tp = (r.team_points || {}) as Record<string, number>;
+      totalsForAward[ta] += Number(tp[ta] || 0);
+      totalsForAward[tb] += Number(tp[tb] || 0);
+    });
+    const award = calcRoundTeamAward(
+      round,
+      totalsForAward,
+      awardResults as any,
+      [ta, tb],
+      tournament?.team_scoring_method,
+      tournament?.custom_round_points ?? undefined,
+      true,
+    );
+    const method = tournament?.team_scoring_method;
+    if (method === 'custom_pts_per_round' || method === 'round_win') {
+      awardLine = `Round award: ${teams[ta]?.name || 'Team A'} ${Number((award[ta] || 0).toFixed(2))} — ${teams[tb]?.name || 'Team B'} ${Number((award[tb] || 0).toFixed(2))}`;
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 animate-fade-in">
@@ -197,6 +223,10 @@ const TournamentAdminTestScorecard: React.FC = () => {
             resetRedirect={`/tournament-admin/${tournamentId}`}
           />
         )}
+
+        {awardCard}
+
+
 
         {groups.length === 0 ? (
           <Card>
@@ -249,6 +279,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
               pointsPerHole={pointsPerHole}
               bestBall={bestBall}
               ballsCounted={ballsCounted}
+              awardLine={awardLine}
             />
             <Card>
               <CardContent className="p-3 space-y-2">
@@ -270,7 +301,6 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-            {awardCard}
           </>
         ) : (
           groups.map(g => {
@@ -293,6 +323,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                awardLine={awardLine}
                 action={
                   <Button
                     size="sm"
@@ -306,7 +337,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
             );
           })
         )}
-        {!isRoundLevel && groups.length > 0 && awardCard}
+        
       </div>
     </div>
   );
