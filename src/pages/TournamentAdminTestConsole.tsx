@@ -211,6 +211,20 @@ const TournamentAdminTestConsole: React.FC = () => {
 
   const hasResults = results.length > 0;
 
+  // Round-level formats pool all groups into one match stored on the anchor group.
+  const isRoundLevel = matches.length === 0 && isRoundLevelGameType(gameType) && groups.length > 0;
+  const anchorGroupId = groups[0]?.id;
+  const roundRosterLabel = (() => {
+    const byTeam: Record<string, string[]> = {};
+    groups.forEach(g => g.players.forEach(p => {
+      if (!p.team_id) return;
+      (byTeam[p.team_id] = byTeam[p.team_id] || []).push(p.display_name);
+    }));
+    return Object.entries(byTeam)
+      .map(([tid, names]) => `${teams[tid]?.name || 'Team'} (${names.join(', ')})`)
+      .join('  vs  ');
+  })();
+
   return (
     <div className="min-h-screen bg-background p-4 animate-fade-in">
       <div className="max-w-3xl mx-auto space-y-4">
