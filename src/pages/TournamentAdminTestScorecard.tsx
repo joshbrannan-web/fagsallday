@@ -322,6 +322,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                awardLine={awardLine}
                 action={
                   <Button
                     size="sm"
