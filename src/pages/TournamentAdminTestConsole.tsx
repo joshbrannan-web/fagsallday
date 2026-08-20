@@ -365,14 +365,30 @@ const TournamentAdminTestConsole: React.FC = () => {
                           results.filter(r => r.tournament_match_id === m.id),
                         ),
                       )
-                    : groups
-                        .filter(g => results.some(r => r.tournament_group_id === g.id))
-                        .map(g =>
-                          renderResultBlock(
-                            `Group ${g.group_number}`,
-                            results.filter(r => r.tournament_group_id === g.id),
-                          ),
-                        )}
+                    : isRoundLevel
+                      ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground">
+                            This format scores the whole round as one team-vs-team match —
+                            every group's scores are pooled into the single result below.
+                          </p>
+                          {renderResultBlock(
+                            'Round match — all groups',
+                            results.filter(r => r.tournament_group_id === anchorGroupId),
+                          )}
+                          {roundRosterLabel && (
+                            <p className="text-[11px] text-muted-foreground">{roundRosterLabel}</p>
+                          )}
+                        </div>
+                      )
+                      : groups
+                          .filter(g => results.some(r => r.tournament_group_id === g.id))
+                          .map(g =>
+                            renderResultBlock(
+                              `Group ${g.group_number}`,
+                              results.filter(r => r.tournament_group_id === g.id),
+                            ),
+                          )}
                 </CardContent>
               </Card>
             )}
