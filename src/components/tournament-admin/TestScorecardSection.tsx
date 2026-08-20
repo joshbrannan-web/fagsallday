@@ -136,6 +136,9 @@ const TestScorecardSection: React.FC<Props> = ({
               {statusLine}
             </p>
           )}
+          {awardLine && (
+            <p className="text-xs text-[hsl(var(--brand-gold))] font-semibold truncate">{awardLine}</p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {teamIds.map(tid => (
