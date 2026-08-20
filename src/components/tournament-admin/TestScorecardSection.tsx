@@ -26,6 +26,8 @@ interface Props {
   results: TestScorecardResult[];
   pointsPerHole?: number;
   bestBall?: boolean;
+  /** How many balls count for a team on a given hole (best-ball formats). Defaults to 1. */
+  ballsCounted?: (holeNumber: number) => number;
   action?: React.ReactNode;
 }
 
