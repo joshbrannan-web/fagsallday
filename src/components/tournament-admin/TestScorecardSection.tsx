@@ -107,8 +107,8 @@ const TestScorecardSection: React.FC<Props> = ({
   const renderScoreCells = (p: TestScorecardPlayer, holes: { number: number; par: number }[]) =>
     holes.map(h => {
       const g = gross(p.id, h.number);
-      const best = bestForTeam(p.teamId, h.number);
-      const muted = bestBall && g !== undefined && best !== undefined && g > best;
+      const counting = countingIds(p.teamId, h.number);
+      const muted = bestBall && g !== undefined && !!counting && !counting.has(p.id);
       return (
         <td
           key={h.number}
