@@ -28,12 +28,14 @@ interface Props {
   bestBall?: boolean;
   /** How many balls count for a team on a given hole (best-ball formats). Defaults to 1. */
   ballsCounted?: (holeNumber: number) => number;
+  /** Optional summary of tournament points awarded for this round. */
+  awardLine?: string;
   action?: React.ReactNode;
 }
 
 const TestScorecardSection: React.FC<Props> = ({
   title, subtitle, players, teams, teamAId, teamBId, courseHoles, scores, results,
-  pointsPerHole = 1, bestBall = false, ballsCounted, action,
+  pointsPerHole = 1, bestBall = false, ballsCounted, awardLine, action,
 }) => {
   const frontNine = courseHoles.filter(h => h.number <= 9);
   const backNine = courseHoles.filter(h => h.number > 9);
