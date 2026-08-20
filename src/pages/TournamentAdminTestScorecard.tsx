@@ -300,7 +300,6 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-            {awardCard}
           </>
         ) : (
           groups.map(g => {
