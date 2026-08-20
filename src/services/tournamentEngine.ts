@@ -434,7 +434,7 @@ export function calcMatchPlayBestBall(input: EngineInput): RoundResult {
 
 // ── 3. GROSS BEST BALL (6/6/6) ──────────────────────────────
 
-function scoresNeeded(holeNumber: number): number {
+export function scoresNeeded(holeNumber: number): number {
   if (holeNumber <= 6) return 2;
   if (holeNumber <= 12) return 3;
   return 4;
