@@ -35,6 +35,7 @@ const TournamentAdminTestConsole: React.FC = () => {
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);
   const [matches, setMatches] = useState<RoundMatch[]>([]);
   const [round, setRound] = useState<any>(null);
+  const [gameType, setGameType] = useState<string | null>(null);
   const [thru, setThru] = useState<Record<string, number>>({});
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
   const [teams, setTeams] = useState<Record<string, { name: string; color: string }>>({});
