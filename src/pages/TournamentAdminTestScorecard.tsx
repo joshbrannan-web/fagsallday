@@ -279,6 +279,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
               pointsPerHole={pointsPerHole}
               bestBall={bestBall}
               ballsCounted={ballsCounted}
+              awardLine={awardLine}
             />
             <Card>
               <CardContent className="p-3 space-y-2">
