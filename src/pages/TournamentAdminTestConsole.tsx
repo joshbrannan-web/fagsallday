@@ -17,6 +17,7 @@ import {
   fetchTestGroupSummaries, fillTestRoundScores, recalcTestRoundResults, type TestGroupSummary,
 } from '@/services/testRounds';
 import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/services/roundLevelScoring';
+import TestRoundAwardCard from '@/components/tournament-admin/TestRoundAwardCard';
 import { toast } from 'sonner';
 
 interface HoleResultRow {
@@ -35,6 +36,7 @@ const TournamentAdminTestConsole: React.FC = () => {
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);
   const [matches, setMatches] = useState<RoundMatch[]>([]);
   const [round, setRound] = useState<any>(null);
+  const [tournament, setTournament] = useState<any>(null);
   const [gameType, setGameType] = useState<string | null>(null);
   const [thru, setThru] = useState<Record<string, number>>({});
   const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
@@ -65,10 +67,12 @@ const TournamentAdminTestConsole: React.FC = () => {
     setGameType(gameRes.data?.game_type ?? null);
 
     if (rRes.data) {
-      const [tpRes, teamRes] = await Promise.all([
+      const [tpRes, teamRes, tRes] = await Promise.all([
         supabase.from('tournament_players').select('id, display_name').eq('tournament_id', rRes.data.tournament_id),
         supabase.from('tournament_teams').select('id, name, color').eq('tournament_id', rRes.data.tournament_id),
+        supabase.from('tournaments').select('team_scoring_method, custom_round_points').eq('id', rRes.data.tournament_id).maybeSingle(),
       ]);
+      setTournament(tRes.data);
       const names: Record<string, string> = {};
       (tpRes.data || []).forEach(p => { names[p.id] = p.display_name; });
       setPlayerNames(names);
@@ -224,6 +228,16 @@ const TournamentAdminTestConsole: React.FC = () => {
       .map(([tid, names]) => `${teams[tid]?.name || 'Team'} (${names.join(', ')})`)
       .join('  vs  ');
   })();
+
+  const awardTeamIds = Array.from(
+    new Set(groups.flatMap(g => g.players.map(p => p.team_id)).filter(Boolean)),
+  ) as string[];
+  const awardResults = isRoundLevel
+    ? results.filter(r => r.tournament_group_id === anchorGroupId)
+    : results;
+  const courseHoleNumbers: number[] = ((round?.course_data?.holes || []) as any[]).map(
+    (h: any, i: number) => h.number ?? i + 1,
+  );
 
   return (
     <div className="min-h-screen bg-background p-4 animate-fade-in">
@@ -391,6 +405,18 @@ const TournamentAdminTestConsole: React.FC = () => {
                           )}
                 </CardContent>
               </Card>
+            )}
+
+            {hasResults && awardTeamIds.length === 2 && (
+              <TestRoundAwardCard
+                round={round}
+                holeResults={awardResults as any}
+                teamIds={[awardTeamIds[0], awardTeamIds[1]]}
+                teams={teams}
+                method={tournament?.team_scoring_method}
+                customRoundPoints={tournament?.custom_round_points}
+                courseHoleNumbers={courseHoleNumbers}
+              />
             )}
           </div>
         )}
