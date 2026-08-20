@@ -9,7 +9,8 @@ import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import TestScorecardSection, { type TestScorecardResult } from '@/components/tournament-admin/TestScorecardSection';
 import { fetchTestGroupSummaries, recalcTestRoundResults, type TestGroupSummary } from '@/services/testRounds';
-import { fetchRoundMatches, type RoundMatch } from '@/services/roundLevelScoring';
+import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/services/roundLevelScoring';
+import { scoresNeeded } from '@/services/tournamentEngine';
 import { toast } from 'sonner';
 
 const TournamentAdminTestScorecard: React.FC = () => {
