@@ -11,6 +11,7 @@ import TestScorecardSection, { type TestScorecardResult } from '@/components/tou
 import { fetchTestGroupSummaries, recalcTestRoundResults, type TestGroupSummary } from '@/services/testRounds';
 import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/services/roundLevelScoring';
 import { scoresNeeded } from '@/services/tournamentEngine';
+import TestRoundAwardCard from '@/components/tournament-admin/TestRoundAwardCard';
 import { toast } from 'sonner';
 
 const TournamentAdminTestScorecard: React.FC = () => {
@@ -21,6 +22,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [round, setRound] = useState<any>(null);
+  const [tournament, setTournament] = useState<any>(null);
   const [game, setGame] = useState<any>(null);
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);
   const [matches, setMatches] = useState<RoundMatch[]>([]);
@@ -52,10 +54,12 @@ const TournamentAdminTestScorecard: React.FC = () => {
     setGame(gameRes.data);
 
     if (roundRes.data) {
-      const [teamRes, playerRes] = await Promise.all([
+      const [teamRes, playerRes, tRes] = await Promise.all([
         supabase.from('tournament_teams').select('id, name, color').eq('tournament_id', roundRes.data.tournament_id),
         supabase.from('tournament_players').select('id, display_name, team_id').eq('tournament_id', roundRes.data.tournament_id),
+        supabase.from('tournaments').select('team_scoring_method, custom_round_points').eq('id', roundRes.data.tournament_id).maybeSingle(),
       ]);
+      setTournament(tRes.data);
       const tm: Record<string, { name: string; color: string }> = {};
       (teamRes.data || []).forEach(t => { tm[t.id] = { name: t.name, color: t.color }; });
       setTeams(tm);
@@ -146,6 +150,24 @@ const TournamentAdminTestScorecard: React.FC = () => {
   const roundLevelTeamIds = Array.from(new Set(roundLevelPlayers.map(p => p.teamId).filter(Boolean))) as string[];
   const rosterFor = (tid: string) =>
     roundLevelPlayers.filter(p => p.teamId === tid).map(p => p.name).join(', ');
+
+  const awardTeamIds = (roundLevelTeamIds.length === 2
+    ? roundLevelTeamIds
+    : Array.from(new Set(groups.flatMap(g => g.players.map(p => p.team_id)).filter(Boolean)))) as string[];
+  const awardResults = isRoundLevel
+    ? results.filter(r => r.tournament_group_id === anchorGroupId)
+    : results;
+  const awardCard = awardTeamIds.length === 2 && groups.length > 0 ? (
+    <TestRoundAwardCard
+      round={round}
+      holeResults={awardResults as any}
+      teamIds={[awardTeamIds[0], awardTeamIds[1]]}
+      teams={teams}
+      method={tournament?.team_scoring_method}
+      customRoundPoints={tournament?.custom_round_points}
+      courseHoleNumbers={courseHoles.map(h => h.number)}
+    />
+  ) : null;
 
   return (
     <div className="min-h-screen bg-background p-4 animate-fade-in">
@@ -248,6 +270,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
+            {awardCard}
           </>
         ) : (
           groups.map(g => {
@@ -283,6 +306,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
             );
           })
         )}
+        {!isRoundLevel && groups.length > 0 && awardCard}
       </div>
     </div>
   );
