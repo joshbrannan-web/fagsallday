@@ -11,6 +11,8 @@ import ScoreboardSelector from '@/components/scoreboards/ScoreboardSelector';
 import ScoreboardRenderer from '@/components/scoreboards/ScoreboardRenderer';
 import TournamentLiveToast from '@/components/scoreboards/TournamentLiveToast';
 import { GAME_TYPE_LABELS } from '@/components/tournament/TournamentRoundCard';
+import SideBetsPanel from '@/components/tournament/SideBetsPanel';
+
 
 const TournamentScoreboards: React.FC = () => {
   const { joinCode } = useParams<{ joinCode: string }>();
@@ -284,7 +286,16 @@ const TournamentScoreboards: React.FC = () => {
             })}
           </div>
         )}
+
+        {/* Side Bets */}
+        {tournamentId && (
+          <div className="space-y-3 mt-6">
+            <h2 className="text-lg font-bold">Side Bets</h2>
+            <SideBetsPanel tournamentId={tournamentId} players={players} rounds={rounds} />
+          </div>
+        )}
       </div>
+
     </div>
   );
 };
