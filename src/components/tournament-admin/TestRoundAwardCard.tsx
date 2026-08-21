@@ -40,6 +40,8 @@ const TestRoundAwardCard: React.FC<Props> = ({
   method,
   customRoundPoints,
   courseHoleNumbers,
+  unitLabels,
+
 }) => {
   const [teamAId, teamBId] = teamIds;
   if (!teamAId || !teamBId) return null;
