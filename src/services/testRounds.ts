@@ -187,10 +187,12 @@ export async function startTestRound(tournamentRoundId: string): Promise<TestGro
     await supabase.from('tournament_group_players').insert(gpInserts as any);
   }
 
-  // 3. Clone cross-group matches (player ids are tournament players — unchanged)
+  // 3. Clone cross-group matches (player ids are tournament players — unchanged).
+  // This must not fail silently: without the clones the test round falls back to
+  // per-foursome scoring, which misrepresents 2v2 / 1v1 formats.
   const matches = matchesRes.data || [];
   if (matches.length > 0) {
-    await supabase.from('tournament_round_matches').insert(
+    const { error: matchErr } = await supabase.from('tournament_round_matches').insert(
       matches.map(m => ({
         tournament_round_id: tournamentRoundId,
         match_number: m.match_number,
@@ -202,6 +204,10 @@ export async function startTestRound(tournamentRoundId: string): Promise<TestGro
         source_match_id: m.id,
       })) as any,
     );
+    if (matchErr) {
+      await resetTestRound(tournamentRoundId);
+      throw new Error(`Failed to clone round matches: ${matchErr.message}`);
+    }
   }
 
   // 4. Create a practice `rounds` row per test group
