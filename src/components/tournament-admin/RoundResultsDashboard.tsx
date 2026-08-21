@@ -270,6 +270,8 @@ const RoundResultsDashboard: React.FC<Props> = ({
             );
           });
 
+          const roundResultRows = holeResultsForRound(round.id);
+
           const playerRows = roundPlayers.map((p: any) => {
             const gross = calcPlayerGrossPerRound(
               p.id, round.id,
@@ -279,13 +281,24 @@ const RoundResultsDashboard: React.FC<Props> = ({
               p, round, game,
               groups, groupPlayersByGroup, holeScores,
             );
-            const pts = calcPlayerPointsPerRound(
+            let pts = calcPlayerPointsPerRound(
               p.id, round.id,
               groups, groupPlayersByGroup, holeResults,
             );
+            if (pts === null || pts === 0) {
+              // Round-level / cross-group matches store results off the group,
+              // so fall back to the round's pooled player points.
+              let sum = 0, seen = false;
+              roundResultRows.forEach((r: any) => {
+                const pp = (r.player_points || {}) as Record<string, number>;
+                if (pp[p.id] !== undefined) { sum += Number(pp[p.id] || 0); seen = true; }
+              });
+              if (seen) pts = sum;
+            }
             const team = teams.find((t: any) => t.id === p.team_id);
             return { player: p, team, gross, net, pts };
           }).sort((a, b) => (b.pts ?? -1) - (a.pts ?? -1));
+
 
           return (
             <AccordionItem key={round.id} value={round.id}>
