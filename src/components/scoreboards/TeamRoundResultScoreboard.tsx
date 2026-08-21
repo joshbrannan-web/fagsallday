@@ -131,7 +131,7 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="font-mono text-sm">{awardedB}</div>
-                    <div className="text-[10px] text-muted-foreground">({b} holes)</div>
+                    <div className="text-[10px] text-muted-foreground">raw {b}</div>
                   </TableCell>
                   <TableCell className="text-center text-sm">
                     {isActive ? (
