@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Trophy } from 'lucide-react';
 import {
   calcRoundTeamAward,
+  calcRoundMatchAward,
   type TeamScoringMethod,
   type RoundTeamScoringMode,
   type RoundTeamScoringPoints,
@@ -12,6 +13,8 @@ import {
 export interface AwardHoleResult {
   hole_number: number;
   team_points: Record<string, number> | null;
+  tournament_group_id?: string | null;
+  tournament_match_id?: string | null;
 }
 
 interface Props {
@@ -22,7 +25,10 @@ interface Props {
   method: TeamScoringMethod | undefined;
   customRoundPoints?: number | null;
   courseHoleNumbers?: number[];
+  /** Optional display names for match/group units keyed by match id or group id. */
+  unitLabels?: Record<string, string>;
 }
+
 
 const fmt = (n: number) => Number(n.toFixed(2));
 
