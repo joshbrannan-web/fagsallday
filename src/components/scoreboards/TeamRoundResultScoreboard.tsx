@@ -104,7 +104,10 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
         a: m.awardA,
         b: m.awardB,
       }));
+      const num = (s: string) => Number(s.replace(/\D+/g, '')) || 0;
+      segments.sort((x, y) => num(x.label) - num(y.label));
     }
+
 
 
 
