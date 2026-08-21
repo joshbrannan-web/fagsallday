@@ -76,6 +76,13 @@ const RoundResultsDashboard: React.FC<Props> = ({
       ...Object.fromEntries(groups.map((g: any) => [g.id, `Group ${g.group_number}`])),
       ...Object.fromEntries(roundMatches.map(m => [m.id, `Match ${m.matchNumber}`])),
     });
+    setMatchesByRound(
+      roundMatches.reduce((acc: Record<string, any[]>, m) => {
+        (acc[m.tournamentRoundId] ||= []).push(m);
+        return acc;
+      }, {}),
+    );
+
     setHoleScores(scoresRes.data || []);
     setHoleResults([...(resultsRes.data || []), ...matchRows]);
     setLoading(false);
