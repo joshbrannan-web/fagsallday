@@ -82,6 +82,9 @@ const teamScoringSummary = (round: any): string | null => {
       return `Team scoring: per hole + per round — ${pts.round ?? 0} pts`;
     case 'fbo':
       return `Team scoring: Front/Back/Overall — ${pts.front ?? 0} / ${pts.back ?? 0} / ${pts.overall ?? 0}`;
+    case 'per_match':
+      return `Match scoring: per match — Front ${pts.front ?? 0} / Back ${pts.back ?? 0} / Overall ${pts.overall ?? 0}${pts.match ? ` / Match win ${pts.match}` : ''}`;
+
     default:
       return null;
   }
