@@ -62,7 +62,16 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
     const awardedB = award[teamB.id] || 0;
 
     // Front/Back/Overall segment split (only meaningful for fbo mode).
-    let segments: { label: string; a: number; b: number }[] = [];
+    type Seg = {
+      label: string;
+      a: number;
+      b: number;
+      holesA?: number;
+      holesB?: number;
+      value?: number;
+      unitLabel?: string;
+    };
+    let segments: Seg[] = [];
     if (isCompleted && teamScoringMethod === 'custom_pts_per_round' && r.team_scoring_mode === 'fbo') {
       const sum = (from: number, to: number) => {
         let sa = 0, sb = 0;
@@ -79,14 +88,19 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
       const [ba, bb] = sum(10, 18);
       const pts = (r.team_scoring_points || {}) as Record<string, number>;
       const [oa, ob] = [a, b];
-      const win = (sa: number, sb: number) =>
-        sa > sb ? teamA.name : sb > sa ? teamB.name : 'Halved';
+      const mk = (label: string, sa: number, sb: number, value: number): Seg => ({
+        label: `${label} (${value}pt)`,
+        a: sa_pts(sa, sb, value),
+        b: sa_pts(sb, sa, value),
+        holesA: sa,
+        holesB: sb,
+        value,
+      });
       segments = [
-        { label: `Front (${pts.front ?? 1}pt)`, a: sa_pts(fa, fb, pts.front ?? 1), b: sa_pts(fb, fa, pts.front ?? 1) },
-        { label: `Back (${pts.back ?? 1}pt)`, a: sa_pts(ba, bb, pts.back ?? 1), b: sa_pts(bb, ba, pts.back ?? 1) },
-        { label: `Overall (${pts.overall ?? 2}pt)`, a: sa_pts(oa, ob, pts.overall ?? 2), b: sa_pts(ob, oa, pts.overall ?? 2) },
+        mk('Front', fa, fb, pts.front ?? 1),
+        mk('Back', ba, bb, pts.back ?? 1),
+        mk('Overall', oa, ob, pts.overall ?? 2),
       ];
-      void win;
     } else if (teamScoringMethod === 'custom_pts_per_round' && r.team_scoring_mode === 'per_match') {
       const { matches: matchRows } = calcRoundMatchAward(
         roundResults as any,
@@ -103,14 +117,30 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
         return `Group ${g?.group_number ?? idx + 1}`;
       };
       const suffix = isCompleted ? '' : ' (in progress)';
-      segments = matchRows.map((m, idx) => ({
-        label: `${unitLabel(m.unitId, m.isMatch, idx)}${suffix}`,
-        a: m.awardA,
-        b: m.awardB,
-      }));
-      const num = (s: string) => Number(s.replace(/\D+/g, '')) || 0;
-      segments.sort((x, y) => num(x.label) - num(y.label));
+      segments = matchRows.flatMap((m, idx) => {
+        const head = `${unitLabel(m.unitId, m.isMatch, idx)}${suffix}`;
+        const rows: Seg[] = [{ label: head, a: m.awardA, b: m.awardB, unitLabel: head }];
+        (m.segments || []).forEach((s: any) => {
+          rows.push({
+            label: `${s.label} (${s.value}pt)`,
+            a: s.awardA,
+            b: s.awardB,
+            holesA: s.holesA,
+            holesB: s.holesB,
+            value: s.value,
+            unitLabel: head,
+          });
+        });
+        return rows;
+      });
+      const num = (s?: string) => Number((s || '').replace(/\D+/g, '')) || 0;
+      const order = Array.from(new Set(segments.map(s => s.unitLabel || '')));
+      order.sort((x, y) => num(x) - num(y));
+      segments.sort(
+        (x, y) => order.indexOf(x.unitLabel || '') - order.indexOf(y.unitLabel || ''),
+      );
     }
+
 
 
 
