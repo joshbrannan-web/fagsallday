@@ -576,6 +576,17 @@ const TournamentAdminDashboard: React.FC = () => {
                     )}
                     {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
 
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-1"
+                      onClick={() => navigate(`/tournament-admin/${tournamentId}/round/${r.id}/scorecard`)}
+                    >
+                      <ClipboardList className="w-3.5 h-3.5 mr-1" /> View Scorecard &amp; Results
+                    </Button>
+
+
+
                     {r.status === 'active' && (
                       <div className="bg-[hsl(var(--brand-gold))]/10 rounded-lg p-2 text-xs text-[hsl(var(--brand-gold))]">
                         ⚠️ This round is active. Changes apply immediately.
