@@ -234,13 +234,16 @@ const RoundResultsDashboard: React.FC<Props> = ({
           const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
           const submittedCount = roundGroups.filter((g: any) => g.status === 'submitted').length;
 
-          // Team totals for this round
+          // Team totals for this round (raw hole points) and the awarded points
           const teamTotalsThisRound = roundTotals[round.id] || {};
+          const award = roundAwards[round.id];
+          const displayTotals = award || teamTotalsThisRound;
           const roundSortedTeams = [...teams].sort(
-            (a, b) => (teamTotalsThisRound[b.id] || 0) - (teamTotalsThisRound[a.id] || 0),
+            (a, b) => (displayTotals[b.id] || 0) - (displayTotals[a.id] || 0),
           );
           const roundWinner = roundSortedTeams[0];
-          const roundWinnerPts = teamTotalsThisRound[roundWinner?.id] || 0;
+          const roundWinnerPts = displayTotals[roundWinner?.id] || 0;
+
 
           // Player data for this round
           const roundPlayers = players.filter((p: any) => {
