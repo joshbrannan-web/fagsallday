@@ -31,6 +31,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
   const [players, setPlayers] = useState<Record<string, { name: string; teamId: string | null; handicap: number }>>({});
   const [scores, setScores] = useState<Record<string, Record<number, number>>>({});
   const [results, setResults] = useState<(TestScorecardResult & { tournament_group_id: string | null; tournament_match_id: string | null })[]>([]);
+  const autoHealed = useRef(false);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
