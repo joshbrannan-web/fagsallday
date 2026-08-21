@@ -12,11 +12,12 @@ interface Props {
   groupPlayers: Record<string, any[]>;
   players: any[];
   holeResults: any[];
+  roundMatches?: any[];
   joinCode: string;
 }
 
 const TeamRoundResultScoreboard: React.FC<Props> = ({
-  teams, rounds, groups, groupPlayers, players, holeResults, joinCode,
+  teams, rounds, groups, groupPlayers, players, holeResults, roundMatches = [], joinCode,
 }) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -31,14 +32,22 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
   const roundData = startedRounds.map((r: any) => {
     const roundGroups = groups[r.id] || [];
     const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
-    const roundResults = holeResults.filter((hr: any) => roundGroupIds.has(hr.tournament_group_id));
+    // Cross-group matches store their results against the match, not a group.
+    const matchesForRound = roundMatches.filter((m: any) => m.tournamentRoundId === r.id);
+    const matchIds = new Set(matchesForRound.map((m: any) => m.id));
+    const roundResults = holeResults.filter(
+      (hr: any) =>
+        roundGroupIds.has(hr.tournament_group_id) ||
+        (hr.tournament_match_id && matchIds.has(hr.tournament_match_id)),
+    );
     const totals = calcTeamTotals(roundResults, teamIds);
     const a = totals[teamA.id] || 0;
     const b = totals[teamB.id] || 0;
     grandA += a;
     grandB += b;
-    return { round: r, roundGroups, a, b, isActive: r.status === 'active' };
+    return { round: r, roundGroups, matchesForRound, a, b, isActive: r.status === 'active' };
   });
+
 
   const toggle = (id: string) => {
     setExpanded(prev => {
@@ -61,7 +70,7 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {roundData.map(({ round, roundGroups, a, b, isActive }) => (
+            {roundData.map(({ round, roundGroups, matchesForRound, a, b, isActive }) => (
               <React.Fragment key={round.id}>
                 <TableRow
                   className="cursor-pointer hover:bg-muted/50"
@@ -95,19 +104,55 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
                     )}
                   </TableCell>
                 </TableRow>
-                {expanded.has(round.id) && roundGroups.map((g: any) => (
-                  <GroupResultRow
-                    key={g.id}
-                    group={g}
-                    teamA={teamA}
-                    teamB={teamB}
-                    groupPlayers={groupPlayers[g.id] || []}
-                    players={players}
-                    holeResults={holeResults.filter((hr: any) => hr.tournament_group_id === g.id)}
-                    joinCode={joinCode}
-                    roundId={round.id}
-                  />
-                ))}
+                {expanded.has(round.id) && (
+                  matchesForRound.length > 0
+                    ? matchesForRound.map((m: any) => {
+                        const mResults = holeResults.filter((hr: any) => hr.tournament_match_id === m.id);
+                        const t = calcTeamTotals(mResults, teamIds);
+                        const ma = t[teamA.id] || 0;
+                        const mb = t[teamB.id] || 0;
+                        const namesFor = (ids: string[]) =>
+                          ids
+                            .map((id: string) => players.find((p: any) => p.id === id))
+                            .map((p: any) => (p ? p.display_name.split(' ')[0] : '?'))
+                            .join(', ');
+                        const sideAIsTeamA = !m.teamAId || m.teamAId === teamA.id;
+                        const aNames = namesFor(sideAIsTeamA ? m.sideA : m.sideB);
+                        const bNames = namesFor(sideAIsTeamA ? m.sideB : m.sideA);
+                        return (
+                          <TableRow key={m.id} className="bg-muted/10">
+                            <TableCell className="pl-8 text-xs text-muted-foreground">
+                              <span>Match {m.matchNumber}: </span>
+                              <span>{aNames} vs {bNames}</span>
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-xs">{ma}</TableCell>
+                            <TableCell className="text-center font-mono text-xs">{mb}</TableCell>
+                            <TableCell className="text-center">
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                ma > mb ? 'bg-success/20 text-success' :
+                                mb > ma ? 'bg-destructive/20 text-destructive' :
+                                'bg-muted text-muted-foreground'
+                              }`}>
+                                {ma > mb ? teamA.name : mb > ma ? teamB.name : '½'}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    : roundGroups.map((g: any) => (
+                        <GroupResultRow
+                          key={g.id}
+                          group={g}
+                          teamA={teamA}
+                          teamB={teamB}
+                          groupPlayers={groupPlayers[g.id] || []}
+                          players={players}
+                          holeResults={holeResults.filter((hr: any) => hr.tournament_group_id === g.id)}
+                          joinCode={joinCode}
+                          roundId={round.id}
+                        />
+                      ))
+                )}
               </React.Fragment>
             ))}
             {/* Grand total */}

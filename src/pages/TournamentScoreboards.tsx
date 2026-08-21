@@ -64,6 +64,7 @@ const TournamentScoreboards: React.FC = () => {
   const {
     scoreboards, teams, rounds, players, groups, groupPlayers,
     holeResults, holeScores, games, isLoading, isLive, newHoleResult, customRoundPoints,
+    roundMatches,
   } = useTournamentScoreboards(tournamentId);
 
   // Default selected scoreboard — prefer group_matches
@@ -106,11 +107,12 @@ const TournamentScoreboards: React.FC = () => {
 
   const scoreboardData = {
     teams, rounds, players, groups, groupPlayers,
-    holeResults, holeScores, games,
+    holeResults, holeScores, games, roundMatches,
     tournamentStatus: tournament.status,
     teamScoringMethod: (tournament as any).team_scoring_method || 'cumulative',
     customRoundPoints: customRoundPoints,
   };
+
 
   return (
     <div className="min-h-screen bg-background animate-fade-in">

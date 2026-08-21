@@ -220,6 +220,7 @@ const TournamentTabPanel: React.FC<Props> = ({
                 holeResults: sbData.holeResults,
                 holeScores: sbData.holeScores,
                 games: sbData.games,
+                roundMatches: sbData.roundMatches,
                 tournamentStatus: sbData.isLive ? "active" : "completed",
                 teamScoringMethod: sbData.teamScoringMethod,
                 customRoundPoints: sbData.customRoundPoints,

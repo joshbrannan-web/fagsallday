@@ -14,12 +14,13 @@ interface Props {
   holeResults: any[];
   holeScores: any[];
   games: Record<string, any>;
+  roundMatches?: any[];
   tournamentStatus: string;
   joinCode: string;
 }
 
 const GroupMatchesScoreboard: React.FC<Props> = ({
-  teams, rounds, groups, groupPlayers, holeResults, holeScores, players, games, joinCode,
+  teams, rounds, groups, groupPlayers, holeResults, holeScores, players, games, roundMatches = [], joinCode,
 }) => {
   const navigate = useNavigate();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -45,6 +46,15 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
         const game = games[round.id];
         const defaultPointsPerHole = game?.default_points_per_hole || 1;
 
+        // Cross-group matches own the scoring for the round: their hole results
+        // are stored against the match, not any single group.
+        const matchesForRound = roundMatches
+          .filter((m: any) => m.tournamentRoundId === round.id)
+          .sort((a: any, b: any) => a.matchNumber - b.matchNumber);
+        const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
+        const roundScores = holeScores.filter((s: any) => roundGroupIds.has(s.tournament_group_id));
+        const allSubmitted = roundGroups.every((g: any) => g.status === 'submitted');
+
         return (
           <Card key={round.id}>
             <CardHeader className="pb-2 px-4 pt-4">
@@ -61,7 +71,205 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
             </CardHeader>
             <CardContent className="px-2 pb-3 pt-0">
               <div className="space-y-1.5">
-                {roundGroups.map((group: any) => {
+                {matchesForRound.map((m: any) => {
+                  const matchResults = holeResults.filter((r: any) => r.tournament_match_id === m.id);
+                  const teamA = teamMap[m.teamAId] || teamMap[teamIds[0]];
+                  const teamB = teamMap[m.teamBId] || teamMap[teamIds[1]];
+                  if (!teamA || !teamB) return null;
+
+
+                  const totals = calcTeamTotals(matchResults, [teamA.id, teamB.id]);
+                  const scoreA = totals[teamA.id] || 0;
+                  const scoreB = totals[teamB.id] || 0;
+
+                  const namesFor = (ids: string[]) =>
+                    ids.map((id: string) => playerMap[id]?.display_name?.split(' ')[0] || '?').join(' / ');
+                  const aNames = namesFor(m.sideA);
+                  const bNames = namesFor(m.sideB);
+
+                  const holesPlayed = matchResults.filter((r: any) => r.result_label && r.result_label !== '').length;
+                  const totalPointsAvailable = totalCourseHoles * defaultPointsPerHole;
+                  const remaining = Math.max(0, totalPointsAvailable - scoreA - scoreB);
+
+                  let statusText = '';
+                  if (allSubmitted || holesPlayed === totalCourseHoles) {
+                    if (scoreA === scoreB) statusText = `Match Halved ${scoreA} — ${scoreB}`;
+                    else {
+                      const winner = scoreA > scoreB ? teamA.name : teamB.name;
+                      statusText = `${winner} wins ${Math.max(scoreA, scoreB)} — ${Math.min(scoreA, scoreB)}`;
+                    }
+                  } else if (holesPlayed === 0) {
+                    statusText = 'Not started';
+                  } else if (scoreA === scoreB) {
+                    statusText = `All Square · Thru ${holesPlayed} · ${remaining} pts left`;
+                  } else {
+                    const leader = scoreA > scoreB ? teamA.name : teamB.name;
+                    statusText = `${leader} leads · Thru ${holesPlayed} · ${remaining} pts left`;
+                  }
+
+                  const holeResultsMap: Record<number, any> = {};
+                  matchResults.forEach((r: any) => { holeResultsMap[r.hole_number] = r; });
+
+                  const bestScore = (holeNum: number, ids: string[]): number | undefined => {
+                    const vals = roundScores
+                      .filter((s: any) => s.hole_number === holeNum && ids.includes(s.tournament_player_id) && s.gross_score != null)
+                      .map((s: any) => s.gross_score as number);
+                    return vals.length > 0 ? Math.min(...vals) : undefined;
+                  };
+
+                  const expandKey = `match-${m.id}`;
+                  const isExpanded = expandedId === expandKey;
+
+                  return (
+                    <div key={m.id} className="rounded-lg bg-muted/50 overflow-hidden">
+                      <div
+                        className="flex items-center gap-2 px-3 py-2.5 hover:bg-muted cursor-pointer transition-colors"
+                        onClick={() => setExpandedId(prev => prev === expandKey ? null : expandKey)}
+                      >
+                        {isExpanded
+                          ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                          : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        }
+                        <span className="text-[10px] text-muted-foreground font-medium w-6 shrink-0">
+                          M{m.matchNumber}
+                        </span>
+
+                        <div className="flex-1 min-w-0 text-right">
+                          <p className="text-xs font-medium truncate">{aNames}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamA.color }} />
+                          <span className={`text-sm font-bold tabular-nums ${scoreA > scoreB ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {scoreA}
+                          </span>
+                          <span className="text-muted-foreground text-xs">-</span>
+                          <span className={`text-sm font-bold tabular-nums ${scoreB > scoreA ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {scoreB}
+                          </span>
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamB.color }} />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{bNames}</p>
+                        </div>
+
+                        {allSubmitted ? (
+                          <span className="text-[10px] text-muted-foreground">F</span>
+                        ) : isActive ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+                        ) : null}
+                      </div>
+
+                      <div className="px-3 pb-2 -mt-1">
+                        <p className={`text-[10px] text-center ${allSubmitted ? 'text-[hsl(var(--brand-gold))] font-semibold' : 'text-muted-foreground'}`}>
+                          {statusText}
+                        </p>
+                      </div>
+
+                      {isExpanded && courseHoles.length > 0 && (
+                        <div className="border-t border-border">
+                          <div className="grid grid-cols-[44px_1fr_1fr_72px] px-3 py-1.5 bg-muted/30 border-b border-border">
+                            <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">Hole</span>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamA.color }}>
+                              {teamA.name}
+                            </span>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamB.color }}>
+                              {teamB.name}
+                            </span>
+                            <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider text-right">
+                              Result
+                            </span>
+                          </div>
+
+                          <div className="max-h-[300px] overflow-y-auto divide-y divide-border/50">
+                            {courseHoles.map((hole, idx) => {
+                              const r = holeResultsMap[hole.number];
+                              const hasResult = r && r.result_label && r.result_label !== '';
+                              const aScore = bestScore(hole.number, m.sideA);
+                              const bScore = bestScore(hole.number, m.sideB);
+                              const aPts = hasResult ? (r.team_points?.[teamA.id] || 0) : 0;
+                              const bPts = hasResult ? (r.team_points?.[teamB.id] || 0) : 0;
+                              const isAWin = aPts > bPts;
+                              const isBWin = bPts > aPts;
+                              const isHalved = aPts === bPts && aPts > 0;
+                              const winnerColor = isAWin ? teamA.color : isBWin ? teamB.color : undefined;
+                              const winPts = Math.max(aPts, bPts);
+
+                              if (!hasResult) {
+                                return (
+                                  <div key={hole.number} className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 opacity-30 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
+                                    <div className="flex items-baseline gap-1">
+                                      <span className="text-[13px] font-bold font-mono">{hole.number}</span>
+                                      <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
+                                    </div>
+                                    <span className="text-center text-muted-foreground text-sm">—</span>
+                                    <span className="text-center text-muted-foreground text-sm">—</span>
+                                    <span className="text-right text-muted-foreground text-xs">—</span>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div key={hole.number} className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
+                                  <div className="flex items-baseline gap-1">
+                                    <span className="text-[13px] font-bold font-mono text-foreground">{hole.number}</span>
+                                    <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
+                                  </div>
+                                  <div className="flex justify-center">
+                                    {aScore !== undefined ? (
+                                      <ScoreChip score={aScore} par={hole.par} isWinner={isAWin} winColor={teamA.color} />
+                                    ) : (
+                                      <span className="text-muted-foreground/30 text-sm">—</span>
+                                    )}
+                                  </div>
+                                  <div className="flex justify-center">
+                                    {bScore !== undefined ? (
+                                      <ScoreChip score={bScore} par={hole.par} isWinner={isBWin} winColor={teamB.color} />
+                                    ) : (
+                                      <span className="text-muted-foreground/30 text-sm">—</span>
+                                    )}
+                                  </div>
+                                  <div className="flex justify-end">
+                                    {isHalved ? (
+                                      <span className="text-[10px] text-muted-foreground font-semibold">½ ea</span>
+                                    ) : isAWin || isBWin ? (
+                                      <span
+                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                                        style={{ color: winnerColor, backgroundColor: winnerColor ? winnerColor + '18' : undefined }}
+                                      >
+                                        +{winPts}pt
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground/40">—</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="flex flex-wrap justify-center gap-2 px-3 py-2 border-t border-border">
+                            {roundGroups.map((g: any) => (
+                              <button
+                                key={g.id}
+                                className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/tournament/${joinCode}/round/${round.id}/group/${g.id}`);
+                                }}
+                              >
+                                Group {g.group_number} scorecard
+                                <ExternalLink className="w-3 h-3" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {matchesForRound.length === 0 && roundGroups.map((group: any) => {
                   const gPlayers = groupPlayers[group.id] || [];
                   const groupResults = holeResults.filter(r => r.tournament_group_id === group.id);
                   const groupScores = holeScores.filter((s: any) => s.tournament_group_id === group.id);
