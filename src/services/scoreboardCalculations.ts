@@ -168,15 +168,24 @@ export function calcRoundMatchAward(
   const [teamAId, teamBId] = teamIds;
   const award: Record<string, number> = { [teamAId]: 0, [teamBId]: 0 };
 
+  // Cross-group matches take precedence: when any match-linked rows exist for
+  // this round, stale per-foursome group rows are ignored so a match is never
+  // counted twice (once as a match, once as its foursome).
+  const hasMatchRows = roundHoleResults.some(r => !!r.tournament_match_id);
+  const rows = hasMatchRows
+    ? roundHoleResults.filter(r => !!r.tournament_match_id)
+    : roundHoleResults;
+
   // Group results by match unit: prefer the cross-group match, else the group.
   const units = new Map<string, { isMatch: boolean; rows: HoleResultRow[] }>();
-  roundHoleResults.forEach(r => {
+  rows.forEach(r => {
     const matchId = r.tournament_match_id || null;
     const key = matchId || r.tournament_group_id;
     if (!key) return;
     if (!units.has(key)) units.set(key, { isMatch: !!matchId, rows: [] });
     units.get(key)!.rows.push(r);
   });
+
 
   const frontPts = pts.front ?? 1;
   const backPts = pts.back ?? 1;
