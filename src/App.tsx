@@ -22,6 +22,8 @@ import TournamentAdminScoreboards from './pages/TournamentAdminScoreboards';
 import TournamentAdminLiveView from './pages/TournamentAdminLiveView';
 import Tournament from './pages/Tournament';
 import TournamentScoreboards from './pages/TournamentScoreboards';
+import TournamentViewRoundScorecard from './pages/TournamentViewRoundScorecard';
+
 import TournamentGroupScorecard from './pages/TournamentGroupScorecard';
 import TournamentBuildRoundWizard from './components/tournament/TournamentBuildRoundWizard';
 import TournamentRegistration from './pages/TournamentRegistration';
