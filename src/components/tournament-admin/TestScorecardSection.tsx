@@ -114,8 +114,12 @@ const TestScorecardSection: React.FC<Props> = ({
     (totalA !== totalB && Math.abs(totalA - totalB) > remaining)
   );
   const leaderName = totalA > totalB ? teams[teamAId!]?.name : teams[teamBId!]?.name;
+  const hasAnyScore = players.some(p => courseHoles.some(h => gross(p.id, h.number) != null));
+  const notCalculated = holesPlayed === 0 && hasAnyScore;
   let statusLine = '';
-  if (hasMatch) {
+  if (notCalculated) {
+    statusLine = 'Results not calculated yet — use Recheck to score these holes';
+  } else if (hasMatch) {
     if (isComplete) {
       statusLine = totalA === totalB
         ? `Match Halved ${totalA} — ${totalB}`
