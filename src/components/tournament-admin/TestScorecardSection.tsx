@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
+import { strokesReceived } from '@/services/tournamentEngine';
 
 export interface TestScorecardPlayer {
   id: string;
@@ -30,12 +31,21 @@ interface Props {
   ballsCounted?: (holeNumber: number) => number;
   /** Optional summary of tournament points awarded for this round. */
   awardLine?: string;
+  /** playerId -> effective handicap index (override ?? index). Enables stroke dots. */
+  handicaps?: Record<string, number>;
+  /** holeNumber -> stroke index (hole handicap 1-18). */
+  holeStrokeIndex?: Record<number, number>;
+  /** Whether the game applies handicaps. */
+  useHandicaps?: boolean;
+  /** Handicap allowance percentage (default 100). */
+  handicapAllowancePercent?: number;
   action?: React.ReactNode;
 }
 
 const TestScorecardSection: React.FC<Props> = ({
   title, subtitle, players, teams, teamAId, teamBId, courseHoles, scores, results,
   pointsPerHole = 1, bestBall = false, ballsCounted, awardLine, action,
+  handicaps, holeStrokeIndex, useHandicaps = true, handicapAllowancePercent = 100,
 }) => {
   const frontNine = courseHoles.filter(h => h.number <= 9);
   const backNine = courseHoles.filter(h => h.number > 9);
@@ -52,6 +62,26 @@ const TestScorecardSection: React.FC<Props> = ({
   const ordered = teamIds.length
     ? [...players].sort((a, b) => teamIds.indexOf(a.teamId || '') - teamIds.indexOf(b.teamId || ''))
     : players;
+
+  // ── Handicap strokes ──────────────────────────────────────
+  const showStrokes = !!handicaps && !!holeStrokeIndex && useHandicaps;
+  const courseHcps: Record<string, number> = {};
+  if (showStrokes) {
+    players.forEach(p => {
+      courseHcps[p.id] = Math.round((handicaps![p.id] ?? 0) * (handicapAllowancePercent / 100));
+    });
+  }
+  const lowHcp = showStrokes && players.length
+    ? Math.min(...players.map(p => courseHcps[p.id] ?? 0))
+    : 0;
+  const strokesFor = (pid: string, hole: number) => {
+    if (!showStrokes) return 0;
+    const si = holeStrokeIndex![hole];
+    if (!si) return 0;
+    return strokesReceived((courseHcps[pid] ?? 0) - lowHcp, si);
+  };
+  const totalStrokes = (pid: string) =>
+    courseHoles.reduce((s, h) => s + strokesFor(pid, h.number), 0);
 
   const gross = (pid: string, hole: number) => scores[pid]?.[hole];
   const sum = (pid: string, holes: { number: number }[]) =>
@@ -111,16 +141,25 @@ const TestScorecardSection: React.FC<Props> = ({
       const g = gross(p.id, h.number);
       const counting = countingIds(p.teamId, h.number);
       const muted = bestBall && g !== undefined && !!counting && !counting.has(p.id);
+      const st = strokesFor(p.id, h.number);
       return (
         <td
           key={h.number}
-          className={`p-1.5 text-center font-mono ${
+          title={st ? `${p.name} gets ${st} stroke${st > 1 ? 's' : ''} on hole ${h.number}` : undefined}
+          className={`p-1.5 text-center font-mono relative ${
             muted ? 'text-muted-foreground/60'
               : g != null && g < h.par ? 'text-destructive font-bold'
               : g != null && g > h.par ? 'text-muted-foreground' : ''
           }`}
         >
           {g ?? '—'}
+          {st > 0 && (
+            <span className="absolute top-0.5 right-0.5 flex gap-[1px]">
+              {Array.from({ length: st }).map((_, i) => (
+                <span key={i} className="w-1 h-1 rounded-full bg-[hsl(var(--brand-gold))] inline-block" />
+              ))}
+            </span>
+          )}
         </td>
       );
     });
@@ -134,6 +173,12 @@ const TestScorecardSection: React.FC<Props> = ({
           {hasMatch && (
             <p className={`text-xs ${isComplete ? 'text-[hsl(var(--brand-gold))] font-bold' : 'text-muted-foreground'}`}>
               {statusLine}
+            </p>
+          )}
+          {showStrokes && (
+            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <span className="w-1 h-1 rounded-full bg-[hsl(var(--brand-gold))] inline-block" />
+              Gold dots mark holes where a player receives a handicap stroke (relative to the low handicap here).
             </p>
           )}
           {awardLine && (
@@ -180,6 +225,11 @@ const TestScorecardSection: React.FC<Props> = ({
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teams[p.teamId].color }} />
                     )}
                     <span className="font-medium truncate max-w-[110px]">{p.name}</span>
+                    {showStrokes && (
+                      <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                        {totalStrokes(p.id) > 0 ? `+${totalStrokes(p.id)}` : 'scratch'}
+                      </span>
+                    )}
                   </div>
                 </td>
                 {renderScoreCells(p, frontNine)}
