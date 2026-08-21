@@ -450,6 +450,11 @@ const TournamentAdminTestConsole: React.FC = () => {
                 method={tournament?.team_scoring_method}
                 customRoundPoints={tournament?.custom_round_points}
                 courseHoleNumbers={courseHoleNumbers}
+                unitLabels={{
+                  ...Object.fromEntries(groups.map(g => [g.id, `Group ${g.group_number}`])),
+                  ...Object.fromEntries(matches.map(m => [m.id, `Match ${m.matchNumber}`])),
+                }}
+
               />
             )}
           </div>
