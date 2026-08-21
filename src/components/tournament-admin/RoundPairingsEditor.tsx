@@ -86,6 +86,26 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
   const [addingMatch, setAddingMatch] = useState(false);
   const [matchSides, setMatchSides] = useState<Record<string, 'A' | 'B'>>({});
   const [savingMatch, setSavingMatch] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ group: Group; scoredHoles: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const requestDeleteGroup = async (group: Group) => {
+    const { count } = await supabase
+      .from('tournament_hole_scores')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_group_id', group.id)
+      .not('gross_score', 'is', null);
+    setPendingDelete({ group, scoredHoles: count || 0 });
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    await onDeleteGroup(pendingDelete.group.id);
+    setDeleting(false);
+    setPendingDelete(null);
+  };
+
 
   const is1v1 = gameType ? ONE_V_ONE_TYPES.includes(gameType) : false;
   const needs1v1Step = is1v1 && selectedIds.length === 4;
