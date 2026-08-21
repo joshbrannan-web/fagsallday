@@ -95,6 +95,13 @@ const WizardStepReview: React.FC<Props> = ({ basicInfo, teams, players, rounds }
                 Team scoring: Front {r.teamScoringPoints.front} / Back {r.teamScoringPoints.back} / Overall {r.teamScoringPoints.overall}
               </p>
             )}
+            {basicInfo.teamScoringMethod === 'custom_pts_per_round' && r.teamScoringMode === 'per_match' && (
+              <p className="text-xs text-muted-foreground">
+                Match scoring (per match): Front {r.teamScoringPoints.front} / Back {r.teamScoringPoints.back} / Overall {r.teamScoringPoints.overall}
+                {r.teamScoringPoints.match ? ` / Match win ${r.teamScoringPoints.match}` : ''}
+              </p>
+            )}
+
             {r.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{r.notes}</p>}
           </div>
         ))}
