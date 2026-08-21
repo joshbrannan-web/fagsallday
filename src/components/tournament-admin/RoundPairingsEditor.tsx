@@ -224,7 +224,7 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                     size="sm"
                     variant="ghost"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => onDeleteGroup(group.id)}
+                    onClick={() => requestDeleteGroup(group)}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
