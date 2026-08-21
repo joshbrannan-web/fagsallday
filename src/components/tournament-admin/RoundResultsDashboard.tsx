@@ -395,6 +395,52 @@ const RoundResultsDashboard: React.FC<Props> = ({
                         </p>
                       </div>
                     )}
+
+                    {/* Per-match breakdown */}
+                    {pair && round.team_scoring_mode === 'per_match' && (() => {
+                      const { matches: matchRows } = calcRoundMatchAward(
+                        holeResultsForRound(round.id) as any,
+                        pair,
+                        (round.team_scoring_points || {}) as any,
+                      );
+                      const nameA = teams.find((t: any) => t.id === pair[0])?.name || 'Team A';
+                      const nameB = teams.find((t: any) => t.id === pair[1])?.name || 'Team B';
+                      return (
+                        <div className="rounded-lg border p-3 space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Match Scoring
+                          </p>
+                          {matchRows.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic">No match results yet.</p>
+                          ) : matchRows.map((m, idx) => (
+                            <div key={m.unitId} className="space-y-1">
+                              <div className="flex items-center justify-between text-xs font-medium">
+                                <span>{unitLabels[m.unitId] || `${m.isMatch ? 'Match' : 'Group'} ${idx + 1}`}</span>
+                                <span className="tabular-nums text-muted-foreground">
+                                  {fmt(m.awardA)} — {fmt(m.awardB)} pts
+                                </span>
+                              </div>
+                              {m.segments.map(s => (
+                                <div key={s.label} className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                  <span>{s.label}</span>
+                                  <span className="tabular-nums">holes {s.holesA} — {s.holesB}</span>
+                                  <span>
+                                    {s.holesA === s.holesB
+                                      ? `halved · ${fmt(s.value / 2)} each`
+                                      : `${s.holesA > s.holesB ? nameA : nameB} +${fmt(s.value)}`}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                          <p className="text-[11px] text-muted-foreground pt-1">
+                            Each match is scored on its own (holes won, not hole points); match points add up
+                            to the round award above.
+                          </p>
+                        </div>
+                      );
+                    })()}
+
                   </div>
                 )}
 
