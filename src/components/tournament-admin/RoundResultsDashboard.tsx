@@ -44,6 +44,8 @@ const RoundResultsDashboard: React.FC<Props> = ({
   const [loading, setLoading] = useState(true);
   const [recalcRoundId, setRecalcRoundId] = useState<string | null>(null);
   const [unitLabels, setUnitLabels] = useState<Record<string, string>>({});
+  const [matchesByRound, setMatchesByRound] = useState<Record<string, any[]>>({});
+
 
 
   // Completed or active rounds (show results for both)
