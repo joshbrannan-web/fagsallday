@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ClipboardList, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
   const [players, setPlayers] = useState<Record<string, { name: string; teamId: string | null; handicap: number }>>({});
   const [scores, setScores] = useState<Record<string, Record<number, number>>>({});
   const [results, setResults] = useState<(TestScorecardResult & { tournament_group_id: string | null; tournament_match_id: string | null })[]>([]);
+  const autoHealed = useRef(false);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
@@ -69,38 +70,60 @@ const TournamentAdminTestScorecard: React.FC = () => {
       setPlayers(pm);
     }
 
-    const rows: any[] = [];
-    if (g.length > 0) {
-      const groupIds = g.map(x => x.id);
-      const [scoreRes, groupResults] = await Promise.all([
-        supabase
-          .from('tournament_hole_scores')
-          .select('tournament_player_id, hole_number, gross_score')
-          .in('tournament_group_id', groupIds),
-        supabase
+    const groupIds = g.map(x => x.id);
+    const matchIds = m.map(x => x.id);
+
+    const fetchResults = async () => {
+      const rows: any[] = [];
+      if (groupIds.length > 0) {
+        const { data } = await supabase
           .from('tournament_hole_results')
           .select('hole_number, team_points, result_label, tournament_group_id, tournament_match_id')
-          .in('tournament_group_id', groupIds),
-      ]);
+          .in('tournament_group_id', groupIds);
+        rows.push(...(data || []));
+      }
+      if (matchIds.length > 0) {
+        const { data } = await supabase
+          .from('tournament_hole_results')
+          .select('hole_number, team_points, result_label, tournament_group_id, tournament_match_id')
+          .in('tournament_match_id', matchIds);
+        rows.push(...(data || []));
+      }
+      return rows;
+    };
+
+    let hasScores = false;
+    if (groupIds.length > 0) {
+      const { data: scoreRows } = await supabase
+        .from('tournament_hole_scores')
+        .select('tournament_player_id, hole_number, gross_score')
+        .in('tournament_group_id', groupIds);
       const map: Record<string, Record<number, number>> = {};
-      (scoreRes.data || []).forEach(s => {
+      (scoreRows || []).forEach(s => {
         if (s.gross_score == null) return;
         map[s.tournament_player_id] = map[s.tournament_player_id] || {};
         map[s.tournament_player_id][s.hole_number] = s.gross_score;
       });
+      hasScores = Object.keys(map).length > 0;
       setScores(map);
-      rows.push(...(groupResults.data || []));
     } else {
       setScores({});
     }
 
-    if (m.length > 0) {
-      const { data } = await supabase
-        .from('tournament_hole_results')
-        .select('hole_number, team_points, result_label, tournament_group_id, tournament_match_id')
-        .in('tournament_match_id', m.map(x => x.id));
-      rows.push(...(data || []));
+    let rows = await fetchResults();
+
+    // Self-heal: scores exist but nothing has been calculated yet (e.g. matches
+    // were mirrored in after the test started). Derive results once.
+    if (rows.length === 0 && hasScores && !autoHealed.current) {
+      autoHealed.current = true;
+      try {
+        await recalcTestRoundResults(roundId);
+        rows = await fetchResults();
+      } catch {
+        // leave results empty; the UI shows a "not calculated" state
+      }
     }
+
     setResults(rows as any);
     setIsLoading(false);
   }, [roundId]);
