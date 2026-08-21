@@ -154,7 +154,9 @@ const TestRoundAwardCard: React.FC<Props> = ({
         </div>
 
         <p className="text-[11px] text-muted-foreground">
-          Hole points decide each segment; the round contributes these points to the tournament standings.
+          {holeResults.length === 0
+            ? 'No hole results have been calculated for this round yet — use Recheck to score the holes already entered.'
+            : 'Hole points decide each segment; the round contributes these points to the tournament standings.'}
         </p>
       </CardContent>
     </Card>
