@@ -46,6 +46,15 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
         const game = games[round.id];
         const defaultPointsPerHole = game?.default_points_per_hole || 1;
 
+        // Cross-group matches own the scoring for the round: their hole results
+        // are stored against the match, not any single group.
+        const matchesForRound = roundMatches
+          .filter((m: any) => m.tournamentRoundId === round.id)
+          .sort((a: any, b: any) => a.matchNumber - b.matchNumber);
+        const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
+        const roundScores = holeScores.filter((s: any) => roundGroupIds.has(s.tournament_group_id));
+        const allSubmitted = roundGroups.every((g: any) => g.status === 'submitted');
+
         return (
           <Card key={round.id}>
             <CardHeader className="pb-2 px-4 pt-4">
