@@ -23,6 +23,8 @@ import TeamListAdmin from '@/components/tournament-admin/TeamListAdmin';
 import RoundConfigCard, { RoundConfigData, defaultRoundConfig } from '@/components/tournament-admin/RoundConfigCard';
 import RoundResultsDashboard from '@/components/tournament-admin/RoundResultsDashboard';
 import RoundPairingsEditor from '@/components/tournament-admin/RoundPairingsEditor';
+import SideBetsPanel from '@/components/tournament/SideBetsPanel';
+
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
