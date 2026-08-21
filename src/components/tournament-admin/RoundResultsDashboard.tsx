@@ -113,19 +113,71 @@ const RoundResultsDashboard: React.FC<Props> = ({
     groupPlayersByGroup[gp.tournament_group_id].push(gp);
   });
 
-  // Cumulative team totals
-  const cumulativeTotals = calcTeamTotals(holeResults, teamIds);
-  const maxCumulative = Math.max(...Object.values(cumulativeTotals), 1);
-  const sortedTeams = [...teams].sort((a, b) => (cumulativeTotals[b.id] || 0) - (cumulativeTotals[a.id] || 0));
-  const leadingTeamId = sortedTeams[0]?.id;
-
-  // Per-round team totals
+  // Per-round raw hole-point totals
   const roundTotals = calcTeamTotalsPerRound(
     completedRounds,
     groupsByRound,
     holeResults,
     teamIds,
   );
+
+  const method = tournament?.team_scoring_method as any;
+  const awardApplies = teamIds.length === 2 && (method === 'custom_pts_per_round' || method === 'round_win');
+  const pair: [string, string] | null = awardApplies ? [teamIds[0], teamIds[1]] : null;
+
+  const holeResultsForRound = (roundId: string) => {
+    const ids = new Set((groupsByRound[roundId] || []).map((g: any) => g.id));
+    return holeResults.filter((r: any) => r.tournament_group_id && ids.has(r.tournament_group_id));
+  };
+
+  // Award (Front/Back/Overall or round win) per round — only for completed rounds
+  const roundAwards: Record<string, Record<string, number>> = {};
+  completedRounds.forEach((r: any) => {
+    if (!pair) return;
+    if (r.status !== 'completed') return;
+    roundAwards[r.id] = calcRoundTeamAward(
+      r,
+      roundTotals[r.id] || {},
+      holeResultsForRound(r.id) as any,
+      pair,
+      method,
+      tournament?.custom_round_points ?? undefined,
+      true,
+    );
+  });
+
+  const segmentSums = (roundId: string, from: number, to: number) => {
+    let a = 0, b = 0;
+    if (!pair) return [a, b] as const;
+    holeResultsForRound(roundId).forEach((r: any) => {
+      if (r.hole_number >= from && r.hole_number <= to) {
+        const tp = (r.team_points || {}) as Record<string, number>;
+        a += Number(tp[pair[0]] || 0);
+        b += Number(tp[pair[1]] || 0);
+      }
+    });
+    return [a, b] as const;
+  };
+
+  const fmt = (n: number) => Number(n.toFixed(2));
+
+  const segmentWinnerLabel = (a: number, b: number, value: number) => {
+    if (a === b) return `halved · ${fmt(value / 2)} each`;
+    const winner = a > b ? teams.find((t: any) => t.id === pair![0]) : teams.find((t: any) => t.id === pair![1]);
+    return `${winner?.name || 'Team'} +${fmt(value)}`;
+  };
+
+  // Cumulative standings — awarded points where an award applies, raw hole points otherwise
+  const cumulativeTotals: Record<string, number> = {};
+  teamIds.forEach(id => { cumulativeTotals[id] = 0; });
+  completedRounds.forEach((r: any) => {
+    const src = roundAwards[r.id] || roundTotals[r.id] || {};
+    teamIds.forEach(id => { cumulativeTotals[id] += Number(src[id] || 0); });
+  });
+  const maxCumulative = Math.max(...Object.values(cumulativeTotals), 1);
+  const sortedTeams = [...teams].sort((a, b) => (cumulativeTotals[b.id] || 0) - (cumulativeTotals[a.id] || 0));
+  const leadingTeamId = sortedTeams[0]?.id;
+
 
   return (
     <div className="space-y-4">
