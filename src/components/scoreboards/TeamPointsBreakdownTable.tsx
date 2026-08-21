@@ -76,20 +76,27 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
           const roundGroups = groups[round.id] || [];
           const isExpanded = expandedRounds.has(round.id);
 
-          // Round totals
+          // Round results: group-attached results plus pooled cross-group match
+          // results (which carry tournament_round_id but no group id).
+          const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
+          const roundResults = holeResults.filter((r: any) =>
+            (r.tournament_group_id && roundGroupIds.has(r.tournament_group_id)) ||
+            r.tournament_round_id === round.id
+          );
+
           let roundA = 0, roundB = 0;
-          roundGroups.forEach((g: any) => {
-            const pts = getGroupTeamPoints(g.id);
-            roundA += pts[teamA.id] || 0;
-            roundB += pts[teamB.id] || 0;
+          roundResults.forEach((r: any) => {
+            const tp = (r.team_points || {}) as Record<string, number>;
+            roundA += Number(tp[teamA.id] || 0);
+            roundB += Number(tp[teamB.id] || 0);
           });
+          const isPooled = roundResults.some((r: any) => !r.tournament_group_id);
 
           const isCompleted = round.status === 'completed';
-          const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
           const award = calcRoundTeamAward(
             round,
             { [teamA.id]: roundA, [teamB.id]: roundB },
-            holeResults.filter((r: any) => roundGroupIds.has(r.tournament_group_id)) as any,
+            roundResults as any,
             [teamA.id, teamB.id],
             teamScoringMethod,
             customRoundPoints,
