@@ -73,11 +73,10 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
               <div className="space-y-1.5">
                 {matchesForRound.map((m: any) => {
                   const matchResults = holeResults.filter((r: any) => r.tournament_match_id === m.id);
-                  const sideAIsTeamA = !m.teamAId || !teamMap[m.teamAId] ? true : true;
                   const teamA = teamMap[m.teamAId] || teamMap[teamIds[0]];
                   const teamB = teamMap[m.teamBId] || teamMap[teamIds[1]];
                   if (!teamA || !teamB) return null;
-                  void sideAIsTeamA;
+
 
                   const totals = calcTeamTotals(matchResults, [teamA.id, teamB.id]);
                   const scoreA = totals[teamA.id] || 0;
