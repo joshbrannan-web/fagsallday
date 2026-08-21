@@ -267,6 +267,17 @@ const TournamentAdminTestConsole: React.FC = () => {
           />
         )}
 
+        {groups.length > 0 && realMatchCount > 0 && matches.length === 0 && (
+          <Card className="border-amber-500/60 bg-amber-500/10">
+            <CardContent className="p-3 text-xs text-amber-700 dark:text-amber-400">
+              This round has {realMatchCount} cross-group match{realMatchCount === 1 ? '' : 'es'}, but
+              the running test has none — it is scoring each foursome instead of the real matchups.
+              Reset the test and run Test Start again to mirror the matches.
+            </CardContent>
+          </Card>
+        )}
+
+
         {groups.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-center space-y-3">
