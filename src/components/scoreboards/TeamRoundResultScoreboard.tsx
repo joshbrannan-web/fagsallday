@@ -83,18 +83,32 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
         { label: `Overall (${pts.overall ?? 2}pt)`, a: sa_pts(oa, ob, pts.overall ?? 2), b: sa_pts(ob, oa, pts.overall ?? 2) },
       ];
       void win;
-    } else if (isCompleted && teamScoringMethod === 'custom_pts_per_round' && r.team_scoring_mode === 'per_match') {
+    } else if (teamScoringMethod === 'custom_pts_per_round' && r.team_scoring_mode === 'per_match') {
       const { matches: matchRows } = calcRoundMatchAward(
         roundResults as any,
         [teamA.id, teamB.id],
         (r.team_scoring_points || {}) as any,
       );
+      // Label each unit with the real match number (or group number) it maps to.
+      const unitLabel = (unitId: string, isMatch: boolean, idx: number) => {
+        if (isMatch) {
+          const m = matchesForRound.find((x: any) => x.id === unitId);
+          return `Match ${m?.matchNumber ?? idx + 1}`;
+        }
+        const g = roundGroups.find((x: any) => x.id === unitId);
+        return `Group ${g?.group_number ?? idx + 1}`;
+      };
+      const suffix = isCompleted ? '' : ' (in progress)';
       segments = matchRows.map((m, idx) => ({
-        label: `${m.isMatch ? 'Match' : 'Group'} ${idx + 1}`,
+        label: `${unitLabel(m.unitId, m.isMatch, idx)}${suffix}`,
         a: m.awardA,
         b: m.awardB,
       }));
+      const num = (s: string) => Number(s.replace(/\D+/g, '')) || 0;
+      segments.sort((x, y) => num(x.label) - num(y.label));
     }
+
+
 
 
     // Awarded points sum into the grand total; live rounds fall back to raw.

@@ -44,6 +44,8 @@ const RoundResultsDashboard: React.FC<Props> = ({
   const [loading, setLoading] = useState(true);
   const [recalcRoundId, setRecalcRoundId] = useState<string | null>(null);
   const [unitLabels, setUnitLabels] = useState<Record<string, string>>({});
+  const [matchesByRound, setMatchesByRound] = useState<Record<string, any[]>>({});
+
 
 
   // Completed or active rounds (show results for both)
@@ -76,6 +78,13 @@ const RoundResultsDashboard: React.FC<Props> = ({
       ...Object.fromEntries(groups.map((g: any) => [g.id, `Group ${g.group_number}`])),
       ...Object.fromEntries(roundMatches.map(m => [m.id, `Match ${m.matchNumber}`])),
     });
+    setMatchesByRound(
+      roundMatches.reduce((acc: Record<string, any[]>, m) => {
+        (acc[m.tournamentRoundId] ||= []).push(m);
+        return acc;
+      }, {}),
+    );
+
     setHoleScores(scoresRes.data || []);
     setHoleResults([...(resultsRes.data || []), ...matchRows]);
     setLoading(false);
@@ -405,14 +414,36 @@ const RoundResultsDashboard: React.FC<Props> = ({
                       );
                       const nameA = teams.find((t: any) => t.id === pair[0])?.name || 'Team A';
                       const nameB = teams.find((t: any) => t.id === pair[1])?.name || 'Team B';
+                      const configuredMatches = matchesByRound[round.id] || [];
+                      const missingMatchResults =
+                        configuredMatches.length > 0 &&
+                        !holeResultsForRound(round.id).some((r: any) => r.tournament_match_id);
                       return (
                         <div className="rounded-lg border p-3 space-y-2">
                           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                             Match Scoring
                           </p>
+                          {missingMatchResults && (
+                            <div className="rounded border border-[hsl(var(--brand-gold))]/50 bg-[hsl(var(--brand-gold))]/10 p-2 space-y-2">
+                              <p className="text-xs">
+                                This round has {configuredMatches.length} configured match
+                                {configuredMatches.length === 1 ? '' : 'es'} but no match results have been
+                                calculated yet, so no match points can be awarded.
+                              </p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={recalcRoundId === round.id}
+                                onClick={() => handleRecalc(round)}
+                              >
+                                {recalcRoundId === round.id ? 'Recalculating…' : 'Recalculate match results'}
+                              </Button>
+                            </div>
+                          )}
                           {matchRows.length === 0 ? (
                             <p className="text-xs text-muted-foreground italic">No match results yet.</p>
                           ) : matchRows.map((m, idx) => (
+
                             <div key={m.unitId} className="space-y-1">
                               <div className="flex items-center justify-between text-xs font-medium">
                                 <span>{unitLabels[m.unitId] || `${m.isMatch ? 'Match' : 'Group'} ${idx + 1}`}</span>
