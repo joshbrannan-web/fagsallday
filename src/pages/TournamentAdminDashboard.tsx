@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournamentDetail } from '@/hooks/useTournamentDetail';
-import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus, ChevronDown, ChevronRight, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus, ChevronDown, ChevronRight, FlaskConical, ClipboardList } from 'lucide-react';
 import TestRoundLauncher from '@/components/tournament-admin/TestRoundLauncher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
