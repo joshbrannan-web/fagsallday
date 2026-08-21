@@ -17,6 +17,7 @@ interface ScoreboardData {
   holeResults: any[];
   holeScores: any[];
   games: Record<string, any>;
+  roundMatches?: any[];
   tournamentStatus: string;
   teamScoringMethod?: 'cumulative' | 'round_win' | 'custom_pts_per_round';
   customRoundPoints?: number;
