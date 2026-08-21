@@ -125,34 +125,87 @@ const TestScorecardSection: React.FC<Props> = ({
     }
   }
 
-  const holeDot = (hole: number) => {
+  const net = (pid: string, hole: number) => {
+    const g = gross(pid, hole);
+    if (g == null) return undefined;
+    return g - strokesFor(pid, hole);
+  };
+
+  /** Players whose ball counts for a team on a hole, for any format. */
+  const countingSetFor = (teamId: string | null, hole: number): Set<string> => {
+    if (bestBall) {
+      const s = countingIds(teamId, hole);
+      if (s) return s;
+    }
+    return new Set(
+      players.filter(p => p.teamId === teamId && gross(p.id, hole) != null).map(p => p.id),
+    );
+  };
+
+  const teamNet = (teamId: string, hole: number): number | undefined => {
+    const set = countingSetFor(teamId, hole);
+    if (!set.size) return undefined;
+    let total = 0;
+    set.forEach(pid => { total += net(pid, hole) ?? 0; });
+    return total;
+  };
+
+  /** Winning team id for a hole, '' when halved, null when not played. */
+  const holeWinnerTeam = (hole: number): string | null | '' => {
     const res = resultByHole.get(hole);
-    if (!res) return <span className="text-muted-foreground">—</span>;
+    if (!res) return null;
     const tp = res.team_points || {};
     const a = teamAId ? Number(tp[teamAId] || 0) : 0;
     const b = teamBId ? Number(tp[teamBId] || 0) : 0;
-    if (a > b) return <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: teams[teamAId!]?.color }} />;
-    if (b > a) return <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: teams[teamBId!]?.color }} />;
-    return <span className="text-muted-foreground">½</span>;
+    if (a > b) return teamAId!;
+    if (b > a) return teamBId!;
+    return '';
+  };
+
+  const holeDot = (hole: number) => {
+    const w = holeWinnerTeam(hole);
+    if (w === null) return <span className="text-muted-foreground">—</span>;
+    if (w === '') return <span className="text-muted-foreground">½</span>;
+    return <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: teams[w]?.color }} />;
   };
 
   const renderScoreCells = (p: TestScorecardPlayer, holes: { number: number; par: number }[]) =>
     holes.map(h => {
       const g = gross(p.id, h.number);
-      const counting = countingIds(p.teamId, h.number);
-      const muted = bestBall && g !== undefined && !!counting && !counting.has(p.id);
+      const counts = g != null && countingSetFor(p.teamId, h.number).has(p.id);
+      const muted = g != null && !counts;
       const st = strokesFor(p.id, h.number);
+      const n = net(p.id, h.number);
+      const color = p.teamId ? teams[p.teamId]?.color : undefined;
+      const winner = holeWinnerTeam(h.number);
+      const isWinningCell = counts && !!p.teamId && winner === p.teamId;
+      const isHalvedCell = counts && !!p.teamId && winner === '';
+      const style: React.CSSProperties = {};
+      if (counts && color) {
+        style.boxShadow = `inset 0 0 0 1.5px ${color}`;
+        if (isWinningCell) style.backgroundColor = `color-mix(in srgb, ${color} 24%, transparent)`;
+        else if (isHalvedCell) style.backgroundColor = `color-mix(in srgb, ${color} 10%, transparent)`;
+      }
+      const titleParts = [
+        counts ? 'Counts toward team score' : g != null ? 'Not counted' : '',
+        st ? `${st} stroke${st > 1 ? 's' : ''} received` : '',
+        showStrokes && n != null ? `net ${n}` : '',
+      ].filter(Boolean);
       return (
         <td
           key={h.number}
-          title={st ? `${p.name} gets ${st} stroke${st > 1 ? 's' : ''} on hole ${h.number}` : undefined}
-          className={`p-1.5 text-center font-mono relative ${
-            muted ? 'text-muted-foreground/60'
+          title={titleParts.length ? `${p.name} — hole ${h.number}: ${titleParts.join(' • ')}` : undefined}
+          style={style}
+          className={`p-1.5 text-center font-mono relative rounded-sm ${
+            muted ? 'text-muted-foreground/50'
               : g != null && g < h.par ? 'text-destructive font-bold'
               : g != null && g > h.par ? 'text-muted-foreground' : ''
           }`}
         >
-          {g ?? '—'}
+          <span className={counts ? 'font-semibold' : ''}>{g ?? '—'}</span>
+          {showStrokes && n != null && (
+            <span className="block text-[9px] leading-none text-muted-foreground">{n}</span>
+          )}
           {st > 0 && (
             <span className="absolute top-0.5 right-0.5 flex gap-[1px]">
               {Array.from({ length: st }).map((_, i) => (
@@ -163,6 +216,7 @@ const TestScorecardSection: React.FC<Props> = ({
         </td>
       );
     });
+
 
   return (
     <Card className="overflow-hidden">
