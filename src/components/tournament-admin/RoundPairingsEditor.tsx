@@ -496,8 +496,32 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
             </Button>
           )}
         </div>
+
+        <AlertDialog open={!!pendingDelete} onOpenChange={(o) => { if (!o) setPendingDelete(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Group {pendingDelete?.group.group_number}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDelete && pendingDelete.scoredHoles > 0
+                  ? `Group ${pendingDelete.group.group_number} has ${pendingDelete.scoredHoles} hole${pendingDelete.scoredHoles === 1 ? '' : 's'} of scores — these will be permanently deleted along with the pairing and its results. This cannot be undone.`
+                  : 'This removes the pairing and its player assignments. You can create new pairings right after.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => { e.preventDefault(); confirmDeleteGroup(); }}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
+
   );
 };
 
