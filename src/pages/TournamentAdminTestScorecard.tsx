@@ -28,7 +28,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);
   const [matches, setMatches] = useState<RoundMatch[]>([]);
   const [teams, setTeams] = useState<Record<string, { name: string; color: string }>>({});
-  const [players, setPlayers] = useState<Record<string, { name: string; teamId: string | null }>>({});
+  const [players, setPlayers] = useState<Record<string, { name: string; teamId: string | null; handicap: number }>>({});
   const [scores, setScores] = useState<Record<string, Record<number, number>>>({});
   const [results, setResults] = useState<(TestScorecardResult & { tournament_group_id: string | null; tournament_match_id: string | null })[]>([]);
 
@@ -57,15 +57,15 @@ const TournamentAdminTestScorecard: React.FC = () => {
     if (roundRes.data) {
       const [teamRes, playerRes, tRes] = await Promise.all([
         supabase.from('tournament_teams').select('id, name, color').eq('tournament_id', roundRes.data.tournament_id),
-        supabase.from('tournament_players').select('id, display_name, team_id').eq('tournament_id', roundRes.data.tournament_id),
+        supabase.from('tournament_players').select('id, display_name, team_id, handicap_index, handicap_override').eq('tournament_id', roundRes.data.tournament_id),
         supabase.from('tournaments').select('team_scoring_method, custom_round_points').eq('id', roundRes.data.tournament_id).maybeSingle(),
       ]);
       setTournament(tRes.data);
       const tm: Record<string, { name: string; color: string }> = {};
       (teamRes.data || []).forEach(t => { tm[t.id] = { name: t.name, color: t.color }; });
       setTeams(tm);
-      const pm: Record<string, { name: string; teamId: string | null }> = {};
-      (playerRes.data || []).forEach(p => { pm[p.id] = { name: p.display_name, teamId: p.team_id }; });
+      const pm: Record<string, { name: string; teamId: string | null; handicap: number }> = {};
+      (playerRes.data || []).forEach((p: any) => { pm[p.id] = { name: p.display_name, teamId: p.team_id, handicap: Number(p.handicap_override ?? p.handicap_index ?? 0) }; });
       setPlayers(pm);
     }
 
@@ -134,6 +134,21 @@ const TournamentAdminTestScorecard: React.FC = () => {
     number: h.number ?? i + 1,
     par: h.par ?? 4,
   }));
+  const holeStrokeIndex: Record<number, number> = {};
+  (round?.course_data?.holes || []).forEach((h: any, i: number) => {
+    holeStrokeIndex[h.number ?? i + 1] = Number(h.handicapIndex ?? h.handicap ?? h.si ?? i + 1);
+  });
+  const playerHandicaps: Record<string, number> = Object.fromEntries(
+    Object.entries(players).map(([id, p]: any) => [id, p.handicap ?? 0]),
+  );
+  const useHandicaps = game?.use_handicaps ?? true;
+  const handicapAllowancePercent = Number(game?.handicap_allowance_percent ?? 100);
+  const strokeProps = {
+    handicaps: playerHandicaps,
+    holeStrokeIndex,
+    useHandicaps,
+    handicapAllowancePercent,
+  };
   const pointsPerHole = Number(game?.default_points_per_hole) || 1;
   const bestBall = !!game?.game_type?.includes('best_ball');
   const roundLabel = round?.name || `Round ${round?.round_number ?? ''}`;
@@ -257,6 +272,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                {...strokeProps}
               />
             );
           })
@@ -279,6 +295,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
               pointsPerHole={pointsPerHole}
               bestBall={bestBall}
               ballsCounted={ballsCounted}
+              {...strokeProps}
               awardLine={awardLine}
             />
             <Card>
@@ -323,6 +340,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                {...strokeProps}
                 awardLine={awardLine}
                 action={
                   <Button
