@@ -11,6 +11,8 @@ import ScoreboardSelector from '@/components/scoreboards/ScoreboardSelector';
 import ScoreboardRenderer from '@/components/scoreboards/ScoreboardRenderer';
 import TournamentLiveToast from '@/components/scoreboards/TournamentLiveToast';
 import { GAME_TYPE_LABELS } from '@/components/tournament/TournamentRoundCard';
+import SideBetsPanel from '@/components/tournament/SideBetsPanel';
+
 
 const TournamentScoreboards: React.FC = () => {
   const { joinCode } = useParams<{ joinCode: string }>();
