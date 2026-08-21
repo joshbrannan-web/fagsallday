@@ -435,7 +435,49 @@ const RoundResultsDashboard: React.FC<Props> = ({
                   </div>
                 )}
 
+                {/* Round-level / cross-group match results */}
+                {roundResultRows.some((r: any) => !r.tournament_group_id) && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Round Match — all groups
+                    </p>
+                    <div className="rounded border overflow-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs w-12">Hole</TableHead>
+                            <TableHead className="text-xs">Result</TableHead>
+                            {teams.map((t: any) => (
+                              <TableHead key={t.id} className="text-xs text-right w-14">
+                                <span className="w-2 h-2 rounded-full inline-block mr-1" style={{ backgroundColor: t.color }} />
+                                {t.name.slice(0, 3)}
+                              </TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {roundResultRows
+                            .filter((r: any) => !r.tournament_group_id)
+                            .sort((a: any, b: any) => a.hole_number - b.hole_number)
+                            .map((r: any) => (
+                              <TableRow key={r.id}>
+                                <TableCell className="text-xs tabular-nums py-1.5">{r.hole_number}</TableCell>
+                                <TableCell className="text-xs py-1.5">{r.result_label || '–'}</TableCell>
+                                {teams.map((t: any) => (
+                                  <TableCell key={t.id} className="text-xs text-right tabular-nums py-1.5 font-medium">
+                                    {fmt(Number((r.team_points as Record<string, number>)?.[t.id] ?? 0))}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+
                 {/* Group Breakdown */}
+
                 {roundGroups.length > 0 && (
                   <Accordion type="multiple">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Group Breakdown</p>
