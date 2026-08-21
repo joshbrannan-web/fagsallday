@@ -71,6 +71,8 @@ const Admin = () => {
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [setPwUser, setSetPwUser] = useState<AdminUser | null>(null);
+  const [customPassword, setCustomPassword] = useState('');
+
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [tempPasswordUser, setTempPasswordUser] = useState<AdminUser | null>(null);
 
@@ -250,22 +252,26 @@ const Admin = () => {
   const handleSetTempPassword = async () => {
     if (!setPwUser) return;
     const user = setPwUser;
+    const chosen = customPassword.trim();
     setActionLoading(user.id);
     try {
       const { data, error } = await supabase.functions.invoke('admin-set-password', {
-        body: { userId: user.id },
+        body: { userId: user.id, ...(chosen ? { password: chosen } : {}) },
       });
       if (error) throw error;
       if (!data?.temporaryPassword) throw new Error('No password returned');
       setTempPassword(data.temporaryPassword);
       setTempPasswordUser(user);
+
     } catch (err: any) {
       console.error('Error setting password:', err);
       toast.error(err.message || 'Failed to set password');
     } finally {
       setActionLoading(null);
       setSetPwUser(null);
+      setCustomPassword('');
     }
+
   };
 
   const copyTempPassword = async () => {
@@ -720,24 +726,41 @@ const Admin = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Set Temporary Password Confirmation */}
-      <AlertDialog open={!!setPwUser} onOpenChange={(open) => !open && setSetPwUser(null)}>
+      {/* Set Password */}
+      <AlertDialog open={!!setPwUser} onOpenChange={(open) => { if (!open) { setSetPwUser(null); setCustomPassword(''); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Set Temporary Password</AlertDialogTitle>
+            <AlertDialogTitle>Set Password</AlertDialogTitle>
             <AlertDialogDescription>
-              This will overwrite <strong>{setPwUser?.display_name}</strong>'s password and generate a new temporary one.
-              The password will be displayed once — copy it now and hand it to the user. They can change it after signing in.
+              This will overwrite <strong>{setPwUser?.display_name}</strong>'s password. Type a password below, or leave it
+              blank to generate a random one. The password is shown once — copy it and hand it to the user.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="custom-password">New password (optional)</Label>
+            <Input
+              id="custom-password"
+              autoComplete="new-password"
+              placeholder="Leave blank to auto-generate"
+              value={customPassword}
+              onChange={(e) => setCustomPassword(e.target.value)}
+            />
+            {customPassword && customPassword.length < 6 && (
+              <p className="text-xs text-destructive">Must be at least 6 characters.</p>
+            )}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSetTempPassword}>
-              Generate Password
+            <AlertDialogAction
+              disabled={!!customPassword && (customPassword.length < 6 || customPassword.length > 72)}
+              onClick={handleSetTempPassword}
+            >
+              {customPassword ? 'Set Password' : 'Generate Password'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
 
       {/* Display Generated Password */}
       <Dialog open={!!tempPassword} onOpenChange={(open) => { if (!open) { setTempPassword(null); setTempPasswordUser(null); } }}>
