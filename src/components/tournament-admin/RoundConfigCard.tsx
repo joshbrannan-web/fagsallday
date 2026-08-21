@@ -127,8 +127,9 @@ interface Props {
 const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTeamScoring }) => {
   const [showHolePoints, setShowHolePoints] = useState(false);
   const update = (key: keyof RoundConfigData, value: any) => onChange({ ...data, [key]: value });
-  const updatePoints = (key: 'round' | 'front' | 'back' | 'overall', value: number) =>
+  const updatePoints = (key: 'round' | 'front' | 'back' | 'overall' | 'match', value: number) =>
     update('teamScoringPoints', { ...data.teamScoringPoints, [key]: value });
+
 
   const updateDefaultPointsPerHole = (value: number) => {
     if (data.holePointsCustomized) {
