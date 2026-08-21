@@ -87,19 +87,34 @@ const TestScorecardSection: React.FC<Props> = ({
   const sum = (pid: string, holes: { number: number }[]) =>
     holes.reduce((s, h) => s + (gross(pid, h.number) || 0), 0);
 
-  /** Player ids whose ball counts for their team on this hole (best-ball formats). */
-  const countingIds = (teamId: string | null, hole: number): Set<string> | undefined => {
-    if (!bestBall || !teamId) return undefined;
-    const entries = players
+  /** Team members' scores for a hole, sorted best net first. */
+  const sortedBalls = (teamId: string | null, hole: number) => {
+    if (!teamId) return [];
+    return players
       .filter(p => p.teamId === teamId)
       .map(p => ({ id: p.id, g: gross(p.id, hole) }))
       .filter((e): e is { id: string; g: number } => typeof e.g === 'number')
       .map(e => ({ ...e, n: e.g - strokesFor(e.id, hole) }))
       .sort((a, b) => (a.n - b.n) || (a.g - b.g));
+  };
+
+  /** Player ids whose ball counts for their team on this hole (best-ball formats). */
+  const countingIds = (teamId: string | null, hole: number): Set<string> | undefined => {
+    if (!bestBall || !teamId) return undefined;
+    const entries = sortedBalls(teamId, hole);
     if (!entries.length) return undefined;
     const n = Math.max(1, ballsCounted ? ballsCounted(hole) : 1);
-    return new Set(entries.slice(0, n).map(e => e.id));
+    if (n > 1) return new Set(entries.slice(0, n).map(e => e.id));
+
+    // Single best ball decides the hole; the 2nd ball only matters when the
+    // two sides' best nets tie (2nd-ball tiebreaker).
+    const other = teamId === teamAId ? teamBId : teamId === teamBId ? teamAId : null;
+    const otherEntries = sortedBalls(other ?? null, hole);
+    const tied = otherEntries.length > 0 && otherEntries[0].n === entries[0].n;
+    const take = tied ? 2 : 1;
+    return new Set(entries.slice(0, take).map(e => e.id));
   };
+
 
 
   // Match status
