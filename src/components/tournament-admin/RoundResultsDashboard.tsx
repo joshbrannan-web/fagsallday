@@ -289,11 +289,25 @@ const RoundResultsDashboard: React.FC<Props> = ({
                 {/* Team Results for this round */}
                 {teams.length >= 2 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Team Results</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        {award ? 'Team Results — awarded points' : 'Team Results — hole points'}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        disabled={recalcRoundId === round.id}
+                        onClick={() => handleRecalc(round)}
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 mr-1 ${recalcRoundId === round.id ? 'animate-spin' : ''}`} />
+                        Recalculate
+                      </Button>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       {roundSortedTeams.map((team, idx) => {
-                        const pts = teamTotalsThisRound[team.id] || 0;
-                        const isWinner = idx === 0 && pts > 0 && pts > (teamTotalsThisRound[roundSortedTeams[1]?.id] || 0);
+                        const pts = displayTotals[team.id] || 0;
+                        const isWinner = idx === 0 && pts > 0 && pts > (displayTotals[roundSortedTeams[1]?.id] || 0);
                         const isTied = idx === 1 && pts === roundWinnerPts && pts > 0;
                         return (
                           <Card key={team.id} className={`p-3 ${isWinner ? 'ring-2 ring-[hsl(var(--brand-gold))]/50' : ''}`}>
@@ -303,14 +317,47 @@ const RoundResultsDashboard: React.FC<Props> = ({
                               {isWinner && <Trophy className="w-3.5 h-3.5 text-[hsl(var(--brand-gold))]" />}
                               {isTied && <Minus className="w-3.5 h-3.5 text-muted-foreground" />}
                             </div>
-                            <p className="text-xl font-bold tabular-nums">{pts}</p>
-                            <p className="text-xs text-muted-foreground">points</p>
+                            <p className="text-xl font-bold tabular-nums">{fmt(pts)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {award
+                                ? `points · hole points ${fmt(teamTotalsThisRound[team.id] || 0)}`
+                                : 'points'}
+                            </p>
                           </Card>
                         );
                       })}
                     </div>
+
+                    {/* Front / Back / Overall breakdown */}
+                    {pair && round.team_scoring_mode === 'fbo' && (
+                      <div className="rounded-lg border p-3 space-y-1.5">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Front / Back / Overall
+                        </p>
+                        {([
+                          ['Front 9', segmentSums(round.id, 1, 9), Number(round.team_scoring_points?.front ?? 1)],
+                          ['Back 9', segmentSums(round.id, 10, 18), Number(round.team_scoring_points?.back ?? 1)],
+                          ['Overall', [teamTotalsThisRound[pair[0]] || 0, teamTotalsThisRound[pair[1]] || 0] as const, Number(round.team_scoring_points?.overall ?? 2)],
+                        ] as [string, readonly [number, number], number][]).map(([label, [a, b], value]) => (
+                          <div key={label} className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">{label}</span>
+                            <span className="tabular-nums">{fmt(a)} — {fmt(b)}</span>
+                            <span className="font-medium">
+                              {round.status === 'completed'
+                                ? segmentWinnerLabel(a, b, value)
+                                : `in progress · ${fmt(value)} pts`}
+                            </span>
+                          </div>
+                        ))}
+                        <p className="text-[11px] text-muted-foreground pt-1">
+                          Hole points decide each segment; the segment points above are what this round
+                          contributes to the tournament standings.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
+
 
                 {/* Player Leaderboard */}
                 {playerRows.length > 0 && (
