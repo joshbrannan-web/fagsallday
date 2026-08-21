@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import GroupResultRow from './GroupResultRow';
-import { calcTeamTotals, calcRoundTeamAward } from '@/services/scoreboardCalculations';
+import { calcTeamTotals, calcRoundTeamAward, calcRoundMatchAward } from '@/services/scoreboardCalculations';
 
 interface Props {
   teams: any[];
@@ -83,7 +83,19 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
         { label: `Overall (${pts.overall ?? 2}pt)`, a: sa_pts(oa, ob, pts.overall ?? 2), b: sa_pts(ob, oa, pts.overall ?? 2) },
       ];
       void win;
+    } else if (isCompleted && teamScoringMethod === 'custom_pts_per_round' && r.team_scoring_mode === 'per_match') {
+      const { matches: matchRows } = calcRoundMatchAward(
+        roundResults as any,
+        [teamA.id, teamB.id],
+        (r.team_scoring_points || {}) as any,
+      );
+      segments = matchRows.map((m, idx) => ({
+        label: `${m.isMatch ? 'Match' : 'Group'} ${idx + 1}`,
+        a: m.awardA,
+        b: m.awardB,
+      }));
     }
+
 
     // Awarded points sum into the grand total; live rounds fall back to raw.
     grandA += awardedA;

@@ -64,8 +64,9 @@ export interface CreateTournamentData {
       rulesText?: string;
     };
     holePointOverrides?: { holeNumber: number; points: number }[];
-    teamScoringMode?: 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo';
-    teamScoringPoints?: { round: number; front: number; back: number; overall: number };
+    teamScoringMode?: 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo' | 'per_match';
+    teamScoringPoints?: { round: number; front: number; back: number; overall: number; match?: number };
+
   }[];
 }
 

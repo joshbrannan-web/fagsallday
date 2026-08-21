@@ -9,12 +9,15 @@ interface HoleResultRow {
   tournament_group_id: string | null;
   /** Set client-side for cross-group match results (group id is null). */
   tournament_round_id?: string | null;
+  /** Cross-group match this result belongs to, when applicable. */
+  tournament_match_id?: string | null;
   hole_number: number;
   team_points: Record<string, number>;
   player_points: Record<string, number>;
   points_value: number;
   result_label: string | null;
 }
+
 
 interface HoleScoreRow {
   tournament_group_id: string;
@@ -102,13 +105,15 @@ export function calcTeamTotalsPerRound(
 // ── PER-ROUND TEAM AWARD (scoring method aware) ──────────────
 
 export type TeamScoringMethod = 'cumulative' | 'round_win' | 'custom_pts_per_round';
-export type RoundTeamScoringMode = 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo';
+export type RoundTeamScoringMode = 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo' | 'per_match';
 
 export interface RoundTeamScoringPoints {
   round?: number;
   front?: number;
   back?: number;
   overall?: number;
+  /** Bonus for winning a whole match (per_match mode). */
+  match?: number;
 }
 
 const awardSegment = (
@@ -123,6 +128,107 @@ const awardSegment = (
   else if (b > a) out[teamBId] += value;
   else { out[teamAId] += value / 2; out[teamBId] += value / 2; }
 };
+
+// ── PER-MATCH AWARD (match play, holes up/down) ───────────────
+
+export interface MatchSegmentBreakdown {
+  label: string;
+  /** Holes won by side A in this segment. */
+  holesA: number;
+  holesB: number;
+  value: number;
+  /** Points awarded to each side for this segment. */
+  awardA: number;
+  awardB: number;
+  holesPlayed: number;
+}
+
+export interface MatchAwardBreakdown {
+  /** Match id for cross-group matches, otherwise the group id. */
+  unitId: string;
+  isMatch: boolean;
+  segments: MatchSegmentBreakdown[];
+  awardA: number;
+  awardB: number;
+}
+
+const segmentAward = (a: number, b: number, value: number): [number, number] =>
+  a > b ? [value, 0] : b > a ? [0, value] : [value / 2, value / 2];
+
+/**
+ * Scores each match (cross-group match, or foursome group when no matches
+ * exist) on its own using match play holes up/down, then sums the points.
+ * Hole point values are ignored — only who won each hole matters.
+ */
+export function calcRoundMatchAward(
+  roundHoleResults: HoleResultRow[],
+  teamIds: [string, string],
+  pts: RoundTeamScoringPoints
+): { award: Record<string, number>; matches: MatchAwardBreakdown[] } {
+  const [teamAId, teamBId] = teamIds;
+  const award: Record<string, number> = { [teamAId]: 0, [teamBId]: 0 };
+
+  // Group results by match unit: prefer the cross-group match, else the group.
+  const units = new Map<string, { isMatch: boolean; rows: HoleResultRow[] }>();
+  roundHoleResults.forEach(r => {
+    const matchId = r.tournament_match_id || null;
+    const key = matchId || r.tournament_group_id;
+    if (!key) return;
+    if (!units.has(key)) units.set(key, { isMatch: !!matchId, rows: [] });
+    units.get(key)!.rows.push(r);
+  });
+
+  const frontPts = pts.front ?? 1;
+  const backPts = pts.back ?? 1;
+  const overallPts = pts.overall ?? 2;
+  const matchPts = pts.match ?? 0;
+
+  const matches: MatchAwardBreakdown[] = [];
+
+  units.forEach((unit, unitId) => {
+    // Holes won per side within this match.
+    const holesWon = (from: number, to: number) => {
+      let a = 0, b = 0, played = 0;
+      unit.rows.forEach(r => {
+        if (r.hole_number < from || r.hole_number > to) return;
+        const tp = (r.team_points || {}) as Record<string, number>;
+        const pa = Number(tp[teamAId] || 0);
+        const pb = Number(tp[teamBId] || 0);
+        played += 1;
+        if (pa > pb) a += 1;
+        else if (pb > pa) b += 1;
+      });
+      return { a, b, played };
+    };
+
+    const front = holesWon(1, 9);
+    const back = holesWon(10, 18);
+    const overall = holesWon(1, 99);
+    if (overall.played === 0) return;
+
+    const segments: MatchSegmentBreakdown[] = [];
+    const push = (label: string, a: number, b: number, value: number, played: number) => {
+      const [awardA, awardB] = segmentAward(a, b, value);
+      segments.push({ label, holesA: a, holesB: b, value, awardA, awardB, holesPlayed: played });
+    };
+
+    if (front.played > 0 && frontPts > 0) push('Front 9', front.a, front.b, frontPts, front.played);
+    if (back.played > 0 && backPts > 0) push('Back 9', back.a, back.b, backPts, back.played);
+    if (overallPts > 0) push('Overall', overall.a, overall.b, overallPts, overall.played);
+    if (matchPts > 0) push('Match win', overall.a, overall.b, matchPts, overall.played);
+
+    const awardA = segments.reduce((s, x) => s + x.awardA, 0);
+    const awardB = segments.reduce((s, x) => s + x.awardB, 0);
+    award[teamAId] += awardA;
+    award[teamBId] += awardB;
+
+    matches.push({ unitId, isMatch: unit.isMatch, segments, awardA, awardB });
+  });
+
+  matches.sort((x, y) => x.unitId.localeCompare(y.unitId));
+  return { award, matches };
+}
+
 
 /**
  * Points a round contributes to each team's grand total, honoring the
@@ -157,6 +263,11 @@ export function calcRoundTeamAward(
   const pts: RoundTeamScoringPoints = (round?.team_scoring_points as RoundTeamScoringPoints) || {};
 
   if (mode === 'per_hole') return cumulative;
+
+  if (mode === 'per_match') {
+    return calcRoundMatchAward(roundHoleResults, teamIds, pts).award;
+  }
+
 
   if (mode === 'per_hole_and_round') {
     out[teamAId] = totalA;

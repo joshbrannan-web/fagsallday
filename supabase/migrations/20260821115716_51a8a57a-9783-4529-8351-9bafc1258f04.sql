@@ -1,0 +1,2 @@
+ALTER TABLE public.tournament_rounds DROP CONSTRAINT IF EXISTS tournament_rounds_team_scoring_mode_check;
+ALTER TABLE public.tournament_rounds ADD CONSTRAINT tournament_rounds_team_scoring_mode_check CHECK (team_scoring_mode = ANY (ARRAY['per_hole'::text, 'per_round'::text, 'per_hole_and_round'::text, 'fbo'::text, 'per_match'::text]));

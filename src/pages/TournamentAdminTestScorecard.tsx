@@ -197,6 +197,10 @@ const TournamentAdminTestScorecard: React.FC = () => {
     ? results.filter(r => r.tournament_group_id === anchorGroupId)
     : results;
   const hasAward = awardTeamIds.length === 2 && groups.length > 0;
+  const awardUnitLabels: Record<string, string> = {
+    ...Object.fromEntries(groups.map(g => [g.id, `Group ${g.group_number}`])),
+    ...Object.fromEntries(matches.map(m => [m.id, `Match ${m.matchNumber}`])),
+  };
   const awardCard = hasAward ? (
     <TestRoundAwardCard
       round={round}
@@ -206,8 +210,10 @@ const TournamentAdminTestScorecard: React.FC = () => {
       method={tournament?.team_scoring_method}
       customRoundPoints={tournament?.custom_round_points}
       courseHoleNumbers={courseHoles.map(h => h.number)}
+      unitLabels={awardUnitLabels}
     />
   ) : null;
+
 
   let awardLine: string | undefined;
   if (hasAward) {

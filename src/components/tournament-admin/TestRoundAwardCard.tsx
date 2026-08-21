@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Trophy } from 'lucide-react';
 import {
   calcRoundTeamAward,
+  calcRoundMatchAward,
   type TeamScoringMethod,
   type RoundTeamScoringMode,
   type RoundTeamScoringPoints,
@@ -12,6 +13,8 @@ import {
 export interface AwardHoleResult {
   hole_number: number;
   team_points: Record<string, number> | null;
+  tournament_group_id?: string | null;
+  tournament_match_id?: string | null;
 }
 
 interface Props {
@@ -22,7 +25,10 @@ interface Props {
   method: TeamScoringMethod | undefined;
   customRoundPoints?: number | null;
   courseHoleNumbers?: number[];
+  /** Optional display names for match/group units keyed by match id or group id. */
+  unitLabels?: Record<string, string>;
 }
+
 
 const fmt = (n: number) => Number(n.toFixed(2));
 
@@ -34,6 +40,8 @@ const TestRoundAwardCard: React.FC<Props> = ({
   method,
   customRoundPoints,
   courseHoleNumbers,
+  unitLabels,
+
 }) => {
   const [teamAId, teamBId] = teamIds;
   if (!teamAId || !teamBId) return null;
@@ -74,6 +82,63 @@ const TestRoundAwardCard: React.FC<Props> = ({
     customRoundPoints ?? undefined,
     true,
   );
+
+  if (mode === 'per_match' && method === 'custom_pts_per_round') {
+    const { matches } = calcRoundMatchAward(holeResults as any, teamIds, pts);
+    return (
+      <Card className="border-[hsl(var(--brand-gold))]/40">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-[hsl(var(--brand-gold))]" />
+              Match Points Award
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" style={teams[teamAId]?.color ? { borderColor: teams[teamAId].color } : undefined}>
+                {nameA}: {fmt(award[teamAId] || 0)}
+              </Badge>
+              <Badge variant="outline" style={teams[teamBId]?.color ? { borderColor: teams[teamBId].color } : undefined}>
+                {nameB}: {fmt(award[teamBId] || 0)}
+              </Badge>
+            </div>
+          </div>
+
+          {matches.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">
+              Results not calculated yet — use Recheck to score the holes already entered.
+            </p>
+          ) : (
+            matches.map((m, idx) => (
+              <div key={m.unitId} className="rounded border border-border p-2 space-y-1">
+                <div className="flex items-center justify-between text-xs font-medium">
+                  <span>{unitLabels?.[m.unitId] || `${m.isMatch ? 'Match' : 'Group'} ${idx + 1}`}</span>
+                  <span className="text-muted-foreground">
+                    {fmt(m.awardA)} – {fmt(m.awardB)} pts
+                  </span>
+                </div>
+                {m.segments.map(s => (
+                  <div key={s.label} className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>{s.label}</span>
+                    <span>holes won {s.holesA} – {s.holesB}</span>
+                    <span className="text-right">
+                      {s.holesA === s.holesB
+                        ? `Halved (${fmt(s.value / 2)} each)`
+                        : `${s.holesA > s.holesB ? nameA : nameB} +${fmt(s.value)}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+
+          <p className="text-[11px] text-muted-foreground">
+            Each match is scored on its own with match play holes up/down; every match's points add to the team totals.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
 
   interface Seg { label: string; a: number; b: number; value: number; complete: boolean }
   const segments: Seg[] = [];
