@@ -25,6 +25,8 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
   joinCode, teamScoringMethod, customRoundPoints,
 }) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
+
 
   if (teams.length < 2) return null;
   const teamA = teams[0];
