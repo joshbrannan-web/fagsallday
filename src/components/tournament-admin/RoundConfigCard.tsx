@@ -373,6 +373,8 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
                 ['per_round', 'Per Round only'],
                 ['per_hole_and_round', 'Per Hole + Per Round'],
                 ['fbo', 'Front / Back / Overall'],
+                ['per_match', 'Per Match'],
+
               ] as const).map(([mode, label]) => (
                 <button
                   key={mode}
