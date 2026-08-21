@@ -48,15 +48,30 @@ const RoundResultsDashboard: React.FC<Props> = ({
     const allGroupIds = groups.map((g: any) => g.id);
     if (allGroupIds.length === 0) { setLoading(false); return; }
 
-    const [scoresRes, resultsRes] = await Promise.all([
+    const roundIds = rounds.map((r: any) => r.id);
+    const roundMatches = await fetchRoundMatchesForRounds(roundIds);
+
+    const [scoresRes, resultsRes, matchResultsRes] = await Promise.all([
       supabase.from('tournament_hole_scores').select('*').in('tournament_group_id', allGroupIds),
       supabase.from('tournament_hole_results').select('*').eq('is_test', false).in('tournament_group_id', allGroupIds),
+      roundMatches.length > 0
+        ? supabase.from('tournament_hole_results').select('*').eq('is_test', false).in('tournament_match_id', roundMatches.map(m => m.id))
+        : Promise.resolve({ data: [] as any[] }),
     ]);
 
+    // Cross-group / round-level match results carry no group id — tag them with
+    // their round so per-round totals pick them up.
+    const roundByMatch = new Map(roundMatches.map(m => [m.id, m.tournamentRoundId]));
+    const matchRows = (matchResultsRes.data || []).map((r: any) => ({
+      ...r,
+      tournament_round_id: roundByMatch.get(r.tournament_match_id) || null,
+    }));
+
     setHoleScores(scoresRes.data || []);
-    setHoleResults(resultsRes.data || []);
+    setHoleResults([...(resultsRes.data || []), ...matchRows]);
     setLoading(false);
-  }, [groups]);
+  }, [groups, rounds]);
+
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
