@@ -439,6 +439,39 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
               <p className="text-xs text-muted-foreground mt-1">Each tied segment splits its points in half.</p>
             </div>
           )}
+
+          {data.teamScoringMode === 'per_match' && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">
+                Every match in this round is scored on its own using match play (holes up/down). Each match awards
+                the points below, and all matches are added to the team totals. Set a value to 0 to skip that segment.
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {([
+                  ['front', 'Front 9'],
+                  ['back', 'Back 9'],
+                  ['overall', 'Overall'],
+                  ['match', 'Match win'],
+                ] as const).map(([key, label]) => (
+                  <div key={key}>
+                    <Label className="text-xs">{label} pts</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      value={data.teamScoringPoints[key] ?? 0}
+                      onChange={e => updatePoints(key, Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="h-8 mt-1"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                A tied segment splits its points in half between the two sides.
+              </p>
+            </div>
+          )}
+
         </div>
       )}
     </div>
