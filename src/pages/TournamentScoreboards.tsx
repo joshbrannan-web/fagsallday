@@ -284,7 +284,16 @@ const TournamentScoreboards: React.FC = () => {
             })}
           </div>
         )}
+
+        {/* Side Bets */}
+        {tournamentId && (
+          <div className="space-y-3 mt-6">
+            <h2 className="text-lg font-bold">Side Bets</h2>
+            <SideBetsPanel tournamentId={tournamentId} players={players} rounds={rounds} />
+          </div>
+        )}
       </div>
+
     </div>
   );
 };
