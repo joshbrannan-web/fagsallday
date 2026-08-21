@@ -27,19 +27,22 @@ export interface TestGroupSummary {
   players: { tournament_player_id: string; team_id: string; display_name: string }[];
 }
 
-export async function fetchTestGroups(tournamentRoundId: string) {
+export async function fetchTestGroups(tournamentRoundId: string, opts?: { isTest?: boolean }) {
   const { data } = await supabase
     .from('tournament_groups')
     .select('id, group_number, round_id, status')
     .eq('tournament_round_id', tournamentRoundId)
-    .eq('is_test', true)
+    .eq('is_test', opts?.isTest ?? true)
     .order('group_number');
   return data || [];
 }
 
-/** Test groups enriched with their player names (for the test console). */
-export async function fetchTestGroupSummaries(tournamentRoundId: string): Promise<TestGroupSummary[]> {
-  const groups = await fetchTestGroups(tournamentRoundId);
+/** Groups enriched with their player names (test console / round results view). */
+export async function fetchTestGroupSummaries(
+  tournamentRoundId: string,
+  opts?: { isTest?: boolean },
+): Promise<TestGroupSummary[]> {
+  const groups = await fetchTestGroups(tournamentRoundId, opts);
   if (groups.length === 0) return [];
   const ids = groups.map(g => g.id);
   const [gpRes, roundRes] = await Promise.all([
@@ -63,6 +66,7 @@ export async function fetchTestGroupSummaries(tournamentRoundId: string): Promis
       })),
   }));
 }
+
 
 /** What a test launch would clone — used for the confirmation sheet. */
 export async function fetchRoundMirrorPreview(tournamentRoundId: string) {
