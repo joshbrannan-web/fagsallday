@@ -22,6 +22,8 @@ import TournamentAdminScoreboards from './pages/TournamentAdminScoreboards';
 import TournamentAdminLiveView from './pages/TournamentAdminLiveView';
 import Tournament from './pages/Tournament';
 import TournamentScoreboards from './pages/TournamentScoreboards';
+import TournamentViewRoundScorecard from './pages/TournamentViewRoundScorecard';
+
 import TournamentGroupScorecard from './pages/TournamentGroupScorecard';
 import TournamentBuildRoundWizard from './components/tournament/TournamentBuildRoundWizard';
 import TournamentRegistration from './pages/TournamentRegistration';
@@ -838,6 +840,8 @@ const AppContent: FC = () => {
         <Route path="/tournament" element={<Tournament />} />
         <Route path="/tournament/:joinCode/scoreboards" element={<TournamentScoreboards />} />
         <Route path="/tournament/:joinCode/round/:roundId/group/:groupId" element={<TournamentGroupScorecard />} />
+        <Route path="/tournament/:joinCode/round/:roundId/results" element={<TournamentViewRoundScorecard />} />
+
         <Route path="/tournament/:joinCode/build-round" element={<TournamentBuildRoundWizard />} />
         <Route path="/register/:shareCode" element={<TournamentRegistration />} />
         <Route path="/tournament-admin/registrations" element={<TournamentRegistrationAdmin />} />
