@@ -235,6 +235,10 @@ const TestScorecardSection: React.FC<Props> = ({
               Gold dots mark holes where a player receives a handicap stroke (relative to the low handicap here).
             </p>
           )}
+          <p className="text-[11px] text-muted-foreground">
+            Outlined scores count toward the team score{showStrokes ? ' (small number = net)' : ''}; dimmed scores don't count; tinted cells are the hole winner's counting scores.
+          </p>
+
           {awardLine && (
             <p className="text-xs text-[hsl(var(--brand-gold))] font-semibold truncate">{awardLine}</p>
           )}
