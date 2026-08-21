@@ -8,7 +8,6 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Trophy, Medal, TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import {
-  calcTeamTotals,
   calcTeamTotalsPerRound,
   calcPlayerGrossPerRound,
   calcPlayerNetPerRound,
