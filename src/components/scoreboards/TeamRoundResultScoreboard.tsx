@@ -70,7 +70,7 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {roundData.map(({ round, roundGroups, a, b, isActive }) => (
+            {roundData.map(({ round, roundGroups, matchesForRound, a, b, isActive }) => (
               <React.Fragment key={round.id}>
                 <TableRow
                   className="cursor-pointer hover:bg-muted/50"
