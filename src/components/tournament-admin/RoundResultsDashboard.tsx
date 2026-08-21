@@ -1,18 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trophy, Medal, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Trophy, Medal, TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import {
   calcTeamTotals,
   calcTeamTotalsPerRound,
   calcPlayerGrossPerRound,
   calcPlayerNetPerRound,
   calcPlayerPointsPerRound,
+  calcRoundTeamAward,
 } from '@/services/scoreboardCalculations';
+import {
+  isRoundLevelGameType,
+  recalcRoundLevelResults,
+  recalcRoundMatchResults,
+  fetchRoundMatches,
+} from '@/services/roundLevelScoring';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 interface Props {
@@ -31,26 +40,51 @@ const RoundResultsDashboard: React.FC<Props> = ({
   const [holeScores, setHoleScores] = useState<any[]>([]);
   const [holeResults, setHoleResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [recalcRoundId, setRecalcRoundId] = useState<string | null>(null);
 
   // Completed or active rounds (show results for both)
   const completedRounds = rounds.filter((r: any) => r.status === 'completed' || r.status === 'active');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const allGroupIds = groups.map((g: any) => g.id);
-      if (allGroupIds.length === 0) { setLoading(false); return; }
+  const fetchData = useCallback(async () => {
+    const allGroupIds = groups.map((g: any) => g.id);
+    if (allGroupIds.length === 0) { setLoading(false); return; }
 
-      const [scoresRes, resultsRes] = await Promise.all([
-        supabase.from('tournament_hole_scores').select('*').in('tournament_group_id', allGroupIds),
-        supabase.from('tournament_hole_results').select('*').in('tournament_group_id', allGroupIds),
-      ]);
+    const [scoresRes, resultsRes] = await Promise.all([
+      supabase.from('tournament_hole_scores').select('*').in('tournament_group_id', allGroupIds),
+      supabase.from('tournament_hole_results').select('*').eq('is_test', false).in('tournament_group_id', allGroupIds),
+    ]);
 
-      setHoleScores(scoresRes.data || []);
-      setHoleResults(resultsRes.data || []);
-      setLoading(false);
-    };
-    fetchData();
+    setHoleScores(scoresRes.data || []);
+    setHoleResults(resultsRes.data || []);
+    setLoading(false);
   }, [groups]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleRecalc = async (round: any) => {
+    setRecalcRoundId(round.id);
+    try {
+      const matches = await fetchRoundMatches(round.id, { isTest: false });
+      const gameType = games.find((g: any) => g.tournament_round_id === round.id)?.game_type;
+      if (matches.length > 0) {
+        await recalcRoundMatchResults(round.id, { isTest: false });
+      } else if (isRoundLevelGameType(gameType)) {
+        await recalcRoundLevelResults(round.id, { isTest: false });
+      } else {
+        toast.info('This round is scored per foursome — nothing to pool.');
+        setRecalcRoundId(null);
+        return;
+      }
+      await fetchData();
+      toast.success('Results recalculated');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to recalculate results');
+    } finally {
+      setRecalcRoundId(null);
+    }
+  };
+
 
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground text-sm">Loading results…</div>;
