@@ -125,15 +125,10 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
 
               {isExpanded && (isPooled
                 ? (() => {
-                    // Pooled round: show the match-side results instead of groups.
-                    const ids = new Set(roundResults.map((r: any) => r.tournament_group_id));
-                    const pooledGroups = roundGroups.filter((g: any) => ids.has(g.id));
-                    const group = pooledGroups[0] || roundGroups[0];
+                    // Pooled round: results belong to a cross-group match, not a group.
                     const pA = roundA, pB = roundB;
                     const resultLabel = pA > pB ? `${teamA.name} wins` : pB > pA ? `${teamB.name} wins` : 'Halved';
-                    const label = group
-                      ? `Group ${group.group_number} (pooled): ${getGroupPlayerNames(group.id, teamA.id)} vs ${getGroupPlayerNames(group.id, teamB.id)}`
-                      : 'Pooled round match';
+                    const label = 'Round match — all groups pooled';
                     return (
                       <div className="w-full flex items-center justify-between px-4 py-2 text-xs border-t">
                         <div className="text-left text-muted-foreground">{label}</div>
