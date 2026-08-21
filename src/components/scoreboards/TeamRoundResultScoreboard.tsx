@@ -231,7 +231,7 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
                       <div className="space-y-0.5">
                         {segments.map((s, i) => {
                           const isHead = s.holesA === undefined;
-                          const inProgress = /in progress/.test(s.label);
+                          const inProgress = /in progress/.test(s.unitLabel || s.label);
                           return (
                             <div
                               key={`${s.unitLabel || ''}-${s.label}-${i}`}
@@ -251,13 +251,12 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
                                     <span className="text-muted-foreground/70"> · </span>
                                     <span className="font-mono">{s.b}</span>
                                   </>
-                                ) : inProgress ? (
-                                  <span className="italic">in progress</span>
                                 ) : s.a === s.b ? (
-                                  <span>Halved ({s.a} each)</span>
+                                  <span>Halved ({s.a} each){inProgress ? ' so far' : ''}</span>
                                 ) : (
                                   <span>
                                     {s.a > s.b ? teamA.name : teamB.name} +{Math.max(s.a, s.b)}
+                                    {inProgress ? ' so far' : ''}
                                   </span>
                                 )}
                               </span>
