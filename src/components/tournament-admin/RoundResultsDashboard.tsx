@@ -142,8 +142,11 @@ const RoundResultsDashboard: React.FC<Props> = ({
 
   const holeResultsForRound = (roundId: string) => {
     const ids = new Set((groupsByRound[roundId] || []).map((g: any) => g.id));
-    return holeResults.filter((r: any) => r.tournament_group_id && ids.has(r.tournament_group_id));
+    return holeResults.filter((r: any) =>
+      (r.tournament_group_id && ids.has(r.tournament_group_id)) || r.tournament_round_id === roundId
+    );
   };
+
 
   // Award (Front/Back/Overall or round win) per round — only for completed rounds
   const roundAwards: Record<string, Record<string, number>> = {};
