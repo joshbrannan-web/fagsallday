@@ -113,7 +113,8 @@ export const defaultRoundConfig = (num: number): RoundConfigData => ({
   sixesFormat: 'match_play',
   sixesSegmentPoints: [1, 1, 1],
   teamScoringMode: 'per_round',
-  teamScoringPoints: { round: 3, front: 1, back: 1, overall: 2 },
+  teamScoringPoints: { round: 3, front: 1, back: 1, overall: 2, match: 0 },
+
 });
 
 interface Props {
