@@ -94,11 +94,13 @@ const TestScorecardSection: React.FC<Props> = ({
       .filter(p => p.teamId === teamId)
       .map(p => ({ id: p.id, g: gross(p.id, hole) }))
       .filter((e): e is { id: string; g: number } => typeof e.g === 'number')
-      .sort((a, b) => a.g - b.g);
+      .map(e => ({ ...e, n: e.g - strokesFor(e.id, hole) }))
+      .sort((a, b) => (a.n - b.n) || (a.g - b.g));
     if (!entries.length) return undefined;
     const n = Math.max(1, ballsCounted ? ballsCounted(hole) : 1);
     return new Set(entries.slice(0, n).map(e => e.id));
   };
+
 
   // Match status
   const holesPlayed = results.length;
