@@ -302,7 +302,39 @@ const TestScorecardSection: React.FC<Props> = ({
               </tr>
             ))}
 
+            {hasMatch && teamIds.map(tid => {
+              const cell = (h: { number: number }) => {
+                const v = teamNet(tid, h.number);
+                const win = holeWinnerTeam(h.number) === tid;
+                return (
+                  <td
+                    key={h.number}
+                    className={`p-1.5 text-center font-mono ${win ? 'font-bold' : ''}`}
+                    style={{ color: teams[tid]?.color }}
+                    title={`${teams[tid]?.name || 'Team'} counting ${showStrokes ? 'net' : 'gross'} total on hole ${h.number}`}
+                  >
+                    {v ?? '—'}
+                  </td>
+                );
+              };
+              return (
+                <tr key={`net-${tid}`} className="border-t bg-muted/10">
+                  <td className="p-1.5 whitespace-nowrap text-[11px] font-medium flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teams[tid]?.color }} />
+                    <span className="truncate max-w-[110px]">{teams[tid]?.name || 'Team'}</span>
+                    <span className="text-muted-foreground">{showStrokes ? 'net' : 'gross'}</span>
+                  </td>
+                  {frontNine.map(cell)}
+                  {frontNine.length > 0 && <td className="p-1.5 bg-muted/50" />}
+                  {backNine.map(cell)}
+                  {backNine.length > 0 && <td className="p-1.5 bg-muted/50" />}
+                  <td className="p-1.5 bg-muted/50" />
+                </tr>
+              );
+            })}
+
             {hasMatch && (
+
               <tr className="border-t-2 bg-muted/20">
                 <td className="p-1.5 font-medium text-muted-foreground">Result</td>
                 {frontNine.map(h => (
