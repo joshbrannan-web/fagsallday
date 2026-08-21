@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, FlaskConical, ClipboardList, Dices, RefreshCw, Table2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,7 @@ const TournamentAdminTestConsole: React.FC = () => {
   const [results, setResults] = useState<HoleResultRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFilling, setIsFilling] = useState(false);
+  const autoHealed = useRef(false);
 
   useEffect(() => {
     if (!adminLoading && !isTournamentAdmin) {
