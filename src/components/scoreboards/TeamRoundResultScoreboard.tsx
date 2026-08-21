@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
 import GroupResultRow from './GroupResultRow';
 import { calcTeamTotals, calcRoundTeamAward, calcRoundMatchAward } from '@/services/scoreboardCalculations';
+
 
 interface Props {
   teams: any[];
