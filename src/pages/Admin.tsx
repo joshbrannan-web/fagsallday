@@ -267,7 +267,9 @@ const Admin = () => {
     } finally {
       setActionLoading(null);
       setSetPwUser(null);
+      setCustomPassword('');
     }
+
   };
 
   const copyTempPassword = async () => {
