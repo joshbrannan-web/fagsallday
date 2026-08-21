@@ -681,6 +681,13 @@ const TournamentAdminDashboard: React.FC = () => {
             groupPlayers={groupPlayers}
           />
         </TabsContent>
+
+        <TabsContent value="sidebets" className="mt-4">
+          {tournamentId && (
+            <SideBetsPanel tournamentId={tournamentId} players={players} rounds={rounds} />
+          )}
+        </TabsContent>
+
       </Tabs>
 
       {/* Pairings Editor */}
