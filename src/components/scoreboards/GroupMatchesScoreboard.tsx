@@ -14,12 +14,13 @@ interface Props {
   holeResults: any[];
   holeScores: any[];
   games: Record<string, any>;
+  roundMatches?: any[];
   tournamentStatus: string;
   joinCode: string;
 }
 
 const GroupMatchesScoreboard: React.FC<Props> = ({
-  teams, rounds, groups, groupPlayers, holeResults, holeScores, players, games, joinCode,
+  teams, rounds, groups, groupPlayers, holeResults, holeScores, players, games, roundMatches = [], joinCode,
 }) => {
   const navigate = useNavigate();
   const [expandedId, setExpandedId] = useState<string | null>(null);
