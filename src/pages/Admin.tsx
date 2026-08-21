@@ -720,24 +720,41 @@ const Admin = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Set Temporary Password Confirmation */}
-      <AlertDialog open={!!setPwUser} onOpenChange={(open) => !open && setSetPwUser(null)}>
+      {/* Set Password */}
+      <AlertDialog open={!!setPwUser} onOpenChange={(open) => { if (!open) { setSetPwUser(null); setCustomPassword(''); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Set Temporary Password</AlertDialogTitle>
+            <AlertDialogTitle>Set Password</AlertDialogTitle>
             <AlertDialogDescription>
-              This will overwrite <strong>{setPwUser?.display_name}</strong>'s password and generate a new temporary one.
-              The password will be displayed once — copy it now and hand it to the user. They can change it after signing in.
+              This will overwrite <strong>{setPwUser?.display_name}</strong>'s password. Type a password below, or leave it
+              blank to generate a random one. The password is shown once — copy it and hand it to the user.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="custom-password">New password (optional)</Label>
+            <Input
+              id="custom-password"
+              autoComplete="new-password"
+              placeholder="Leave blank to auto-generate"
+              value={customPassword}
+              onChange={(e) => setCustomPassword(e.target.value)}
+            />
+            {customPassword && customPassword.length < 6 && (
+              <p className="text-xs text-destructive">Must be at least 6 characters.</p>
+            )}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSetTempPassword}>
-              Generate Password
+            <AlertDialogAction
+              disabled={!!customPassword && (customPassword.length < 6 || customPassword.length > 72)}
+              onClick={handleSetTempPassword}
+            >
+              {customPassword ? 'Set Password' : 'Generate Password'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
 
       {/* Display Generated Password */}
       <Dialog open={!!tempPassword} onOpenChange={(open) => { if (!open) { setTempPassword(null); setTempPasswordUser(null); } }}>
