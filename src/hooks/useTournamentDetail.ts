@@ -192,12 +192,17 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   };
 
   const addGroup = async (roundId: string, playerIds: string[], subMatchups?: { playerA: string; playerB: string }[], leaderPlayerId?: string) => {
-    // Use DB count to avoid stale closure issues with rapid sequential calls
-    const { count } = await supabase
+    // Use the DB max (not a row count) so deletes don't create duplicate group numbers,
+    // and ignore test-mode mirrors so a Test Start doesn't skip numbering.
+    const { data: existingNumbers } = await supabase
       .from('tournament_groups')
-      .select('id', { count: 'exact', head: true })
-      .eq('tournament_round_id', roundId);
-    const nextGroupNumber = (count || 0) + 1;
+      .select('group_number')
+      .eq('tournament_round_id', roundId)
+      .eq('is_test', false)
+      .order('group_number', { ascending: false })
+      .limit(1);
+    const nextGroupNumber = (existingNumbers?.[0]?.group_number ?? 0) + 1;
+
     const selectedPlayerObjs = players.filter((p: any) => playerIds.includes(p.id));
     const teamIds = [...new Set(selectedPlayerObjs.map((p: any) => p.team_id).filter(Boolean))];
     const teamMatchup = teamIds.length === 2
@@ -229,11 +234,37 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   };
 
   const deleteGroup = async (groupId: string) => {
+    // Find any linked scoring round so it doesn't outlive the pairing
+    const { data: groupRow } = await supabase
+      .from('tournament_groups')
+      .select('round_id')
+      .eq('id', groupId)
+      .maybeSingle();
+    const linkedRoundId = groupRow?.round_id || null;
+
     await supabase.from('tournament_group_players').delete().eq('tournament_group_id', groupId);
+    // hole scores + hole results cascade from tournament_groups
     const { error } = await supabase.from('tournament_groups').delete().eq('id', groupId);
-    if (error) toast.error('Failed to delete group');
-    else { toast.success('Group deleted'); await fetchAll(); }
+    if (error) { toast.error('Failed to delete group'); return; }
+
+    if (linkedRoundId) {
+      await supabase.from('rounds').delete().eq('id', linkedRoundId);
+      try {
+        const cachedRaw = localStorage.getItem('fg_offline_round');
+        if (cachedRaw && JSON.parse(cachedRaw)?.id === linkedRoundId) {
+          localStorage.removeItem('fg_offline_round');
+          localStorage.removeItem('fg_offline_round_meta');
+          localStorage.removeItem('fg_sync_queue');
+        }
+      } catch {
+        /* non-critical */
+      }
+    }
+
+    toast.success('Group deleted');
+    await fetchAll();
   };
+
 
   const updateTournament = async (updates: { name?: string; description?: string | null; start_date?: string | null; end_date?: string | null; status?: string }) => {
     if (!tournamentId) return;
