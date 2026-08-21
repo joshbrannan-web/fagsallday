@@ -144,7 +144,9 @@ const TestRoundAwardCard: React.FC<Props> = ({
                     </span>
                   </>
                 ) : (
-                  <span className="text-muted-foreground italic">in progress</span>
+                  <span className="text-muted-foreground italic">
+                    {holeResults.length === 0 ? 'not calculated' : 'in progress'}
+                  </span>
                 )}
               </span>
             </div>
