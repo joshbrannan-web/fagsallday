@@ -104,19 +104,55 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
                     )}
                   </TableCell>
                 </TableRow>
-                {expanded.has(round.id) && roundGroups.map((g: any) => (
-                  <GroupResultRow
-                    key={g.id}
-                    group={g}
-                    teamA={teamA}
-                    teamB={teamB}
-                    groupPlayers={groupPlayers[g.id] || []}
-                    players={players}
-                    holeResults={holeResults.filter((hr: any) => hr.tournament_group_id === g.id)}
-                    joinCode={joinCode}
-                    roundId={round.id}
-                  />
-                ))}
+                {expanded.has(round.id) && (
+                  matchesForRound.length > 0
+                    ? matchesForRound.map((m: any) => {
+                        const mResults = holeResults.filter((hr: any) => hr.tournament_match_id === m.id);
+                        const t = calcTeamTotals(mResults, teamIds);
+                        const ma = t[teamA.id] || 0;
+                        const mb = t[teamB.id] || 0;
+                        const namesFor = (ids: string[]) =>
+                          ids
+                            .map((id: string) => players.find((p: any) => p.id === id))
+                            .map((p: any) => (p ? p.display_name.split(' ')[0] : '?'))
+                            .join(', ');
+                        const sideAIsTeamA = !m.teamAId || m.teamAId === teamA.id;
+                        const aNames = namesFor(sideAIsTeamA ? m.sideA : m.sideB);
+                        const bNames = namesFor(sideAIsTeamA ? m.sideB : m.sideA);
+                        return (
+                          <TableRow key={m.id} className="bg-muted/10">
+                            <TableCell className="pl-8 text-xs text-muted-foreground">
+                              <span>Match {m.matchNumber}: </span>
+                              <span>{aNames} vs {bNames}</span>
+                            </TableCell>
+                            <TableCell className="text-center font-mono text-xs">{ma}</TableCell>
+                            <TableCell className="text-center font-mono text-xs">{mb}</TableCell>
+                            <TableCell className="text-center">
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                ma > mb ? 'bg-success/20 text-success' :
+                                mb > ma ? 'bg-destructive/20 text-destructive' :
+                                'bg-muted text-muted-foreground'
+                              }`}>
+                                {ma > mb ? teamA.name : mb > ma ? teamB.name : '½'}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    : roundGroups.map((g: any) => (
+                        <GroupResultRow
+                          key={g.id}
+                          group={g}
+                          teamA={teamA}
+                          teamB={teamB}
+                          groupPlayers={groupPlayers[g.id] || []}
+                          players={players}
+                          holeResults={holeResults.filter((hr: any) => hr.tournament_group_id === g.id)}
+                          joinCode={joinCode}
+                          roundId={round.id}
+                        />
+                      ))
+                )}
               </React.Fragment>
             ))}
             {/* Grand total */}
