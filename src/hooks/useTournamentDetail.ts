@@ -234,11 +234,37 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
   };
 
   const deleteGroup = async (groupId: string) => {
+    // Find any linked scoring round so it doesn't outlive the pairing
+    const { data: groupRow } = await supabase
+      .from('tournament_groups')
+      .select('round_id')
+      .eq('id', groupId)
+      .maybeSingle();
+    const linkedRoundId = groupRow?.round_id || null;
+
     await supabase.from('tournament_group_players').delete().eq('tournament_group_id', groupId);
+    // hole scores + hole results cascade from tournament_groups
     const { error } = await supabase.from('tournament_groups').delete().eq('id', groupId);
-    if (error) toast.error('Failed to delete group');
-    else { toast.success('Group deleted'); await fetchAll(); }
+    if (error) { toast.error('Failed to delete group'); return; }
+
+    if (linkedRoundId) {
+      await supabase.from('rounds').delete().eq('id', linkedRoundId);
+      try {
+        const cachedRaw = localStorage.getItem('fg_offline_round');
+        if (cachedRaw && JSON.parse(cachedRaw)?.id === linkedRoundId) {
+          localStorage.removeItem('fg_offline_round');
+          localStorage.removeItem('fg_offline_round_meta');
+          localStorage.removeItem('fg_sync_queue');
+        }
+      } catch {
+        /* non-critical */
+      }
+    }
+
+    toast.success('Group deleted');
+    await fetchAll();
   };
+
 
   const updateTournament = async (updates: { name?: string; description?: string | null; start_date?: string | null; end_date?: string | null; status?: string }) => {
     if (!tournamentId) return;
