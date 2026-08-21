@@ -12,11 +12,12 @@ interface Props {
   groupPlayers: Record<string, any[]>;
   players: any[];
   holeResults: any[];
+  roundMatches?: any[];
   joinCode: string;
 }
 
 const TeamRoundResultScoreboard: React.FC<Props> = ({
-  teams, rounds, groups, groupPlayers, players, holeResults, joinCode,
+  teams, rounds, groups, groupPlayers, players, holeResults, roundMatches = [], joinCode,
 }) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -31,14 +32,22 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
   const roundData = startedRounds.map((r: any) => {
     const roundGroups = groups[r.id] || [];
     const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
-    const roundResults = holeResults.filter((hr: any) => roundGroupIds.has(hr.tournament_group_id));
+    // Cross-group matches store their results against the match, not a group.
+    const matchesForRound = roundMatches.filter((m: any) => m.tournamentRoundId === r.id);
+    const matchIds = new Set(matchesForRound.map((m: any) => m.id));
+    const roundResults = holeResults.filter(
+      (hr: any) =>
+        roundGroupIds.has(hr.tournament_group_id) ||
+        (hr.tournament_match_id && matchIds.has(hr.tournament_match_id)),
+    );
     const totals = calcTeamTotals(roundResults, teamIds);
     const a = totals[teamA.id] || 0;
     const b = totals[teamB.id] || 0;
     grandA += a;
     grandB += b;
-    return { round: r, roundGroups, a, b, isActive: r.status === 'active' };
+    return { round: r, roundGroups, matchesForRound, a, b, isActive: r.status === 'active' };
   });
+
 
   const toggle = (id: string) => {
     setExpanded(prev => {
