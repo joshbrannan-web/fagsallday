@@ -154,7 +154,17 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
                       {expanded.has(round.id) ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                       {round.name || `Round ${round.round_number}`}
                     </div>
+                    <button
+                      className="mt-1 ml-4 inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/tournament/${joinCode}/round/${round.id}/results`);
+                      }}
+                    >
+                      <ClipboardList className="w-3 h-3" /> View Scorecard &amp; Results
+                    </button>
                   </TableCell>
+
                   <TableCell className="text-center">
                     <div className="font-mono text-sm">{awardedA}</div>
                     <div className="text-[10px] text-muted-foreground">raw {a}</div>
