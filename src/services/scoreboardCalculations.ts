@@ -9,12 +9,15 @@ interface HoleResultRow {
   tournament_group_id: string | null;
   /** Set client-side for cross-group match results (group id is null). */
   tournament_round_id?: string | null;
+  /** Cross-group match this result belongs to, when applicable. */
+  tournament_match_id?: string | null;
   hole_number: number;
   team_points: Record<string, number>;
   player_points: Record<string, number>;
   points_value: number;
   result_label: string | null;
 }
+
 
 interface HoleScoreRow {
   tournament_group_id: string;
