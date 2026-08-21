@@ -226,21 +226,49 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
 
                 {segments.length > 0 && (
                   <TableRow className="bg-muted/20">
-                    <TableCell className="pl-8 text-[11px] text-muted-foreground">Award points</TableCell>
-                    <TableCell className="text-center text-[11px]">
-                      {segments.map((s) => (
-                        <div key={s.label} className="flex items-center justify-center gap-1">
-                          <span className="font-mono">{s.a}</span>
-                          <span className="text-muted-foreground/70">·</span>
-                          <span className="font-mono">{s.b}</span>
-                          <span className="text-muted-foreground/70"> {s.label}</span>
-                        </div>
-                      ))}
+                    <TableCell className="pl-8 text-[11px] text-muted-foreground align-top">Award points</TableCell>
+                    <TableCell colSpan={3} className="text-[11px]">
+                      <div className="space-y-0.5">
+                        {segments.map((s, i) => {
+                          const isHead = s.holesA === undefined;
+                          const inProgress = /in progress/.test(s.label);
+                          return (
+                            <div
+                              key={`${s.unitLabel || ''}-${s.label}-${i}`}
+                              className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${isHead ? 'font-medium pt-1' : 'pl-4 text-muted-foreground'}`}
+                            >
+                              <span className="min-w-[120px]">{s.label}</span>
+                              {!isHead && (
+                                <span>
+                                  holes won <span className="font-mono">{s.holesA}</span> –{' '}
+                                  <span className="font-mono">{s.holesB}</span>
+                                </span>
+                              )}
+                              <span className="ml-auto">
+                                {isHead ? (
+                                  <>
+                                    <span className="font-mono">{s.a}</span>
+                                    <span className="text-muted-foreground/70"> · </span>
+                                    <span className="font-mono">{s.b}</span>
+                                  </>
+                                ) : inProgress ? (
+                                  <span className="italic">in progress</span>
+                                ) : s.a === s.b ? (
+                                  <span>Halved ({s.a} each)</span>
+                                ) : (
+                                  <span>
+                                    {s.a > s.b ? teamA.name : teamB.name} +{Math.max(s.a, s.b)}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </TableCell>
-                    <TableCell />
-                    <TableCell className="text-[10px] text-muted-foreground text-center">per segment</TableCell>
                   </TableRow>
                 )}
+
 
                 {expanded.has(round.id) && (
                   matchesForRound.length > 0
