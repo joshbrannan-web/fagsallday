@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournamentDetail } from '@/hooks/useTournamentDetail';
-import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus, ChevronDown, ChevronRight, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus, ChevronDown, ChevronRight, FlaskConical, ClipboardList } from 'lucide-react';
 import TestRoundLauncher from '@/components/tournament-admin/TestRoundLauncher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -575,6 +575,17 @@ const TournamentAdminDashboard: React.FC = () => {
                       <p className="text-xs text-[hsl(var(--brand-gold))]">{teamScoringSummary(r)}</p>
                     )}
                     {r.notes && <p className="text-xs text-muted-foreground italic">{r.notes}</p>}
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-1"
+                      onClick={() => navigate(`/tournament-admin/${tournamentId}/round/${r.id}/scorecard`)}
+                    >
+                      <ClipboardList className="w-3.5 h-3.5 mr-1" /> View Scorecard &amp; Results
+                    </Button>
+
+
 
                     {r.status === 'active' && (
                       <div className="bg-[hsl(var(--brand-gold))]/10 rounded-lg p-2 text-xs text-[hsl(var(--brand-gold))]">

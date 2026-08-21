@@ -32,6 +32,8 @@ import GoogleSheetsCallback from './pages/GoogleSheetsCallback';
 import CreateTournamentWizard from './components/tournament-admin/CreateTournamentWizard';
 import TournamentAdminTestConsole from './pages/TournamentAdminTestConsole';
 import TournamentAdminTestScorecard from './pages/TournamentAdminTestScorecard';
+import TournamentAdminRoundScorecard from './pages/TournamentAdminRoundScorecard';
+
 import { calculateRoundTotals } from './services/gameEngine';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -829,7 +831,9 @@ const AppContent: FC = () => {
         <Route path="/tournament-admin/:tournamentId/test/:roundId" element={<TournamentAdminTestConsole />} />
         <Route path="/tournament-admin/:tournamentId/test/:roundId/scorecard" element={<TournamentAdminTestScorecard />} />
         <Route path="/tournament-admin/:tournamentId/scoreboards" element={<TournamentAdminScoreboards />} />
+        <Route path="/tournament-admin/:tournamentId/round/:roundId/scorecard" element={<TournamentAdminRoundScorecard />} />
         <Route path="/tournament-admin/:tournamentId/round/:roundId/group/:groupId" element={<TournamentAdminScorecard />} />
+
         <Route path="/tournament-admin/:tournamentId/round/:roundId/group/:groupId/live" element={<TournamentAdminLiveView />} />
         <Route path="/tournament" element={<Tournament />} />
         <Route path="/tournament/:joinCode/scoreboards" element={<TournamentScoreboards />} />
