@@ -250,15 +250,17 @@ const Admin = () => {
   const handleSetTempPassword = async () => {
     if (!setPwUser) return;
     const user = setPwUser;
+    const chosen = customPassword.trim();
     setActionLoading(user.id);
     try {
       const { data, error } = await supabase.functions.invoke('admin-set-password', {
-        body: { userId: user.id },
+        body: { userId: user.id, ...(chosen ? { password: chosen } : {}) },
       });
       if (error) throw error;
       if (!data?.temporaryPassword) throw new Error('No password returned');
       setTempPassword(data.temporaryPassword);
       setTempPasswordUser(user);
+
     } catch (err: any) {
       console.error('Error setting password:', err);
       toast.error(err.message || 'Failed to set password');
