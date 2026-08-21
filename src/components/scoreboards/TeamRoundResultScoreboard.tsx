@@ -62,7 +62,16 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
     const awardedB = award[teamB.id] || 0;
 
     // Front/Back/Overall segment split (only meaningful for fbo mode).
-    let segments: { label: string; a: number; b: number }[] = [];
+    type Seg = {
+      label: string;
+      a: number;
+      b: number;
+      holesA?: number;
+      holesB?: number;
+      value?: number;
+      unitLabel?: string;
+    };
+    let segments: Seg[] = [];
     if (isCompleted && teamScoringMethod === 'custom_pts_per_round' && r.team_scoring_mode === 'fbo') {
       const sum = (from: number, to: number) => {
         let sa = 0, sb = 0;
@@ -79,14 +88,19 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
       const [ba, bb] = sum(10, 18);
       const pts = (r.team_scoring_points || {}) as Record<string, number>;
       const [oa, ob] = [a, b];
-      const win = (sa: number, sb: number) =>
-        sa > sb ? teamA.name : sb > sa ? teamB.name : 'Halved';
+      const mk = (label: string, sa: number, sb: number, value: number): Seg => ({
+        label: `${label} (${value}pt)`,
+        a: sa_pts(sa, sb, value),
+        b: sa_pts(sb, sa, value),
+        holesA: sa,
+        holesB: sb,
+        value,
+      });
       segments = [
-        { label: `Front (${pts.front ?? 1}pt)`, a: sa_pts(fa, fb, pts.front ?? 1), b: sa_pts(fb, fa, pts.front ?? 1) },
-        { label: `Back (${pts.back ?? 1}pt)`, a: sa_pts(ba, bb, pts.back ?? 1), b: sa_pts(bb, ba, pts.back ?? 1) },
-        { label: `Overall (${pts.overall ?? 2}pt)`, a: sa_pts(oa, ob, pts.overall ?? 2), b: sa_pts(ob, oa, pts.overall ?? 2) },
+        mk('Front', fa, fb, pts.front ?? 1),
+        mk('Back', ba, bb, pts.back ?? 1),
+        mk('Overall', oa, ob, pts.overall ?? 2),
       ];
-      void win;
     } else if (teamScoringMethod === 'custom_pts_per_round' && r.team_scoring_mode === 'per_match') {
       const { matches: matchRows } = calcRoundMatchAward(
         roundResults as any,
@@ -103,14 +117,30 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
         return `Group ${g?.group_number ?? idx + 1}`;
       };
       const suffix = isCompleted ? '' : ' (in progress)';
-      segments = matchRows.map((m, idx) => ({
-        label: `${unitLabel(m.unitId, m.isMatch, idx)}${suffix}`,
-        a: m.awardA,
-        b: m.awardB,
-      }));
-      const num = (s: string) => Number(s.replace(/\D+/g, '')) || 0;
-      segments.sort((x, y) => num(x.label) - num(y.label));
+      segments = matchRows.flatMap((m, idx) => {
+        const head = `${unitLabel(m.unitId, m.isMatch, idx)}${suffix}`;
+        const rows: Seg[] = [{ label: head, a: m.awardA, b: m.awardB, unitLabel: head }];
+        (m.segments || []).forEach((s: any) => {
+          rows.push({
+            label: `${s.label} (${s.value}pt)`,
+            a: s.awardA,
+            b: s.awardB,
+            holesA: s.holesA,
+            holesB: s.holesB,
+            value: s.value,
+            unitLabel: head,
+          });
+        });
+        return rows;
+      });
+      const num = (s?: string) => Number((s || '').replace(/\D+/g, '')) || 0;
+      const order = Array.from(new Set(segments.map(s => s.unitLabel || '')));
+      order.sort((x, y) => num(x) - num(y));
+      segments.sort(
+        (x, y) => order.indexOf(x.unitLabel || '') - order.indexOf(y.unitLabel || ''),
+      );
     }
+
 
 
 
@@ -196,21 +226,48 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
 
                 {segments.length > 0 && (
                   <TableRow className="bg-muted/20">
-                    <TableCell className="pl-8 text-[11px] text-muted-foreground">Award points</TableCell>
-                    <TableCell className="text-center text-[11px]">
-                      {segments.map((s) => (
-                        <div key={s.label} className="flex items-center justify-center gap-1">
-                          <span className="font-mono">{s.a}</span>
-                          <span className="text-muted-foreground/70">·</span>
-                          <span className="font-mono">{s.b}</span>
-                          <span className="text-muted-foreground/70"> {s.label}</span>
-                        </div>
-                      ))}
+                    <TableCell className="pl-8 text-[11px] text-muted-foreground align-top">Award points</TableCell>
+                    <TableCell colSpan={3} className="text-[11px]">
+                      <div className="space-y-0.5">
+                        {segments.map((s, i) => {
+                          const isHead = s.holesA === undefined;
+                          const inProgress = /in progress/.test(s.unitLabel || s.label);
+                          return (
+                            <div
+                              key={`${s.unitLabel || ''}-${s.label}-${i}`}
+                              className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 ${isHead ? 'font-medium pt-1' : 'pl-4 text-muted-foreground'}`}
+                            >
+                              <span className="min-w-[120px]">{s.label}</span>
+                              {!isHead && (
+                                <span>
+                                  holes won <span className="font-mono">{s.holesA}</span> –{' '}
+                                  <span className="font-mono">{s.holesB}</span>
+                                </span>
+                              )}
+                              <span className="ml-auto">
+                                {isHead ? (
+                                  <>
+                                    <span className="font-mono">{s.a}</span>
+                                    <span className="text-muted-foreground/70"> · </span>
+                                    <span className="font-mono">{s.b}</span>
+                                  </>
+                                ) : s.a === s.b ? (
+                                  <span>Halved ({s.a} each){inProgress ? ' so far' : ''}</span>
+                                ) : (
+                                  <span>
+                                    {s.a > s.b ? teamA.name : teamB.name} +{Math.max(s.a, s.b)}
+                                    {inProgress ? ' so far' : ''}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </TableCell>
-                    <TableCell />
-                    <TableCell className="text-[10px] text-muted-foreground text-center">per segment</TableCell>
                   </TableRow>
                 )}
+
 
                 {expanded.has(round.id) && (
                   matchesForRound.length > 0
