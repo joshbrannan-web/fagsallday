@@ -264,6 +264,11 @@ export function calcRoundTeamAward(
 
   if (mode === 'per_hole') return cumulative;
 
+  if (mode === 'per_match') {
+    return calcRoundMatchAward(roundHoleResults, teamIds, pts).award;
+  }
+
+
   if (mode === 'per_hole_and_round') {
     out[teamAId] = totalA;
     out[teamBId] = totalB;
