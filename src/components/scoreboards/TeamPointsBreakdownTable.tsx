@@ -123,7 +123,36 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
                 </div>
               </button>
 
-              {isExpanded && roundGroups.map((group: any) => {
+              {isExpanded && (isPooled
+                ? (() => {
+                    // Pooled round: show the match-side results instead of groups.
+                    const ids = new Set(roundResults.map((r: any) => r.tournament_group_id));
+                    const pooledGroups = roundGroups.filter((g: any) => ids.has(g.id));
+                    const group = pooledGroups[0] || roundGroups[0];
+                    const pA = roundA, pB = roundB;
+                    const resultLabel = pA > pB ? `${teamA.name} wins` : pB > pA ? `${teamB.name} wins` : 'Halved';
+                    const label = group
+                      ? `Group ${group.group_number} (pooled): ${getGroupPlayerNames(group.id, teamA.id)} vs ${getGroupPlayerNames(group.id, teamB.id)}`
+                      : 'Pooled round match';
+                    return (
+                      <div className="w-full flex items-center justify-between px-4 py-2 text-xs border-t">
+                        <div className="text-left text-muted-foreground">{label}</div>
+                        <div className="flex items-center gap-2 font-mono shrink-0 ml-2">
+                          <span>{pA}</span>
+                          <span className="text-muted-foreground">—</span>
+                          <span>{pB}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                            pA > pB ? 'bg-success/20 text-success' :
+                            pB > pA ? 'bg-destructive/20 text-destructive' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {resultLabel}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()
+                : roundGroups.map((group: any) => {
                 const pts = getGroupTeamPoints(group.id);
                 const pA = pts[teamA.id] || 0;
                 const pB = pts[teamB.id] || 0;
@@ -155,7 +184,7 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
                     </div>
                   </button>
                 );
-              })}
+              }))}
             </div>
           );
         })}
