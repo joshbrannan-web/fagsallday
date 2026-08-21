@@ -84,39 +84,58 @@ const TournamentAdminTestConsole: React.FC = () => {
       setTeams(tm);
     }
 
-    const resultRows: HoleResultRow[] = [];
+    const groupIds = g.map(x => x.id);
+    const matchIds = m.map(x => x.id);
 
-    if (g.length > 0) {
-      const groupIds = g.map(x => x.id);
-      const [scoresRes, groupResultsRes] = await Promise.all([
-        supabase
-          .from('tournament_hole_scores')
-          .select('tournament_group_id, hole_number, gross_score')
-          .in('tournament_group_id', groupIds),
-        supabase
+    const fetchResults = async (): Promise<HoleResultRow[]> => {
+      const rows: HoleResultRow[] = [];
+      if (groupIds.length > 0) {
+        const { data } = await supabase
           .from('tournament_hole_results')
           .select('hole_number, team_points, result_label, tournament_group_id, tournament_match_id')
-          .in('tournament_group_id', groupIds),
-      ]);
+          .in('tournament_group_id', groupIds);
+        rows.push(...((data || []) as any[]));
+      }
+      if (matchIds.length > 0) {
+        const { data } = await supabase
+          .from('tournament_hole_results')
+          .select('hole_number, team_points, result_label, tournament_group_id, tournament_match_id')
+          .in('tournament_match_id', matchIds);
+        rows.push(...((data || []) as any[]));
+      }
+      return rows;
+    };
+
+    let scoredHoles = 0;
+    if (groupIds.length > 0) {
+      const { data: scoreRows } = await supabase
+        .from('tournament_hole_scores')
+        .select('tournament_group_id, hole_number, gross_score')
+        .in('tournament_group_id', groupIds);
       const counts: Record<string, number> = {};
       g.forEach(x => {
         const holes = new Set(
-          (scoresRes.data || [])
+          (scoreRows || [])
             .filter(s => s.tournament_group_id === x.id && s.gross_score !== null)
             .map(s => s.hole_number),
         );
         counts[x.id] = holes.size;
+        scoredHoles += holes.size;
       });
       setThru(counts);
-      resultRows.push(...((groupResultsRes.data || []) as any[]));
     }
 
-    if (m.length > 0) {
-      const { data: matchResults } = await supabase
-        .from('tournament_hole_results')
-        .select('hole_number, team_points, result_label, tournament_group_id, tournament_match_id')
-        .in('tournament_match_id', m.map(x => x.id));
-      resultRows.push(...((matchResults || []) as any[]));
+    let resultRows = await fetchResults();
+
+    // Self-heal: scores exist but nothing has been calculated yet.
+    if (resultRows.length === 0 && scoredHoles > 0 && !autoHealed.current) {
+      autoHealed.current = true;
+      try {
+        await recalcTestRoundResults(roundId);
+        resultRows = await fetchResults();
+      } catch {
+        // leave empty; UI shows a "not calculated" state
+      }
     }
 
     setResults(resultRows);
