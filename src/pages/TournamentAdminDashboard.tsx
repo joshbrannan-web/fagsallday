@@ -372,13 +372,15 @@ const TournamentAdminDashboard: React.FC = () => {
       </Sheet>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="max-w-lg mx-auto">
-        <TabsList className="w-full grid grid-cols-5">
+        <TabsList className="w-full grid grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="rounds">Rounds</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
           <TabsTrigger value="results">Results</TabsTrigger>
+          <TabsTrigger value="sidebets">Side Bets</TabsTrigger>
         </TabsList>
+
 
         {/* ─── Overview Tab ─── */}
         <TabsContent value="overview" className="space-y-4 mt-4">
