@@ -71,6 +71,8 @@ const Admin = () => {
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [setPwUser, setSetPwUser] = useState<AdminUser | null>(null);
+  const [customPassword, setCustomPassword] = useState('');
+
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [tempPasswordUser, setTempPasswordUser] = useState<AdminUser | null>(null);
 
