@@ -1,18 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trophy, Medal, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Trophy, Medal, TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import {
-  calcTeamTotals,
   calcTeamTotalsPerRound,
   calcPlayerGrossPerRound,
   calcPlayerNetPerRound,
   calcPlayerPointsPerRound,
+  calcRoundTeamAward,
 } from '@/services/scoreboardCalculations';
+import {
+  isRoundLevelGameType,
+  recalcRoundLevelResults,
+  recalcRoundMatchResults,
+  fetchRoundMatches,
+  fetchRoundMatchesForRounds,
+} from '@/services/roundLevelScoring';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 interface Props {
@@ -31,26 +40,66 @@ const RoundResultsDashboard: React.FC<Props> = ({
   const [holeScores, setHoleScores] = useState<any[]>([]);
   const [holeResults, setHoleResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [recalcRoundId, setRecalcRoundId] = useState<string | null>(null);
 
   // Completed or active rounds (show results for both)
   const completedRounds = rounds.filter((r: any) => r.status === 'completed' || r.status === 'active');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const allGroupIds = groups.map((g: any) => g.id);
-      if (allGroupIds.length === 0) { setLoading(false); return; }
+  const fetchData = useCallback(async () => {
+    const allGroupIds = groups.map((g: any) => g.id);
+    if (allGroupIds.length === 0) { setLoading(false); return; }
 
-      const [scoresRes, resultsRes] = await Promise.all([
-        supabase.from('tournament_hole_scores').select('*').in('tournament_group_id', allGroupIds),
-        supabase.from('tournament_hole_results').select('*').in('tournament_group_id', allGroupIds),
-      ]);
+    const roundIds = rounds.map((r: any) => r.id);
+    const roundMatches = await fetchRoundMatchesForRounds(roundIds);
 
-      setHoleScores(scoresRes.data || []);
-      setHoleResults(resultsRes.data || []);
-      setLoading(false);
-    };
-    fetchData();
-  }, [groups]);
+    const [scoresRes, resultsRes, matchResultsRes] = await Promise.all([
+      supabase.from('tournament_hole_scores').select('*').in('tournament_group_id', allGroupIds),
+      supabase.from('tournament_hole_results').select('*').eq('is_test', false).in('tournament_group_id', allGroupIds),
+      roundMatches.length > 0
+        ? supabase.from('tournament_hole_results').select('*').eq('is_test', false).in('tournament_match_id', roundMatches.map(m => m.id))
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    // Cross-group / round-level match results carry no group id — tag them with
+    // their round so per-round totals pick them up.
+    const roundByMatch = new Map(roundMatches.map(m => [m.id, m.tournamentRoundId]));
+    const matchRows = (matchResultsRes.data || []).map((r: any) => ({
+      ...r,
+      tournament_round_id: roundByMatch.get(r.tournament_match_id) || null,
+    }));
+
+    setHoleScores(scoresRes.data || []);
+    setHoleResults([...(resultsRes.data || []), ...matchRows]);
+    setLoading(false);
+  }, [groups, rounds]);
+
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleRecalc = async (round: any) => {
+    setRecalcRoundId(round.id);
+    try {
+      const matches = await fetchRoundMatches(round.id, { isTest: false });
+      const gameType = games.find((g: any) => g.tournament_round_id === round.id)?.game_type;
+      if (matches.length > 0) {
+        await recalcRoundMatchResults(round.id, { isTest: false });
+      } else if (isRoundLevelGameType(gameType)) {
+        await recalcRoundLevelResults(round.id, { isTest: false });
+      } else {
+        toast.info('This round is scored per foursome — nothing to pool.');
+        setRecalcRoundId(null);
+        return;
+      }
+      await fetchData();
+      toast.success('Results recalculated');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to recalculate results');
+    } finally {
+      setRecalcRoundId(null);
+    }
+  };
+
 
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground text-sm">Loading results…</div>;
@@ -79,19 +128,74 @@ const RoundResultsDashboard: React.FC<Props> = ({
     groupPlayersByGroup[gp.tournament_group_id].push(gp);
   });
 
-  // Cumulative team totals
-  const cumulativeTotals = calcTeamTotals(holeResults, teamIds);
-  const maxCumulative = Math.max(...Object.values(cumulativeTotals), 1);
-  const sortedTeams = [...teams].sort((a, b) => (cumulativeTotals[b.id] || 0) - (cumulativeTotals[a.id] || 0));
-  const leadingTeamId = sortedTeams[0]?.id;
-
-  // Per-round team totals
+  // Per-round raw hole-point totals
   const roundTotals = calcTeamTotalsPerRound(
     completedRounds,
     groupsByRound,
     holeResults,
     teamIds,
   );
+
+  const method = tournament?.team_scoring_method as any;
+  const awardApplies = teamIds.length === 2 && (method === 'custom_pts_per_round' || method === 'round_win');
+  const pair: [string, string] | null = awardApplies ? [teamIds[0], teamIds[1]] : null;
+
+  const holeResultsForRound = (roundId: string) => {
+    const ids = new Set((groupsByRound[roundId] || []).map((g: any) => g.id));
+    return holeResults.filter((r: any) =>
+      (r.tournament_group_id && ids.has(r.tournament_group_id)) || r.tournament_round_id === roundId
+    );
+  };
+
+
+  // Award (Front/Back/Overall or round win) per round — only for completed rounds
+  const roundAwards: Record<string, Record<string, number>> = {};
+  completedRounds.forEach((r: any) => {
+    if (!pair) return;
+    if (r.status !== 'completed') return;
+    roundAwards[r.id] = calcRoundTeamAward(
+      r,
+      roundTotals[r.id] || {},
+      holeResultsForRound(r.id) as any,
+      pair,
+      method,
+      tournament?.custom_round_points ?? undefined,
+      true,
+    );
+  });
+
+  const segmentSums = (roundId: string, from: number, to: number) => {
+    let a = 0, b = 0;
+    if (!pair) return [a, b] as const;
+    holeResultsForRound(roundId).forEach((r: any) => {
+      if (r.hole_number >= from && r.hole_number <= to) {
+        const tp = (r.team_points || {}) as Record<string, number>;
+        a += Number(tp[pair[0]] || 0);
+        b += Number(tp[pair[1]] || 0);
+      }
+    });
+    return [a, b] as const;
+  };
+
+  const fmt = (n: number) => Number(n.toFixed(2));
+
+  const segmentWinnerLabel = (a: number, b: number, value: number) => {
+    if (a === b) return `halved · ${fmt(value / 2)} each`;
+    const winner = a > b ? teams.find((t: any) => t.id === pair![0]) : teams.find((t: any) => t.id === pair![1]);
+    return `${winner?.name || 'Team'} +${fmt(value)}`;
+  };
+
+  // Cumulative standings — awarded points where an award applies, raw hole points otherwise
+  const cumulativeTotals: Record<string, number> = {};
+  teamIds.forEach(id => { cumulativeTotals[id] = 0; });
+  completedRounds.forEach((r: any) => {
+    const src = roundAwards[r.id] || roundTotals[r.id] || {};
+    teamIds.forEach(id => { cumulativeTotals[id] += Number(src[id] || 0); });
+  });
+  const maxCumulative = Math.max(...Object.values(cumulativeTotals), 1);
+  const sortedTeams = [...teams].sort((a, b) => (cumulativeTotals[b.id] || 0) - (cumulativeTotals[a.id] || 0));
+  const leadingTeamId = sortedTeams[0]?.id;
+
 
   return (
     <div className="space-y-4">
@@ -148,13 +252,16 @@ const RoundResultsDashboard: React.FC<Props> = ({
           const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
           const submittedCount = roundGroups.filter((g: any) => g.status === 'submitted').length;
 
-          // Team totals for this round
+          // Team totals for this round (raw hole points) and the awarded points
           const teamTotalsThisRound = roundTotals[round.id] || {};
+          const award = roundAwards[round.id];
+          const displayTotals = award || teamTotalsThisRound;
           const roundSortedTeams = [...teams].sort(
-            (a, b) => (teamTotalsThisRound[b.id] || 0) - (teamTotalsThisRound[a.id] || 0),
+            (a, b) => (displayTotals[b.id] || 0) - (displayTotals[a.id] || 0),
           );
           const roundWinner = roundSortedTeams[0];
-          const roundWinnerPts = teamTotalsThisRound[roundWinner?.id] || 0;
+          const roundWinnerPts = displayTotals[roundWinner?.id] || 0;
+
 
           // Player data for this round
           const roundPlayers = players.filter((p: any) => {
@@ -162,6 +269,8 @@ const RoundResultsDashboard: React.FC<Props> = ({
               (groupPlayersByGroup[g.id] || []).some((gp: any) => gp.tournament_player_id === p.id)
             );
           });
+
+          const roundResultRows = holeResultsForRound(round.id);
 
           const playerRows = roundPlayers.map((p: any) => {
             const gross = calcPlayerGrossPerRound(
@@ -172,13 +281,24 @@ const RoundResultsDashboard: React.FC<Props> = ({
               p, round, game,
               groups, groupPlayersByGroup, holeScores,
             );
-            const pts = calcPlayerPointsPerRound(
+            let pts = calcPlayerPointsPerRound(
               p.id, round.id,
               groups, groupPlayersByGroup, holeResults,
             );
+            if (pts === null || pts === 0) {
+              // Round-level / cross-group matches store results off the group,
+              // so fall back to the round's pooled player points.
+              let sum = 0, seen = false;
+              roundResultRows.forEach((r: any) => {
+                const pp = (r.player_points || {}) as Record<string, number>;
+                if (pp[p.id] !== undefined) { sum += Number(pp[p.id] || 0); seen = true; }
+              });
+              if (seen) pts = sum;
+            }
             const team = teams.find((t: any) => t.id === p.team_id);
             return { player: p, team, gross, net, pts };
           }).sort((a, b) => (b.pts ?? -1) - (a.pts ?? -1));
+
 
           return (
             <AccordionItem key={round.id} value={round.id}>
@@ -200,11 +320,25 @@ const RoundResultsDashboard: React.FC<Props> = ({
                 {/* Team Results for this round */}
                 {teams.length >= 2 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Team Results</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        {award ? 'Team Results — awarded points' : 'Team Results — hole points'}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        disabled={recalcRoundId === round.id}
+                        onClick={() => handleRecalc(round)}
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 mr-1 ${recalcRoundId === round.id ? 'animate-spin' : ''}`} />
+                        Recalculate
+                      </Button>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       {roundSortedTeams.map((team, idx) => {
-                        const pts = teamTotalsThisRound[team.id] || 0;
-                        const isWinner = idx === 0 && pts > 0 && pts > (teamTotalsThisRound[roundSortedTeams[1]?.id] || 0);
+                        const pts = displayTotals[team.id] || 0;
+                        const isWinner = idx === 0 && pts > 0 && pts > (displayTotals[roundSortedTeams[1]?.id] || 0);
                         const isTied = idx === 1 && pts === roundWinnerPts && pts > 0;
                         return (
                           <Card key={team.id} className={`p-3 ${isWinner ? 'ring-2 ring-[hsl(var(--brand-gold))]/50' : ''}`}>
@@ -214,14 +348,47 @@ const RoundResultsDashboard: React.FC<Props> = ({
                               {isWinner && <Trophy className="w-3.5 h-3.5 text-[hsl(var(--brand-gold))]" />}
                               {isTied && <Minus className="w-3.5 h-3.5 text-muted-foreground" />}
                             </div>
-                            <p className="text-xl font-bold tabular-nums">{pts}</p>
-                            <p className="text-xs text-muted-foreground">points</p>
+                            <p className="text-xl font-bold tabular-nums">{fmt(pts)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {award
+                                ? `points · hole points ${fmt(teamTotalsThisRound[team.id] || 0)}`
+                                : 'points'}
+                            </p>
                           </Card>
                         );
                       })}
                     </div>
+
+                    {/* Front / Back / Overall breakdown */}
+                    {pair && round.team_scoring_mode === 'fbo' && (
+                      <div className="rounded-lg border p-3 space-y-1.5">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Front / Back / Overall
+                        </p>
+                        {([
+                          ['Front 9', segmentSums(round.id, 1, 9), Number(round.team_scoring_points?.front ?? 1)],
+                          ['Back 9', segmentSums(round.id, 10, 18), Number(round.team_scoring_points?.back ?? 1)],
+                          ['Overall', [teamTotalsThisRound[pair[0]] || 0, teamTotalsThisRound[pair[1]] || 0] as const, Number(round.team_scoring_points?.overall ?? 2)],
+                        ] as [string, readonly [number, number], number][]).map(([label, [a, b], value]) => (
+                          <div key={label} className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">{label}</span>
+                            <span className="tabular-nums">{fmt(a)} — {fmt(b)}</span>
+                            <span className="font-medium">
+                              {round.status === 'completed'
+                                ? segmentWinnerLabel(a, b, value)
+                                : `in progress · ${fmt(value)} pts`}
+                            </span>
+                          </div>
+                        ))}
+                        <p className="text-[11px] text-muted-foreground pt-1">
+                          Hole points decide each segment; the segment points above are what this round
+                          contributes to the tournament standings.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
+
 
                 {/* Player Leaderboard */}
                 {playerRows.length > 0 && (
@@ -268,7 +435,49 @@ const RoundResultsDashboard: React.FC<Props> = ({
                   </div>
                 )}
 
+                {/* Round-level / cross-group match results */}
+                {roundResultRows.some((r: any) => !r.tournament_group_id) && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Round Match — all groups
+                    </p>
+                    <div className="rounded border overflow-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs w-12">Hole</TableHead>
+                            <TableHead className="text-xs">Result</TableHead>
+                            {teams.map((t: any) => (
+                              <TableHead key={t.id} className="text-xs text-right w-14">
+                                <span className="w-2 h-2 rounded-full inline-block mr-1" style={{ backgroundColor: t.color }} />
+                                {t.name.slice(0, 3)}
+                              </TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {roundResultRows
+                            .filter((r: any) => !r.tournament_group_id)
+                            .sort((a: any, b: any) => a.hole_number - b.hole_number)
+                            .map((r: any) => (
+                              <TableRow key={r.id}>
+                                <TableCell className="text-xs tabular-nums py-1.5">{r.hole_number}</TableCell>
+                                <TableCell className="text-xs py-1.5">{r.result_label || '–'}</TableCell>
+                                {teams.map((t: any) => (
+                                  <TableCell key={t.id} className="text-xs text-right tabular-nums py-1.5 font-medium">
+                                    {fmt(Number((r.team_points as Record<string, number>)?.[t.id] ?? 0))}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+
                 {/* Group Breakdown */}
+
                 {roundGroups.length > 0 && (
                   <Accordion type="multiple">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Group Breakdown</p>
