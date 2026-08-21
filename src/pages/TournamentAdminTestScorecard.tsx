@@ -175,7 +175,11 @@ const TournamentAdminTestScorecard: React.FC = () => {
   const pointsPerHole = Number(game?.default_points_per_hole) || 1;
   const bestBall = !!game?.game_type?.includes('best_ball');
   const roundLabel = round?.name || `Round ${round?.round_number ?? ''}`;
-  const ballsCounted = bestBall ? (hole: number) => scoresNeeded(hole) : undefined;
+  // Only the Gross 6/6/6 formats count multiple balls per hole (2/3/4). Plain
+  // best-ball match play is decided by a single ball (plus 2nd-ball tiebreaker),
+  // so leave ballsCounted undefined there.
+  const isSixSixSix = game?.game_type === 'match_play_gross_best_ball' || game?.game_type === 'blind_gross_best_ball';
+  const ballsCounted = isSixSixSix ? (hole: number) => scoresNeeded(hole) : undefined;
 
   const teamOfPlayer = (id: string) => players[id]?.teamId ?? null;
 
