@@ -76,20 +76,27 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
           const roundGroups = groups[round.id] || [];
           const isExpanded = expandedRounds.has(round.id);
 
-          // Round totals
+          // Round results: group-attached results plus pooled cross-group match
+          // results (which carry tournament_round_id but no group id).
+          const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
+          const roundResults = holeResults.filter((r: any) =>
+            (r.tournament_group_id && roundGroupIds.has(r.tournament_group_id)) ||
+            r.tournament_round_id === round.id
+          );
+
           let roundA = 0, roundB = 0;
-          roundGroups.forEach((g: any) => {
-            const pts = getGroupTeamPoints(g.id);
-            roundA += pts[teamA.id] || 0;
-            roundB += pts[teamB.id] || 0;
+          roundResults.forEach((r: any) => {
+            const tp = (r.team_points || {}) as Record<string, number>;
+            roundA += Number(tp[teamA.id] || 0);
+            roundB += Number(tp[teamB.id] || 0);
           });
+          const isPooled = roundResults.some((r: any) => !r.tournament_group_id);
 
           const isCompleted = round.status === 'completed';
-          const roundGroupIds = new Set(roundGroups.map((g: any) => g.id));
           const award = calcRoundTeamAward(
             round,
             { [teamA.id]: roundA, [teamB.id]: roundB },
-            holeResults.filter((r: any) => roundGroupIds.has(r.tournament_group_id)) as any,
+            roundResults as any,
             [teamA.id, teamB.id],
             teamScoringMethod,
             customRoundPoints,
@@ -116,7 +123,31 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
                 </div>
               </button>
 
-              {isExpanded && roundGroups.map((group: any) => {
+              {isExpanded && (isPooled
+                ? (() => {
+                    // Pooled round: results belong to a cross-group match, not a group.
+                    const pA = roundA, pB = roundB;
+                    const resultLabel = pA > pB ? `${teamA.name} wins` : pB > pA ? `${teamB.name} wins` : 'Halved';
+                    const label = 'Round match — all groups pooled';
+                    return (
+                      <div className="w-full flex items-center justify-between px-4 py-2 text-xs border-t">
+                        <div className="text-left text-muted-foreground">{label}</div>
+                        <div className="flex items-center gap-2 font-mono shrink-0 ml-2">
+                          <span>{pA}</span>
+                          <span className="text-muted-foreground">—</span>
+                          <span>{pB}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                            pA > pB ? 'bg-success/20 text-success' :
+                            pB > pA ? 'bg-destructive/20 text-destructive' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {resultLabel}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()
+                : roundGroups.map((group: any) => {
                 const pts = getGroupTeamPoints(group.id);
                 const pA = pts[teamA.id] || 0;
                 const pB = pts[teamB.id] || 0;
@@ -148,7 +179,7 @@ const TeamPointsBreakdownTable: React.FC<Props> = ({
                     </div>
                   </button>
                 );
-              })}
+              }))}
             </div>
           );
         })}

@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import GroupResultRow from './GroupResultRow';
-import { calcTeamTotals } from '@/services/scoreboardCalculations';
+import { calcTeamTotals, calcRoundTeamAward } from '@/services/scoreboardCalculations';
 
 interface Props {
   teams: any[];
@@ -14,10 +14,13 @@ interface Props {
   holeResults: any[];
   roundMatches?: any[];
   joinCode: string;
+  teamScoringMethod?: 'cumulative' | 'round_win' | 'custom_pts_per_round';
+  customRoundPoints?: number;
 }
 
 const TeamRoundResultScoreboard: React.FC<Props> = ({
-  teams, rounds, groups, groupPlayers, players, holeResults, roundMatches = [], joinCode,
+  teams, rounds, groups, groupPlayers, players, holeResults, roundMatches = [],
+  joinCode, teamScoringMethod, customRoundPoints,
 }) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -40,14 +43,54 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
         roundGroupIds.has(hr.tournament_group_id) ||
         (hr.tournament_match_id && matchIds.has(hr.tournament_match_id)),
     );
+
+    // Raw hole points (what the hole-by-hole play produced).
     const totals = calcTeamTotals(roundResults, teamIds);
     const a = totals[teamA.id] || 0;
     const b = totals[teamB.id] || 0;
-    grandA += a;
-    grandB += b;
-    return { round: r, roundGroups, matchesForRound, a, b, isActive: r.status === 'active' };
-  });
 
+    const isCompleted = r.status === 'completed';
+    const award = calcRoundTeamAward(
+      r, { [teamA.id]: a, [teamB.id]: b }, roundResults, [teamA.id, teamB.id],
+      teamScoringMethod, customRoundPoints, isCompleted
+    );
+    const awardedA = award[teamA.id] || 0;
+    const awardedB = award[teamB.id] || 0;
+
+    // Front/Back/Overall segment split (only meaningful for fbo mode).
+    let segments: { label: string; a: number; b: number }[] = [];
+    if (isCompleted && teamScoringMethod === 'custom_pts_per_round' && r.team_scoring_mode === 'fbo') {
+      const sum = (from: number, to: number) => {
+        let sa = 0, sb = 0;
+        roundResults.forEach((hr: any) => {
+          if (hr.hole_number >= from && hr.hole_number <= to) {
+            const tp = (hr.team_points || {}) as Record<string, number>;
+            sa += Number(tp[teamA.id] || 0);
+            sb += Number(tp[teamB.id] || 0);
+          }
+        });
+        return [sa, sb] as const;
+      };
+      const [fa, fb] = sum(1, 9);
+      const [ba, bb] = sum(10, 18);
+      const pts = (r.team_scoring_points || {}) as Record<string, number>;
+      const [oa, ob] = [a, b];
+      const win = (sa: number, sb: number) =>
+        sa > sb ? teamA.name : sb > sa ? teamB.name : 'Halved';
+      segments = [
+        { label: `Front (${pts.front ?? 1}pt)`, a: sa_pts(fa, fb, pts.front ?? 1), b: sa_pts(fb, fa, pts.front ?? 1) },
+        { label: `Back (${pts.back ?? 1}pt)`, a: sa_pts(ba, bb, pts.back ?? 1), b: sa_pts(bb, ba, pts.back ?? 1) },
+        { label: `Overall (${pts.overall ?? 2}pt)`, a: sa_pts(oa, ob, pts.overall ?? 2), b: sa_pts(ob, oa, pts.overall ?? 2) },
+      ];
+      void win;
+    }
+
+    // Awarded points sum into the grand total; live rounds fall back to raw.
+    grandA += awardedA;
+    grandB += awardedB;
+
+    return { round: r, roundGroups, matchesForRound, a, b, awardedA, awardedB, segments, isActive: r.status === 'active' };
+  });
 
   const toggle = (id: string) => {
     setExpanded(prev => {
@@ -70,7 +113,7 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {roundData.map(({ round, roundGroups, matchesForRound, a, b, isActive }) => (
+            {roundData.map(({ round, roundGroups, matchesForRound, a, b, awardedA, awardedB, segments, isActive }) => (
               <React.Fragment key={round.id}>
                 <TableRow
                   className="cursor-pointer hover:bg-muted/50"
@@ -82,19 +125,25 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
                       {round.name || `Round ${round.round_number}`}
                     </div>
                   </TableCell>
-                  <TableCell className={`text-center font-mono text-sm ${isActive ? 'italic' : ''}`}>{a}</TableCell>
-                  <TableCell className={`text-center font-mono text-sm ${isActive ? 'italic' : ''}`}>{b}</TableCell>
+                  <TableCell className="text-center">
+                    <div className="font-mono text-sm">{awardedA}</div>
+                    <div className="text-[10px] text-muted-foreground">raw {a}</div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="font-mono text-sm">{awardedB}</div>
+                    <div className="text-[10px] text-muted-foreground">raw {b}</div>
+                  </TableCell>
                   <TableCell className="text-center text-sm">
                     {isActive ? (
                       <span className="inline-flex items-center gap-1 text-xs">
                         <span className="w-2 h-2 rounded-full bg-success animate-pulse" /> Live
                       </span>
-                    ) : a > b ? (
+                    ) : awardedA > awardedB ? (
                       <span className="inline-flex items-center gap-1">
                         <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: teamA.color }} />
                         <span className="text-xs font-medium">{teamA.name}</span>
                       </span>
-                    ) : b > a ? (
+                    ) : awardedB > awardedA ? (
                       <span className="inline-flex items-center gap-1">
                         <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: teamB.color }} />
                         <span className="text-xs font-medium">{teamB.name}</span>
@@ -104,6 +153,25 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
                     )}
                   </TableCell>
                 </TableRow>
+
+                {segments.length > 0 && (
+                  <TableRow className="bg-muted/20">
+                    <TableCell className="pl-8 text-[11px] text-muted-foreground">Award points</TableCell>
+                    <TableCell className="text-center text-[11px]">
+                      {segments.map((s) => (
+                        <div key={s.label} className="flex items-center justify-center gap-1">
+                          <span className="font-mono">{s.a}</span>
+                          <span className="text-muted-foreground/70">·</span>
+                          <span className="font-mono">{s.b}</span>
+                          <span className="text-muted-foreground/70"> {s.label}</span>
+                        </div>
+                      ))}
+                    </TableCell>
+                    <TableCell />
+                    <TableCell className="text-[10px] text-muted-foreground text-center">per segment</TableCell>
+                  </TableRow>
+                )}
+
                 {expanded.has(round.id) && (
                   matchesForRound.length > 0
                     ? matchesForRound.map((m: any) => {
@@ -155,24 +223,24 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
                 )}
               </React.Fragment>
             ))}
-            {/* Grand total */}
-            <TableRow className="border-t-2 font-bold">
-              <TableCell className="text-sm">Total</TableCell>
-              <TableCell className="text-center font-mono text-sm">{grandA}</TableCell>
-              <TableCell className="text-center font-mono text-sm">{grandB}</TableCell>
-              <TableCell className="text-center text-sm">
+
+            <TableRow className="bg-muted/40">
+              <TableCell className="font-semibold text-sm">Total</TableCell>
+              <TableCell className="text-center font-mono text-sm font-semibold" style={{ color: teamA.color }}>{grandA}</TableCell>
+              <TableCell className="text-center font-mono text-sm font-semibold" style={{ color: teamB.color }}>{grandB}</TableCell>
+              <TableCell className="text-center text-xs">
                 {grandA > grandB ? (
                   <span className="inline-flex items-center gap-1">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: teamA.color }} />
-                    {teamA.name} leads
+                    <span className="font-medium">{teamA.name} leads</span>
                   </span>
                 ) : grandB > grandA ? (
                   <span className="inline-flex items-center gap-1">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: teamB.color }} />
-                    {teamB.name} leads
+                    <span className="font-medium">{teamB.name} leads</span>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">Tied</span>
+                  <span className="text-muted-foreground">All Square</span>
                 )}
               </TableCell>
             </TableRow>
@@ -184,3 +252,10 @@ const TeamRoundResultScoreboard: React.FC<Props> = ({
 };
 
 export default TeamRoundResultScoreboard;
+
+// Points awarded for winning a segment (winner takes the segment points, loser 0).
+function sa_pts(mine: number, theirs: number, pts: number): number {
+  if (mine > theirs) return pts;
+  if (mine < theirs) return 0;
+  return pts / 2;
+}
