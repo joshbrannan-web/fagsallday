@@ -85,8 +85,9 @@ export interface RoundConfigData {
   holePointsCustomized: boolean;
   sixesFormat: 'match_play' | 'sum_of_strokes';
   sixesSegmentPoints: [number, number, number];
-  teamScoringMode: 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo';
-  teamScoringPoints: { round: number; front: number; back: number; overall: number };
+  teamScoringMode: 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo' | 'per_match';
+  teamScoringPoints: { round: number; front: number; back: number; overall: number; match: number };
+
 }
 
 export const defaultRoundConfig = (num: number): RoundConfigData => ({
