@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import GroupResultRow from './GroupResultRow';
-import { calcTeamTotals, calcRoundTeamAward } from '@/services/scoreboardCalculations';
+import { calcTeamTotals, calcRoundTeamAward, calcRoundMatchAward } from '@/services/scoreboardCalculations';
 
 interface Props {
   teams: any[];
