@@ -4,11 +4,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Check, Coins, RotateCcw, Users, Calculator } from 'lucide-react';
+import { Check, Coins, RotateCcw, Users, Calculator, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 import GameSelector from '@/components/GameSelector';
 import type { GameSettings, Player } from '@/types';
 import { calculateSideBets, type SideBetResults, type SideBetPlayerInput } from '@/services/sideBets';
+import SideBetScorecardDialog from '@/components/tournament/SideBetScorecardDialog';
 
 interface Props {
   tournamentId: string;
@@ -34,6 +35,8 @@ const SideBetsPanel: React.FC<Props> = ({ tournamentId, players, rounds }) => {
   const [holeScores, setHoleScores] = useState<any[]>([]);
   const [loadingScores, setLoadingScores] = useState(false);
   const [results, setResults] = useState<SideBetResults | null>(null);
+  const [scorecardIds, setScorecardIds] = useState<string[]>([]);
+  const [scorecardOpen, setScorecardOpen] = useState(false);
 
   const round = rounds.find((r) => r.id === roundId);
 
@@ -116,6 +119,8 @@ const SideBetsPanel: React.FC<Props> = ({ tournamentId, players, rounds }) => {
     setGames([]);
     setResults(null);
     setHoleScores([]);
+    setScorecardIds([]);
+    setScorecardOpen(false);
   };
 
   const handleCalculate = () => {
@@ -129,6 +134,7 @@ const SideBetsPanel: React.FC<Props> = ({ tournamentId, players, rounds }) => {
         return;
       }
       setResults(res);
+      setScorecardIds(selectedPlayers.map((p) => p.id));
     } catch (e: any) {
       toast.error(e?.message || 'Could not calculate side bets');
     }
@@ -279,6 +285,47 @@ const SideBetsPanel: React.FC<Props> = ({ tournamentId, players, rounds }) => {
             </div>
           </Card>
 
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scorecard</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Pick the players you want on the scorecard, then view the hole-by-hole scores and results.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {selectedPlayers.map((p) => {
+                const on = scorecardIds.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() =>
+                      setScorecardIds((prev) =>
+                        prev.includes(p.id) ? prev.filter((id) => id !== p.id) : [...prev, p.id],
+                      )
+                    }
+                    className={`px-3 py-1.5 rounded-full border text-xs transition-all ${
+                      on ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border text-muted-foreground'
+                    }`}
+                  >
+                    {p.displayName}
+                  </button>
+                );
+              })}
+            </div>
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              disabled={scorecardIds.length < 2}
+              onClick={() => setScorecardOpen(true)}
+            >
+              <ClipboardList className="w-4 h-4" /> View Scorecard &amp; Results
+            </Button>
+            {scorecardIds.length < 2 && (
+              <p className="text-[11px] text-muted-foreground">Choose at least 2 players.</p>
+            )}
+          </Card>
+
           <Card className="p-4 space-y-2">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-muted-foreground" />
@@ -300,6 +347,17 @@ const SideBetsPanel: React.FC<Props> = ({ tournamentId, players, rounds }) => {
             <RotateCcw className="w-4 h-4" /> Reset &amp; Run Another
           </Button>
         </div>
+      )}
+
+      {round?.course_data && scorecardIds.length >= 2 && (
+        <SideBetScorecardDialog
+          open={scorecardOpen}
+          onOpenChange={setScorecardOpen}
+          courseData={round.course_data as any}
+          players={selectedPlayers.filter((p) => scorecardIds.includes(p.id))}
+          games={games}
+          holeScores={holeScores}
+        />
       )}
     </div>
   );
