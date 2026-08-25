@@ -64,6 +64,7 @@ const normalizeSideBetGames = (games: GameSettings[], players: Player[]): GameSe
 const validateFBOSetup = (round: Round, game: GameSettings) => {
   const mode = game.config.fbo?.gameMode || 'together';
   const playerIds = game.config.fboPlayers?.length ? game.config.fboPlayers : round.players.map((p) => p.id);
+  const selectedIds = new Set(playerIds.map(String));
 
   if (playerIds.length < 2) {
     throw new Error('FBO requires at least 2 players');
@@ -74,12 +75,23 @@ const validateFBOSetup = (round: Round, game: GameSettings) => {
     if (matchups.length === 0) {
       throw new Error('FBO Head to Head needs at least one matchup selected');
     }
+    const hasInvalidMatchup = matchups.some(
+      (matchup) => !selectedIds.has(String(matchup.player1Id)) || !selectedIds.has(String(matchup.player2Id)),
+    );
+    if (hasInvalidMatchup) {
+      throw new Error('FBO Head to Head has a matchup with a player who is not selected');
+    }
   }
 
   if (mode === 'teams') {
     const teams = game.config.fbo?.teams;
     if (!teams || teams.teamA.length !== 2 || teams.teamB.length !== 2) {
       throw new Error('FBO Teams needs two teams with 2 players each');
+    }
+    const teamIds = [...teams.teamA, ...teams.teamB].map(String);
+    const hasInvalidTeam = teamIds.some((id) => !selectedIds.has(id));
+    if (hasInvalidTeam || new Set(teamIds).size !== 4) {
+      throw new Error('FBO Teams has an invalid player setup');
     }
   }
 };
