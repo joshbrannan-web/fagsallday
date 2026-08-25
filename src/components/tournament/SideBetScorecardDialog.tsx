@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
 import type { Course, GameSettings } from '@/types';
-import { calculateStrokesReceived, calculateSettlement } from '@/services/gameEngine';
+import { calculateStrokesReceived } from '@/services/gameEngine';
 import { buildSideBetRound, calculateSideBets, type SideBetPlayerInput } from '@/services/sideBets';
 
 interface Props {
@@ -62,12 +62,6 @@ const SideBetScorecardDialog: React.FC<Props> = ({
     const low = Math.min(...nets.map((n) => n.net));
     const winners = nets.filter((n) => n.net === low);
     return winners.length === nets.length ? [] : winners.map((w) => w.id);
-  };
-
-  const holeMoney = (playerId: string, holeNumber: number): number | null => {
-    // Per-hole money is only meaningful for hole-based games (skins, banker, 9 points).
-    if (!data) return null;
-    return null;
   };
 
   const renderSegment = (segHoles: typeof holes, label: string) => {
