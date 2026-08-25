@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
 import type { Course, GameSettings } from '@/types';
-import { calculateStrokesReceived } from '@/services/gameEngine';
+import { GameType } from '@/types';
+import { calculateStrokesReceived, calculateFBOStrokes } from '@/services/gameEngine';
 import { buildSideBetRound, calculateSideBets, type SideBetPlayerInput } from '@/services/sideBets';
 
 interface Props {
@@ -19,6 +20,12 @@ const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toFixed(2)}`;
 const SideBetScorecardDialog: React.FC<Props> = ({
   open, onOpenChange, courseData, players, games, holeScores,
 }) => {
+  const [gameId, setGameId] = useState<string>(games[0]?.id || '');
+
+  useEffect(() => {
+    if (!games.some((g) => g.id === gameId)) setGameId(games[0]?.id || '');
+  }, [games, gameId]);
+
   const data = useMemo(() => {
     if (!open || players.length === 0) return null;
     try {
@@ -34,25 +41,59 @@ const SideBetScorecardDialog: React.FC<Props> = ({
   const front = holes.filter((h) => h.number <= 9);
   const back = holes.filter((h) => h.number > 9);
 
+  const activeGame = useMemo(
+    () => data?.round.games.find((g) => g.id === gameId) || data?.round.games[0],
+    [data, gameId],
+  );
+
+  /**
+   * Per-hole strokes for every player, using the SAME handicap rules the
+   * selected game uses to pay out (relative vs absolute, FBO cancellation,
+   * or no handicaps at all).
+   */
+  const strokeMap = useMemo(() => {
+    const map: Record<number, Record<string, number>> = {};
+    if (!data) return map;
+    const roundPlayers = data.round.players;
+    const useHandicaps = activeGame ? activeGame.config.useHandicaps !== false : true;
+    const isFBO = activeGame?.type === GameType.FBO;
+    const mode: 'absolute' | 'relative' = isFBO
+      ? (activeGame?.config.fbo?.handicapMode || 'absolute')
+      : ((activeGame?.config.handicapMode as 'absolute' | 'relative') || 'absolute');
+    const lowest = Math.min(...roundPlayers.map((p) => p.courseHandicap));
+
+    holes.forEach((h) => {
+      const perHole: Record<string, number> = {};
+      if (!useHandicaps) {
+        roundPlayers.forEach((p) => { perHole[p.id] = 0; });
+      } else if (isFBO) {
+        const s = calculateFBOStrokes(roundPlayers, h.handicapIndex, mode);
+        roundPlayers.forEach((p) => { perHole[p.id] = s[p.id] || 0; });
+      } else if (mode === 'relative') {
+        roundPlayers.forEach((p) => {
+          perHole[p.id] = calculateStrokesReceived(p.courseHandicap - lowest, h.handicapIndex);
+        });
+      } else {
+        roundPlayers.forEach((p) => {
+          perHole[p.id] = calculateStrokesReceived(p.courseHandicap, h.handicapIndex);
+        });
+      }
+      map[h.number] = perHole;
+    });
+    return map;
+  }, [data, activeGame, holes]);
+
+  const strokesOn = (playerId: string, holeNumber: number): number =>
+    strokeMap[holeNumber]?.[playerId] || 0;
+
   const netOf = (playerId: string, holeNumber: number): number | null => {
     if (!data) return null;
     const gross = data.round.scores[holeNumber]?.[playerId];
     if (gross == null) return null;
-    const hole = holes.find((h) => h.number === holeNumber);
-    const p = data.round.players.find((pl) => pl.id === playerId);
-    if (!hole || !p) return null;
-    return gross - calculateStrokesReceived(p.courseHandicap, hole.handicapIndex);
+    return gross - strokesOn(playerId, holeNumber);
   };
 
-  const strokesOn = (playerId: string, holeNumber: number): number => {
-    if (!data) return 0;
-    const hole = holes.find((h) => h.number === holeNumber);
-    const p = data.round.players.find((pl) => pl.id === playerId);
-    if (!hole || !p) return 0;
-    return calculateStrokesReceived(p.courseHandicap, hole.handicapIndex);
-  };
-
-  /** Winner(s) of a hole by lowest net among the selected players. */
+  /** Winner(s) of a hole by lowest net, using the selected game's handicap rules. */
   const winnersOn = (holeNumber: number): string[] => {
     if (!data || !data.holesCounted.has(holeNumber)) return [];
     const nets = players
@@ -63,6 +104,24 @@ const SideBetScorecardDialog: React.FC<Props> = ({
     const winners = nets.filter((n) => n.net === low);
     return winners.length === nets.length ? [] : winners.map((w) => w.id);
   };
+
+  /** Human-readable summary of the handicap rule in force. */
+  const handicapNote = useMemo(() => {
+    if (!data || !activeGame) return '';
+    if (activeGame.config.useHandicaps === false) return 'Scratch — no handicap strokes in this game.';
+    const isFBO = activeGame.type === GameType.FBO;
+    const mode = isFBO
+      ? (activeGame.config.fbo?.handicapMode || 'absolute')
+      : (activeGame.config.handicapMode || 'absolute');
+    const parts = data.round.players
+      .map((p) => {
+        const total = holes.reduce((s, h) => s + (strokeMap[h.number]?.[p.id] || 0), 0);
+        return `${p.name.split(' ')[0]} ${total}`;
+      })
+      .join(', ');
+    return `${mode === 'relative' ? 'Relative' : 'Absolute'} handicaps (${activeGame.name}). Strokes given: ${parts}.`;
+  }, [data, activeGame, holes, strokeMap]);
+
 
   const renderSegment = (segHoles: typeof holes, label: string) => {
     if (segHoles.length === 0) return null;
