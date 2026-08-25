@@ -246,13 +246,29 @@ const SideBetScorecardDialog: React.FC<Props> = ({
         ) : (
           <div className="space-y-4">
             <Card className="p-2 space-y-3">
+              {games.length > 1 && (
+                <div className="flex items-center gap-2 px-2 pt-1 text-xs">
+                  <span className="text-muted-foreground">Scoring rules:</span>
+                  <select
+                    className="h-7 rounded border border-input bg-background px-2 text-xs"
+                    value={activeGame?.id || ''}
+                    onChange={(e) => setGameId(e.target.value)}
+                  >
+                    {games.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {renderSegment(front, 'Out')}
               {renderSegment(back, 'In')}
               <p className="text-[10px] text-muted-foreground px-2">
                 Big number = gross, small number = net. Gold dot = handicap stroke on that hole. Highlighted cells
                 won the hole on net; ½ means the hole was halved.
+                {handicapNote ? ` ${handicapNote}` : ''}
               </p>
             </Card>
+
 
             {perGame.length > 0 && (
               <Card className="p-4 space-y-3">
