@@ -210,11 +210,30 @@ const TournamentViewRoundScorecard: React.FC = () => {
           </Button>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold">Scorecard &amp; Results</h1>
-            <p className="text-xs text-muted-foreground truncate">{roundLabel}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {roundLabel}
+              {isFocused && (() => {
+                const m = focusMatchId ? matches.find(x => x.id === focusMatchId) : null;
+                if (m) {
+                  return ` — Match: ${m.sideA.map(id => players[id]?.name || 'Player').join(', ')} vs ${m.sideB.map(id => players[id]?.name || 'Player').join(', ')}`;
+                }
+                const g = focusGroupId ? groups.find(x => x.id === focusGroupId) : null;
+                return g ? ` — Group ${g.group_number}` : '';
+              })()}
+            </p>
           </div>
+          {isFocused && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/tournament/${joinCode}/round/${roundId}/results`)}
+            >
+              View full round
+            </Button>
+          )}
         </div>
 
-        {awardCard}
+        {!isFocused && awardCard}
 
         {groups.length === 0 ? (
           <Card>
@@ -222,8 +241,9 @@ const TournamentViewRoundScorecard: React.FC = () => {
               No groups have been set up for this round yet.
             </CardContent>
           </Card>
-        ) : matches.length > 0 ? (
-          matches.map(m => {
+        ) : visibleMatches.length > 0 ? (
+          visibleMatches.map(m => {
+
             const teamAId = m.teamAId || teamOfPlayer(m.sideA[0]);
             const teamBId = m.teamBId || teamOfPlayer(m.sideB[0]);
             const sectionPlayers = [
