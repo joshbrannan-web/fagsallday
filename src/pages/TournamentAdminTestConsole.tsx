@@ -19,6 +19,7 @@ import {
 import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/services/roundLevelScoring';
 import TestRoundAwardCard from '@/components/tournament-admin/TestRoundAwardCard';
 import { toast } from 'sonner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 interface HoleResultRow {
   hole_number: number;
@@ -31,6 +32,7 @@ interface HoleResultRow {
 const TournamentAdminTestConsole: React.FC = () => {
   const { tournamentId, roundId } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament-admin/${tournamentId}`);
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
 
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);
@@ -266,7 +268,7 @@ const TournamentAdminTestConsole: React.FC = () => {
     <div className="min-h-screen bg-background p-4 animate-fade-in">
       <div className="max-w-3xl mx-auto space-y-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(`/tournament-admin/${tournamentId}`)}>
+          <Button variant="ghost" size="icon" onClick={goBack}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>

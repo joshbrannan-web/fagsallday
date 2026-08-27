@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Trophy, Loader2, Calendar, MapPin, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,15 +12,23 @@ import ScoreboardRenderer from '@/components/scoreboards/ScoreboardRenderer';
 import TournamentLiveToast from '@/components/scoreboards/TournamentLiveToast';
 import { GAME_TYPE_LABELS } from '@/components/tournament/TournamentRoundCard';
 import SideBetsPanel from '@/components/tournament/SideBetsPanel';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 
 const TournamentScoreboards: React.FC = () => {
   const { joinCode } = useParams<{ joinCode: string }>();
   const navigate = useNavigate();
+  const goBack = useSmartBack('/tournament');
   const { user, isLoading: authLoading } = useAuth();
   const [tournament, setTournament] = useState<any>(null);
   const [tournamentId, setTournamentId] = useState<string | undefined>();
-  const [selectedId, setSelectedId] = useState<string>('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedId = searchParams.get('sb') || '';
+  const setSelectedId = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('sb', id);
+    setSearchParams(next, { replace: true });
+  };
   const [autoJoined, setAutoJoined] = useState(false);
 
   // Auth guard
@@ -137,7 +145,7 @@ const TournamentScoreboards: React.FC = () => {
       )}
 
       <div className="p-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/tournament')}>
+        <Button variant="ghost" size="sm" onClick={goBack}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
       </div>

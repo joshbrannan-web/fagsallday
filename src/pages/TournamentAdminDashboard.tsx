@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournamentDetail } from '@/hooks/useTournamentDetail';
 import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus, ChevronDown, ChevronRight, FlaskConical, ClipboardList } from 'lucide-react';
@@ -27,6 +27,7 @@ import SideBetsPanel from '@/components/tournament/SideBetsPanel';
 
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const statusColors: Record<string, string> = {
   setup: 'bg-muted text-muted-foreground',
@@ -96,6 +97,7 @@ const teamScoringSummary = (round: any): string | null => {
 const TournamentAdminDashboard: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   const navigate = useNavigate();
+  const goBack = useSmartBack('/tournament-admin');
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const {
     tournament, teams, players, rounds, games, scoreboards, groups, groupPlayers, isLoading,
@@ -106,7 +108,13 @@ const TournamentAdminDashboard: React.FC = () => {
     roundMatches, addRoundMatch, deleteRoundMatch,
   } = useTournamentDetail(tournamentId);
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+  const setActiveTab = (tab: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', tab);
+    setSearchParams(next, { replace: true });
+  };
   const [deletingTournament, setDeletingTournament] = useState(false);
   
   const [roundToDelete, setRoundToDelete] = useState<string | null>(null);
@@ -279,7 +287,7 @@ const TournamentAdminDashboard: React.FC = () => {
     <div className="min-h-screen bg-background p-4 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/tournament-admin')}>
+        <Button variant="ghost" size="icon" onClick={goBack}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1 min-w-0">

@@ -14,10 +14,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import { toast } from 'sonner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const TournamentAdminLiveView: React.FC = () => {
   const { tournamentId, roundId, groupId } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament-admin/${tournamentId}`);
   const [searchParams] = useSearchParams();
   const isTest = searchParams.get('test') === '1';
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
@@ -80,7 +82,7 @@ const TournamentAdminLiveView: React.FC = () => {
           </div>
         )}
         <div className="flex items-center gap-3 mb-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(`/tournament-admin/${tournamentId}`)}>
+          <Button variant="ghost" size="icon" onClick={goBack}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>

@@ -6,10 +6,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import TestRoundBanner from '@/components/tournament/TestRoundBanner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const TournamentGroupScorecard: React.FC = () => {
   const { joinCode, roundId, groupId } = useParams<{ joinCode: string; roundId: string; groupId: string }>();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament/${joinCode}/scoreboards`);
   const { user, isLoading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -121,7 +123,7 @@ const TournamentGroupScorecard: React.FC = () => {
             tournamentId={round.tournament_id}
           />
         )}
-        <Button variant="ghost" size="sm" onClick={() => navigate(`/tournament/${joinCode}/scoreboards`)}>
+        <Button variant="ghost" size="sm" onClick={goBack}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Scoreboards
         </Button>
       </div>

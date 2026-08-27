@@ -19,10 +19,12 @@ import { scoresNeeded } from '@/services/tournamentEngine';
 import TestRoundAwardCard from '@/components/tournament-admin/TestRoundAwardCard';
 import { calcRoundTeamAward } from '@/services/scoreboardCalculations';
 import { toast } from 'sonner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const TournamentAdminRoundScorecard: React.FC = () => {
   const { tournamentId, roundId } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament-admin/${tournamentId}`);
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -240,7 +242,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
             variant="ghost"
             size="icon"
             aria-label="Back to tournament"
-            onClick={() => navigate(`/tournament-admin/${tournamentId}`)}
+            onClick={goBack}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

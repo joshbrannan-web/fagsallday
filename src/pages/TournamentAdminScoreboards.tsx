@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScoreboardManager from '@/components/tournament-admin/ScoreboardManager';
 import { toast } from 'sonner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const TournamentAdminScoreboards: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament-admin/${tournamentId}`);
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { scoreboards, teams, games, players, rounds, addScoreboard, updateScoreboard, deleteScoreboard, isLoading } = useTournamentDetail(tournamentId);
 
@@ -33,7 +35,7 @@ const TournamentAdminScoreboards: React.FC = () => {
   return (
     <div className="min-h-screen bg-background p-4 animate-fade-in">
       <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate(`/tournament-admin/${tournamentId}`)}>
+        <Button variant="ghost" size="icon" onClick={goBack}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <h1 className="text-lg font-bold">Scoreboards</h1>
