@@ -108,7 +108,13 @@ const TournamentAdminDashboard: React.FC = () => {
     roundMatches, addRoundMatch, deleteRoundMatch,
   } = useTournamentDetail(tournamentId);
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+  const setActiveTab = (tab: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', tab);
+    setSearchParams(next, { replace: true });
+  };
   const [deletingTournament, setDeletingTournament] = useState(false);
   
   const [roundToDelete, setRoundToDelete] = useState<string | null>(null);

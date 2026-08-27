@@ -22,7 +22,13 @@ const TournamentScoreboards: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
   const [tournament, setTournament] = useState<any>(null);
   const [tournamentId, setTournamentId] = useState<string | undefined>();
-  const [selectedId, setSelectedId] = useState<string>('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedId = searchParams.get('sb') || '';
+  const setSelectedId = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('sb', id);
+    setSearchParams(next, { replace: true });
+  };
   const [autoJoined, setAutoJoined] = useState(false);
 
   // Auth guard

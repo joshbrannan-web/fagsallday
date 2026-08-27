@@ -16,9 +16,9 @@ import { useSmartBack } from '@/hooks/useSmartBack';
 const TournamentAdminScorecard: React.FC = () => {
   const { tournamentId, roundId, groupId } = useParams();
   const navigate = useNavigate();
-  const goBack = useSmartBack(isTest ? `/tournament-admin/${tournamentId}/test/${roundId}` : `/tournament-admin/${tournamentId}`);
   const [searchParams] = useSearchParams();
   const isTest = searchParams.get('test') === '1';
+  const goBack = useSmartBack(isTest ? `/tournament-admin/${tournamentId}/test/${roundId}` : `/tournament-admin/${tournamentId}`);
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { teams, players, isLoading: detailLoading } = useTournamentDetail(tournamentId);
   const { groups, groupPlayers } = useTournamentGroups(roundId, { isTest });
