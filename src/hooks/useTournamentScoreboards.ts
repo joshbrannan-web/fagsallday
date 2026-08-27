@@ -28,83 +28,162 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   const [roundMatches, setRoundMatches] = useState<RoundMatch[]>([]);
   const roundMatchesRef = useRef<RoundMatch[]>([]);
 
+  // ── Local snapshot cache (render instantly on revisit) ────────────────
+  const cacheKey = tournamentId ? `fg_tournament_scoreboards_${tournamentId}` : null;
+  const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+  const hydratedRef = useRef(false);
+
+  const writeCache = useCallback((payload: Record<string, any>) => {
+    if (!cacheKey) return;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ cachedAt: Date.now(), payload }));
+    } catch { /* quota / private mode — cache is best-effort */ }
+  }, [cacheKey]);
+
+  useEffect(() => {
+    if (!cacheKey || hydratedRef.current) return;
+    hydratedRef.current = true;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.payload || Date.now() - (parsed.cachedAt || 0) > CACHE_MAX_AGE_MS) return;
+      const p = parsed.payload;
+      setScoreboards(p.scoreboards || []);
+      setRounds(p.rounds || []);
+      setTeams(p.teams || []);
+      setPlayers(p.players || []);
+      setGames(p.games || {});
+      setHolePoints(p.holePoints || []);
+      setGroups(p.groups || {});
+      setGroupPlayers(p.groupPlayers || {});
+      setHoleScores(p.holeScores || []);
+      setHoleResults(p.holeResults || []);
+      setRoundMatches(p.roundMatches || []);
+      roundMatchesRef.current = p.roundMatches || [];
+      if (typeof p.teamScoringMethod === 'string') setTeamScoringMethod(p.teamScoringMethod);
+      if (typeof p.customRoundPoints === 'number') setCustomRoundPoints(p.customRoundPoints);
+      // We have something on screen already — don't block on the network.
+      setIsLoading(false);
+    } catch { /* corrupt cache — ignore */ }
+  }, [cacheKey]);
+
   // Fetch all core data
   const fetchAll = useCallback(async () => {
     if (!tournamentId) return;
-    setIsLoading(true);
 
     const [sbRes, rndsRes, teamsRes, playersRes, tRes] = await Promise.all([
       supabase.from('tournament_scoreboards').select('*').eq('tournament_id', tournamentId).order('display_order'),
       supabase.from('tournament_rounds').select('*').eq('tournament_id', tournamentId).order('round_number'),
       supabase.from('tournament_teams').select('*').eq('tournament_id', tournamentId).order('display_order'),
       supabase.from('tournament_players').select('*').eq('tournament_id', tournamentId),
-      supabase.from('tournaments').select('team_scoring_method').eq('id', tournamentId).single(),
+      supabase.from('tournaments').select('team_scoring_method, custom_round_points').eq('id', tournamentId).single(),
     ]);
 
     const roundsData = rndsRes.data || [];
+    const teamsData = teamsRes.data || [];
+    const playersData = playersRes.data || [];
+    const scoringMethod = ((tRes.data as any)?.team_scoring_method as any) || 'cumulative';
+    const roundPts = ((tRes.data as any)?.custom_round_points as number) ?? 3;
+
     setScoreboards(sbRes.data || []);
     setRounds(roundsData);
-    setTeams(teamsRes.data || []);
-    setPlayers(playersRes.data || []);
+    setTeams(teamsData);
+    setPlayers(playersData);
     setIsLive(roundsData.some((r: any) => r.status === 'active'));
-    setTeamScoringMethod(((tRes.data as any)?.team_scoring_method as any) || 'cumulative');
-    setCustomRoundPoints(((tRes.data as any)?.custom_round_points as number) ?? 3);
+    setTeamScoringMethod(scoringMethod);
+    setCustomRoundPoints(roundPts);
 
     // Fetch games keyed by round_id
     const roundIds = roundsData.map((r: any) => r.id);
-    if (roundIds.length > 0) {
-      const [gamesRes, groupsRes] = await Promise.all([
-        supabase.from('tournament_games').select('*').in('tournament_round_id', roundIds),
-        supabase.from('tournament_groups').select('*').in('tournament_round_id', roundIds).eq('is_test', false).order('group_number'),
-      ]);
-
-      const gamesMap: Record<string, any> = {};
-      (gamesRes.data || []).forEach((g: any) => { gamesMap[g.tournament_round_id] = g; });
-      setGames(gamesMap);
-
-      const matches = await fetchRoundMatchesForRounds(roundIds);
-      roundMatchesRef.current = matches;
-      setRoundMatches(matches);
-
-      const groupsData = groupsRes.data || [];
-      const groupsByRound: Record<string, any[]> = {};
-      groupsData.forEach((g: any) => {
-        if (!groupsByRound[g.tournament_round_id]) groupsByRound[g.tournament_round_id] = [];
-        groupsByRound[g.tournament_round_id].push(g);
-      });
-      setGroups(groupsByRound);
-
-      const groupIds = groupsData.map((g: any) => g.id);
-      if (groupIds.length > 0) {
-        const [gpRes, hpRes] = await Promise.all([
-          supabase.from('tournament_group_players').select('*').in('tournament_group_id', groupIds),
-          supabase.from('tournament_hole_points').select('*').in('tournament_game_id', (gamesRes.data || []).map((g: any) => g.id)),
-        ]);
-
-        const gpMap: Record<string, any[]> = {};
-        (gpRes.data || []).forEach((gp: any) => {
-          if (!gpMap[gp.tournament_group_id]) gpMap[gp.tournament_group_id] = [];
-          gpMap[gp.tournament_group_id].push(gp);
-        });
-        setGroupPlayers(gpMap);
-        const hpData = hpRes.data || [];
-        setHolePoints(hpData);
-
-        // Fetch scores and results, then backfill missing results
-        const fetched = await fetchScoresAndResults(groupIds);
-        if (fetched) {
-          await backfillMissingResults(
-            fetched.scores, fetched.results,
-            groupsByRound, gamesMap, playersRes.data || [],
-            gpMap, roundsData, hpData, teamsRes.data || [],
-          );
-        }
-      }
+    if (roundIds.length === 0) {
+      setIsLoading(false);
+      isInitialLoad.current = false;
+      return;
     }
 
+    // Wave 2: games, groups and cross-group matches together
+    const [gamesRes, groupsRes, matches] = await Promise.all([
+      supabase.from('tournament_games').select('*').in('tournament_round_id', roundIds),
+      supabase.from('tournament_groups').select('*').in('tournament_round_id', roundIds).eq('is_test', false).order('group_number'),
+      fetchRoundMatchesForRounds(roundIds),
+    ]);
+
+    const gamesMap: Record<string, any> = {};
+    (gamesRes.data || []).forEach((g: any) => { gamesMap[g.tournament_round_id] = g; });
+    setGames(gamesMap);
+
+    roundMatchesRef.current = matches;
+    setRoundMatches(matches);
+
+    const groupsData = groupsRes.data || [];
+    const groupsByRound: Record<string, any[]> = {};
+    groupsData.forEach((g: any) => {
+      if (!groupsByRound[g.tournament_round_id]) groupsByRound[g.tournament_round_id] = [];
+      groupsByRound[g.tournament_round_id].push(g);
+    });
+    setGroups(groupsByRound);
+
+    const groupIds = groupsData.map((g: any) => g.id);
+    if (groupIds.length === 0) {
+      setIsLoading(false);
+      isInitialLoad.current = false;
+      return;
+    }
+
+    // Wave 3: group players, hole points, scores and results all at once
+    const matchIds = matches.map(m => m.id);
+    const [gpRes, hpRes, scoresRes, resultsRes, matchResultsRes] = await Promise.all([
+      supabase.from('tournament_group_players').select('*').in('tournament_group_id', groupIds),
+      supabase.from('tournament_hole_points').select('*').in('tournament_game_id', (gamesRes.data || []).map((g: any) => g.id)),
+      supabase.from('tournament_hole_scores').select('*').in('tournament_group_id', groupIds),
+      supabase.from('tournament_hole_results').select('*').in('tournament_group_id', groupIds),
+      matchIds.length > 0
+        ? supabase.from('tournament_hole_results').select('*').in('tournament_match_id', matchIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const gpMap: Record<string, any[]> = {};
+    (gpRes.data || []).forEach((gp: any) => {
+      if (!gpMap[gp.tournament_group_id]) gpMap[gp.tournament_group_id] = [];
+      gpMap[gp.tournament_group_id].push(gp);
+    });
+    setGroupPlayers(gpMap);
+    const hpData = hpRes.data || [];
+    setHolePoints(hpData);
+
+    const matchRoundById: Record<string, string> = {};
+    matches.forEach(m => { matchRoundById[m.id] = m.tournamentRoundId; });
+    const fetchedScores = scoresRes.data || [];
+    const fetchedResults = [
+      ...(resultsRes.data || []),
+      ...((matchResultsRes.data || []) as any[]).map((r: any) => ({
+        ...r,
+        tournament_round_id: matchRoundById[r.tournament_match_id],
+      })),
+    ];
+    setHoleScores(fetchedScores);
+    setHoleResults(fetchedResults);
+    setLastUpdated(new Date());
+
+    // Everything the board needs is on screen now — release the spinner and
+    // let any recalculation happen in the background.
     setIsLoading(false);
     isInitialLoad.current = false;
-  }, [tournamentId]);
+
+    writeCache({
+      scoreboards: sbRes.data || [], rounds: roundsData, teams: teamsData, players: playersData,
+      games: gamesMap, holePoints: hpData, groups: groupsByRound, groupPlayers: gpMap,
+      holeScores: fetchedScores, holeResults: fetchedResults, roundMatches: matches,
+      teamScoringMethod: scoringMethod, customRoundPoints: roundPts,
+    });
+
+    void backfillMissingResults(
+      fetchedScores, fetchedResults,
+      groupsByRound, gamesMap, playersData,
+      gpMap, roundsData, hpData, teamsData,
+    );
+  }, [tournamentId, writeCache]);
 
   const fetchScoresAndResults = useCallback(async (groupIds: string[]) => {
     if (groupIds.length === 0) return;
@@ -131,6 +210,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
     setLastUpdated(new Date());
     return { scores: fetchedScores, results: fetchedResults };
   }, []);
+
 
   // Backfill missing hole results for groups that have scores but no results
   const backfillMissingResults = useCallback(async (
