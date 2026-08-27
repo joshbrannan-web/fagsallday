@@ -27,6 +27,7 @@ import SideBetsPanel from '@/components/tournament/SideBetsPanel';
 
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const statusColors: Record<string, string> = {
   setup: 'bg-muted text-muted-foreground',
@@ -96,6 +97,7 @@ const teamScoringSummary = (round: any): string | null => {
 const TournamentAdminDashboard: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   const navigate = useNavigate();
+  const goBack = useSmartBack('/tournament-admin');
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const {
     tournament, teams, players, rounds, games, scoreboards, groups, groupPlayers, isLoading,

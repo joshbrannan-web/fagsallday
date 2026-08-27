@@ -14,10 +14,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import { toast } from 'sonner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const TournamentAdminLiveView: React.FC = () => {
   const { tournamentId, roundId, groupId } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament-admin/${tournamentId}`);
   const [searchParams] = useSearchParams();
   const isTest = searchParams.get('test') === '1';
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();

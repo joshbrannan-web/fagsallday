@@ -11,6 +11,7 @@ import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/serv
 import { scoresNeeded } from '@/services/tournamentEngine';
 import TestRoundAwardCard from '@/components/tournament-admin/TestRoundAwardCard';
 import { calcRoundTeamAward } from '@/services/scoreboardCalculations';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 /**
  * Read-only "Scorecard & Results" view for a tournament round, reachable by any
@@ -20,6 +21,7 @@ import { calcRoundTeamAward } from '@/services/scoreboardCalculations';
 const TournamentViewRoundScorecard: React.FC = () => {
   const { joinCode, roundId } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament/${joinCode}/scoreboards`);
   const [searchParams] = useSearchParams();
   const focusMatchId = searchParams.get('match');
   const focusGroupId = searchParams.get('group');

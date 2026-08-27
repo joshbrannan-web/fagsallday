@@ -19,6 +19,7 @@ import {
 import { fetchRoundMatches, isRoundLevelGameType, type RoundMatch } from '@/services/roundLevelScoring';
 import TestRoundAwardCard from '@/components/tournament-admin/TestRoundAwardCard';
 import { toast } from 'sonner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 interface HoleResultRow {
   hole_number: number;
@@ -31,6 +32,7 @@ interface HoleResultRow {
 const TournamentAdminTestConsole: React.FC = () => {
   const { tournamentId, roundId } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament-admin/${tournamentId}`);
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
 
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);

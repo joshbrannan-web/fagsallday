@@ -12,11 +12,13 @@ import ScoreboardRenderer from '@/components/scoreboards/ScoreboardRenderer';
 import TournamentLiveToast from '@/components/scoreboards/TournamentLiveToast';
 import { GAME_TYPE_LABELS } from '@/components/tournament/TournamentRoundCard';
 import SideBetsPanel from '@/components/tournament/SideBetsPanel';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 
 const TournamentScoreboards: React.FC = () => {
   const { joinCode } = useParams<{ joinCode: string }>();
   const navigate = useNavigate();
+  const goBack = useSmartBack('/tournament');
   const { user, isLoading: authLoading } = useAuth();
   const [tournament, setTournament] = useState<any>(null);
   const [tournamentId, setTournamentId] = useState<string | undefined>();

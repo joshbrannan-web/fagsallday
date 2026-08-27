@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import ScoreboardManager from '@/components/tournament-admin/ScoreboardManager';
 import { toast } from 'sonner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const TournamentAdminScoreboards: React.FC = () => {
   const { tournamentId } = useParams<{ tournamentId: string }>();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament-admin/${tournamentId}`);
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
   const { scoreboards, teams, games, players, rounds, addScoreboard, updateScoreboard, deleteScoreboard, isLoading } = useTournamentDetail(tournamentId);
 

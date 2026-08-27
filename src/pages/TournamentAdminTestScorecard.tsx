@@ -14,10 +14,12 @@ import { scoresNeeded } from '@/services/tournamentEngine';
 import TestRoundAwardCard from '@/components/tournament-admin/TestRoundAwardCard';
 import { calcRoundTeamAward } from '@/services/scoreboardCalculations';
 import { toast } from 'sonner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const TournamentAdminTestScorecard: React.FC = () => {
   const { tournamentId, roundId } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack(`/tournament-admin/${tournamentId}/test/${roundId}`);
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
 
   const [isLoading, setIsLoading] = useState(true);

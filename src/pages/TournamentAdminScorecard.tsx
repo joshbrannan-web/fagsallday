@@ -11,10 +11,12 @@ import GroupScorecardAdmin from '@/components/tournament-admin/GroupScorecardAdm
 import DeleteGroupButton from '@/components/tournament-admin/DeleteGroupButton';
 import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import { toast } from 'sonner';
+import { useSmartBack } from '@/hooks/useSmartBack';
 
 const TournamentAdminScorecard: React.FC = () => {
   const { tournamentId, roundId, groupId } = useParams();
   const navigate = useNavigate();
+  const goBack = useSmartBack(isTest ? `/tournament-admin/${tournamentId}/test/${roundId}` : `/tournament-admin/${tournamentId}`);
   const [searchParams] = useSearchParams();
   const isTest = searchParams.get('test') === '1';
   const { isTournamentAdmin, isLoading: adminLoading } = useTournamentAdmin();
