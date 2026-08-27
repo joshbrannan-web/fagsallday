@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,6 +20,10 @@ import { calcRoundTeamAward } from '@/services/scoreboardCalculations';
 const TournamentViewRoundScorecard: React.FC = () => {
   const { joinCode, roundId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusMatchId = searchParams.get('match');
+  const focusGroupId = searchParams.get('group');
+  const isFocused = !!(focusMatchId || focusGroupId);
 
   const [isLoading, setIsLoading] = useState(true);
   const [round, setRound] = useState<any>(null);
@@ -136,7 +140,11 @@ const TournamentViewRoundScorecard: React.FC = () => {
 
   const teamOfPlayer = (id: string) => players[id]?.teamId ?? null;
 
-  const isRoundLevel = matches.length === 0 && isRoundLevelGameType(game?.game_type) && groups.length > 0;
+  const visibleMatches = focusMatchId ? matches.filter(m => m.id === focusMatchId) : matches;
+  const visibleGroups = focusGroupId ? groups.filter(g => g.id === focusGroupId) : groups;
+
+  const isRoundLevel = !isFocused && matches.length === 0 && isRoundLevelGameType(game?.game_type) && groups.length > 0;
+
   const anchorGroupId = groups[0]?.id;
   const roundLevelPlayers = groups.flatMap(g =>
     g.players.map(p => ({ id: p.tournament_player_id, name: p.display_name, teamId: p.team_id })),
@@ -202,11 +210,30 @@ const TournamentViewRoundScorecard: React.FC = () => {
           </Button>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold">Scorecard &amp; Results</h1>
-            <p className="text-xs text-muted-foreground truncate">{roundLabel}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {roundLabel}
+              {isFocused && (() => {
+                const m = focusMatchId ? matches.find(x => x.id === focusMatchId) : null;
+                if (m) {
+                  return ` — Match: ${m.sideA.map(id => players[id]?.name || 'Player').join(', ')} vs ${m.sideB.map(id => players[id]?.name || 'Player').join(', ')}`;
+                }
+                const g = focusGroupId ? groups.find(x => x.id === focusGroupId) : null;
+                return g ? ` — Group ${g.group_number}` : '';
+              })()}
+            </p>
           </div>
+          {isFocused && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/tournament/${joinCode}/round/${roundId}/results`)}
+            >
+              View full round
+            </Button>
+          )}
         </div>
 
-        {awardCard}
+        {!isFocused && awardCard}
 
         {groups.length === 0 ? (
           <Card>
@@ -214,8 +241,9 @@ const TournamentViewRoundScorecard: React.FC = () => {
               No groups have been set up for this round yet.
             </CardContent>
           </Card>
-        ) : matches.length > 0 ? (
-          matches.map(m => {
+        ) : visibleMatches.length > 0 ? (
+          visibleMatches.map(m => {
+
             const teamAId = m.teamAId || teamOfPlayer(m.sideA[0]);
             const teamBId = m.teamBId || teamOfPlayer(m.sideB[0]);
             const sectionPlayers = [
@@ -285,7 +313,7 @@ const TournamentViewRoundScorecard: React.FC = () => {
             </Card>
           </>
         ) : (
-          groups.map(g => {
+          visibleGroups.map(g => {
             const teamIds = Array.from(new Set(g.players.map(p => p.team_id).filter(Boolean)));
             return (
               <TestScorecardSection
