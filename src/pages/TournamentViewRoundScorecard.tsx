@@ -30,6 +30,8 @@ const TournamentViewRoundScorecard: React.FC = () => {
   const [tournament, setTournament] = useState<any>(null);
   const [game, setGame] = useState<any>(null);
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);
+  const [viewMode, setViewMode] = useState<'round' | 'match' | null>(null);
+
   const [matches, setMatches] = useState<RoundMatch[]>([]);
   const [teams, setTeams] = useState<Record<string, { name: string; color: string }>>({});
   const [players, setPlayers] = useState<Record<string, { name: string; teamId: string | null; handicap: number }>>({});
