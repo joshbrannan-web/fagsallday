@@ -335,6 +335,17 @@ const RoundResultsDashboard: React.FC<Props> = ({
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pt-2">
+                {tournament?.id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => navigate(`/tournament-admin/${tournament.id}/round/${round.id}/scorecard`)}
+                  >
+                    <ClipboardList className="w-3.5 h-3.5 mr-1" /> View Scorecard &amp; Results
+                  </Button>
+                )}
+
                 {/* Team Results for this round */}
                 {teams.length >= 2 && (
                   <div className="space-y-2">
