@@ -146,6 +146,10 @@ const TournamentViewRoundScorecard: React.FC = () => {
   const visibleGroups = focusGroupId ? groups.filter(g => g.id === focusGroupId) : groups;
 
   const isRoundLevel = !isFocused && matches.length === 0 && isRoundLevelGameType(game?.game_type) && groups.length > 0;
+  const hasMatchView = matches.length > 0 || isRoundLevel;
+  const showToggle = !isFocused && groups.length > 0 && hasMatchView;
+  const effectiveView: 'round' | 'match' = isFocused ? 'match' : (viewMode ?? (hasMatchView ? 'match' : 'round'));
+
 
   const anchorGroupId = groups[0]?.id;
   const roundLevelPlayers = groups.flatMap(g =>
