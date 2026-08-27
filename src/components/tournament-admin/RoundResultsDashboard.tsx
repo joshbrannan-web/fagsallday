@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trophy, Medal, TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
+import { Trophy, Medal, TrendingUp, TrendingDown, Minus, RefreshCw, ClipboardList } from 'lucide-react';
 import {
   calcTeamTotalsPerRound,
   calcPlayerGrossPerRound,
@@ -39,6 +40,7 @@ interface Props {
 const RoundResultsDashboard: React.FC<Props> = ({
   tournament, teams, players, rounds, games, groups, groupPlayers,
 }) => {
+  const navigate = useNavigate();
   const [holeScores, setHoleScores] = useState<any[]>([]);
   const [holeResults, setHoleResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
