@@ -251,7 +251,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
             variant="ghost"
             size="icon"
             aria-label="Back to test console"
-            onClick={() => navigate(`/tournament-admin/${tournamentId}/test/${roundId}`)}
+            onClick={goBack}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

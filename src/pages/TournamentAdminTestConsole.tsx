@@ -266,7 +266,7 @@ const TournamentAdminTestConsole: React.FC = () => {
     <div className="min-h-screen bg-background p-4 animate-fade-in">
       <div className="max-w-3xl mx-auto space-y-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(`/tournament-admin/${tournamentId}`)}>
+          <Button variant="ghost" size="icon" onClick={goBack}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>

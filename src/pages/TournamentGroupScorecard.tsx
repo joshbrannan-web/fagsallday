@@ -121,7 +121,7 @@ const TournamentGroupScorecard: React.FC = () => {
             tournamentId={round.tournament_id}
           />
         )}
-        <Button variant="ghost" size="sm" onClick={() => navigate(`/tournament/${joinCode}/scoreboards`)}>
+        <Button variant="ghost" size="sm" onClick={goBack}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Scoreboards
         </Button>
       </div>

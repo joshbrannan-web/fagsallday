@@ -137,7 +137,7 @@ const TournamentScoreboards: React.FC = () => {
       )}
 
       <div className="p-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/tournament')}>
+        <Button variant="ghost" size="sm" onClick={goBack}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
       </div>

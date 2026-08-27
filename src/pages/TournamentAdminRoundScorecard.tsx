@@ -240,7 +240,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
             variant="ghost"
             size="icon"
             aria-label="Back to tournament"
-            onClick={() => navigate(`/tournament-admin/${tournamentId}`)}
+            onClick={goBack}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

@@ -215,7 +215,7 @@ const TournamentViewRoundScorecard: React.FC = () => {
             variant="ghost"
             size="icon"
             aria-label="Back to tournament"
-            onClick={() => navigate(`/tournament/${joinCode}/scoreboards`)}
+            onClick={goBack}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

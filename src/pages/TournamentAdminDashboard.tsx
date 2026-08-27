@@ -279,7 +279,7 @@ const TournamentAdminDashboard: React.FC = () => {
     <div className="min-h-screen bg-background p-4 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/tournament-admin')}>
+        <Button variant="ghost" size="icon" onClick={goBack}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1 min-w-0">
