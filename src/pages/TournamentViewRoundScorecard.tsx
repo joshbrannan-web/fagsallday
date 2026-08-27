@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ClipboardList } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Swords, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,6 +30,8 @@ const TournamentViewRoundScorecard: React.FC = () => {
   const [tournament, setTournament] = useState<any>(null);
   const [game, setGame] = useState<any>(null);
   const [groups, setGroups] = useState<TestGroupSummary[]>([]);
+  const [viewMode, setViewMode] = useState<'round' | 'match' | null>(null);
+
   const [matches, setMatches] = useState<RoundMatch[]>([]);
   const [teams, setTeams] = useState<Record<string, { name: string; color: string }>>({});
   const [players, setPlayers] = useState<Record<string, { name: string; teamId: string | null; handicap: number }>>({});
@@ -144,6 +146,15 @@ const TournamentViewRoundScorecard: React.FC = () => {
   const visibleGroups = focusGroupId ? groups.filter(g => g.id === focusGroupId) : groups;
 
   const isRoundLevel = !isFocused && matches.length === 0 && isRoundLevelGameType(game?.game_type) && groups.length > 0;
+  const hasMatchView = matches.length > 0 || isRoundLevel;
+  const showToggle = !isFocused && groups.length > 0 && hasMatchView;
+  const effectiveView: 'round' | 'match' = focusGroupId
+    ? 'round'
+    : focusMatchId
+      ? 'match'
+      : (viewMode ?? (hasMatchView ? 'match' : 'round'));
+
+
 
   const anchorGroupId = groups[0]?.id;
   const roundLevelPlayers = groups.flatMap(g =>
@@ -235,13 +246,64 @@ const TournamentViewRoundScorecard: React.FC = () => {
 
         {!isFocused && awardCard}
 
+        {showToggle && (
+          <div className="inline-flex rounded-lg border border-border p-1 bg-muted/40">
+            <Button
+              size="sm"
+              variant={effectiveView === 'round' ? 'default' : 'ghost'}
+              onClick={() => setViewMode('round')}
+            >
+              <Users className="w-3.5 h-3.5 mr-1" /> View Round Players
+            </Button>
+            <Button
+              size="sm"
+              variant={effectiveView === 'match' ? 'default' : 'ghost'}
+              onClick={() => setViewMode('match')}
+            >
+              <Swords className="w-3.5 h-3.5 mr-1" /> View Match Players
+            </Button>
+          </div>
+        )}
+
         {groups.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-center text-sm text-muted-foreground">
               No groups have been set up for this round yet.
             </CardContent>
           </Card>
+        ) : effectiveView === 'round' ? (
+          visibleGroups.map(g => {
+            const teamIds = Array.from(new Set(g.players.map(p => p.team_id).filter(Boolean)));
+            const groupResults = results.filter(r => r.tournament_group_id === g.id && !r.tournament_match_id);
+            return (
+              <TestScorecardSection
+                key={g.id}
+                title={`Group ${g.group_number}`}
+                subtitle={
+                  groupResults.length === 0
+                    ? 'Hole results for these players are decided at the match level — switch to View Match Players to see hole winners.'
+                    : undefined
+                }
+                players={g.players.map(p => ({
+                  id: p.tournament_player_id,
+                  name: p.display_name,
+                  teamId: p.team_id,
+                }))}
+                teams={teams}
+                teamAId={teamIds[0]}
+                teamBId={teamIds[1]}
+                courseHoles={courseHoles}
+                scores={scores}
+                results={groupResults}
+                pointsPerHole={pointsPerHole}
+                bestBall={bestBall}
+                ballsCounted={ballsCounted}
+                {...strokeProps}
+              />
+            );
+          })
         ) : visibleMatches.length > 0 ? (
+
           visibleMatches.map(m => {
 
             const teamAId = m.teamAId || teamOfPlayer(m.sideA[0]);
