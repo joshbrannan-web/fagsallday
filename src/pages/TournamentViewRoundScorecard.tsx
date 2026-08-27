@@ -313,7 +313,7 @@ const TournamentViewRoundScorecard: React.FC = () => {
             </Card>
           </>
         ) : (
-          groups.map(g => {
+          visibleGroups.map(g => {
             const teamIds = Array.from(new Set(g.players.map(p => p.team_id).filter(Boolean)));
             return (
               <TestScorecardSection
