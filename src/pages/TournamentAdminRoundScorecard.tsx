@@ -177,7 +177,11 @@ const TournamentAdminRoundScorecard: React.FC = () => {
   const teamOfPlayer = (id: string) => players[id]?.teamId ?? null;
 
   const isRoundLevel = matches.length === 0 && isRoundLevelGameType(game?.game_type) && groups.length > 0;
+  const hasMatchView = matches.length > 0 || isRoundLevel;
+  const showToggle = groups.length > 0 && hasMatchView;
+  const effectiveView: 'round' | 'match' = viewMode ?? (hasMatchView ? 'match' : 'round');
   const anchorGroupId = groups[0]?.id;
+
   const roundLevelPlayers = groups.flatMap(g =>
     g.players.map(p => ({ id: p.tournament_player_id, name: p.display_name, teamId: p.team_id })),
   );
