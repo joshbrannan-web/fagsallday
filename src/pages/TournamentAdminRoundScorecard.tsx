@@ -249,13 +249,73 @@ const TournamentAdminRoundScorecard: React.FC = () => {
 
         {awardCard}
 
+        {showToggle && (
+          <div className="inline-flex rounded-lg border border-border p-1 bg-muted/40">
+            <Button
+              size="sm"
+              variant={effectiveView === 'round' ? 'default' : 'ghost'}
+              onClick={() => setViewMode('round')}
+            >
+              <Users className="w-3.5 h-3.5 mr-1" /> View Round Players
+            </Button>
+            <Button
+              size="sm"
+              variant={effectiveView === 'match' ? 'default' : 'ghost'}
+              onClick={() => setViewMode('match')}
+            >
+              <Swords className="w-3.5 h-3.5 mr-1" /> View Match Players
+            </Button>
+          </div>
+        )}
+
         {groups.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-center text-sm text-muted-foreground">
               No groups have been set up for this round yet.
             </CardContent>
           </Card>
+        ) : effectiveView === 'round' ? (
+          groups.map(g => {
+            const teamIds = Array.from(new Set(g.players.map(p => p.team_id).filter(Boolean)));
+            const groupResults = results.filter(r => r.tournament_group_id === g.id && !r.tournament_match_id);
+            return (
+              <TestScorecardSection
+                key={g.id}
+                title={`Group ${g.group_number}`}
+                subtitle={
+                  groupResults.length === 0
+                    ? 'Hole results for these players are decided at the match level — switch to View Match Players to see hole winners.'
+                    : undefined
+                }
+                players={g.players.map(p => ({
+                  id: p.tournament_player_id,
+                  name: p.display_name,
+                  teamId: p.team_id,
+                }))}
+                teams={teams}
+                teamAId={teamIds[0]}
+                teamBId={teamIds[1]}
+                courseHoles={courseHoles}
+                scores={scores}
+                results={groupResults}
+                pointsPerHole={pointsPerHole}
+                bestBall={bestBall}
+                ballsCounted={ballsCounted}
+                {...strokeProps}
+                action={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate(`/tournament-admin/${tournamentId}/round/${roundId}/group/${g.id}`)}
+                  >
+                    <ClipboardList className="w-3.5 h-3.5 mr-1" /> Edit scores
+                  </Button>
+                }
+              />
+            );
+          })
         ) : matches.length > 0 ? (
+
           matches.map(m => {
             const teamAId = m.teamAId || teamOfPlayer(m.sideA[0]);
             const teamBId = m.teamBId || teamOfPlayer(m.sideB[0]);
