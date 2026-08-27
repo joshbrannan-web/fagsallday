@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournamentDetail } from '@/hooks/useTournamentDetail';
 import { ArrowLeft, Copy, Flag, Users, Play, CheckCircle2, Pencil, Save, X, Trash2, Plus, ChevronDown, ChevronRight, FlaskConical, ClipboardList } from 'lucide-react';
