@@ -216,6 +216,9 @@ const TournamentScoreboards: React.FC = () => {
               const courseName = course?.name || 'TBD';
               const gameType = game?.game_type;
 
+              const started = round.status === 'active' || round.status === 'completed';
+              const matchesForRound = (roundMatches || []).filter((m: any) => m.tournamentRoundId === round.id);
+
               return (
                 <Card key={round.id}>
                   <CardContent className="p-4 space-y-2">
@@ -244,6 +247,18 @@ const TournamentScoreboards: React.FC = () => {
                       </p>
                     )}
 
+                    {started && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full sm:w-auto"
+                        onClick={() => navigate(`/tournament/${joinCode}/round/${round.id}/results`)}
+                      >
+                        <ClipboardList className="w-3.5 h-3.5 mr-1.5" />
+                        View Scorecard &amp; Results (Round)
+                      </Button>
+                    )}
+
                     {/* Groups/Pairings */}
                     {roundGroups.length > 0 && (
                       <div className="space-y-1 pt-1">
@@ -263,8 +278,14 @@ const TournamentScoreboards: React.FC = () => {
                           const teamA = matchup ? teams.find((t: any) => t.id === matchup.teamAId) : null;
                           const teamB = matchup ? teams.find((t: any) => t.id === matchup.teamBId) : null;
 
+                          const groupPlayerIds = new Set(gps.map((gp: any) => gp.tournament_player_id));
+                          const matchForGroup = matchesForRound.find((m: any) =>
+                            [...m.sideA, ...m.sideB].every((pid: string) => groupPlayerIds.has(pid)),
+                          );
+                          const focusQuery = matchForGroup ? `?match=${matchForGroup.id}` : `?group=${group.id}`;
+
                           return (
-                            <div key={group.id} className="flex items-center gap-2 text-sm py-1 px-2 bg-muted/30 rounded">
+                            <div key={group.id} className="flex flex-wrap items-center gap-2 text-sm py-1 px-2 bg-muted/30 rounded">
                               <span className="text-xs text-muted-foreground font-mono">G{group.group_number}</span>
                               <div className="flex items-center gap-1">
                                 {teamA && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamA.color }} />}
@@ -275,11 +296,23 @@ const TournamentScoreboards: React.FC = () => {
                                 {teamB && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teamB.color }} />}
                                 <span>{teamBPlayers.map((p: any) => p.display_name.split(' ')[0]).join(', ') || '—'}</span>
                               </div>
+                              {started && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="ml-auto h-7 text-xs"
+                                  onClick={() => navigate(`/tournament/${joinCode}/round/${round.id}/results${focusQuery}`)}
+                                >
+                                  <ClipboardList className="w-3 h-3 mr-1" />
+                                  View Scorecard &amp; Results (Match)
+                                </Button>
+                              )}
                             </div>
                           );
                         })}
                       </div>
                     )}
+
                   </CardContent>
                 </Card>
               );
