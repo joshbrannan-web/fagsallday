@@ -233,8 +233,31 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
       const scored = fetchedScores.filter((s: any) => rGroupIds.has(s.tournament_group_id) && s.gross_score !== null);
       if (scored.length === 0) continue;
 
+      // Freshness gate: skip the (expensive) recalculation when every match in
+      // this round already has a saved result row for each fully scored hole.
+      const rMatches = roundMatchesRef.current.filter(m => m.tournamentRoundId === rid);
+      const scoredByPlayerHole = new Set(scored.map((s: any) => `${s.tournament_player_id}|${s.hole_number}`));
+      const strayGroupRows = fetchedResults.some((r: any) => rGroupIds.has(r.tournament_group_id));
+      const upToDate = !strayGroupRows && rMatches.length > 0 && rMatches.every(m => {
+        const participants = [...m.sideA, ...m.sideB];
+        if (participants.length === 0) return true;
+        const completeHoles = new Set<number>();
+        scored.forEach((s: any) => {
+          if (!participants.includes(s.tournament_player_id)) return;
+          if (participants.every(pid => scoredByPlayerHole.has(`${pid}|${s.hole_number}`))) {
+            completeHoles.add(s.hole_number);
+          }
+        });
+        const resultHoles = new Set(
+          fetchedResults.filter((r: any) => r.tournament_match_id === m.id).map((r: any) => r.hole_number),
+        );
+        return completeHoles.size === resultHoles.size;
+      });
+      if (upToDate) continue;
+
       const recalced = await recalcRoundMatchResults(rid);
       if (!recalced) continue;
+
 
       const rMatchIds = roundMatchesRef.current.filter(m => m.tournamentRoundId === rid).map(m => m.id);
       const { data: refreshed } = await supabase
