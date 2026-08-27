@@ -148,7 +148,12 @@ const TournamentViewRoundScorecard: React.FC = () => {
   const isRoundLevel = !isFocused && matches.length === 0 && isRoundLevelGameType(game?.game_type) && groups.length > 0;
   const hasMatchView = matches.length > 0 || isRoundLevel;
   const showToggle = !isFocused && groups.length > 0 && hasMatchView;
-  const effectiveView: 'round' | 'match' = isFocused ? 'match' : (viewMode ?? (hasMatchView ? 'match' : 'round'));
+  const effectiveView: 'round' | 'match' = focusGroupId
+    ? 'round'
+    : focusMatchId
+      ? 'match'
+      : (viewMode ?? (hasMatchView ? 'match' : 'round'));
+
 
 
   const anchorGroupId = groups[0]?.id;
