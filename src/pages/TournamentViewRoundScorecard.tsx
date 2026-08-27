@@ -20,6 +20,10 @@ import { calcRoundTeamAward } from '@/services/scoreboardCalculations';
 const TournamentViewRoundScorecard: React.FC = () => {
   const { joinCode, roundId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusMatchId = searchParams.get('match');
+  const focusGroupId = searchParams.get('group');
+  const isFocused = !!(focusMatchId || focusGroupId);
 
   const [isLoading, setIsLoading] = useState(true);
   const [round, setRound] = useState<any>(null);
