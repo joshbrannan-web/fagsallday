@@ -174,7 +174,7 @@ const Profile: React.FC = () => {
             <div className="flex items-center gap-2">
               <Input
                 id="handicapIndex"
-                type="number"
+                type="text"
                 value={handicapIndex}
                 disabled
                 className="opacity-70"
@@ -188,15 +188,15 @@ const Profile: React.FC = () => {
             <>
               <Input
                 id="handicapIndex"
-                type="number"
-                step="0.1"
-                min="-10"
-                max="54"
+                type="text"
+                inputMode="decimal"
                 value={handicapIndex}
                 onChange={(e) => setHandicapIndex(e.target.value)}
                 placeholder="0"
               />
-              <p className="text-xs text-muted-foreground">Valid range: -10 to 54</p>
+              <p className="text-xs text-muted-foreground">
+                Valid range: +10 to 54. Better than scratch? Enter it with a plus, like +2.4.
+              </p>
             </>
           )}
         </div>
