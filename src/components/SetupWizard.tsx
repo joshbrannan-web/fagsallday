@@ -591,7 +591,6 @@ const SetupWizard: React.FC = () => {
   };
 
   const handlePlayerChange = (id: string, field: keyof Player, value: string | number) => {
-    void 0;
     setPlayers(
       players.map((p) => {
         if (p.id !== id) return p;
