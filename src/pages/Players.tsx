@@ -21,6 +21,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import UserSearchDialog from '@/components/UserSearchDialog';
+import { parseHandicapInput, formatHandicap } from '@/lib/handicap';
 
 const Players: React.FC = () => {
   const navigate = useNavigate();
@@ -191,8 +192,8 @@ const Players: React.FC = () => {
                 <Label htmlFor="newHandicap">Handicap</Label>
                 <Input
                   id="newHandicap"
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   value={newHandicap}
                   onChange={(e) => setNewHandicap(e.target.value)}
                   placeholder="0"
@@ -279,8 +280,8 @@ const Players: React.FC = () => {
                   <div>
                     <Label>Handicap</Label>
                     <Input
-                      type="number"
-                      step="0.1"
+                      type="text"
+                      inputMode="decimal"
                       value={editHandicap}
                       onChange={(e) => setEditHandicap(e.target.value)}
                       className="mt-1"
