@@ -416,7 +416,7 @@ const Players: React.FC = () => {
         onSelect={(selectedUser) => {
           setNewPlayerLinkUserId(selectedUser.id);
           setNewPlayerLinkName(selectedUser.display_name);
-          setNewHandicap(selectedUser.handicap_index?.toString() || '0');
+          setNewHandicap(selectedUser.handicap_index != null ? formatHandicap(selectedUser.handicap_index) : "0");
           if (!newName.trim()) {
             setNewName(selectedUser.display_name || '');
           }
