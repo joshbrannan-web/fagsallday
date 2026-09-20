@@ -1677,23 +1677,34 @@ const SetupWizard: React.FC = () => {
                     </div>
                     <div>
                       <Label htmlFor={`handicap-${player.id}`}>Handicap</Label>
-                      <Input
-                        id={`handicap-${player.id}`}
-                        type="number"
-                        value={isNaN(player.handicapIndex) ? "" : player.handicapIndex}
-                        onChange={(e) =>
-                          handlePlayerChange(
-                            player.id,
-                            "handicapIndex",
-                            e.target.value === "" ? NaN : parseFloat(e.target.value),
-                          )
-                        }
-                        placeholder="Enter handicap"
-                        className="mt-1"
-                        min={-10}
-                        max={54}
-                        step={0.1}
-                      />
+                       <Input
+                         id={`handicap-${player.id}`}
+                         type="text"
+                         inputMode="decimal"
+                         value={
+                           handicapDrafts[player.id] ??
+                           (isNaN(player.handicapIndex) ? "" : formatHandicap(player.handicapIndex))
+                         }
+                         onChange={(e) => {
+                           const raw = e.target.value;
+                           setHandicapDrafts((prev) => ({ ...prev, [player.id]: raw }));
+                           const parsed = parseHandicapInput(raw);
+                           handlePlayerChange(
+                             player.id,
+                             "handicapIndex",
+                             raw.trim() === "" || parsed === null ? NaN : parsed,
+                           );
+                         }}
+                         onBlur={() =>
+                           setHandicapDrafts((prev) => {
+                             const next = { ...prev };
+                             delete next[player.id];
+                             return next;
+                           })
+                         }
+                         placeholder="Enter handicap (+2.4 for plus)"
+                         className="mt-1"
+                       />
                     </div>
                   </div>
                   {!isNaN(player.handicapIndex) && player.handicapIndex > 0 && (
