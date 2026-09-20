@@ -1,5 +1,5 @@
 import { Round, GameSettings, GameResult, DotType, Stockton6TeamAssignment, Stockton6BallState, Stockton6PressState, Player, PlayerHoleDots } from "../types";
-import { getNetScore } from "./gameEngine";
+import { getNetScore, getAbsoluteHoleStrokes } from "./gameEngine";
 import { getPlayedHoles, getPlayOrder, getHoleByPlayOrder } from "../lib/holeOrder";
 
 const roundStart = (round: Round): number => (round as any).startHole || 1;
@@ -16,10 +16,10 @@ export const calculateRelativeStrokes = (
   let playersReceivingStrokes = 0;
   
   players.forEach(player => {
-    // Player gets a stroke if hole index <= their handicap
-    const getsStroke = holeHandicapIndex <= player.courseHandicap;
-    strokes[player.id] = getsStroke ? 1 : 0;
-    if (getsStroke) playersReceivingStrokes++;
+    // Full handicap strokes; plus players give a stroke back on the easiest holes
+    const s = getAbsoluteHoleStrokes(player.courseHandicap, holeHandicapIndex);
+    strokes[player.id] = s;
+    if (s > 0) playersReceivingStrokes++;
   });
   
   // If ALL players would get a stroke, cancel them all out

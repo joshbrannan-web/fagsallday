@@ -1,4 +1,5 @@
 import { Round, GameSettings, GameResult, Player } from "../types";
+import { getAbsoluteHoleStrokes } from "./gameEngine";
 import { getPlayedHoles, getPlayOrder, getHoleByPlayOrder } from "../lib/holeOrder";
 
 // ---- Segment helpers (Team Hammer) ----

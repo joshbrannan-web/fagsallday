@@ -225,9 +225,9 @@ export const calculateSixesStrokes = (
     let playersReceivingStrokes = 0;
     
     players.forEach(player => {
-      const getsStroke = holeHandicapIndex <= player.courseHandicap;
-      strokes[player.id] = getsStroke ? 1 : 0;
-      if (getsStroke) playersReceivingStrokes++;
+      const s = getAbsoluteHoleStrokes(player.courseHandicap, holeHandicapIndex);
+      strokes[player.id] = s;
+      if (s > 0) playersReceivingStrokes++;
     });
     
     // If ALL players would get a stroke, cancel them all out
