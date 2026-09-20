@@ -636,14 +636,14 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
       } else if (game.config.useHandicaps) {
         // Auto-calculate strokes based on handicap mode
         if (game.config.handicapMode === 'absolute') {
-          // Stockton 6 style: each player gets strokes independently
+          // Full handicap: each player stroked independently; plus players give back
           // Cancel if ALL players would get strokes
           const allPlayersGetStrokes = players.every(
-            (pl) => holeData.handicapIndex <= pl.courseHandicap
+            (pl) => getAbsoluteHoleStrokes(pl.courseHandicap, holeData.handicapIndex) > 0
           );
           if (!allPlayersGetStrokes) {
-            playerStrokesReceived = holeData.handicapIndex <= p.courseHandicap ? 1 : 0;
-            bankerStrokesReceived = holeData.handicapIndex <= banker.courseHandicap ? 1 : 0;
+            playerStrokesReceived = getAbsoluteHoleStrokes(p.courseHandicap, holeData.handicapIndex);
+            bankerStrokesReceived = getAbsoluteHoleStrokes(banker.courseHandicap, holeData.handicapIndex);
           }
         } else {
           // Relative mode (default Banker style): strokes based on differential

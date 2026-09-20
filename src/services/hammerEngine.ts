@@ -148,9 +148,9 @@ const calcStrokes = (
   } else {
     let allGet = 0;
     players.forEach(p => {
-      const gets = holeHandicapIndex <= p.courseHandicap;
-      out[p.id] = gets ? 1 : 0;
-      if (gets) allGet++;
+      const s = getAbsoluteHoleStrokes(p.courseHandicap, holeHandicapIndex);
+      out[p.id] = s;
+      if (s > 0) allGet++;
     });
     if (allGet === players.length) players.forEach(p => out[p.id] = 0);
   }

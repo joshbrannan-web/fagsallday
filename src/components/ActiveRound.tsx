@@ -2304,11 +2304,11 @@ const ActiveRound: React.FC = () => {
               if (activeBankerGame.config.handicapMode === 'absolute') {
                 // Stockton 6 style for Banker game
                 const allPlayersGetStrokes = currentRound.players.every(
-                  (pl) => courseHole.handicapIndex <= pl.courseHandicap
+                  (pl) => getAbsoluteHoleStrokes(pl.courseHandicap, courseHole.handicapIndex) > 0
                 );
                 if (!allPlayersGetStrokes) {
-                  autoPlayerStrokes = courseHole.handicapIndex <= p.courseHandicap ? 1 : 0;
-                  autoBankerStrokes = courseHole.handicapIndex <= banker.courseHandicap ? 1 : 0;
+                  autoPlayerStrokes = getAbsoluteHoleStrokes(p.courseHandicap, courseHole.handicapIndex);
+                  autoBankerStrokes = getAbsoluteHoleStrokes(banker.courseHandicap, courseHole.handicapIndex);
                 }
               } else {
                 // Relative mode (default Banker style)
