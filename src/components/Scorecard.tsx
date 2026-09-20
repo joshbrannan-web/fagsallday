@@ -1024,6 +1024,14 @@ const Scorecard: React.FC = () => {
                                 <span className="text-[8px] text-primary-foreground font-bold">•</span>
                               </span>
                             )}
+                            {!hasStroke && givesBackStroke && (
+                              <span
+                                title="Stroke given back (plus handicap)"
+                                className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full border border-background flex items-center justify-center"
+                              >
+                                <span className="text-[8px] text-destructive-foreground font-bold leading-none">+</span>
+                              </span>
+                            )}
                             {isBanker && (
                               <Crown className="absolute -top-1 -right-1 w-3 h-3 text-brand-gold" />
                             )}
