@@ -320,7 +320,7 @@ export const calculateGameStrokes = (
   // Check for manual override first - this always takes precedence
   const manualStrokes = round.gameData?.["MANUAL_STROKES"]?.[holeNumber]?.[playerId];
   if (manualStrokes !== undefined && manualStrokes !== null) {
-    return Math.max(0, Math.min(manualStrokes, 3));
+    return Math.max(-3, Math.min(manualStrokes, 3));
   }
 
   // If handicaps are disabled for this game, return 0
@@ -333,14 +333,15 @@ export const calculateGameStrokes = (
   if (!player || !hole) return 0;
 
   if (game.config.handicapMode === 'absolute') {
-    // Stockton 6 style: stroke if holeIndex <= courseHandicap
-    // Cancel if ALL players would get strokes (strokes cancel out)
+    // Full handicap: strokes on the hardest holes, and plus players give a stroke
+    // back on the easiest holes (negative value).
+    // Cancel if ALL players would receive strokes (they cancel out)
     const allPlayersGetStrokes = round.players.every(
-      (p) => hole.handicapIndex <= p.courseHandicap
+      (p) => getAbsoluteHoleStrokes(p.courseHandicap, hole.handicapIndex) > 0
     );
     if (allPlayersGetStrokes) return 0;
     
-    return hole.handicapIndex <= player.courseHandicap ? 1 : 0;
+    return getAbsoluteHoleStrokes(player.courseHandicap, hole.handicapIndex);
   } else {
     // Relative mode (Banker style): strokes based on differential from reference player
     let refPlayerId = referencePlayerId;
