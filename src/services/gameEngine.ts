@@ -627,12 +627,12 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
 
       if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
         // Use manual override if set for player
-        playerStrokesReceived = Math.max(0, Math.min(playerManualStrokes, 3));
+        playerStrokesReceived = Math.max(-3, Math.min(playerManualStrokes, 3));
         bankerStrokesReceived = 0;
       } else if (bankerManualStrokes !== undefined && bankerManualStrokes !== null) {
         // Use manual override if set for banker
         playerStrokesReceived = 0;
-        bankerStrokesReceived = Math.max(0, Math.min(bankerManualStrokes, 3));
+        bankerStrokesReceived = Math.max(-3, Math.min(bankerManualStrokes, 3));
       } else if (game.config.useHandicaps) {
         // Auto-calculate strokes based on handicap mode
         if (game.config.handicapMode === 'absolute') {
@@ -2088,7 +2088,7 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
             // Check for manual override
             const manualStrokes = round.gameData?.["MANUAL_STROKES"]?.[holeNumber]?.[player.id];
             if (manualStrokes !== undefined && manualStrokes !== null) {
-              playerStrokes = Math.max(0, Math.min(manualStrokes, 3));
+              playerStrokes = Math.max(-3, Math.min(manualStrokes, 3));
               bankerStrokes = 0; // Manual override only affects player strokes
             }
 
@@ -2334,7 +2334,7 @@ export const calculateBloodyBankerPnL = (
       let bankerStrokesReceived: number;
 
       if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
-        playerStrokesReceived = Math.max(0, Math.min(playerManualStrokes, 3));
+        playerStrokesReceived = Math.max(-3, Math.min(playerManualStrokes, 3));
         bankerStrokesReceived = 0;
       } else {
         const matchupStrokes = calculateBankerMatchupStrokes(
