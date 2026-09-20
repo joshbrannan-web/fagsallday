@@ -443,13 +443,11 @@ const TournamentRegistration: React.FC = () => {
                   <div className="pt-1">
                     <Input
                       id="r-hcp"
-                      type="number"
-                      step="0.1"
-                      min="-10"
-                      max="54"
+                      type="text"
+                      inputMode="decimal"
                       value={handicapIndex}
                       onChange={e => setHandicapIndex(e.target.value)}
-                      placeholder="Handicap index (e.g. 12.5)"
+                      placeholder="Handicap index (e.g. 12.5, or +2.4)"
                     />
                   </div>
                 )}
