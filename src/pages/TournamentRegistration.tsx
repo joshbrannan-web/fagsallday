@@ -20,6 +20,7 @@ import {
 import { MapPin, Calendar, DollarSign, ExternalLink, Loader2, Trophy, RefreshCw, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 import { parseHandicapInput, formatHandicap } from '@/lib/handicap';
+import { HandicapInput } from '@/components/HandicapInput';
 
 const ensureUrl = (url: string) =>
   url.match(/^https?:\/\//) ? url : `https://${url}`;
@@ -442,14 +443,15 @@ const TournamentRegistration: React.FC = () => {
                   </div>
                 ) : (
                   <div className="pt-1">
-                    <Input
+                    <HandicapInput
                       id="r-hcp"
-                      type="text"
-                      inputMode="decimal"
                       value={handicapIndex}
-                      onChange={e => setHandicapIndex(e.target.value)}
-                      placeholder="Handicap index (e.g. 12.5, or +2.4)"
+                      onChange={setHandicapIndex}
+                      placeholder="Handicap index (e.g. 12.5)"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Better than scratch? Tap the +/– button.
+                    </p>
                   </div>
                 )}
               </div>
