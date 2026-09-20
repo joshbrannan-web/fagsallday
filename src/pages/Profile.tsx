@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import GhinSyncConfirmation from '@/components/GhinSyncConfirmation';
+import { parseHandicapInput, formatHandicap } from '@/lib/handicap';
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
