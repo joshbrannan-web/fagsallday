@@ -982,6 +982,23 @@ const Scorecard: React.FC = () => {
                           }
                         }
                       }
+                      // Plus players give a stroke back on the easiest holes
+                      const manualForHole = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id];
+                      let givesBackStroke = manualForHole === -1;
+                      if (!givesBackStroke && manualForHole == null && player.courseHandicap < 0) {
+                        if (stockton6Game) {
+                          givesBackStroke = (calculateRelativeStrokes(currentRound.players, h.handicapIndex)[player.id] || 0) < 0;
+                        } else {
+                          const gbGame = currentRound.games.find(g =>
+                            g.type !== GameType.BANKER &&
+                            g.type !== GameType.BLOODY_BANKER &&
+                            g.config.useHandicaps
+                          );
+                          if (gbGame) {
+                            givesBackStroke = calculateGameStrokes(currentRound, gbGame, h.number, player.id) < 0;
+                          }
+                        }
+                      }
                       const isBanker = getBankerForHole(h.number) === player.id;
                       // Determine shape: circle for birdies/eagles, square for bogeys+
                       const isUnderPar = diff < 0;
