@@ -546,13 +546,11 @@ const ActiveRound: React.FC = () => {
     if (isReadOnly) return;
     const manualStrokes = currentRound.gameData?.['MANUAL_STROKES']?.[activeHole]?.[pid];
     
-    if (manualStrokes !== undefined && manualStrokes !== null) {
-      const newValue = manualStrokes > 0 ? 0 : 1;
-      updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
-    } else {
-      const newValue = autoStrokes > 0 ? 0 : 1;
-      updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
-    }
+    const current = (manualStrokes !== undefined && manualStrokes !== null) ? manualStrokes : autoStrokes;
+    // Off when a stroke (or a plus give-back) is in play, otherwise turn it back on
+    // in the same direction the handicap calls for.
+    const newValue = current !== 0 ? 0 : (autoStrokes < 0 ? -1 : 1);
+    updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
   };
 
   const handleOpenBetChange = (gameId: string, pid: string, delta: number) => {
