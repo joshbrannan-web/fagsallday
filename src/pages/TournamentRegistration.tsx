@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { MapPin, Calendar, DollarSign, ExternalLink, Loader2, Trophy, RefreshCw, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
+import { parseHandicapInput, formatHandicap } from '@/lib/handicap';
 
 const ensureUrl = (url: string) =>
   url.match(/^https?:\/\//) ? url : `https://${url}`;
