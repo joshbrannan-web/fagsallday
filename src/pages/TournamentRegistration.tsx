@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { MapPin, Calendar, DollarSign, ExternalLink, Loader2, Trophy, RefreshCw, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
+import { parseHandicapInput, formatHandicap } from '@/lib/handicap';
 
 const ensureUrl = (url: string) =>
   url.match(/^https?:\/\//) ? url : `https://${url}`;
@@ -94,7 +95,7 @@ const TournamentRegistration: React.FC = () => {
       if (data) {
         if (data.display_name && !fullName) setFullName(data.display_name);
         if (data.handicap_index != null && !handicapIndex) {
-          setHandicapIndex(String(data.handicap_index));
+          setHandicapIndex(formatHandicap(data.handicap_index));
         }
         if (data.ghin_number && !ghinNumber) {
           setGhinNumber(data.ghin_number);
@@ -161,10 +162,10 @@ const TournamentRegistration: React.FC = () => {
         if (!silent) toast.error(data?.error || 'Failed to look up GHIN number');
         return;
       }
-      setHandicapIndex(String(data.handicap_index));
+      setHandicapIndex(formatHandicap(data.handicap_index));
       setGhinSyncedAt(new Date().toISOString());
       lastSyncedGhinRef.current = ghin;
-      toast.success(`Handicap synced: ${data.handicap_index}`);
+      toast.success(`Handicap synced: ${formatHandicap(data.handicap_index)}`);
     } catch (err) {
       console.error('GHIN sync error:', err);
       if (!silent) toast.error('Failed to look up GHIN number');
@@ -220,7 +221,7 @@ const TournamentRegistration: React.FC = () => {
         full_name: trimmedName,
         email: trimmedEmail,
         phone: phone.trim() || null,
-        handicap_index: handicapIndex ? parseFloat(handicapIndex) : null,
+        handicap_index: handicapIndex ? parseHandicapInput(handicapIndex) : null,
         ghin_number: hcpSource === 'ghin' && ghinNumber.trim() ? ghinNumber.trim() : null,
         payment_confirmed: paymentConfirmed,
         payment_amount: paymentAmount ? parseFloat(paymentAmount) : null,
@@ -443,13 +444,11 @@ const TournamentRegistration: React.FC = () => {
                   <div className="pt-1">
                     <Input
                       id="r-hcp"
-                      type="number"
-                      step="0.1"
-                      min="-10"
-                      max="54"
+                      type="text"
+                      inputMode="decimal"
                       value={handicapIndex}
                       onChange={e => setHandicapIndex(e.target.value)}
-                      placeholder="Handicap index (e.g. 12.5)"
+                      placeholder="Handicap index (e.g. 12.5, or +2.4)"
                     />
                   </div>
                 )}

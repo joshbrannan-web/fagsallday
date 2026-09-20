@@ -21,6 +21,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import UserSearchDialog from '@/components/UserSearchDialog';
+import { parseHandicapInput, formatHandicap } from '@/lib/handicap';
 
 const Players: React.FC = () => {
   const navigate = useNavigate();
@@ -48,7 +49,7 @@ const Players: React.FC = () => {
   const handleStartEdit = (player: SavedPlayer) => {
     setEditingId(player.id);
     setEditName(player.name);
-    setEditHandicap(player.handicap_index.toString());
+    setEditHandicap(formatHandicap(player.handicap_index));
     setEditTee(player.tee);
   };
 
@@ -67,7 +68,7 @@ const Players: React.FC = () => {
 
     const success = await updatePlayer(editingId, {
       name: editName.trim(),
-      handicap_index: parseFloat(editHandicap) || 0,
+      handicap_index: parseHandicapInput(editHandicap) ?? 0,
       tee: editTee || 'White'
     });
 
@@ -83,7 +84,7 @@ const Players: React.FC = () => {
       return;
     }
 
-    const result = await addPlayer(newName.trim(), parseFloat(newHandicap) || 0, newTee || 'White', newPlayerLinkUserId);
+    const result = await addPlayer(newName.trim(), parseHandicapInput(newHandicap) ?? 0, newTee || 'White', newPlayerLinkUserId);
     if (result) {
       setShowAddForm(false);
       setNewName('');
@@ -191,8 +192,8 @@ const Players: React.FC = () => {
                 <Label htmlFor="newHandicap">Handicap</Label>
                 <Input
                   id="newHandicap"
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   value={newHandicap}
                   onChange={(e) => setNewHandicap(e.target.value)}
                   placeholder="0"
@@ -279,8 +280,8 @@ const Players: React.FC = () => {
                   <div>
                     <Label>Handicap</Label>
                     <Input
-                      type="number"
-                      step="0.1"
+                      type="text"
+                      inputMode="decimal"
                       value={editHandicap}
                       onChange={(e) => setEditHandicap(e.target.value)}
                       className="mt-1"
@@ -330,7 +331,7 @@ const Players: React.FC = () => {
                     )}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Handicap: {player.handicap_index} • Tee: {player.tee}
+                    Handicap: {formatHandicap(player.handicap_index)} • Tee: {player.tee}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -415,7 +416,7 @@ const Players: React.FC = () => {
         onSelect={(selectedUser) => {
           setNewPlayerLinkUserId(selectedUser.id);
           setNewPlayerLinkName(selectedUser.display_name);
-          setNewHandicap(selectedUser.handicap_index?.toString() || '0');
+          setNewHandicap(selectedUser.handicap_index != null ? formatHandicap(selectedUser.handicap_index) : "0");
           if (!newName.trim()) {
             setNewName(selectedUser.display_name || '');
           }

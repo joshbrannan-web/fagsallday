@@ -30,6 +30,28 @@ export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
   return round.players.filter(p => ids.map(String).includes(String(p.id)));
 };
 
+// --- Full (absolute) handicap strokes for a single hole ---
+// Positive handicap: receives strokes on the hardest holes (stroke index 1..n).
+// Plus handicap (negative): gives strokes back on the easiest holes (18, 17, ...),
+// returned as a negative number so net = gross - strokes adds the shot back.
+export const getAbsoluteHoleStrokes = (
+  courseHandicap: number,
+  holeHandicapIndex: number,
+): number => {
+  if (courseHandicap > 0) {
+    const base = Math.floor(courseHandicap / 18);
+    const remainder = courseHandicap % 18;
+    return base + (holeHandicapIndex <= remainder ? 1 : 0);
+  }
+  if (courseHandicap < 0) {
+    const abs = Math.abs(courseHandicap);
+    const base = Math.floor(abs / 18);
+    const remainder = abs % 18;
+    return -(base + (holeHandicapIndex > 18 - remainder ? 1 : 0));
+  }
+  return 0;
+};
+
 // --- FBO Stroke Calculation (supports both Absolute and Relative modes) ---
 
 export const calculateFBOStrokes = (
@@ -49,16 +71,16 @@ export const calculateFBOStrokes = (
       strokes[player.id] = differential >= holeHandicapIndex ? 1 : 0;
     });
   } else {
-    // Absolute mode (original logic)
+    // Absolute (full handicap) mode — plus players give a stroke back on easy holes
     let playersReceivingStrokes = 0;
     
     players.forEach(player => {
-      const getsStroke = holeHandicapIndex <= player.courseHandicap;
-      strokes[player.id] = getsStroke ? 1 : 0;
-      if (getsStroke) playersReceivingStrokes++;
+      const s = getAbsoluteHoleStrokes(player.courseHandicap, holeHandicapIndex);
+      strokes[player.id] = s;
+      if (s > 0) playersReceivingStrokes++;
     });
     
-    // If ALL players get a stroke, cancel them all
+    // If ALL players receive a stroke, they cancel out
     if (playersReceivingStrokes === players.length) {
       players.forEach(player => {
         strokes[player.id] = 0;
@@ -298,7 +320,7 @@ export const calculateGameStrokes = (
   // Check for manual override first - this always takes precedence
   const manualStrokes = round.gameData?.["MANUAL_STROKES"]?.[holeNumber]?.[playerId];
   if (manualStrokes !== undefined && manualStrokes !== null) {
-    return Math.max(0, Math.min(manualStrokes, 3));
+    return Math.max(-3, Math.min(manualStrokes, 3));
   }
 
   // If handicaps are disabled for this game, return 0
@@ -311,14 +333,15 @@ export const calculateGameStrokes = (
   if (!player || !hole) return 0;
 
   if (game.config.handicapMode === 'absolute') {
-    // Stockton 6 style: stroke if holeIndex <= courseHandicap
-    // Cancel if ALL players would get strokes (strokes cancel out)
+    // Full handicap: strokes on the hardest holes, and plus players give a stroke
+    // back on the easiest holes (negative value).
+    // Cancel if ALL players would receive strokes (they cancel out)
     const allPlayersGetStrokes = round.players.every(
-      (p) => hole.handicapIndex <= p.courseHandicap
+      (p) => getAbsoluteHoleStrokes(p.courseHandicap, hole.handicapIndex) > 0
     );
     if (allPlayersGetStrokes) return 0;
     
-    return hole.handicapIndex <= player.courseHandicap ? 1 : 0;
+    return getAbsoluteHoleStrokes(player.courseHandicap, hole.handicapIndex);
   } else {
     // Relative mode (Banker style): strokes based on differential from reference player
     let refPlayerId = referencePlayerId;
@@ -604,23 +627,23 @@ export const calculateBanker = (round: Round, game: GameSettings): GameResult =>
 
       if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
         // Use manual override if set for player
-        playerStrokesReceived = Math.max(0, Math.min(playerManualStrokes, 3));
+        playerStrokesReceived = Math.max(-3, Math.min(playerManualStrokes, 3));
         bankerStrokesReceived = 0;
       } else if (bankerManualStrokes !== undefined && bankerManualStrokes !== null) {
         // Use manual override if set for banker
         playerStrokesReceived = 0;
-        bankerStrokesReceived = Math.max(0, Math.min(bankerManualStrokes, 3));
+        bankerStrokesReceived = Math.max(-3, Math.min(bankerManualStrokes, 3));
       } else if (game.config.useHandicaps) {
         // Auto-calculate strokes based on handicap mode
         if (game.config.handicapMode === 'absolute') {
-          // Stockton 6 style: each player gets strokes independently
+          // Full handicap: each player stroked independently; plus players give back
           // Cancel if ALL players would get strokes
           const allPlayersGetStrokes = players.every(
-            (pl) => holeData.handicapIndex <= pl.courseHandicap
+            (pl) => getAbsoluteHoleStrokes(pl.courseHandicap, holeData.handicapIndex) > 0
           );
           if (!allPlayersGetStrokes) {
-            playerStrokesReceived = holeData.handicapIndex <= p.courseHandicap ? 1 : 0;
-            bankerStrokesReceived = holeData.handicapIndex <= banker.courseHandicap ? 1 : 0;
+            playerStrokesReceived = getAbsoluteHoleStrokes(p.courseHandicap, holeData.handicapIndex);
+            bankerStrokesReceived = getAbsoluteHoleStrokes(banker.courseHandicap, holeData.handicapIndex);
           }
         } else {
           // Relative mode (default Banker style): strokes based on differential
@@ -2065,7 +2088,7 @@ export const calculateAggregatedHolePnL = (round: Round): Record<number, Record<
             // Check for manual override
             const manualStrokes = round.gameData?.["MANUAL_STROKES"]?.[holeNumber]?.[player.id];
             if (manualStrokes !== undefined && manualStrokes !== null) {
-              playerStrokes = Math.max(0, Math.min(manualStrokes, 3));
+              playerStrokes = Math.max(-3, Math.min(manualStrokes, 3));
               bankerStrokes = 0; // Manual override only affects player strokes
             }
 
@@ -2311,7 +2334,7 @@ export const calculateBloodyBankerPnL = (
       let bankerStrokesReceived: number;
 
       if (playerManualStrokes !== undefined && playerManualStrokes !== null) {
-        playerStrokesReceived = Math.max(0, Math.min(playerManualStrokes, 3));
+        playerStrokesReceived = Math.max(-3, Math.min(playerManualStrokes, 3));
         bankerStrokesReceived = 0;
       } else {
         const matchupStrokes = calculateBankerMatchupStrokes(

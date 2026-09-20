@@ -21,7 +21,7 @@ import { useWakeLock } from '@/hooks/useWakeLock';
 import { offlineStorage } from '@/services/offlineStorage';
 import { supabase } from '@/integrations/supabase/client';
 import { GameType, GameSettings, WolfHoleData, FBOPressState, SixesPressState } from '../types';
-import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, calculateFBOHoleWinners, calculateFBOMatchupHoleWinner, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, getFBOMatchupDormieStatus, getFBOMatchupOverallDormieStatus, calculatePerGameTotals, calculateFBOTeamHoleWinner, getFBOTeamDormieStatus, getFBOTeamOverallDormieStatus, getFBOTeamPressEligibility, getFBOTeamPressEligibilityOverall } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBloodyBankerPnL, areHolesComplete, calculateBankerMatchupStrokes, calculateGameStrokes, getAbsoluteHoleStrokes, calculateFBOHoleWinners, calculateFBOMatchupHoleWinner, getFBOHoleNetScores, getFBODormieStatus, getFBOPressEligibility, getFBOOverallDormieStatus, getFBOPressEligibilityOverall, getFBOMatchupDormieStatus, getFBOMatchupOverallDormieStatus, calculatePerGameTotals, calculateFBOTeamHoleWinner, getFBOTeamDormieStatus, getFBOTeamOverallDormieStatus, getFBOTeamPressEligibility, getFBOTeamPressEligibilityOverall } from '../services/gameEngine';
 import { validateHoleInput, interpretVoiceCommand } from '../services/aiAssistant';
 import { getPlayOrder, getHoleByPlayOrder, getNextHole, getPrevHole, isInLastNPlayed, TOTAL_HOLES } from '@/lib/holeOrder';
 
@@ -546,13 +546,11 @@ const ActiveRound: React.FC = () => {
     if (isReadOnly) return;
     const manualStrokes = currentRound.gameData?.['MANUAL_STROKES']?.[activeHole]?.[pid];
     
-    if (manualStrokes !== undefined && manualStrokes !== null) {
-      const newValue = manualStrokes > 0 ? 0 : 1;
-      updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
-    } else {
-      const newValue = autoStrokes > 0 ? 0 : 1;
-      updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
-    }
+    const current = (manualStrokes !== undefined && manualStrokes !== null) ? manualStrokes : autoStrokes;
+    // Off when a stroke (or a plus give-back) is in play, otherwise turn it back on
+    // in the same direction the handicap calls for.
+    const newValue = current !== 0 ? 0 : (autoStrokes < 0 ? -1 : 1);
+    updateGameData('MANUAL_STROKES', activeHole, pid, newValue);
   };
 
   const handleOpenBetChange = (gameId: string, pid: string, delta: number) => {
@@ -2304,11 +2302,11 @@ const ActiveRound: React.FC = () => {
               if (activeBankerGame.config.handicapMode === 'absolute') {
                 // Stockton 6 style for Banker game
                 const allPlayersGetStrokes = currentRound.players.every(
-                  (pl) => courseHole.handicapIndex <= pl.courseHandicap
+                  (pl) => getAbsoluteHoleStrokes(pl.courseHandicap, courseHole.handicapIndex) > 0
                 );
                 if (!allPlayersGetStrokes) {
-                  autoPlayerStrokes = courseHole.handicapIndex <= p.courseHandicap ? 1 : 0;
-                  autoBankerStrokes = courseHole.handicapIndex <= banker.courseHandicap ? 1 : 0;
+                  autoPlayerStrokes = getAbsoluteHoleStrokes(p.courseHandicap, courseHole.handicapIndex);
+                  autoBankerStrokes = getAbsoluteHoleStrokes(banker.courseHandicap, courseHole.handicapIndex);
                 }
               } else {
                 // Relative mode (default Banker style)

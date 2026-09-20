@@ -982,6 +982,23 @@ const Scorecard: React.FC = () => {
                           }
                         }
                       }
+                      // Plus players give a stroke back on the easiest holes
+                      const manualForHole = currentRound.gameData?.['MANUAL_STROKES']?.[h.number]?.[player.id];
+                      let givesBackStroke = manualForHole === -1;
+                      if (!givesBackStroke && manualForHole == null && player.courseHandicap < 0) {
+                        if (stockton6Game) {
+                          givesBackStroke = (calculateRelativeStrokes(currentRound.players, h.handicapIndex)[player.id] || 0) < 0;
+                        } else {
+                          const gbGame = currentRound.games.find(g =>
+                            g.type !== GameType.BANKER &&
+                            g.type !== GameType.BLOODY_BANKER &&
+                            g.config.useHandicaps
+                          );
+                          if (gbGame) {
+                            givesBackStroke = calculateGameStrokes(currentRound, gbGame, h.number, player.id) < 0;
+                          }
+                        }
+                      }
                       const isBanker = getBankerForHole(h.number) === player.id;
                       // Determine shape: circle for birdies/eagles, square for bogeys+
                       const isUnderPar = diff < 0;
@@ -1005,6 +1022,14 @@ const Scorecard: React.FC = () => {
                             {hasStroke && (
                               <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border border-background flex items-center justify-center">
                                 <span className="text-[8px] text-primary-foreground font-bold">•</span>
+                              </span>
+                            )}
+                            {!hasStroke && givesBackStroke && (
+                              <span
+                                title="Stroke given back (plus handicap)"
+                                className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full border border-background flex items-center justify-center"
+                              >
+                                <span className="text-[8px] text-destructive-foreground font-bold leading-none">+</span>
                               </span>
                             )}
                             {isBanker && (

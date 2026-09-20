@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import GhinSyncConfirmation from '@/components/GhinSyncConfirmation';
+import { parseHandicapInput, formatHandicap } from '@/lib/handicap';
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ const Profile: React.FC = () => {
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || '');
-      setHandicapIndex(profile.handicap_index?.toString() || '0');
+      setHandicapIndex(profile.handicap_index != null ? formatHandicap(profile.handicap_index) : '0');
       setGhinNumber(profile.ghin_number || '');
     }
   }, [profile]);
@@ -72,7 +73,7 @@ const Profile: React.FC = () => {
         return;
       }
 
-      setHandicapIndex(data.handicap_index.toString());
+      setHandicapIndex(formatHandicap(data.handicap_index));
       setGhinNumber(numberToSync.trim());
 
       // Update local profile state
@@ -116,7 +117,7 @@ const Profile: React.FC = () => {
       return;
     }
 
-    const parsedHandicap = parseFloat(handicapIndex) || 0;
+    const parsedHandicap = parseHandicapInput(handicapIndex) ?? 0;
     const clampedHandicap = Math.min(54, Math.max(-10, parsedHandicap));
 
     setIsSaving(true);
@@ -173,7 +174,7 @@ const Profile: React.FC = () => {
             <div className="flex items-center gap-2">
               <Input
                 id="handicapIndex"
-                type="number"
+                type="text"
                 value={handicapIndex}
                 disabled
                 className="opacity-70"
@@ -187,15 +188,15 @@ const Profile: React.FC = () => {
             <>
               <Input
                 id="handicapIndex"
-                type="number"
-                step="0.1"
-                min="-10"
-                max="54"
+                type="text"
+                inputMode="decimal"
                 value={handicapIndex}
                 onChange={(e) => setHandicapIndex(e.target.value)}
                 placeholder="0"
               />
-              <p className="text-xs text-muted-foreground">Valid range: -10 to 54</p>
+              <p className="text-xs text-muted-foreground">
+                Valid range: +10 to 54. Better than scratch? Enter it with a plus, like +2.4.
+              </p>
             </>
           )}
         </div>
