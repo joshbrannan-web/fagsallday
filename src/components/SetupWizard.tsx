@@ -41,6 +41,7 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { parseHandicapInput, formatHandicap } from "@/lib/handicap";
+import { HandicapInput } from "@/components/HandicapInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -1681,16 +1682,13 @@ const SetupWizard: React.FC = () => {
                     </div>
                     <div>
                       <Label htmlFor={`handicap-${player.id}`}>Handicap</Label>
-                       <Input
+                       <HandicapInput
                          id={`handicap-${player.id}`}
-                         type="text"
-                         inputMode="decimal"
                          value={
                            handicapDrafts[player.id] ??
                            (isNaN(player.handicapIndex) ? "" : formatHandicap(player.handicapIndex))
                          }
-                         onChange={(e) => {
-                           const raw = e.target.value;
+                         onChange={(raw) => {
                            setHandicapDrafts((prev) => ({ ...prev, [player.id]: raw }));
                            const parsed = parseHandicapInput(raw);
                            handlePlayerChange(
@@ -1706,7 +1704,7 @@ const SetupWizard: React.FC = () => {
                              return next;
                            })
                          }
-                         placeholder="Enter handicap (+2.4 for plus)"
+                         placeholder="Enter handicap"
                          className="mt-1"
                        />
                     </div>

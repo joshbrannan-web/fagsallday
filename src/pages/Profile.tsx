@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import GhinSyncConfirmation from '@/components/GhinSyncConfirmation';
 import { parseHandicapInput, formatHandicap } from '@/lib/handicap';
+import { HandicapInput } from '@/components/HandicapInput';
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
@@ -186,16 +187,14 @@ const Profile: React.FC = () => {
             </div>
           ) : (
             <>
-              <Input
+              <HandicapInput
                 id="handicapIndex"
-                type="text"
-                inputMode="decimal"
                 value={handicapIndex}
-                onChange={(e) => setHandicapIndex(e.target.value)}
+                onChange={setHandicapIndex}
                 placeholder="0"
               />
               <p className="text-xs text-muted-foreground">
-                Valid range: +10 to 54. Better than scratch? Enter it with a plus, like +2.4.
+                Valid range: +10 to 54. Better than scratch? Tap the +/– button.
               </p>
             </>
           )}
