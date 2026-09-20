@@ -30,6 +30,28 @@ export const getGamePlayers = (game: GameSettings, round: Round): Player[] => {
   return round.players.filter(p => ids.map(String).includes(String(p.id)));
 };
 
+// --- Full (absolute) handicap strokes for a single hole ---
+// Positive handicap: receives strokes on the hardest holes (stroke index 1..n).
+// Plus handicap (negative): gives strokes back on the easiest holes (18, 17, ...),
+// returned as a negative number so net = gross - strokes adds the shot back.
+export const getAbsoluteHoleStrokes = (
+  courseHandicap: number,
+  holeHandicapIndex: number,
+): number => {
+  if (courseHandicap > 0) {
+    const base = Math.floor(courseHandicap / 18);
+    const remainder = courseHandicap % 18;
+    return base + (holeHandicapIndex <= remainder ? 1 : 0);
+  }
+  if (courseHandicap < 0) {
+    const abs = Math.abs(courseHandicap);
+    const base = Math.floor(abs / 18);
+    const remainder = abs % 18;
+    return -(base + (holeHandicapIndex > 18 - remainder ? 1 : 0));
+  }
+  return 0;
+};
+
 // --- FBO Stroke Calculation (supports both Absolute and Relative modes) ---
 
 export const calculateFBOStrokes = (
@@ -49,16 +71,16 @@ export const calculateFBOStrokes = (
       strokes[player.id] = differential >= holeHandicapIndex ? 1 : 0;
     });
   } else {
-    // Absolute mode (original logic)
+    // Absolute (full handicap) mode — plus players give a stroke back on easy holes
     let playersReceivingStrokes = 0;
     
     players.forEach(player => {
-      const getsStroke = holeHandicapIndex <= player.courseHandicap;
-      strokes[player.id] = getsStroke ? 1 : 0;
-      if (getsStroke) playersReceivingStrokes++;
+      const s = getAbsoluteHoleStrokes(player.courseHandicap, holeHandicapIndex);
+      strokes[player.id] = s;
+      if (s > 0) playersReceivingStrokes++;
     });
     
-    // If ALL players get a stroke, cancel them all
+    // If ALL players receive a stroke, they cancel out
     if (playersReceivingStrokes === players.length) {
       players.forEach(player => {
         strokes[player.id] = 0;
