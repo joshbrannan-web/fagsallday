@@ -1,5 +1,5 @@
 import { Round, GameSettings, GameResult, SixesTeamAssignment, SixesPressState, Player } from "../types";
-import { getNetScore } from "./gameEngine";
+import { getNetScore, getAbsoluteHoleStrokes } from "./gameEngine";
 import { getPlayedHoles, getPlayOrder, getHoleByPlayOrder } from "../lib/holeOrder";
 
 // Type for stretch numbers

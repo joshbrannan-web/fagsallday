@@ -2,6 +2,7 @@
  * Scoreboard Calculations — Piece 6
  * Pure math helpers for all scoreboard types. No Supabase calls.
  */
+import { getAbsoluteHoleStrokes } from "./gameEngine";
 
 // ── TYPES ────────────────────────────────────────────────────
 
