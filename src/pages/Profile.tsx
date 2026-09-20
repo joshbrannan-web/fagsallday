@@ -27,7 +27,7 @@ const Profile: React.FC = () => {
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || '');
-      setHandicapIndex(profile.handicap_index?.toString() || '0');
+      setHandicapIndex(profile.handicap_index != null ? formatHandicap(profile.handicap_index) : '0');
       setGhinNumber(profile.ghin_number || '');
     }
   }, [profile]);
@@ -73,7 +73,7 @@ const Profile: React.FC = () => {
         return;
       }
 
-      setHandicapIndex(data.handicap_index.toString());
+      setHandicapIndex(formatHandicap(data.handicap_index));
       setGhinNumber(numberToSync.trim());
 
       // Update local profile state
@@ -117,7 +117,7 @@ const Profile: React.FC = () => {
       return;
     }
 
-    const parsedHandicap = parseFloat(handicapIndex) || 0;
+    const parsedHandicap = parseHandicapInput(handicapIndex) ?? 0;
     const clampedHandicap = Math.min(54, Math.max(-10, parsedHandicap));
 
     setIsSaving(true);
