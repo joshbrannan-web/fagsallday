@@ -142,6 +142,9 @@ const SetupWizard: React.FC = () => {
     ]
   );
 
+  // Raw text being typed into handicap fields (lets "+2.4" be typed before it parses)
+  const [handicapDrafts, setHandicapDrafts] = useState<Record<string, string>>({});
+
   // Step 3: Games
   const [selectedGames, setSelectedGames] = useState<GameSettings[]>([]);
   const [startHole, setStartHole] = useState<number>(1);
