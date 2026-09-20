@@ -63,8 +63,12 @@ export async function lookupGhinHandicap(ghinNumber: string): Promise<number | n
     const golfer = golfers.find((g: any) => extractIds(g).includes(ghin));
     if (!golfer) return null;
 
-    const handicapIndex = parseFloat(golfer.handicap_index);
-    return isNaN(handicapIndex) ? null : handicapIndex;
+    // GHIN reports plus (better than scratch) indexes as "+2.4"; store them as negatives.
+    const raw = String(golfer.handicap_index ?? "").trim();
+    const isPlus = raw.startsWith("+");
+    const parsed = parseFloat(isPlus ? raw.slice(1) : raw);
+    if (isNaN(parsed)) return null;
+    return isPlus ? -Math.abs(parsed) : parsed;
   } catch (err) {
     console.error("lookupGhinHandicap error:", err);
     return null;
