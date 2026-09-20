@@ -49,7 +49,7 @@ const Players: React.FC = () => {
   const handleStartEdit = (player: SavedPlayer) => {
     setEditingId(player.id);
     setEditName(player.name);
-    setEditHandicap(player.handicap_index.toString());
+    setEditHandicap(formatHandicap(player.handicap_index));
     setEditTee(player.tee);
   };
 
@@ -68,7 +68,7 @@ const Players: React.FC = () => {
 
     const success = await updatePlayer(editingId, {
       name: editName.trim(),
-      handicap_index: parseFloat(editHandicap) || 0,
+      handicap_index: parseHandicapInput(editHandicap) ?? 0,
       tee: editTee || 'White'
     });
 
@@ -84,7 +84,7 @@ const Players: React.FC = () => {
       return;
     }
 
-    const result = await addPlayer(newName.trim(), parseFloat(newHandicap) || 0, newTee || 'White', newPlayerLinkUserId);
+    const result = await addPlayer(newName.trim(), parseHandicapInput(newHandicap) ?? 0, newTee || 'White', newPlayerLinkUserId);
     if (result) {
       setShowAddForm(false);
       setNewName('');
@@ -331,7 +331,7 @@ const Players: React.FC = () => {
                     )}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Handicap: {player.handicap_index} • Tee: {player.tee}
+                    Handicap: {formatHandicap(player.handicap_index)} • Tee: {player.tee}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
