@@ -412,9 +412,21 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                       const expandKey = `${group.id}-${smIdx}`;
                       const isExpanded = expandedId === expandKey;
 
+                      // Handicap strokes between these two opponents.
+                      const smStrokeInfo = matchupStrokeInfo(
+                        [asTournamentPlayer(sm.playerA), asTournamentPlayer(sm.playerB)],
+                        strokeGame,
+                      );
+                      const smStrokeLabel = smStrokeInfo.enabled
+                        ? (smStrokeInfo.receiverId
+                            ? `${firstName(smStrokeInfo.receiverId)} gets ${smStrokeInfo.receiverStrokes} stroke${smStrokeInfo.receiverStrokes === 1 ? '' : 's'}`
+                            : 'No strokes — even handicaps')
+                        : null;
+
                       // Build hole results map
                       const holeResultsMap: Record<number, any> = {};
                       groupResults.forEach((r: any) => { holeResultsMap[r.hole_number] = r; });
+
 
                       return (
                         <div key={expandKey} className="rounded-lg bg-muted/50 overflow-hidden">
