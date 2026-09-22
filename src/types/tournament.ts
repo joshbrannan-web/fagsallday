@@ -141,6 +141,7 @@ export interface TournamentGame {
   rulesText?: string;
   sixesFormat?: 'match_play' | 'sum_of_strokes';
   sixesSegmentPoints?: [number, number, number];
+  stablefordPoints?: StablefordPoints;
 }
 
 export interface TournamentHolePoints {
