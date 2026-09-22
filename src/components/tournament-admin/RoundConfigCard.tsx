@@ -91,6 +91,7 @@ export interface RoundConfigData {
   holePointsCustomized: boolean;
   sixesFormat: 'match_play' | 'sum_of_strokes';
   sixesSegmentPoints: [number, number, number];
+  stablefordPoints: StablefordPoints;
   teamScoringMode: 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo' | 'per_match';
   teamScoringPoints: { round: number; front: number; back: number; overall: number; match: number };
 
@@ -118,6 +119,7 @@ export const defaultRoundConfig = (num: number): RoundConfigData => ({
   holePointsCustomized: false,
   sixesFormat: 'match_play',
   sixesSegmentPoints: [1, 1, 1],
+  stablefordPoints: { ...DEFAULT_STABLEFORD_POINTS },
   teamScoringMode: 'per_round',
   teamScoringPoints: { round: 3, front: 1, back: 1, overall: 2, match: 0 },
 
