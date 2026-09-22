@@ -169,6 +169,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
   };
   const pointsPerHole = Number(game?.default_points_per_hole) || 1;
   const bestBall = !!game?.game_type?.includes('best_ball');
+  const isStableford = game?.game_type === 'stableford';
   const roundLabel = round?.name || `Round ${round?.round_number ?? ''}`;
   // Only the Gross 6/6/6 formats count multiple balls per hole (2/3/4). Plain
   // best-ball match play is decided by a single ball (plus 2nd-ball tiebreaker),
@@ -309,6 +310,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
                 action={
                   <Button
@@ -346,6 +348,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
               />
             );
@@ -369,6 +372,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
               pointsPerHole={pointsPerHole}
               bestBall={bestBall}
               ballsCounted={ballsCounted}
+              cumulativePoints={isStableford}
               {...strokeProps}
               awardLine={awardLine}
             />
@@ -414,6 +418,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
                 awardLine={awardLine}
                 action={

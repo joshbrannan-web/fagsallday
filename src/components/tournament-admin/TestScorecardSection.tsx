@@ -39,6 +39,8 @@ interface Props {
   useHandicaps?: boolean;
   /** Handicap allowance percentage (default 100). */
   handicapAllowancePercent?: number;
+  /** Show a running (accumulated) team points row — used for Stableford. */
+  cumulativePoints?: boolean;
   action?: React.ReactNode;
 }
 
@@ -46,6 +48,7 @@ const TestScorecardSection: React.FC<Props> = ({
   title, subtitle, players, teams, teamAId, teamBId, courseHoles, scores, results,
   pointsPerHole = 1, bestBall = false, ballsCounted, awardLine, action,
   handicaps, holeStrokeIndex, useHandicaps = true, handicapAllowancePercent = 100,
+  cumulativePoints = false,
 }) => {
   const frontNine = courseHoles.filter(h => h.number <= 9);
   const backNine = courseHoles.filter(h => h.number > 9);
@@ -124,6 +127,8 @@ const TestScorecardSection: React.FC<Props> = ({
   const totalAvailable = courseHoles.length * pointsPerHole;
   const remaining = Math.max(0, totalAvailable - (totalA + totalB));
   const hasMatch = !!(teamAId && teamBId);
+  /** Team points exist even when a group only holds one team (e.g. Stableford). */
+  const hasTeamPoints = teamIds.length > 0 && results.length > 0;
   const isComplete = hasMatch && (
     holesPlayed >= courseHoles.length ||
     (totalA !== totalB && Math.abs(totalA - totalB) > remaining)
@@ -259,9 +264,9 @@ const TestScorecardSection: React.FC<Props> = ({
           <p className="text-[11px] text-muted-foreground">
             Outlined scores count toward the team score{showStrokes ? ' (small number = net)' : ''}; dimmed scores don't count; tinted cells are the hole winner's counting scores.
           </p>
-          {hasMatch && (
+          {hasTeamPoints && (
             <p className="text-[11px] text-muted-foreground">
-              The <span className="text-[hsl(var(--brand-gold))] font-semibold">pts</span> rows show exactly how many points each team won on every hole, with front 9, back 9 and total sums.
+              The <span className="text-[hsl(var(--brand-gold))] font-semibold">pts</span> rows show the points each team earned on every hole, with front 9, back 9 and total sums{cumulativePoints ? ', plus a running total through each hole' : ''}.
             </p>
           )}
 
@@ -360,7 +365,7 @@ const TestScorecardSection: React.FC<Props> = ({
               );
             })}
 
-            {hasMatch && teamIds.map(tid => {
+            {hasTeamPoints && teamIds.map(tid => {
               const ptsFor = (hole: number): number | undefined => {
                 const res = resultByHole.get(hole);
                 if (!res) return undefined;
@@ -368,6 +373,13 @@ const TestScorecardSection: React.FC<Props> = ({
               };
               const sumPts = (holes: { number: number }[]) =>
                 holes.reduce((s, h) => s + (ptsFor(h.number) ?? 0), 0);
+              /** Running team total through this hole. */
+              const runningTo = (hole: number): number | undefined => {
+                if (ptsFor(hole) == null) return undefined;
+                return courseHoles
+                  .filter(h => h.number <= hole)
+                  .reduce((s, h) => s + (ptsFor(h.number) ?? 0), 0);
+              };
               const cell = (h: { number: number }) => {
                 const v = ptsFor(h.number);
                 const won = (v ?? 0) > 0;
@@ -382,31 +394,61 @@ const TestScorecardSection: React.FC<Props> = ({
                   </td>
                 );
               };
+              const runCell = (h: { number: number }) => {
+                const v = runningTo(h.number);
+                return (
+                  <td
+                    key={h.number}
+                    className="p-1.5 text-center font-mono text-[11px]"
+                    style={{ color: teams[tid]?.color }}
+                    title={`${teams[tid]?.name || 'Team'} total points through hole ${h.number}`}
+                  >
+                    {v == null ? '—' : Number(v.toFixed(2))}
+                  </td>
+                );
+              };
               return (
-                <tr key={`pts-${tid}`} className="border-t bg-muted/5">
-                  <td className="p-1.5 whitespace-nowrap text-[11px] font-medium flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teams[tid]?.color }} />
-                    <span className="truncate max-w-[110px]">{teams[tid]?.name || 'Team'}</span>
-                    <span className="text-[hsl(var(--brand-gold))] font-semibold">pts</span>
-                  </td>
-                  {frontNine.map(cell)}
-                  {frontNine.length > 0 && (
-                    <td className="p-1.5 text-center font-mono font-bold bg-muted/50">
-                      {Number(sumPts(frontNine).toFixed(2))}
+                <React.Fragment key={`pts-${tid}`}>
+                  <tr className="border-t bg-muted/5">
+                    <td className="p-1.5 whitespace-nowrap text-[11px] font-medium flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teams[tid]?.color }} />
+                      <span className="truncate max-w-[110px]">{teams[tid]?.name || 'Team'}</span>
+                      <span className="text-[hsl(var(--brand-gold))] font-semibold">pts</span>
                     </td>
-                  )}
-                  {backNine.map(cell)}
-                  {backNine.length > 0 && (
-                    <td className="p-1.5 text-center font-mono font-bold bg-muted/50">
-                      {Number(sumPts(backNine).toFixed(2))}
+                    {frontNine.map(cell)}
+                    {frontNine.length > 0 && (
+                      <td className="p-1.5 text-center font-mono font-bold bg-muted/50">
+                        {Number(sumPts(frontNine).toFixed(2))}
+                      </td>
+                    )}
+                    {backNine.map(cell)}
+                    {backNine.length > 0 && (
+                      <td className="p-1.5 text-center font-mono font-bold bg-muted/50">
+                        {Number(sumPts(backNine).toFixed(2))}
+                      </td>
+                    )}
+                    <td className="p-1.5 text-center font-mono font-bold bg-muted/50" style={{ color: teams[tid]?.color }}>
+                      {Number((totals[tid] || 0).toFixed(2))}
                     </td>
+                  </tr>
+                  {cumulativePoints && (
+                    <tr className="border-t border-dashed bg-muted/5">
+                      <td className="p-1.5 whitespace-nowrap text-[10px] text-muted-foreground pl-5">
+                        running total
+                      </td>
+                      {frontNine.map(runCell)}
+                      {frontNine.length > 0 && <td className="p-1.5 bg-muted/50" />}
+                      {backNine.map(runCell)}
+                      {backNine.length > 0 && <td className="p-1.5 bg-muted/50" />}
+                      <td className="p-1.5 text-center font-mono font-bold bg-muted/50" style={{ color: teams[tid]?.color }}>
+                        {Number((totals[tid] || 0).toFixed(2))}
+                      </td>
+                    </tr>
                   )}
-                  <td className="p-1.5 text-center font-mono font-bold bg-muted/50" style={{ color: teams[tid]?.color }}>
-                    {Number((totals[tid] || 0).toFixed(2))}
-                  </td>
-                </tr>
+                </React.Fragment>
               );
             })}
+
 
 
             {hasMatch && (
