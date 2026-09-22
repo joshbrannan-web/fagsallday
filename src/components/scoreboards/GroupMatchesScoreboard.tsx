@@ -461,7 +461,13 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                             <p className={`text-[10px] text-center ${isSubmitted ? 'text-[hsl(var(--brand-gold))] font-semibold' : 'text-muted-foreground'}`}>
                               {statusText}
                             </p>
+                            {smStrokeLabel && (
+                              <p className="text-[10px] text-center font-semibold" style={{ color: 'hsl(var(--brand-gold))' }}>
+                                • {smStrokeLabel}
+                              </p>
+                            )}
                           </div>
+
 
                           {isExpanded && courseHoles.length > 0 && (
                             <div className="border-t border-border">
