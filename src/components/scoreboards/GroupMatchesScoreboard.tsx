@@ -527,26 +527,42 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                                     );
                                   }
 
+                                  const aSmStrokes = strokesOnHole(smStrokeInfo.strokesGiven[sm.playerA] || 0, hole.handicapIndex);
+                                  const bSmStrokes = strokesOnHole(smStrokeInfo.strokesGiven[sm.playerB] || 0, hole.handicapIndex);
+                                  const strokeMark = (count: number) =>
+                                    count > 0 ? (
+                                      <span
+                                        title={`${count} handicap stroke${count > 1 ? 's' : ''} on this hole`}
+                                        className="text-[11px] font-bold ml-1"
+                                        style={{ color: 'hsl(var(--brand-gold))' }}
+                                      >
+                                        {count > 1 ? '••' : '•'}
+                                      </span>
+                                    ) : null;
+
                                   return (
                                     <div key={hole.number} className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
                                       <div className="flex items-baseline gap-1">
                                         <span className="text-[13px] font-bold font-mono text-foreground">{hole.number}</span>
                                         <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
                                       </div>
-                                      <div className="flex justify-center">
+                                      <div className="flex justify-center items-center">
                                         {aScore != null ? (
                                           <ScoreChip score={aScore} par={hole.par} isWinner={isAWin} winColor={teamA.color} />
                                         ) : (
                                           <span className="text-muted-foreground/30 text-sm">—</span>
                                         )}
+                                        {strokeMark(aSmStrokes)}
                                       </div>
-                                      <div className="flex justify-center">
+                                      <div className="flex justify-center items-center">
                                         {bScore != null ? (
                                           <ScoreChip score={bScore} par={hole.par} isWinner={isBWin} winColor={teamB.color} />
                                         ) : (
                                           <span className="text-muted-foreground/30 text-sm">—</span>
                                         )}
+                                        {strokeMark(bSmStrokes)}
                                       </div>
+
                                       <div className="flex justify-end">
                                         {isHalved ? (
                                           <span className="text-[10px] text-muted-foreground font-semibold">½ ea</span>
