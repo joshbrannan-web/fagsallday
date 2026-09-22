@@ -13,7 +13,7 @@ import type {
   MatchState,
   SubMatchup,
 } from '@/types/tournament';
-import { DEFAULT_STABLEFORD_POINTS } from '@/types/tournament';
+import { DEFAULT_STABLEFORD_POINTS, stablefordBallsForHole } from '@/types/tournament';
 
 // ── OUTPUT TYPES ─────────────────────────────────────────────
 
