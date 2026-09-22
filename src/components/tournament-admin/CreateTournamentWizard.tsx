@@ -107,6 +107,7 @@ const CreateTournamentWizard: React.FC = () => {
           sixesConfig: r.gameType === 'tournament_sixes' ? r.sixesConfig : undefined,
           sixesFormat: r.gameType === 'tournament_sixes' ? r.sixesFormat : undefined,
           sixesSegmentPoints: r.gameType === 'tournament_sixes' ? r.sixesSegmentPoints : undefined,
+          stablefordPoints: r.gameType === 'stableford' ? r.stablefordPoints : undefined,
           rulesText: r.notes || undefined,
         },
         teamScoringMode: r.teamScoringMode,
