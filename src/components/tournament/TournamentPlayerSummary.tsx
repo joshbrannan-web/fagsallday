@@ -1,6 +1,7 @@
 import React from "react";
-import type { TournamentPlayer } from "@/types/tournament";
+import type { TournamentPlayer, TournamentGame } from "@/types/tournament";
 import type { SubMatchup } from '@/types/tournament';
+import { matchupStrokeInfo } from '@/lib/matchStrokes';
 
 interface Props {
   players: TournamentPlayer[];
@@ -11,9 +12,26 @@ interface Props {
   holesPlayed: number;
   subMatchups?: SubMatchup[];
   teamAId?: string;
+  tournamentGame?: TournamentGame | null;
 }
 
-const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults, subMatchups, teamAId }) => {
+/** "+3" strokes chip shown beside a player's name. */
+const StrokesChip: React.FC<{ strokes: number }> = ({ strokes }) => (
+  <span
+    title={`Receives ${strokes} handicap stroke${strokes > 1 ? 's' : ''}`}
+    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+    style={{
+      color: 'hsl(var(--brand-gold))',
+      backgroundColor: 'hsl(45 93% 47% / 0.12)',
+      border: '1px solid hsl(45 93% 47% / 0.3)',
+    }}
+  >
+    +{strokes}
+  </span>
+);
+
+const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults, subMatchups, teamAId, tournamentGame }) => {
+
   const playerData = players.map((p) => {
     const teamId = teamAssignments[p.id];
     const team = teams[teamId];
