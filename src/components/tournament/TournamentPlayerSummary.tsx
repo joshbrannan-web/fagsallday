@@ -84,12 +84,17 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
               </div>
 
               <div className="grid grid-cols-2 divide-x divide-border/50">
-                {[dA, dB].map((d) => (
+                {[dA, dB].map((d) => {
+                  const info = matchupStrokeInfo([dA.player, dB.player], tournamentGame);
+                  const strokes = info.strokesGiven[d.player.id] || 0;
+                  return (
                   <div key={d.player.id} className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.team?.color }} />
                       <p className="text-[13px] font-semibold text-foreground truncate">{d.player.displayName}</p>
+                      {strokes > 0 && <StrokesChip strokes={strokes} />}
                     </div>
+
                     <div className="flex gap-3">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Gross</span>
