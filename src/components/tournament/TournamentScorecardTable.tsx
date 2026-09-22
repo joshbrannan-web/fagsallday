@@ -240,7 +240,7 @@ const MatchupTable: FC<{
 /* ── Main component ── */
 const TournamentScorecardTable: FC<Props> = ({
   tournamentPlayers, teamAssignments, teams, holeResults, courseHoles,
-  teamMatchup, teamTotals, viewMode, matchState, subMatchups,
+  teamMatchup, teamTotals, viewMode, matchState, subMatchups, game,
 }) => {
   if (!teamMatchup) return null;
 
@@ -278,6 +278,7 @@ const TournamentScorecardTable: FC<Props> = ({
               activeHoles={activeHoles}
               courseHoles={courseHoles}
               viewMode={viewMode}
+              game={game}
             />
           );
         })}
