@@ -59,13 +59,22 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
         const isActive = round.status === 'active';
 
         const courseData = round.course_data;
-        const courseHoles: { number: number; par: number }[] = courseData?.holes
-          ? courseData.holes.map((h: any) => ({ number: h.number, par: h.par }))
+        const courseHoles: { number: number; par: number; handicapIndex: number }[] = courseData?.holes
+          ? courseData.holes.map((h: any, i: number) => ({
+              number: h.number ?? i + 1,
+              par: h.par,
+              handicapIndex: h.handicapIndex ?? i + 1,
+            }))
           : [];
         const totalCourseHoles = courseHoles.length;
 
         const game = games[round.id];
         const defaultPointsPerHole = game?.default_points_per_hole || 1;
+        const strokeGame = {
+          useHandicaps: game?.use_handicaps ?? game?.useHandicaps ?? false,
+          handicapAllowancePercent: game?.handicap_allowance_percent ?? game?.handicapAllowancePercent ?? 100,
+        } as TournamentGame;
+
 
         // Cross-group matches own the scoring for the round: their hole results
         // are stored against the match, not any single group.
