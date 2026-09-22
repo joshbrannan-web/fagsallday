@@ -3,6 +3,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import type { TournamentPlayer, TournamentGame, MatchState } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
 import type { SubMatchup } from '@/types/tournament';
+import { matchupStrokeInfo, strokesOnHole } from '@/lib/matchStrokes';
+
 
 interface Props {
   isOpen: boolean;
