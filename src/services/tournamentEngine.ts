@@ -48,7 +48,7 @@ export interface EngineInput {
   scores: Record<string, Record<number, number>>; // scores[playerId][hole] = gross
   courseHoles: CourseHole[];
   teamNames?: Record<string, string>; // teamId → display name
-  subMatchups?: { playerA: string; playerB: string }[]; // for 4-player 1v1 groups
+  subMatchups?: SubMatchup[]; // for 4-player 1v1 groups (may be limited to a hole range)
 }
 
 // ── UTILITY FUNCTIONS ────────────────────────────────────────
