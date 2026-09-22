@@ -127,6 +127,8 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
   const teamIds = [...new Set(playerData.map((d) => d.teamId))].filter(Boolean).sort();
   if (teamIds.length === 0) return null;
 
+  const groupStrokeInfo = matchupStrokeInfo(players, tournamentGame);
+
   return (
     <div className="grid grid-cols-2 gap-2">
       {teamIds.map((tid) => {
@@ -150,7 +152,13 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
                 key={d.player.id}
                 className={`px-3 py-2.5 ${i < teamPlayers.length - 1 ? "border-b border-border/50" : ""}`}
               >
-                <p className="text-[13px] font-semibold text-foreground truncate mb-1.5">{d.player.displayName}</p>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <p className="text-[13px] font-semibold text-foreground truncate">{d.player.displayName}</p>
+                  {(groupStrokeInfo.strokesGiven[d.player.id] || 0) > 0 && (
+                    <StrokesChip strokes={groupStrokeInfo.strokesGiven[d.player.id]} />
+                  )}
+                </div>
+
                 <div className="flex gap-3">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Gross</span>
