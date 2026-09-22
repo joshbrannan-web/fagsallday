@@ -1,5 +1,6 @@
 import React from "react";
 import type { TournamentPlayer } from "@/types/tournament";
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   players: TournamentPlayer[];
@@ -8,7 +9,7 @@ interface Props {
   allHoleScores: Record<string, Record<number, number>>;
   holeResults: Record<number, { netScores?: Record<string, number>; playerPoints?: Record<string, number> }>;
   holesPlayed: number;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
   teamAId?: string;
 }
 
@@ -39,8 +40,8 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
   // 1v1 matchup pair layout
   if (has1v1) {
     const playerMap = Object.fromEntries(playerData.map(d => [d.player.id, d]));
-    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
-      teamAId && teamAssignments[sm.playerA] === teamAId ? sm : teamAId && teamAssignments[sm.playerB] === teamAId ? { playerA: sm.playerB, playerB: sm.playerA } : sm;
+    const normalizeMatchup = (sm: SubMatchup) =>
+      teamAId && teamAssignments[sm.playerA] === teamAId ? sm : teamAId && teamAssignments[sm.playerB] === teamAId ? { ...sm, playerA: sm.playerB, playerB: sm.playerA } : sm;
 
     return (
       <div className="space-y-2">
@@ -54,7 +55,7 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
             <div key={idx} className="rounded-xl border border-border overflow-hidden bg-card">
               {/* Match header */}
               <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border/50">
-                <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">Match {idx + 1}</span>
+                <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">Match {idx + 1}{sm.label ? ` · ${sm.label}` : ''}</span>
                 <span className="text-[10px] text-muted-foreground/50">
                   {dA.ptsTotal > dB.ptsTotal
                     ? `${dA.player.displayName.split(' ')[0]} ${dA.ptsTotal - dB.ptsTotal} UP`

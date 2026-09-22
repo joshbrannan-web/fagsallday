@@ -194,3 +194,18 @@ export interface MatchState {
   resultLabel: string;        // "USA 3 UP", "HALVED", "EUR wins 2&1"
   teamTotals: Record<string, number>; // { teamId: totalPoints }
 }
+
+/**
+ * A single 1v1 pairing inside a group. When holeStart/holeEnd are present the
+ * matchup only applies to that stretch of holes (e.g. switching opponents at
+ * the turn: holes 1-9 vs holes 10-18).
+ */
+export interface SubMatchup {
+  playerA: string;
+  playerB: string;
+  holeStart?: number;
+  holeEnd?: number;
+  label?: string;
+}
+
+export type MatchupMode = 'full_18' | 'split_9s';

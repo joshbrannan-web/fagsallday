@@ -2,6 +2,7 @@ import React from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import type { TournamentPlayer, TournamentGame, MatchState } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   isOpen: boolean;
@@ -18,7 +19,7 @@ interface Props {
   matchState?: MatchState;
   tournamentName?: string;
   roundName?: string;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
 }
 
 const TournamentFullScorecard: React.FC<Props> = ({
@@ -129,8 +130,8 @@ const TournamentFullScorecard: React.FC<Props> = ({
   // 1v1: separate sections per matchup
   if (has1v1) {
     const playerMap = Object.fromEntries(players.map(p => [p.id, p]));
-    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
-      teamAssignments[sm.playerA] === teamMatchup!.teamAId ? sm : { playerA: sm.playerB, playerB: sm.playerA };
+    const normalizeMatchup = (sm: SubMatchup) =>
+      teamAssignments[sm.playerA] === teamMatchup!.teamAId ? sm : { ...sm, playerA: sm.playerB, playerB: sm.playerA };
 
     return (
       <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -181,7 +182,7 @@ const TournamentFullScorecard: React.FC<Props> = ({
               return (
                 <div key={idx}>
                   <div className="flex items-center justify-between mb-2 px-1">
-                    <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">Match {idx + 1}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">Match {idx + 1}{sm.label ? ` · ${sm.label}` : ''}</span>
                     <span className="text-xs font-semibold text-muted-foreground">{matchStatus}</span>
                   </div>
                   <table className="text-xs border-collapse">

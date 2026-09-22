@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Trophy } from 'lucide-react';
 import type { MatchState, TournamentPlayer } from '@/types/tournament';
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   tournamentName: string;
@@ -11,7 +12,7 @@ interface Props {
   holesPlayed: number;
   matchState?: MatchState;
   totalPointsAvailable: number;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
   tournamentPlayers?: TournamentPlayer[];
   holeResults?: Record<number, { teamPoints: Record<string, number>; playerPoints?: Record<string, number> }>;
   teamAssignments?: Record<string, string>;
@@ -54,8 +55,8 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
   // 1v1: Show separate match cards instead of combined team score
   if (has1v1) {
     const playerMap = Object.fromEntries(tournamentPlayers!.map(p => [p.id, p]));
-    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
-      teamAssignments![sm.playerA] === teamMatchup.teamAId ? sm : { playerA: sm.playerB, playerB: sm.playerA };
+    const normalizeMatchup = (sm: SubMatchup) =>
+      teamAssignments![sm.playerA] === teamMatchup.teamAId ? sm : { ...sm, playerA: sm.playerB, playerB: sm.playerA };
 
     return (
       <div className="space-y-2">
@@ -118,7 +119,7 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
           return (
             <div key={idx} className="bg-card border border-border rounded-xl p-4 space-y-2">
               <div className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider text-center">
-                Match {idx + 1}
+                Match {idx + 1}{sm.label ? ` · ${sm.label}` : ''}
               </div>
 
               <div className="flex items-center justify-center gap-4">

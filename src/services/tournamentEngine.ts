@@ -11,6 +11,7 @@ import type {
   TournamentHolePoints,
   HalvedHoleRule,
   MatchState,
+  SubMatchup,
 } from '@/types/tournament';
 
 // ── OUTPUT TYPES ─────────────────────────────────────────────
@@ -47,7 +48,7 @@ export interface EngineInput {
   scores: Record<string, Record<number, number>>; // scores[playerId][hole] = gross
   courseHoles: CourseHole[];
   teamNames?: Record<string, string>; // teamId → display name
-  subMatchups?: { playerA: string; playerB: string }[]; // for 4-player 1v1 groups
+  subMatchups?: SubMatchup[]; // for 4-player 1v1 groups (may be limited to a hole range)
 }
 
 // ── UTILITY FUNCTIONS ────────────────────────────────────────
@@ -167,7 +168,7 @@ function getTeamIds(teamAssignments: Record<string, string>): [string, string] {
 function deriveSubMatchups(
   players: TournamentPlayer[],
   teamAssignments: Record<string, string>,
-): { playerA: string; playerB: string }[] {
+): SubMatchup[] {
   const byTeam: Record<string, string[]> = {};
   players.forEach(p => {
     const tid = teamAssignments[p.id];
@@ -178,7 +179,7 @@ function deriveSubMatchups(
   if (teamIds.length < 2) return [{ playerA: players[0].id, playerB: players[1].id }];
   const teamA = byTeam[teamIds[0]];
   const teamB = byTeam[teamIds[1]];
-  const matchups: { playerA: string; playerB: string }[] = [];
+  const matchups: SubMatchup[] = [];
   const count = Math.min(teamA.length, teamB.length);
   for (let i = 0; i < count; i++) {
     matchups.push({ playerA: teamA[i], playerB: teamB[i] });
@@ -272,9 +273,17 @@ export function calcMatchPlayIndividual(input: EngineInput): RoundResult {
       const pA = players.find(p => p.id === m.playerA);
       const pB = players.find(p => p.id === m.playerB);
       if (!pA || !pB) return null;
+      // A matchup may only cover part of the round (e.g. opponents switch at the turn).
+      // Handicap strokes still come from the full 18-hole course handicap difference.
+      const holesForMatch = (m.holeStart || m.holeEnd)
+        ? courseHoles.filter(h =>
+            (m.holeStart === undefined || h.number >= m.holeStart) &&
+            (m.holeEnd === undefined || h.number <= m.holeEnd))
+        : courseHoles;
       return calcMatchPlayIndividual({
         ...input,
         players: [pA, pB],
+        courseHoles: holesForMatch,
         subMatchups: undefined, // prevent recursion
       });
     }).filter((r): r is RoundResult => r !== null);

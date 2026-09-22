@@ -2,6 +2,8 @@ import type { FC } from 'react';
 import type { TournamentPlayer } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
 import type { MatchState } from '@/types/tournament';
+import type { SubMatchup } from '@/types/tournament';
+import { matchupCoversHole } from '@/lib/subMatchups';
 
 interface Props {
   tournamentPlayers: TournamentPlayer[];
@@ -13,7 +15,7 @@ interface Props {
   teamTotals: Record<string, number>;
   viewMode: 'FRONT' | 'BACK';
   matchState?: MatchState;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
 }
 
 /* ── Score cell styling helper ── */
@@ -215,8 +217,8 @@ const TournamentScorecardTable: FC<Props> = ({
   // 1v1: render separate tables per matchup
   if (has1v1) {
     const playerMap = Object.fromEntries(tournamentPlayers.map(p => [p.id, p]));
-    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
-      teamAssignments[sm.playerA] === teamMatchup.teamAId ? sm : { playerA: sm.playerB, playerB: sm.playerA };
+    const normalizeMatchup = (sm: SubMatchup) =>
+      teamAssignments[sm.playerA] === teamMatchup.teamAId ? sm : { ...sm, playerA: sm.playerB, playerB: sm.playerA };
 
     return (
       <div className="space-y-6">
@@ -225,11 +227,13 @@ const TournamentScorecardTable: FC<Props> = ({
           const pA = playerMap[sm.playerA];
           const pB = playerMap[sm.playerB];
           if (!pA || !pB) return null;
+          // Matchups limited to a stretch of holes only show on the matching nine
+          if (activeHoles.length > 0 && !activeHoles.some(h => matchupCoversHole(sm, h.number))) return null;
 
           return (
             <MatchupTable
               key={idx}
-              matchLabel={`Match ${idx + 1}`}
+              matchLabel={`Match ${idx + 1}${sm.label ? ` · ${sm.label}` : ''}`}
               playerA={pA}
               playerB={pB}
               teamAssignments={teamAssignments}

@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { calcTeamTotals } from '@/services/scoreboardCalculations';
 import { useNavigate } from 'react-router-dom';
+import { resolveSubMatchups } from '@/lib/subMatchups';
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   teams: any[];
@@ -276,8 +278,7 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
 
                   // Extract subMatchups
                   const tm = group.team_matchup as any;
-                  const subMatchups: { playerA: string; playerB: string }[] | undefined =
-                    tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+                  const subMatchups = resolveSubMatchups(tm);
 
                   // Player-to-team map
                   const gpTeamMap: Record<string, string> = {};
@@ -295,8 +296,8 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                   // 1v1: render each sub-matchup as separate row
                   if (subMatchups && subMatchups.length > 0) {
                     const teamAId = tm?.teamAId;
-                    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
-                      teamAId && gpTeamMap[sm.playerA] === teamAId ? sm : teamAId && gpTeamMap[sm.playerB] === teamAId ? { playerA: sm.playerB, playerB: sm.playerA } : sm;
+                    const normalizeMatchup = (sm: SubMatchup) =>
+                      teamAId && gpTeamMap[sm.playerA] === teamAId ? sm : teamAId && gpTeamMap[sm.playerB] === teamAId ? { ...sm, playerA: sm.playerB, playerB: sm.playerA } : sm;
 
                     return subMatchups.map((rawSm, smIdx) => {
                       const sm = normalizeMatchup(rawSm);

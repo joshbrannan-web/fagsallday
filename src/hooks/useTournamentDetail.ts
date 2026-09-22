@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import type { SubMatchup, MatchupMode } from '@/types/tournament';
 
 export const useTournamentDetail = (tournamentId: string | undefined) => {
   const { user } = useAuth();
@@ -191,7 +192,13 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
     else await fetchAll();
   };
 
-  const addGroup = async (roundId: string, playerIds: string[], subMatchups?: { playerA: string; playerB: string }[], leaderPlayerId?: string) => {
+  const addGroup = async (
+    roundId: string,
+    playerIds: string[],
+    subMatchups?: SubMatchup[],
+    leaderPlayerId?: string,
+    matchupExtras?: { matchupMode?: MatchupMode; frontMatchups?: SubMatchup[]; backMatchups?: SubMatchup[] },
+  ) => {
     // Use the DB max (not a row count) so deletes don't create duplicate group numbers,
     // and ignore test-mode mirrors so a Test Start doesn't skip numbering.
     const { data: existingNumbers } = await supabase
@@ -205,9 +212,14 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
 
     const selectedPlayerObjs = players.filter((p: any) => playerIds.includes(p.id));
     const teamIds = [...new Set(selectedPlayerObjs.map((p: any) => p.team_id).filter(Boolean))];
+    const matchupPayload = {
+      ...(subMatchups ? { subMatchups } : {}),
+      ...(matchupExtras || {}),
+    };
+    const hasMatchupPayload = Object.keys(matchupPayload).length > 0;
     const teamMatchup = teamIds.length === 2
-      ? { teamAId: teamIds[0], teamBId: teamIds[1], ...(subMatchups ? { subMatchups } : {}) }
-      : subMatchups ? { subMatchups } : null;
+      ? { teamAId: teamIds[0], teamBId: teamIds[1], ...matchupPayload }
+      : hasMatchupPayload ? matchupPayload : null;
 
     const { data: newGroup, error: groupErr } = await supabase
       .from('tournament_groups')

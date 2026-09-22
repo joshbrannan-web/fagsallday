@@ -45,10 +45,8 @@ interface GroupPlayer {
   team_id: string;
 }
 
-interface SubMatchup {
-  playerA: string;
-  playerB: string;
-}
+import type { SubMatchup, MatchupMode } from '@/types/tournament';
+import { buildSplitMatchupPayload, resolveSubMatchups } from '@/lib/subMatchups';
 
 const ONE_V_ONE_TYPES = ['match_play_individual', 'alternate_shot_twosomes', 'scramble_2'];
 
@@ -70,7 +68,13 @@ interface RoundPairingsEditorProps {
   groups: Group[];
   groupPlayers: GroupPlayer[];
   gameType?: string;
-  onAddGroup: (roundId: string, playerIds: string[], subMatchups?: SubMatchup[], leaderPlayerId?: string) => Promise<void>;
+  onAddGroup: (
+    roundId: string,
+    playerIds: string[],
+    subMatchups?: SubMatchup[],
+    leaderPlayerId?: string,
+    matchupExtras?: { matchupMode?: MatchupMode; frontMatchups?: SubMatchup[]; backMatchups?: SubMatchup[] },
+  ) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
   roundMatches?: RoundMatchRow[];
   onAddMatch?: (roundId: string, sideA: string[], sideB: string[]) => Promise<void>;
@@ -88,6 +92,8 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
   const [matchupStep, setMatchupStep] = useState(false);
   const [match1A, setMatch1A] = useState<string>('');
   const [match1B, setMatch1B] = useState<string>('');
+  const [matchupMode, setMatchupMode] = useState<MatchupMode>('full_18');
+  const [backOpponentForA, setBackOpponentForA] = useState<string>('');
   const [leaderId, setLeaderId] = useState<string>('');
   const [addingMatch, setAddingMatch] = useState(false);
   const [matchSides, setMatchSides] = useState<Record<string, 'A' | 'B'>>({});
@@ -127,6 +133,31 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
     return selectedIds.filter(id => id !== match1A && id !== match1B);
   }, [selectedIds, match1A, match1B]);
 
+  // Back-9 opponent options for the first player (anyone else in the group)
+  const backOpponentOptions = useMemo(
+    () => selectedIds.filter(id => id !== match1A),
+    [selectedIds, match1A],
+  );
+
+  // Default back-9 opponent: the other player from the opposing team
+  const defaultBackOpponent = useMemo(() => {
+    const aTeam = players.find(p => p.id === match1A)?.team_id ?? null;
+    const opposing = backOpponentOptions.filter(id => {
+      const t = players.find(p => p.id === id)?.team_id ?? null;
+      return aTeam ? t !== aTeam : true;
+    });
+    const swapped = opposing.find(id => id !== match1B);
+    return swapped || opposing[0] || backOpponentOptions[0] || '';
+  }, [players, match1A, match1B, backOpponentOptions]);
+
+  const effectiveBackOpponent = backOpponentForA || defaultBackOpponent;
+
+  // Remaining two players form the second back-9 match
+  const backMatch2Players = useMemo(
+    () => selectedIds.filter(id => id !== match1A && id !== effectiveBackOpponent),
+    [selectedIds, match1A, effectiveBackOpponent],
+  );
+
   const togglePlayer = (id: string) => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 4 ? [...prev, id] : prev
@@ -142,15 +173,20 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
       // Default matchup: first two vs last two
       setMatch1A(selectedIds[0]);
       setMatch1B(selectedIds[1]);
+      setMatchupMode('full_18');
+      setBackOpponentForA('');
       setMatchupStep(true);
     } else {
       handleSaveGroup();
     }
   };
 
-  const handleSaveGroup = async (subMatchups?: SubMatchup[]) => {
+  const handleSaveGroup = async (
+    subMatchups?: SubMatchup[],
+    matchupExtras?: { matchupMode?: MatchupMode; frontMatchups?: SubMatchup[]; backMatchups?: SubMatchup[] },
+  ) => {
     setSaving(true);
-    await onAddGroup(roundId, selectedIds, subMatchups, leaderId || undefined);
+    await onAddGroup(roundId, selectedIds, subMatchups, leaderId || undefined, matchupExtras);
     resetForm();
     setSaving(false);
   };
@@ -160,6 +196,29 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
       toast.error('Please assign all matchups');
       return;
     }
+
+    if (matchupMode === 'split_9s') {
+      if (!effectiveBackOpponent || backMatch2Players.length !== 2) {
+        toast.error('Please choose the back 9 matchups');
+        return;
+      }
+      const front: SubMatchup[] = [
+        { playerA: match1A, playerB: match1B },
+        { playerA: match2Players[0], playerB: match2Players[1] },
+      ];
+      const back: SubMatchup[] = [
+        { playerA: match1A, playerB: effectiveBackOpponent },
+        { playerA: backMatch2Players[0], playerB: backMatch2Players[1] },
+      ];
+      const payload = buildSplitMatchupPayload(front, back);
+      await handleSaveGroup(payload.subMatchups, {
+        matchupMode: payload.matchupMode,
+        frontMatchups: payload.frontMatchups,
+        backMatchups: payload.backMatchups,
+      });
+      return;
+    }
+
     const subMatchups: SubMatchup[] = [
       { playerA: match1A, playerB: match1B },
       { playerA: match2Players[0], playerB: match2Players[1] },
@@ -173,6 +232,8 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
     setMatchupStep(false);
     setMatch1A('');
     setMatch1B('');
+    setMatchupMode('full_18');
+    setBackOpponentForA('');
     setLeaderId('');
   };
 
@@ -204,7 +265,8 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
 
             const teamIds = [...new Set(gPlayers.map(gp => gp.team_id).filter(Boolean))];
             const matchupTeams = teamIds.map(tid => teams.find(t => t.id === tid)).filter(Boolean);
-            const subMatchups: SubMatchup[] = (group.team_matchup as any)?.subMatchups || [];
+            const subMatchups: SubMatchup[] = resolveSubMatchups(group.team_matchup) || [];
+            const isSplit9s = (group.team_matchup as any)?.matchupMode === 'split_9s';
 
             return (
               <Card key={group.id} className="p-3 space-y-2">
@@ -249,7 +311,9 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                 {/* Sub-matchup display */}
                 {subMatchups.length > 0 && (
                   <div className="space-y-1 pt-1 border-t border-border">
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">1v1 Matches</span>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                      1v1 Matches{isSplit9s ? ' — switch at the turn' : ''}
+                    </span>
                     {subMatchups.map((sm, i) => {
                       const pA = getPlayer(sm.playerA);
                       const pB = getPlayer(sm.playerB);
@@ -260,6 +324,7 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                           <span className="text-muted-foreground">vs</span>
                           {(() => { const tB = getTeam(pB?.team_id ?? null); return tB ? <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: tB.color }} /> : null; })()}
                           <span className="font-medium">{pB?.display_name || '?'}</span>
+                          {sm.label && <span className="text-[10px] text-muted-foreground ml-1">({sm.label})</span>}
                         </div>
                       );
                     })}
@@ -433,9 +498,34 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                     Choose who plays who in each 1v1 match
                   </p>
 
+                  {/* Matchup format */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium">Matchup Format</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMatchupMode('full_18')}
+                        className={`rounded-md border px-2 py-2 text-left text-xs transition-colors ${matchupMode === 'full_18' ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/50'}`}
+                      >
+                        <span className="block font-semibold">Full 18 Holes</span>
+                        <span className="block text-[10px] text-muted-foreground">Same opponent all round</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMatchupMode('split_9s')}
+                        className={`rounded-md border px-2 py-2 text-left text-xs transition-colors ${matchupMode === 'split_9s' ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/50'}`}
+                      >
+                        <span className="block font-semibold">Switch at the Turn</span>
+                        <span className="block text-[10px] text-muted-foreground">New opponent after 9</span>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Match 1 */}
                   <div className="space-y-1.5">
-                    <span className="text-xs font-medium">Match 1</span>
+                    <span className="text-xs font-medium">
+                      {matchupMode === 'split_9s' ? 'Front 9 — Match 1 (Holes 1–9)' : 'Match 1'}
+                    </span>
                     <div className="flex items-center gap-2">
                       <Select value={match1A} onValueChange={setMatch1A}>
                         <SelectTrigger className="flex-1 h-8 text-xs">
@@ -467,7 +557,9 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
 
                   {/* Match 2 (auto-derived) */}
                   <div className="space-y-1.5">
-                    <span className="text-xs font-medium">Match 2</span>
+                    <span className="text-xs font-medium">
+                      {matchupMode === 'split_9s' ? 'Front 9 — Match 2 (Holes 1–9)' : 'Match 2'}
+                    </span>
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50">
                       <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
                         {(() => { const p = match2Players[0] ? getPlayer(match2Players[0]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
@@ -478,6 +570,46 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                       </span>
                     </div>
                   </div>
+
+                  {/* Back 9 matchups */}
+                  {matchupMode === 'split_9s' && (
+                    <div className="space-y-2 pt-1 border-t border-border">
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-medium">Back 9 — Match 1 (Holes 10–18)</span>
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 text-xs text-center font-medium flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-muted/50">
+                            {(() => { const p = getPlayer(match1A); const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium">vs</span>
+                          <Select value={effectiveBackOpponent} onValueChange={setBackOpponentForA}>
+                            <SelectTrigger className="flex-1 h-8 text-xs">
+                              <SelectValue placeholder="Opponent" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {backOpponentOptions.map(id => {
+                                const p = getPlayer(id);
+                                const t = getTeam(p?.team_id ?? null);
+                                return <SelectItem key={id} value={id}><span className="flex items-center gap-1.5">{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || id}</span></SelectItem>;
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-medium">Back 9 — Match 2 (Holes 10–18)</span>
+                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50">
+                          <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
+                            {(() => { const p = backMatch2Players[0] ? getPlayer(backMatch2Players[0]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium">vs</span>
+                          <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
+                            {(() => { const p = backMatch2Players[1] ? getPlayer(backMatch2Players[1]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
 
                   <Button
                     size="sm"

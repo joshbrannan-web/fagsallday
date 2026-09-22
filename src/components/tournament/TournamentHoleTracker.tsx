@@ -1,5 +1,7 @@
 import React from "react";
 import type { MatchState, TournamentPlayer } from "@/types/tournament";
+import type { SubMatchup } from '@/types/tournament';
+import { matchupCoversHole } from '@/lib/subMatchups';
 
 interface HoleResultData {
   teamPoints: Record<string, number>;
@@ -18,7 +20,7 @@ interface Props {
   gameType?: string;
   teamAssignments?: Record<string, string>;
   matchState?: MatchState;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
   tournamentPlayers?: TournamentPlayer[];
 }
 
@@ -92,8 +94,8 @@ const TournamentHoleTracker: React.FC<Props> = ({
   // For 1v1: show per-player scores instead of team best
   if (has1v1) {
     const playerMap = Object.fromEntries(tournamentPlayers!.map(p => [p.id, p]));
-    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
-      teamAssignments?.[sm.playerA] === teamMatchup.teamAId ? sm : { playerA: sm.playerB, playerB: sm.playerA };
+    const normalizeMatchup = (sm: SubMatchup) =>
+      teamAssignments?.[sm.playerA] === teamMatchup.teamAId ? sm : { ...sm, playerA: sm.playerB, playerB: sm.playerA };
 
     return (
       <div className="space-y-2">
@@ -113,7 +115,7 @@ const TournamentHoleTracker: React.FC<Props> = ({
               {/* Match label */}
               <div className="px-3 py-1 bg-muted/30 border-b border-border/50">
                 <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">
-                  Match {matchIdx + 1}
+                  Match {matchIdx + 1}{sm.label ? ` · ${sm.label}` : ''}
                 </span>
               </div>
 
@@ -132,7 +134,7 @@ const TournamentHoleTracker: React.FC<Props> = ({
               </div>
 
               <div className="max-h-[280px] overflow-y-auto divide-y divide-border/50">
-                {completedHoles.map((hole, idx) => {
+                {completedHoles.filter(h => matchupCoversHole(sm, h.number)).map((hole, idx) => {
                   const r = holeResults[hole.number];
                   if (!r) return null;
 
@@ -190,7 +192,7 @@ const TournamentHoleTracker: React.FC<Props> = ({
                   );
                 })}
 
-                {unplayedHoles.map((hole) => (
+                {unplayedHoles.filter(h => matchupCoversHole(sm, h.number)).map((hole) => (
                   <div key={`unplayed-${hole.number}`} className="grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 opacity-25">
                     <div className="flex items-baseline gap-1">
                       <span className="text-[13px] font-bold font-mono">{hole.number}</span>

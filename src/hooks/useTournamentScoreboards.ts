@@ -4,6 +4,7 @@ import { calcTournamentHoleResults, type EngineInput, type CourseHole } from '@/
 import { isRoundLevelGameType, recalcRoundLevelResults, recalcRoundMatchResults, fetchRoundMatchesForRounds, type RoundMatch } from '@/services/roundLevelScoring';
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints } from '@/types/tournament';
+import { resolveSubMatchups } from '@/lib/subMatchups';
 
 export const useTournamentScoreboards = (tournamentId: string | undefined) => {
   const [scoreboards, setScoreboards] = useState<any[]>([]);
@@ -412,7 +413,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
 
       // Extract subMatchups
       const tm = group.team_matchup as any;
-      const subMatchups = tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+      const subMatchups = resolveSubMatchups(tm);
 
       try {
         const engineInput: EngineInput = {

@@ -5,6 +5,8 @@ import { isRoundLevelGameType, buildRoundLevelContext, recalcRoundLevelResults, 
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints, MatchState } from '@/types/tournament';
 import { offlineStorage } from '@/services/offlineStorage';
+import { resolveSubMatchups } from '@/lib/subMatchups';
+import type { SubMatchup } from '@/types/tournament';
 
 export interface SegmentTotal {
   teamSums: Record<string, number>;
@@ -59,7 +61,7 @@ export const useTournamentOverlay = (
   const [teamAssignments, setTeamAssignments] = useState<Record<string, string>>({});
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
   const [allHoleScores, setAllHoleScores] = useState<Record<string, Record<number, number>>>({});
-  const [subMatchups, setSubMatchups] = useState<{ playerA: string; playerB: string }[] | undefined>(undefined);
+  const [subMatchups, setSubMatchups] = useState<SubMatchup[] | undefined>(undefined);
   
 
   // Dirty-hole tracking for per-hole sync
@@ -76,7 +78,7 @@ export const useTournamentOverlay = (
   const tournamentPlayersRef = useRef<TournamentPlayer[]>([]);
   const teamAssignmentsRef = useRef<Record<string, string>>({});
   const courseHolesRef = useRef<CourseHole[]>([]);
-  const subMatchupsRef = useRef<{ playerA: string; playerB: string }[] | undefined>(undefined);
+  const subMatchupsRef = useRef<SubMatchup[] | undefined>(undefined);
   // Cross-group matches: this round is scored per match, not per foursome.
   const hasRoundMatchesRef = useRef(false);
   // Test rounds mirror the real round but are pooled only with other TEST data.
@@ -219,8 +221,7 @@ export const useTournamentOverlay = (
 
       // Extract subMatchups from team_matchup JSONB
       const tm = group.team_matchup as any;
-      const extractedSubMatchups: { playerA: string; playerB: string }[] | undefined =
-        tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+      const extractedSubMatchups = resolveSubMatchups(tm);
       setSubMatchups(extractedSubMatchups);
       subMatchupsRef.current = extractedSubMatchups;
 

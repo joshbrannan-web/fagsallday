@@ -5,6 +5,8 @@ import { calcTournamentHoleResults, type EngineInput, type CourseHole } from '@/
 import { isRoundLevelGameType, recalcRoundLevelResults, fetchRoundMatches, recalcRoundMatchResults } from '@/services/roundLevelScoring';
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints } from '@/types/tournament';
+import { resolveSubMatchups } from '@/lib/subMatchups';
+import type { SubMatchup } from '@/types/tournament';
 
 export const useTournamentScorecard = (groupId: string | undefined) => {
   const [scores, setScores] = useState<any[]>([]);
@@ -18,7 +20,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
   const [teamAssignments, setTeamAssignments] = useState<Record<string, string>>({});
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
-  const [subMatchups, setSubMatchups] = useState<{ playerA: string; playerB: string }[] | undefined>(undefined);
+  const [subMatchups, setSubMatchups] = useState<SubMatchup[] | undefined>(undefined);
   const [isTestGroup, setIsTestGroup] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -46,8 +48,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
 
       setIsTestGroup(!!(group as any).is_test);
       const tm = group.team_matchup as any;
-      const extractedSubMatchups: { playerA: string; playerB: string }[] | undefined =
-        tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+      const extractedSubMatchups = resolveSubMatchups(tm);
       setSubMatchups(extractedSubMatchups);
 
       const { data: round } = await supabase
