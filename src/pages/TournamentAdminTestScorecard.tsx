@@ -308,6 +308,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
               />
             );
@@ -331,6 +332,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
               pointsPerHole={pointsPerHole}
               bestBall={bestBall}
               ballsCounted={ballsCounted}
+              cumulativePoints={isStableford}
               {...strokeProps}
               awardLine={awardLine}
             />
@@ -376,6 +378,7 @@ const TournamentAdminTestScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
                 awardLine={awardLine}
                 action={

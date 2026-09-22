@@ -301,6 +301,7 @@ const TournamentViewRoundScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
               />
             );
@@ -330,6 +331,7 @@ const TournamentViewRoundScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
               />
             );
@@ -353,6 +355,7 @@ const TournamentViewRoundScorecard: React.FC = () => {
               pointsPerHole={pointsPerHole}
               bestBall={bestBall}
               ballsCounted={ballsCounted}
+              cumulativePoints={isStableford}
               {...strokeProps}
               awardLine={awardLine}
             />
@@ -398,6 +401,7 @@ const TournamentViewRoundScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
                 awardLine={awardLine}
               />

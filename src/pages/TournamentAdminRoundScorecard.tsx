@@ -310,6 +310,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
                 action={
                   <Button
@@ -347,6 +348,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
               />
             );
@@ -370,6 +372,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
               pointsPerHole={pointsPerHole}
               bestBall={bestBall}
               ballsCounted={ballsCounted}
+              cumulativePoints={isStableford}
               {...strokeProps}
               awardLine={awardLine}
             />
@@ -415,6 +418,7 @@ const TournamentAdminRoundScorecard: React.FC = () => {
                 pointsPerHole={pointsPerHole}
                 bestBall={bestBall}
                 ballsCounted={ballsCounted}
+                cumulativePoints={isStableford}
                 {...strokeProps}
                 awardLine={awardLine}
                 action={
