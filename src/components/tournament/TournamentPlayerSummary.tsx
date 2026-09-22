@@ -112,7 +112,9 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
+
               </div>
             </div>
           );
