@@ -72,6 +72,46 @@ const ActiveRound: React.FC = () => {
     const state = location.state as { startHole?: number } | null;
     return state?.startHole || currentRound?.startHole || 1;
   });
+
+  /**
+   * Tournament handicap strokes for the active hole, keyed by local player id.
+   * In 1v1 rounds strokes come from the player's own matchup; otherwise from the
+   * whole group, relative to the lowest course handicap.
+   */
+  const tournamentHoleStrokes = useMemo<Record<string, number>>(() => {
+    const game = tournamentOverlay.tournamentGame;
+    const tPlayers = tournamentOverlay.tournamentPlayers || [];
+    if (!tournamentGroupId || !game?.useHandicaps || tPlayers.length === 0 || !tournamentPlayerMapping) return {};
+
+    const holeIndex = (tournamentOverlay.courseHoles || []).find(h => h.number === activeHole)?.handicapIndex;
+    if (!holeIndex) return {};
+
+    const byId = Object.fromEntries(tPlayers.map(tp => [tp.id, tp]));
+    const subs = tournamentOverlay.subMatchups || [];
+    const out: Record<string, number> = {};
+
+    Object.entries(tournamentPlayerMapping).forEach(([localId, tId]) => {
+      const me = byId[tId];
+      if (!me) return;
+      const sub = subs.find(sm => (sm.playerA === tId || sm.playerB === tId) && matchupCoversHole(sm, activeHole));
+      const group = sub
+        ? [byId[sub.playerA], byId[sub.playerB]]
+        : tPlayers;
+      const info = matchupStrokeInfo(group, game);
+      out[localId] = strokesOnHole(info.strokesGiven[tId] || 0, holeIndex);
+    });
+
+    return out;
+  }, [
+    tournamentGroupId,
+    tournamentPlayerMapping,
+    tournamentOverlay.tournamentGame,
+    tournamentOverlay.tournamentPlayers,
+    tournamentOverlay.courseHoles,
+    tournamentOverlay.subMatchups,
+    activeHole,
+  ]);
+
   const [isListening, setIsListening] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   // Always start minimized - user can expand at any time
