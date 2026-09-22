@@ -39,6 +39,8 @@ interface Props {
   useHandicaps?: boolean;
   /** Handicap allowance percentage (default 100). */
   handicapAllowancePercent?: number;
+  /** Show a running (accumulated) team points row — used for Stableford. */
+  cumulativePoints?: boolean;
   action?: React.ReactNode;
 }
 
@@ -46,6 +48,7 @@ const TestScorecardSection: React.FC<Props> = ({
   title, subtitle, players, teams, teamAId, teamBId, courseHoles, scores, results,
   pointsPerHole = 1, bestBall = false, ballsCounted, awardLine, action,
   handicaps, holeStrokeIndex, useHandicaps = true, handicapAllowancePercent = 100,
+  cumulativePoints = false,
 }) => {
   const frontNine = courseHoles.filter(h => h.number <= 9);
   const backNine = courseHoles.filter(h => h.number > 9);
