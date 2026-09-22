@@ -32,7 +32,24 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
   const playerMap = Object.fromEntries(players.map(p => [p.id, p]));
 
+  /** Normalize a raw player row into the shape stroke maths expects. */
+  const asTournamentPlayer = (id: string): TournamentPlayer | undefined => {
+    const p = playerMap[id];
+    if (!p) return undefined;
+    return {
+      id: p.id,
+      tournamentId: p.tournament_id ?? p.tournamentId ?? '',
+      displayName: p.display_name ?? p.displayName ?? '',
+      handicapIndex: p.handicap_index ?? p.handicapIndex ?? 0,
+      handicapOverride: p.handicap_override ?? p.handicapOverride ?? undefined,
+      teamId: p.team_id ?? p.teamId ?? undefined,
+    } as TournamentPlayer;
+  };
+
+  const firstName = (id: string) => (playerMap[id]?.display_name || playerMap[id]?.displayName || '').split(' ')[0];
+
   const sortedRounds = [...rounds].sort((a, b) => a.round_number - b.round_number);
+
 
   return (
     <div className="space-y-4">
