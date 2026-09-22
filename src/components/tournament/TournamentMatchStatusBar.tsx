@@ -150,9 +150,19 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
               <div className="flex items-center justify-center gap-4">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full" style={{ backgroundColor: aColor }} />
-                  <span className={`font-semibold text-sm ${aPts >= bPts ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {aName}
-                  </span>
+                  <div className="flex flex-col items-start">
+                    <span className={`font-semibold text-sm ${aPts >= bPts ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {aName}
+                    </span>
+                    {strokeInfo.enabled && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {strokeInfo.courseHandicaps[sm.playerA]} CH
+                        {(strokeInfo.strokesGiven[sm.playerA] || 0) > 0
+                          ? ` · +${strokeInfo.strokesGiven[sm.playerA]}`
+                          : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="text-3xl font-bold text-foreground font-mono">
                   <AnimatedPoints value={aPts} />
@@ -160,9 +170,19 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
                   <AnimatedPoints value={bPts} />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`font-semibold text-sm ${bPts >= aPts ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {bName}
-                  </span>
+                  <div className="flex flex-col items-end">
+                    <span className={`font-semibold text-sm ${bPts >= aPts ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {bName}
+                    </span>
+                    {strokeInfo.enabled && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {strokeInfo.courseHandicaps[sm.playerB]} CH
+                        {(strokeInfo.strokesGiven[sm.playerB] || 0) > 0
+                          ? ` · +${strokeInfo.strokesGiven[sm.playerB]}`
+                          : ''}
+                      </span>
+                    )}
+                  </div>
                   <span className="w-3 h-3 rounded-full" style={{ backgroundColor: bColor }} />
                 </div>
               </div>
@@ -170,6 +190,9 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
               <p className={`text-xs text-center ${isComplete ? 'text-[hsl(var(--brand-gold))] font-bold' : 'text-muted-foreground'}`}>
                 {statusLine}
               </p>
+
+              {strokeLabel && <StrokeBadge label={strokeLabel} />}
+
             </div>
           );
         })}
