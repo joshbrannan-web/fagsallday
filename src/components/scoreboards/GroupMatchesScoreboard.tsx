@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { calcTeamTotals } from '@/services/scoreboardCalculations';
 import { useNavigate } from 'react-router-dom';
+import { resolveSubMatchups } from '@/lib/subMatchups';
 
 interface Props {
   teams: any[];
@@ -276,8 +277,7 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
 
                   // Extract subMatchups
                   const tm = group.team_matchup as any;
-                  const subMatchups: { playerA: string; playerB: string }[] | undefined =
-                    tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+                  const subMatchups = resolveSubMatchups(tm);
 
                   // Player-to-team map
                   const gpTeamMap: Record<string, string> = {};

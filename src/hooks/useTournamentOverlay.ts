@@ -5,6 +5,7 @@ import { isRoundLevelGameType, buildRoundLevelContext, recalcRoundLevelResults, 
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints, MatchState } from '@/types/tournament';
 import { offlineStorage } from '@/services/offlineStorage';
+import { resolveSubMatchups } from '@/lib/subMatchups';
 
 export interface SegmentTotal {
   teamSums: Record<string, number>;
@@ -219,8 +220,7 @@ export const useTournamentOverlay = (
 
       // Extract subMatchups from team_matchup JSONB
       const tm = group.team_matchup as any;
-      const extractedSubMatchups: { playerA: string; playerB: string }[] | undefined =
-        tm?.subMatchups && Array.isArray(tm.subMatchups) ? tm.subMatchups : undefined;
+      const extractedSubMatchups = resolveSubMatchups(tm);
       setSubMatchups(extractedSubMatchups);
       subMatchupsRef.current = extractedSubMatchups;
 
