@@ -62,6 +62,7 @@ function dbToRoundConfig(round: any, game: any, holePoints?: any[]): RoundConfig
     sixesConfig: game?.sixes_config || base.sixesConfig,
     sixesFormat: (game?.sixes_format as RoundConfigData['sixesFormat']) || base.sixesFormat,
     sixesSegmentPoints: (game?.sixes_segment_points as RoundConfigData['sixesSegmentPoints']) || base.sixesSegmentPoints,
+    stablefordPoints: (game?.stableford_points as RoundConfigData['stablefordPoints']) || base.stablefordPoints,
     holePointOverrides: holePoints && holePoints.length > 0
       ? Array.from({ length: 18 }, (_, i) => {
           const row = holePoints.find((hp: any) => hp.hole_number === i + 1);
@@ -213,6 +214,7 @@ const TournamentAdminDashboard: React.FC = () => {
         sixes_config: d.sixesConfig,
         sixes_format: d.sixesFormat,
         sixes_segment_points: d.sixesSegmentPoints,
+        stableford_points: d.stablefordPoints,
       });
 
       // Round-trip hole point overrides: clear then re-insert only the customised holes

@@ -199,6 +199,7 @@ export const useTournaments = () => {
             sixes_config: round.game.sixesConfig || null,
             sixes_format: round.game.sixesFormat ?? 'match_play',
             sixes_segment_points: round.game.sixesSegmentPoints ?? [1, 1, 1],
+            stableford_points: round.game.stablefordPoints ?? null,
             rules_text: round.game.rulesText || null,
           })
           .select()

@@ -360,6 +360,7 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
         rulesText: gameData.rules_text ?? undefined,
         sixesFormat: gameData.sixes_format ?? 'match_play',
         sixesSegmentPoints: gameData.sixes_segment_points ?? [1, 1, 1],
+        stablefordPoints: ((gameData as any).stableford_points as any) ?? undefined,
       };
 
       // Build team assignments
