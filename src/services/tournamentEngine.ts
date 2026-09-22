@@ -273,9 +273,17 @@ export function calcMatchPlayIndividual(input: EngineInput): RoundResult {
       const pA = players.find(p => p.id === m.playerA);
       const pB = players.find(p => p.id === m.playerB);
       if (!pA || !pB) return null;
+      // A matchup may only cover part of the round (e.g. opponents switch at the turn).
+      // Handicap strokes still come from the full 18-hole course handicap difference.
+      const holesForMatch = (m.holeStart || m.holeEnd)
+        ? courseHoles.filter(h =>
+            (m.holeStart === undefined || h.number >= m.holeStart) &&
+            (m.holeEnd === undefined || h.number <= m.holeEnd))
+        : courseHoles;
       return calcMatchPlayIndividual({
         ...input,
         players: [pA, pB],
+        courseHoles: holesForMatch,
         subMatchups: undefined, // prevent recursion
       });
     }).filter((r): r is RoundResult => r !== null);
