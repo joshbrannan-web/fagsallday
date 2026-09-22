@@ -1,7 +1,8 @@
 import React from "react";
-import type { MatchState, TournamentPlayer } from "@/types/tournament";
+import type { MatchState, TournamentPlayer, TournamentGame } from "@/types/tournament";
 import type { SubMatchup } from '@/types/tournament';
 import { matchupCoversHole } from '@/lib/subMatchups';
+import { matchupStrokeInfo, strokeSummaryLabel, strokesOnHole } from '@/lib/matchStrokes';
 
 interface HoleResultData {
   teamPoints: Record<string, number>;
@@ -16,13 +17,31 @@ interface Props {
   holeResults: Record<number, HoleResultData>;
   teamMatchup: { teamAId: string; teamBId: string } | null;
   teams: Record<string, { name: string; color: string }>;
-  courseHoles: { number: number; par: number }[];
+  courseHoles: { number: number; par: number; handicapIndex?: number }[];
   gameType?: string;
   teamAssignments?: Record<string, string>;
   matchState?: MatchState;
   subMatchups?: SubMatchup[];
   tournamentPlayers?: TournamentPlayer[];
+  tournamentGame?: TournamentGame | null;
 }
+
+/** Small gold dot marking a hole where the player receives handicap stroke(s). */
+const StrokeDot: React.FC<{ count: number }> = ({ count }) => (
+  <span
+    title={`${count} handicap stroke${count > 1 ? 's' : ''} on this hole`}
+    style={{
+      color: 'hsl(var(--brand-gold))',
+      fontSize: 13,
+      lineHeight: 1,
+      fontWeight: 700,
+      marginLeft: 2,
+    }}
+  >
+    {count > 1 ? `••` : '•'}
+  </span>
+);
+
 
 const ScoreChip: React.FC<{
   score: number;
