@@ -175,6 +175,10 @@ const TournamentFullScorecard: React.FC<Props> = ({
               const pB = playerMap[sm.playerB];
               if (!pA || !pB) return null;
 
+              const matchStrokes = matchupStrokeInfo([pA, pB], game).strokesGiven;
+
+
+
               // Per-match points
               let aPts = 0, bPts = 0;
               Object.values(holeResults).forEach(hr => {
