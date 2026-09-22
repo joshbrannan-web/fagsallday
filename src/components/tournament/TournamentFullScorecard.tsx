@@ -214,8 +214,9 @@ const TournamentFullScorecard: React.FC<Props> = ({
                   <table className="text-xs border-collapse">
                     {renderTableHeader()}
                     <tbody>
-                      {renderPlayerRow(pA)}
-                      {renderPlayerRow(pB)}
+                      {renderPlayerRow(pA, matchStrokes)}
+                      {renderPlayerRow(pB, matchStrokes)}
+
                       <tr className="border-t-2 border-border bg-muted/20">
                         <td className="sticky left-0 z-10 bg-muted/20 px-2 py-1.5 font-bold text-xs">Result</td>
                         <td className="sticky left-[100px] z-10 bg-muted/20" />
