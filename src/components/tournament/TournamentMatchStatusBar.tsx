@@ -273,6 +273,20 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
         <p className={`text-xs text-center ${matchState?.isComplete ? 'text-[hsl(var(--brand-gold))] font-bold' : 'text-muted-foreground'}`}>
           {statusLine}
         </p>
+
+        {(() => {
+          const info = matchupStrokeInfo(tournamentPlayers || [], tournamentGame);
+          if (!info.enabled) return null;
+          const receivers = (tournamentPlayers || [])
+            .filter(p => (info.strokesGiven[p.id] || 0) > 0)
+            .map(p => `${p.displayName.split(' ')[0]} +${info.strokesGiven[p.id]}`);
+          return (
+            <StrokeBadge
+              label={receivers.length ? `Strokes: ${receivers.join(' · ')}` : 'No strokes — even handicaps'}
+            />
+          );
+        })()}
+
       </div>
 
       {/* Match Complete Banner */}
