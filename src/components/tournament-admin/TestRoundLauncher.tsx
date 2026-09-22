@@ -32,6 +32,7 @@ const GAME_LABELS: Record<string, string> = {
   alternate_shot_foursomes: 'Alternate Shot (Foursomes)',
   tournament_sixes: 'Sixes',
   two_man_score: 'Two Man Score',
+  stableford: 'Stableford',
 };
 
 const TestRoundLauncher: React.FC<Props> = ({ tournamentId, round, open, onOpenChange }) => {
