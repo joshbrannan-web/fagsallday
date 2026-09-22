@@ -34,6 +34,9 @@ import { hasLRHammerTeamsSet } from '../services/hammerEngine';
 import { TeamBankerTeamSetup } from './teamBanker';
 import TournamentTabPanel from './tournament/TournamentTabPanel';
 import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
+import { matchupStrokeInfo, strokesOnHole } from '@/lib/matchStrokes';
+import { matchupCoversHole } from '@/lib/subMatchups';
+
 import { isTeamBankerStretchStartHole, getTeamBankerTeamAssignment, getTeamBankerStretchForHole, getTeamBankerMode, getTeamBankerStretchStartHole as getTBStretchStartHole, getTeamBankerAllStretches } from '../services/teamBankerEngine';
 
 const ActiveRound: React.FC = () => {
