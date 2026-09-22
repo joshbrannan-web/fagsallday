@@ -498,9 +498,34 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                     Choose who plays who in each 1v1 match
                   </p>
 
+                  {/* Matchup format */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium">Matchup Format</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMatchupMode('full_18')}
+                        className={`rounded-md border px-2 py-2 text-left text-xs transition-colors ${matchupMode === 'full_18' ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/50'}`}
+                      >
+                        <span className="block font-semibold">Full 18 Holes</span>
+                        <span className="block text-[10px] text-muted-foreground">Same opponent all round</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMatchupMode('split_9s')}
+                        className={`rounded-md border px-2 py-2 text-left text-xs transition-colors ${matchupMode === 'split_9s' ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/50'}`}
+                      >
+                        <span className="block font-semibold">Switch at the Turn</span>
+                        <span className="block text-[10px] text-muted-foreground">New opponent after 9</span>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Match 1 */}
                   <div className="space-y-1.5">
-                    <span className="text-xs font-medium">Match 1</span>
+                    <span className="text-xs font-medium">
+                      {matchupMode === 'split_9s' ? 'Front 9 — Match 1 (Holes 1–9)' : 'Match 1'}
+                    </span>
                     <div className="flex items-center gap-2">
                       <Select value={match1A} onValueChange={setMatch1A}>
                         <SelectTrigger className="flex-1 h-8 text-xs">
