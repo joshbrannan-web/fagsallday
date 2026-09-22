@@ -265,7 +265,8 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
 
             const teamIds = [...new Set(gPlayers.map(gp => gp.team_id).filter(Boolean))];
             const matchupTeams = teamIds.map(tid => teams.find(t => t.id === tid)).filter(Boolean);
-            const subMatchups: SubMatchup[] = (group.team_matchup as any)?.subMatchups || [];
+            const subMatchups: SubMatchup[] = resolveSubMatchups(group.team_matchup) || [];
+            const isSplit9s = (group.team_matchup as any)?.matchupMode === 'split_9s';
 
             return (
               <Card key={group.id} className="p-3 space-y-2">
@@ -310,7 +311,9 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                 {/* Sub-matchup display */}
                 {subMatchups.length > 0 && (
                   <div className="space-y-1 pt-1 border-t border-border">
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">1v1 Matches</span>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                      1v1 Matches{isSplit9s ? ' — switch at the turn' : ''}
+                    </span>
                     {subMatchups.map((sm, i) => {
                       const pA = getPlayer(sm.playerA);
                       const pB = getPlayer(sm.playerB);
@@ -321,6 +324,7 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                           <span className="text-muted-foreground">vs</span>
                           {(() => { const tB = getTeam(pB?.team_id ?? null); return tB ? <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: tB.color }} /> : null; })()}
                           <span className="font-medium">{pB?.display_name || '?'}</span>
+                          {sm.label && <span className="text-[10px] text-muted-foreground ml-1">({sm.label})</span>}
                         </div>
                       );
                     })}
