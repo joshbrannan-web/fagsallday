@@ -133,6 +133,31 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
     return selectedIds.filter(id => id !== match1A && id !== match1B);
   }, [selectedIds, match1A, match1B]);
 
+  // Back-9 opponent options for the first player (anyone else in the group)
+  const backOpponentOptions = useMemo(
+    () => selectedIds.filter(id => id !== match1A),
+    [selectedIds, match1A],
+  );
+
+  // Default back-9 opponent: the other player from the opposing team
+  const defaultBackOpponent = useMemo(() => {
+    const aTeam = players.find(p => p.id === match1A)?.team_id ?? null;
+    const opposing = backOpponentOptions.filter(id => {
+      const t = players.find(p => p.id === id)?.team_id ?? null;
+      return aTeam ? t !== aTeam : true;
+    });
+    const swapped = opposing.find(id => id !== match1B);
+    return swapped || opposing[0] || backOpponentOptions[0] || '';
+  }, [players, match1A, match1B, backOpponentOptions]);
+
+  const effectiveBackOpponent = backOpponentForA || defaultBackOpponent;
+
+  // Remaining two players form the second back-9 match
+  const backMatch2Players = useMemo(
+    () => selectedIds.filter(id => id !== match1A && id !== effectiveBackOpponent),
+    [selectedIds, match1A, effectiveBackOpponent],
+  );
+
   const togglePlayer = (id: string) => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 4 ? [...prev, id] : prev
@@ -148,15 +173,20 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
       // Default matchup: first two vs last two
       setMatch1A(selectedIds[0]);
       setMatch1B(selectedIds[1]);
+      setMatchupMode('full_18');
+      setBackOpponentForA('');
       setMatchupStep(true);
     } else {
       handleSaveGroup();
     }
   };
 
-  const handleSaveGroup = async (subMatchups?: SubMatchup[]) => {
+  const handleSaveGroup = async (
+    subMatchups?: SubMatchup[],
+    matchupExtras?: { matchupMode?: MatchupMode; frontMatchups?: SubMatchup[]; backMatchups?: SubMatchup[] },
+  ) => {
     setSaving(true);
-    await onAddGroup(roundId, selectedIds, subMatchups, leaderId || undefined);
+    await onAddGroup(roundId, selectedIds, subMatchups, leaderId || undefined, matchupExtras);
     resetForm();
     setSaving(false);
   };
@@ -166,6 +196,29 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
       toast.error('Please assign all matchups');
       return;
     }
+
+    if (matchupMode === 'split_9s') {
+      if (!effectiveBackOpponent || backMatch2Players.length !== 2) {
+        toast.error('Please choose the back 9 matchups');
+        return;
+      }
+      const front: SubMatchup[] = [
+        { playerA: match1A, playerB: match1B },
+        { playerA: match2Players[0], playerB: match2Players[1] },
+      ];
+      const back: SubMatchup[] = [
+        { playerA: match1A, playerB: effectiveBackOpponent },
+        { playerA: backMatch2Players[0], playerB: backMatch2Players[1] },
+      ];
+      const payload = buildSplitMatchupPayload(front, back);
+      await handleSaveGroup(payload.subMatchups, {
+        matchupMode: payload.matchupMode,
+        frontMatchups: payload.frontMatchups,
+        backMatchups: payload.backMatchups,
+      });
+      return;
+    }
+
     const subMatchups: SubMatchup[] = [
       { playerA: match1A, playerB: match1B },
       { playerA: match2Players[0], playerB: match2Players[1] },
