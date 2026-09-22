@@ -61,6 +61,7 @@ export interface CreateTournamentData {
       sixesConfig?: any;
       sixesFormat?: 'match_play' | 'sum_of_strokes';
       sixesSegmentPoints?: [number, number, number];
+      stablefordPoints?: Record<string, number>;
       rulesText?: string;
     };
     holePointOverrides?: { holeNumber: number; points: number }[];
