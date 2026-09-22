@@ -127,6 +127,8 @@ const TestScorecardSection: React.FC<Props> = ({
   const totalAvailable = courseHoles.length * pointsPerHole;
   const remaining = Math.max(0, totalAvailable - (totalA + totalB));
   const hasMatch = !!(teamAId && teamBId);
+  /** Team points exist even when a group only holds one team (e.g. Stableford). */
+  const hasTeamPoints = teamIds.length > 0 && results.length > 0;
   const isComplete = hasMatch && (
     holesPlayed >= courseHoles.length ||
     (totalA !== totalB && Math.abs(totalA - totalB) > remaining)
