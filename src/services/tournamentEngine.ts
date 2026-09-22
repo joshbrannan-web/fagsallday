@@ -168,7 +168,7 @@ function getTeamIds(teamAssignments: Record<string, string>): [string, string] {
 function deriveSubMatchups(
   players: TournamentPlayer[],
   teamAssignments: Record<string, string>,
-): { playerA: string; playerB: string }[] {
+): SubMatchup[] {
   const byTeam: Record<string, string[]> = {};
   players.forEach(p => {
     const tid = teamAssignments[p.id];
@@ -179,7 +179,7 @@ function deriveSubMatchups(
   if (teamIds.length < 2) return [{ playerA: players[0].id, playerB: players[1].id }];
   const teamA = byTeam[teamIds[0]];
   const teamB = byTeam[teamIds[1]];
-  const matchups: { playerA: string; playerB: string }[] = [];
+  const matchups: SubMatchup[] = [];
   const count = Math.min(teamA.length, teamB.length);
   for (let i = 0; i < count; i++) {
     matchups.push({ playerA: teamA[i], playerB: teamB[i] });
