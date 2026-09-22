@@ -259,6 +259,12 @@ const TestScorecardSection: React.FC<Props> = ({
           <p className="text-[11px] text-muted-foreground">
             Outlined scores count toward the team score{showStrokes ? ' (small number = net)' : ''}; dimmed scores don't count; tinted cells are the hole winner's counting scores.
           </p>
+          {hasMatch && (
+            <p className="text-[11px] text-muted-foreground">
+              The <span className="text-[hsl(var(--brand-gold))] font-semibold">pts</span> rows show exactly how many points each team won on every hole, with front 9, back 9 and total sums.
+            </p>
+          )}
+
 
           {awardLine && (
             <p className="text-xs text-[hsl(var(--brand-gold))] font-semibold truncate">{awardLine}</p>
