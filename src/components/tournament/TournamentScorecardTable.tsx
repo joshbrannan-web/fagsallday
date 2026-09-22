@@ -1,9 +1,10 @@
 import type { FC } from 'react';
-import type { TournamentPlayer } from '@/types/tournament';
+import type { TournamentPlayer, TournamentGame } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
 import type { MatchState } from '@/types/tournament';
 import type { SubMatchup } from '@/types/tournament';
 import { matchupCoversHole } from '@/lib/subMatchups';
+import { matchupStrokeInfo, strokesOnHole, strokeSummaryLabel } from '@/lib/matchStrokes';
 
 interface Props {
   tournamentPlayers: TournamentPlayer[];
@@ -16,7 +17,22 @@ interface Props {
   viewMode: 'FRONT' | 'BACK';
   matchState?: MatchState;
   subMatchups?: SubMatchup[];
+  game?: TournamentGame | null;
 }
+
+/* ── Gold stroke badge ── */
+const StrokesChip: FC<{ n: number }> = ({ n }) => (
+  <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-brand-gold/20 text-brand-gold whitespace-nowrap">
+    +{n}
+  </span>
+);
+
+/* ── Gold dots marking a stroke hole ── */
+const StrokeDots: FC<{ n: number }> = ({ n }) => (
+  <span className="block text-[8px] leading-none text-brand-gold -mt-0.5">
+    {n >= 2 ? '••' : '•'}
+  </span>
+);
 
 /* ── Score cell styling helper ── */
 const scoreCell = (score: number, par: number) => {
@@ -45,8 +61,13 @@ const MatchupTable: FC<{
   activeHoles: CourseHole[];
   courseHoles: CourseHole[];
   viewMode: 'FRONT' | 'BACK';
-}> = ({ matchLabel, playerA, playerB, teamAssignments, teams, holeResults, activeHoles, courseHoles }) => {
+  game?: TournamentGame | null;
+}> = ({ matchLabel, playerA, playerB, teamAssignments, teams, holeResults, activeHoles, courseHoles, game }) => {
   const players = [playerA, playerB];
+
+  const strokeInfo = matchupStrokeInfo([playerA, playerB], game);
+  const strokeLabel = strokeSummaryLabel(strokeInfo, id =>
+    (id === playerA.id ? playerA : playerB).displayName.split(' ')[0]);
 
   const getPlayerSubtotal = (playerId: string) => {
     let total = 0;
@@ -81,9 +102,14 @@ const MatchupTable: FC<{
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">{matchLabel}</span>
-        <span className="text-xs font-semibold text-muted-foreground">{statusText}</span>
+        <div className="flex items-center gap-2">
+          {strokeInfo.enabled && strokeLabel && (
+            <span className="text-[10px] font-semibold text-brand-gold whitespace-nowrap">• {strokeLabel}</span>
+          )}
+          <span className="text-xs font-semibold text-muted-foreground">{statusText}</span>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -104,9 +130,10 @@ const MatchupTable: FC<{
             {players.map((player, idx) => {
               const teamId = teamAssignments[player.id];
               const team = teams[teamId];
+              const totalStrokes = strokeInfo.strokesGiven[player.id] || 0;
 
               return (
-                <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted'}>
                   <td className="p-2 text-left sticky left-0 bg-inherit border-r border-border z-10">
                     <div className="flex items-center gap-1.5">
                       <span
@@ -114,13 +141,20 @@ const MatchupTable: FC<{
                         style={{ backgroundColor: team?.color || 'hsl(var(--muted))' }}
                       />
                       <span className="font-semibold text-xs whitespace-normal break-words leading-tight">{player.displayName}</span>
+                      {totalStrokes > 0 && <StrokesChip n={totalStrokes} />}
                     </div>
                   </td>
                   {activeHoles.map(h => {
                     const score = holeResults[h.number]?.grossScores?.[player.id];
                     const hasScore = typeof score === 'number';
+                    const holeStrokes = strokesOnHole(totalStrokes, h.handicapIndex);
                     if (!hasScore) {
-                      return <td key={h.number} className="p-1.5 border-r border-border/50"><span className="text-muted-foreground text-xs">-</span></td>;
+                      return (
+                        <td key={h.number} className="p-1.5 border-r border-border/50">
+                          <span className="text-muted-foreground text-xs">-</span>
+                          {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
+                        </td>
+                      );
                     }
                     const { shapeClass, colorClass } = scoreCell(score, h.par);
                     return (
@@ -128,6 +162,7 @@ const MatchupTable: FC<{
                         <span className={`inline-block w-7 h-7 leading-7 ${shapeClass} text-xs font-bold ${colorClass}`}>
                           {score}
                         </span>
+                        {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
                       </td>
                     );
                   })}
@@ -137,6 +172,7 @@ const MatchupTable: FC<{
                 </tr>
               );
             })}
+
 
             {/* Result row */}
             <tr className="bg-amber-50/60 dark:bg-amber-950/20 border-t border-amber-400/40">
@@ -204,7 +240,7 @@ const MatchupTable: FC<{
 /* ── Main component ── */
 const TournamentScorecardTable: FC<Props> = ({
   tournamentPlayers, teamAssignments, teams, holeResults, courseHoles,
-  teamMatchup, teamTotals, viewMode, matchState, subMatchups,
+  teamMatchup, teamTotals, viewMode, matchState, subMatchups, game,
 }) => {
   if (!teamMatchup) return null;
 
@@ -242,6 +278,7 @@ const TournamentScorecardTable: FC<Props> = ({
               activeHoles={activeHoles}
               courseHoles={courseHoles}
               viewMode={viewMode}
+              game={game}
             />
           );
         })}
@@ -302,6 +339,8 @@ const TournamentScorecardTable: FC<Props> = ({
     return total;
   };
 
+  const groupStrokeInfo = matchupStrokeInfo(sortedPlayers, game);
+
   return (
     <div className="space-y-3">
       <p className="text-base font-bold text-center">
@@ -310,6 +349,17 @@ const TournamentScorecardTable: FC<Props> = ({
           <span className="text-muted-foreground text-sm ml-2">— Thru {holesPlayed}</span>
         )}
       </p>
+
+      {groupStrokeInfo.enabled && (
+        <p className="text-[11px] font-semibold text-brand-gold text-center">
+          • Strokes: {sortedPlayers.filter(p => (groupStrokeInfo.strokesGiven[p.id] || 0) > 0).length === 0
+            ? 'none — even handicaps'
+            : sortedPlayers
+                .filter(p => (groupStrokeInfo.strokesGiven[p.id] || 0) > 0)
+                .map(p => `${p.displayName.split(' ')[0]} +${groupStrokeInfo.strokesGiven[p.id]}`)
+                .join(' · ')}
+        </p>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-center border-collapse text-sm">
@@ -332,9 +382,10 @@ const TournamentScorecardTable: FC<Props> = ({
               const team = teams[teamId];
               const subtotal = getPlayerSubtotal(player.id);
               const total = getPlayerTotal(player.id);
+              const totalStrokes = groupStrokeInfo.strokesGiven[player.id] || 0;
 
               return (
-                <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted'}>
                   <td className="p-2 text-left sticky left-0 bg-inherit border-r border-border z-10">
                     <div className="flex items-center gap-1.5">
                       <span
@@ -342,13 +393,20 @@ const TournamentScorecardTable: FC<Props> = ({
                         style={{ backgroundColor: team?.color || 'hsl(var(--muted))' }}
                       />
                       <span className="font-semibold text-xs whitespace-normal break-words leading-tight">{player.displayName}</span>
+                      {totalStrokes > 0 && <StrokesChip n={totalStrokes} />}
                     </div>
                   </td>
                   {activeHoles.map(h => {
                     const score = holeResults[h.number]?.grossScores?.[player.id];
                     const hasScore = typeof score === 'number';
+                    const holeStrokes = strokesOnHole(totalStrokes, h.handicapIndex);
                     if (!hasScore) {
-                      return <td key={h.number} className="p-1.5 border-r border-border/50"><span className="text-muted-foreground text-xs">-</span></td>;
+                      return (
+                        <td key={h.number} className="p-1.5 border-r border-border/50">
+                          <span className="text-muted-foreground text-xs">-</span>
+                          {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
+                        </td>
+                      );
                     }
                     const { shapeClass, colorClass } = scoreCell(score, h.par);
                     return (
@@ -356,6 +414,7 @@ const TournamentScorecardTable: FC<Props> = ({
                         <span className={`inline-block w-7 h-7 leading-7 ${shapeClass} text-xs font-bold ${colorClass}`}>
                           {score}
                         </span>
+                        {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
                       </td>
                     );
                   })}
