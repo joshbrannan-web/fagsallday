@@ -336,6 +336,60 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
             </div>
           )}
 
+          {data.gameType === 'stableford' && (
+            <div className="space-y-3">
+              <div>
+                <Label>Points Preset</Label>
+                <Select
+                  value="custom"
+                  onValueChange={v => {
+                    if (v === 'custom') return;
+                    update('stablefordPoints', { ...STABLEFORD_PRESETS[v] });
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Choose a preset..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="custom">Custom (set below)</SelectItem>
+                    <SelectItem value="modified">Modified (Eagle 5 / Birdie 2 / Par 0 / Bogey -1)</SelectItem>
+                    <SelectItem value="traditional">Traditional (Eagle 4 / Birdie 3 / Par 2 / Bogey 1)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['albatross', 'Albatross (-3)'],
+                  ['eagle', 'Eagle (-2)'],
+                  ['birdie', 'Birdie (-1)'],
+                  ['par', 'Par'],
+                  ['bogey', 'Bogey (+1)'],
+                  ['doubleBogey', 'Double (+2)'],
+                  ['triplePlus', 'Triple or worse'],
+                ] as [keyof StablefordPoints, string][]).map(([key, label]) => (
+                  <div key={key}>
+                    <Label className="text-xs">{label}</Label>
+                    <Input
+                      type="number"
+                      value={data.stablefordPoints[key]}
+                      onChange={e =>
+                        update('stablefordPoints', {
+                          ...data.stablefordPoints,
+                          [key]: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      step={0.5}
+                      className="h-8 text-center"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Points are awarded on every hole by score against par. Turn handicaps on for net Stableford.
+              </p>
+            </div>
+          )}
+
+
           <Collapsible open={showHolePoints} onOpenChange={setShowHolePoints}>
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary">
               <ChevronDown className={`w-4 h-4 transition-transform ${showHolePoints ? 'rotate-180' : ''}`} />
