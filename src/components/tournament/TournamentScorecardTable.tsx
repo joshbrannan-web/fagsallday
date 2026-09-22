@@ -3,6 +3,7 @@ import type { TournamentPlayer } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
 import type { MatchState } from '@/types/tournament';
 import type { SubMatchup } from '@/types/tournament';
+import { matchupCoversHole } from '@/lib/subMatchups';
 
 interface Props {
   tournamentPlayers: TournamentPlayer[];
