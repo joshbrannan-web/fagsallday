@@ -2432,7 +2432,22 @@ const ActiveRound: React.FC = () => {
                     </h3>
                     <div className="flex gap-2 text-xs font-bold mt-1">
                       <span className="bg-muted px-2 py-0.5 rounded text-muted-foreground">{p.courseHandicap} CH</span>
+                      {(tournamentHoleStrokes[p.id] || 0) > 0 && (
+                        <span
+                          className="px-2 py-0.5 rounded border"
+                          style={{
+                            color: 'hsl(var(--brand-gold))',
+                            borderColor: 'hsl(45 93% 47% / 0.4)',
+                            backgroundColor: 'hsl(45 93% 47% / 0.12)',
+                          }}
+                        >
+                          {tournamentHoleStrokes[p.id] > 1
+                            ? `•• Stroke x${tournamentHoleStrokes[p.id]}`
+                            : '• Stroke'}
+                        </span>
+                      )}
                     </div>
+
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
