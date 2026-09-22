@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import type { SubMatchup, MatchupMode } from '@/types/tournament';
 
 export const useTournamentDetail = (tournamentId: string | undefined) => {
   const { user } = useAuth();
