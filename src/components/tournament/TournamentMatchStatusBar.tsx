@@ -64,8 +64,9 @@ const AnimatedPoints: React.FC<{ value: number }> = ({ value }) => {
 const TournamentMatchStatusBar: React.FC<Props> = ({
   tournamentName, roundName, teamMatchup, teams, teamTotals,
   holesPlayed, matchState, totalPointsAvailable,
-  subMatchups, tournamentPlayers, holeResults, teamAssignments,
+  subMatchups, tournamentPlayers, holeResults, teamAssignments, tournamentGame,
 }) => {
+
   if (!teamMatchup) return null;
 
   const has1v1 = subMatchups && subMatchups.length > 0 && tournamentPlayers && holeResults && teamAssignments;
