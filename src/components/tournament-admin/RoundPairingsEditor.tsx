@@ -557,7 +557,9 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
 
                   {/* Match 2 (auto-derived) */}
                   <div className="space-y-1.5">
-                    <span className="text-xs font-medium">Match 2</span>
+                    <span className="text-xs font-medium">
+                      {matchupMode === 'split_9s' ? 'Front 9 — Match 2 (Holes 1–9)' : 'Match 2'}
+                    </span>
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50">
                       <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
                         {(() => { const p = match2Players[0] ? getPlayer(match2Players[0]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
@@ -568,6 +570,46 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
                       </span>
                     </div>
                   </div>
+
+                  {/* Back 9 matchups */}
+                  {matchupMode === 'split_9s' && (
+                    <div className="space-y-2 pt-1 border-t border-border">
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-medium">Back 9 — Match 1 (Holes 10–18)</span>
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 text-xs text-center font-medium flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-muted/50">
+                            {(() => { const p = getPlayer(match1A); const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium">vs</span>
+                          <Select value={effectiveBackOpponent} onValueChange={setBackOpponentForA}>
+                            <SelectTrigger className="flex-1 h-8 text-xs">
+                              <SelectValue placeholder="Opponent" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {backOpponentOptions.map(id => {
+                                const p = getPlayer(id);
+                                const t = getTeam(p?.team_id ?? null);
+                                return <SelectItem key={id} value={id}><span className="flex items-center gap-1.5">{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || id}</span></SelectItem>;
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-medium">Back 9 — Match 2 (Holes 10–18)</span>
+                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50">
+                          <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
+                            {(() => { const p = backMatch2Players[0] ? getPlayer(backMatch2Players[0]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium">vs</span>
+                          <span className="text-xs flex-1 text-center font-medium flex items-center justify-center gap-1">
+                            {(() => { const p = backMatch2Players[1] ? getPlayer(backMatch2Players[1]) : null; const t = getTeam(p?.team_id ?? null); return <>{t && <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />}{p?.display_name || '—'}</>; })()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
 
                   <Button
                     size="sm"
