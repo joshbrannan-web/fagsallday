@@ -135,11 +135,17 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
             statusLine = `${leader} ${leadAmt} UP · Thru ${matchHolesPlayed}`;
           }
 
+          const strokeInfo = matchupStrokeInfo([pA, pB], tournamentGame);
+          const strokeLabel = strokeInfo.enabled
+            ? strokeSummaryLabel(strokeInfo, id => (playerMap[id]?.displayName || '').split(' ')[0])
+            : null;
+
           return (
             <div key={idx} className="bg-card border border-border rounded-xl p-4 space-y-2">
               <div className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider text-center">
                 Match {idx + 1}{sm.label ? ` · ${sm.label}` : ''}
               </div>
+
 
               <div className="flex items-center justify-center gap-4">
                 <div className="flex items-center gap-2">
