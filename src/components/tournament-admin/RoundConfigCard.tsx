@@ -214,7 +214,7 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
 
       {data.gameType && (
         <div className="space-y-4 bg-muted/50 rounded-lg p-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid grid-cols-2 gap-3 ${data.gameType === 'stableford' ? 'hidden' : ''}`}>
             <div>
               <Label>{holePointsCount ? 'Points Per Hole' : 'Points Per Hole (tiebreak only)'}</Label>
               <Input type="number" value={data.defaultPointsPerHole} onChange={e => updateDefaultPointsPerHole(parseFloat(e.target.value) || 1)} min={0.5} step={0.5} />
