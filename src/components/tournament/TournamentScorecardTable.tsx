@@ -382,9 +382,10 @@ const TournamentScorecardTable: FC<Props> = ({
               const team = teams[teamId];
               const subtotal = getPlayerSubtotal(player.id);
               const total = getPlayerTotal(player.id);
+              const totalStrokes = groupStrokeInfo.strokesGiven[player.id] || 0;
 
               return (
-                <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}>
+                <tr key={player.id} className={idx % 2 === 0 ? 'bg-card' : 'bg-muted'}>
                   <td className="p-2 text-left sticky left-0 bg-inherit border-r border-border z-10">
                     <div className="flex items-center gap-1.5">
                       <span
@@ -392,13 +393,20 @@ const TournamentScorecardTable: FC<Props> = ({
                         style={{ backgroundColor: team?.color || 'hsl(var(--muted))' }}
                       />
                       <span className="font-semibold text-xs whitespace-normal break-words leading-tight">{player.displayName}</span>
+                      {totalStrokes > 0 && <StrokesChip n={totalStrokes} />}
                     </div>
                   </td>
                   {activeHoles.map(h => {
                     const score = holeResults[h.number]?.grossScores?.[player.id];
                     const hasScore = typeof score === 'number';
+                    const holeStrokes = strokesOnHole(totalStrokes, h.handicapIndex);
                     if (!hasScore) {
-                      return <td key={h.number} className="p-1.5 border-r border-border/50"><span className="text-muted-foreground text-xs">-</span></td>;
+                      return (
+                        <td key={h.number} className="p-1.5 border-r border-border/50">
+                          <span className="text-muted-foreground text-xs">-</span>
+                          {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
+                        </td>
+                      );
                     }
                     const { shapeClass, colorClass } = scoreCell(score, h.par);
                     return (
@@ -406,6 +414,7 @@ const TournamentScorecardTable: FC<Props> = ({
                         <span className={`inline-block w-7 h-7 leading-7 ${shapeClass} text-xs font-bold ${colorClass}`}>
                           {score}
                         </span>
+                        {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
                       </td>
                     );
                   })}
