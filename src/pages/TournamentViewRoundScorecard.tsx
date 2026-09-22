@@ -138,6 +138,7 @@ const TournamentViewRoundScorecard: React.FC = () => {
   };
   const pointsPerHole = Number(game?.default_points_per_hole) || 1;
   const bestBall = !!game?.game_type?.includes('best_ball');
+  const isStableford = game?.game_type === 'stableford';
   const roundLabel = round?.name || `Round ${round?.round_number ?? ''}`;
   const isSixSixSix = game?.game_type === 'match_play_gross_best_ball' || game?.game_type === 'blind_gross_best_ball';
   const ballsCounted = isSixSixSix ? (hole: number) => scoresNeeded(hole) : undefined;
