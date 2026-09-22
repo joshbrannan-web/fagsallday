@@ -1,6 +1,7 @@
 import React from "react";
 import type { MatchState, TournamentPlayer } from "@/types/tournament";
 import type { SubMatchup } from '@/types/tournament';
+import { matchupCoversHole } from '@/lib/subMatchups';
 
 interface HoleResultData {
   teamPoints: Record<string, number>;
@@ -133,7 +134,7 @@ const TournamentHoleTracker: React.FC<Props> = ({
               </div>
 
               <div className="max-h-[280px] overflow-y-auto divide-y divide-border/50">
-                {completedHoles.map((hole, idx) => {
+                {completedHoles.filter(h => matchupCoversHole(sm, h.number)).map((hole, idx) => {
                   const r = holeResults[hole.number];
                   if (!r) return null;
 
@@ -191,7 +192,7 @@ const TournamentHoleTracker: React.FC<Props> = ({
                   );
                 })}
 
-                {unplayedHoles.map((hole) => (
+                {unplayedHoles.filter(h => matchupCoversHole(sm, h.number)).map((hole) => (
                   <div key={`unplayed-${hole.number}`} className="grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 opacity-25">
                     <div className="flex items-baseline gap-1">
                       <span className="text-[13px] font-bold font-mono">{hole.number}</span>
