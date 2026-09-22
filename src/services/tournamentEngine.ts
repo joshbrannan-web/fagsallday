@@ -13,7 +13,7 @@ import type {
   MatchState,
   SubMatchup,
 } from '@/types/tournament';
-import { DEFAULT_STABLEFORD_POINTS } from '@/types/tournament';
+import { DEFAULT_STABLEFORD_POINTS, stablefordBallsForHole } from '@/types/tournament';
 
 // ── OUTPUT TYPES ─────────────────────────────────────────────
 
@@ -961,12 +961,25 @@ export function calcStableford(input: EngineInput): RoundResult {
       const earned = pointsForDiff(net - hole.par);
       holePlayerPoints[p.id] = earned;
       playerTotals[p.id] += earned;
-      const tid = teamAssignments[p.id];
-      if (tid) {
-        holeTeamPoints[tid] = (holeTeamPoints[tid] || 0) + earned;
-        teamTotals[tid] = (teamTotals[tid] || 0) + earned;
-      }
     });
+
+    // Team totals use only the configured number of counting balls (best scores first).
+    const ballsAllowed = stablefordBallsForHole(pts.ballsCounted, hole.number);
+    const byTeam: Record<string, number[]> = {};
+    Object.entries(holePlayerPoints).forEach(([pid, earned]) => {
+      const tid = teamAssignments[pid];
+      if (!tid) return;
+      (byTeam[tid] = byTeam[tid] || []).push(earned);
+    });
+    Object.entries(byTeam).forEach(([tid, earnedList]) => {
+      const counted = earnedList
+        .sort((a, b) => b - a)
+        .slice(0, Number.isFinite(ballsAllowed) ? ballsAllowed : earnedList.length)
+        .reduce((s, v) => s + v, 0);
+      holeTeamPoints[tid] = (holeTeamPoints[tid] || 0) + counted;
+      teamTotals[tid] = (teamTotals[tid] || 0) + counted;
+    });
+
 
     if (!anyScore) continue;
 

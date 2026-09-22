@@ -344,7 +344,10 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
                   value="custom"
                   onValueChange={v => {
                     if (v === 'custom') return;
-                    update('stablefordPoints', { ...STABLEFORD_PRESETS[v] });
+                    update('stablefordPoints', {
+                      ...STABLEFORD_PRESETS[v],
+                      ballsCounted: data.stablefordPoints.ballsCounted ?? 'all',
+                    });
                   }}
                 >
                   <SelectTrigger><SelectValue placeholder="Choose a preset..." /></SelectTrigger>
@@ -355,6 +358,30 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
                   </SelectContent>
                 </Select>
               </div>
+
+              <div>
+                <Label>How Many Balls Count Toward Team Points</Label>
+                <Select
+                  value={data.stablefordPoints.ballsCounted ?? 'all'}
+                  onValueChange={v =>
+                    update('stablefordPoints', { ...data.stablefordPoints, ballsCounted: v })
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All balls count (every player)</SelectItem>
+                    <SelectItem value="best_1">Best 1 ball per hole</SelectItem>
+                    <SelectItem value="best_2">Best 2 balls per hole</SelectItem>
+                    <SelectItem value="best_3">Best 3 balls per hole</SelectItem>
+                    <SelectItem value="6_6_6">6/6/6 — best 1, then 2, then 3</SelectItem>
+                    <SelectItem value="1_2_3">1-2-3 rotation every three holes</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Each player still earns their own points; this sets how many of a team's best scores add to the team total on each hole.
+                </p>
+              </div>
+
 
               <div className="grid grid-cols-3 gap-2">
                 {([

@@ -36,6 +36,15 @@ export interface SixesSegmentConfig {
   formatNotes: string;                 // e.g. "Match Play, 1pt per hole, no handicaps"
 }
 
+/** How many player scores per team count toward the team's Stableford total on a hole. */
+export type StablefordCountMode =
+  | 'all'      // every player's points count
+  | 'best_1'
+  | 'best_2'
+  | 'best_3'
+  | '6_6_6'    // holes 1-6: best 1, 7-12: best 2, 13-18: best 3
+  | '1_2_3';   // rotating 1, 2, 3 balls every three holes
+
 /** Points awarded per hole in Stableford, keyed by score relative to par. */
 export interface StablefordPoints {
   albatross: number;   // 3 under par or better
@@ -45,6 +54,23 @@ export interface StablefordPoints {
   bogey: number;       // 1 over par
   doubleBogey: number; // 2 over par
   triplePlus: number;  // 3 over par or worse
+  /** Best-ball rollup for team totals. Defaults to 'all'. */
+  ballsCounted?: StablefordCountMode;
+}
+
+/** Number of counting balls per team on a hole; Infinity means every ball counts. */
+export function stablefordBallsForHole(
+  mode: StablefordCountMode | undefined,
+  holeNumber: number,
+): number {
+  switch (mode) {
+    case 'best_1': return 1;
+    case 'best_2': return 2;
+    case 'best_3': return 3;
+    case '6_6_6': return holeNumber <= 6 ? 1 : holeNumber <= 12 ? 2 : 3;
+    case '1_2_3': return ((holeNumber - 1) % 3) + 1;
+    default: return Infinity;
+  }
 }
 
 export const DEFAULT_STABLEFORD_POINTS: StablefordPoints = {
@@ -55,6 +81,7 @@ export const DEFAULT_STABLEFORD_POINTS: StablefordPoints = {
   bogey: -1,
   doubleBogey: -3,
   triplePlus: -3,
+  ballsCounted: 'all',
 };
 
 export const STABLEFORD_PRESETS: Record<string, StablefordPoints> = {
