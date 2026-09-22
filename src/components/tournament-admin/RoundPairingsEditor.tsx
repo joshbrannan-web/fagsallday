@@ -68,7 +68,13 @@ interface RoundPairingsEditorProps {
   groups: Group[];
   groupPlayers: GroupPlayer[];
   gameType?: string;
-  onAddGroup: (roundId: string, playerIds: string[], subMatchups?: SubMatchup[], leaderPlayerId?: string) => Promise<void>;
+  onAddGroup: (
+    roundId: string,
+    playerIds: string[],
+    subMatchups?: SubMatchup[],
+    leaderPlayerId?: string,
+    matchupExtras?: { matchupMode?: MatchupMode; frontMatchups?: SubMatchup[]; backMatchups?: SubMatchup[] },
+  ) => Promise<void>;
   onDeleteGroup: (groupId: string) => Promise<void>;
   roundMatches?: RoundMatchRow[];
   onAddMatch?: (roundId: string, sideA: string[], sideB: string[]) => Promise<void>;
