@@ -45,10 +45,8 @@ interface GroupPlayer {
   team_id: string;
 }
 
-interface SubMatchup {
-  playerA: string;
-  playerB: string;
-}
+import type { SubMatchup, MatchupMode } from '@/types/tournament';
+import { buildSplitMatchupPayload, resolveSubMatchups } from '@/lib/subMatchups';
 
 const ONE_V_ONE_TYPES = ['match_play_individual', 'alternate_shot_twosomes', 'scramble_2'];
 
