@@ -123,26 +123,35 @@ const TournamentFullScorecard: React.FC<Props> = ({
     </thead>
   );
 
-  const renderPlayerRow = (p: TournamentPlayer) => {
+  const renderPlayerRow = (p: TournamentPlayer, strokesGiven?: Record<string, number>) => {
     const teamId = teamAssignments[p.id];
     const team = teams[teamId];
     const outGross = sumGross(p.id, frontNine);
     const inGross = sumGross(p.id, backNine);
+    const totalStrokes = (strokesGiven ?? groupStrokes)[p.id] || 0;
 
     return (
       <tr key={p.id} className="border-b border-border">
-        <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium truncate max-w-[100px]">{p.displayName}</td>
+        <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium truncate max-w-[100px]">
+          {p.displayName}
+          {game.useHandicaps && totalStrokes > 0 && (
+            <span className="ml-1 text-[10px] font-bold" style={{ color: 'hsl(var(--brand-gold))' }}>
+              +{totalStrokes}
+            </span>
+          )}
+        </td>
         <td className="sticky left-[100px] z-10 bg-card px-1 py-1.5 text-center">
           <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: team?.color }} />
         </td>
-        {frontNine.map(h => renderHoleCell(p.id, h))}
+        {frontNine.map(h => renderHoleCell(p.id, h, strokesGiven))}
         <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{outGross || '—'}</td>
-        {backNine.map(h => renderHoleCell(p.id, h))}
+        {backNine.map(h => renderHoleCell(p.id, h, strokesGiven))}
         <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{inGross || '—'}</td>
         <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{(outGross + inGross) || '—'}</td>
       </tr>
     );
   };
+
 
   // 1v1: separate sections per matchup
   if (has1v1) {
