@@ -332,6 +332,7 @@ export type Database = {
           sixes_config: Json | null
           sixes_format: string | null
           sixes_segment_points: Json | null
+          stableford_points: Json | null
           tournament_round_id: string
           use_handicaps: boolean | null
         }
@@ -348,6 +349,7 @@ export type Database = {
           sixes_config?: Json | null
           sixes_format?: string | null
           sixes_segment_points?: Json | null
+          stableford_points?: Json | null
           tournament_round_id: string
           use_handicaps?: boolean | null
         }
@@ -364,6 +366,7 @@ export type Database = {
           sixes_config?: Json | null
           sixes_format?: string | null
           sixes_segment_points?: Json | null
+          stableford_points?: Json | null
           tournament_round_id?: string
           use_handicaps?: boolean | null
         }
