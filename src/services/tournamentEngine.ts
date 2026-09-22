@@ -11,6 +11,7 @@ import type {
   TournamentHolePoints,
   HalvedHoleRule,
   MatchState,
+  SubMatchup,
 } from '@/types/tournament';
 
 // ── OUTPUT TYPES ─────────────────────────────────────────────
