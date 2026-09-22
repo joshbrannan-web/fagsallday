@@ -295,8 +295,8 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                   // 1v1: render each sub-matchup as separate row
                   if (subMatchups && subMatchups.length > 0) {
                     const teamAId = tm?.teamAId;
-                    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
-                      teamAId && gpTeamMap[sm.playerA] === teamAId ? sm : teamAId && gpTeamMap[sm.playerB] === teamAId ? { playerA: sm.playerB, playerB: sm.playerA } : sm;
+                    const normalizeMatchup = (sm: SubMatchup) =>
+                      teamAId && gpTeamMap[sm.playerA] === teamAId ? sm : teamAId && gpTeamMap[sm.playerB] === teamAId ? { ...sm, playerA: sm.playerB, playerB: sm.playerA } : sm;
 
                     return subMatchups.map((rawSm, smIdx) => {
                       const sm = normalizeMatchup(rawSm);

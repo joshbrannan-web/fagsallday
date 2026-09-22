@@ -216,8 +216,8 @@ const TournamentScorecardTable: FC<Props> = ({
   // 1v1: render separate tables per matchup
   if (has1v1) {
     const playerMap = Object.fromEntries(tournamentPlayers.map(p => [p.id, p]));
-    const normalizeMatchup = (sm: { playerA: string; playerB: string }) =>
-      teamAssignments[sm.playerA] === teamMatchup.teamAId ? sm : { playerA: sm.playerB, playerB: sm.playerA };
+    const normalizeMatchup = (sm: SubMatchup) =>
+      teamAssignments[sm.playerA] === teamMatchup.teamAId ? sm : { ...sm, playerA: sm.playerB, playerB: sm.playerA };
 
     return (
       <div className="space-y-6">
