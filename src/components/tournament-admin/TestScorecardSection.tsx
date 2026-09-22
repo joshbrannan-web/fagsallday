@@ -354,6 +354,55 @@ const TestScorecardSection: React.FC<Props> = ({
               );
             })}
 
+            {hasMatch && teamIds.map(tid => {
+              const ptsFor = (hole: number): number | undefined => {
+                const res = resultByHole.get(hole);
+                if (!res) return undefined;
+                return Number(res.team_points?.[tid] ?? 0);
+              };
+              const sumPts = (holes: { number: number }[]) =>
+                holes.reduce((s, h) => s + (ptsFor(h.number) ?? 0), 0);
+              const cell = (h: { number: number }) => {
+                const v = ptsFor(h.number);
+                const won = (v ?? 0) > 0;
+                return (
+                  <td
+                    key={h.number}
+                    className={`p-1.5 text-center font-mono ${won ? 'font-bold' : 'text-muted-foreground'}`}
+                    style={won ? { color: teams[tid]?.color } : undefined}
+                    title={`${teams[tid]?.name || 'Team'} earned ${v ?? 0} point${v === 1 ? '' : 's'} on hole ${h.number}`}
+                  >
+                    {v == null ? '—' : Number(v.toFixed(2))}
+                  </td>
+                );
+              };
+              return (
+                <tr key={`pts-${tid}`} className="border-t bg-muted/5">
+                  <td className="p-1.5 whitespace-nowrap text-[11px] font-medium flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: teams[tid]?.color }} />
+                    <span className="truncate max-w-[110px]">{teams[tid]?.name || 'Team'}</span>
+                    <span className="text-[hsl(var(--brand-gold))] font-semibold">pts</span>
+                  </td>
+                  {frontNine.map(cell)}
+                  {frontNine.length > 0 && (
+                    <td className="p-1.5 text-center font-mono font-bold bg-muted/50">
+                      {Number(sumPts(frontNine).toFixed(2))}
+                    </td>
+                  )}
+                  {backNine.map(cell)}
+                  {backNine.length > 0 && (
+                    <td className="p-1.5 text-center font-mono font-bold bg-muted/50">
+                      {Number(sumPts(backNine).toFixed(2))}
+                    </td>
+                  )}
+                  <td className="p-1.5 text-center font-mono font-bold bg-muted/50" style={{ color: teams[tid]?.color }}>
+                    {Number((totals[tid] || 0).toFixed(2))}
+                  </td>
+                </tr>
+              );
+            })}
+
+
             {hasMatch && (
 
               <tr className="border-t-2 bg-muted/20">
