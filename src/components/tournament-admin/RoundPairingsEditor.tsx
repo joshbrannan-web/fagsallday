@@ -232,6 +232,8 @@ const RoundPairingsEditor: React.FC<RoundPairingsEditorProps> = ({
     setMatchupStep(false);
     setMatch1A('');
     setMatch1B('');
+    setMatchupMode('full_18');
+    setBackOpponentForA('');
     setLeaderId('');
   };
 
