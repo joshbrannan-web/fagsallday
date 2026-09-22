@@ -81,6 +81,7 @@ export const DEFAULT_STABLEFORD_POINTS: StablefordPoints = {
   bogey: -1,
   doubleBogey: -3,
   triplePlus: -3,
+  ballsCounted: 'all',
 };
 
 export const STABLEFORD_PRESETS: Record<string, StablefordPoints> = {
