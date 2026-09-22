@@ -226,11 +226,13 @@ const TournamentScorecardTable: FC<Props> = ({
           const pA = playerMap[sm.playerA];
           const pB = playerMap[sm.playerB];
           if (!pA || !pB) return null;
+          // Matchups limited to a stretch of holes only show on the matching nine
+          if (activeHoles.length > 0 && !activeHoles.some(h => matchupCoversHole(sm, h.number))) return null;
 
           return (
             <MatchupTable
               key={idx}
-              matchLabel={`Match ${idx + 1}`}
+              matchLabel={`Match ${idx + 1}${sm.label ? ` · ${sm.label}` : ''}`}
               playerA={pA}
               playerB={pB}
               teamAssignments={teamAssignments}
