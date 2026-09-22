@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { calcTeamTotals } from '@/services/scoreboardCalculations';
 import { useNavigate } from 'react-router-dom';
 import { resolveSubMatchups } from '@/lib/subMatchups';
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   teams: any[];

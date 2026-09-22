@@ -114,7 +114,7 @@ const TournamentHoleTracker: React.FC<Props> = ({
               {/* Match label */}
               <div className="px-3 py-1 bg-muted/30 border-b border-border/50">
                 <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">
-                  Match {matchIdx + 1}
+                  Match {matchIdx + 1}{sm.label ? ` · ${sm.label}` : ''}
                 </span>
               </div>
 

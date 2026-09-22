@@ -55,7 +55,7 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
             <div key={idx} className="rounded-xl border border-border overflow-hidden bg-card">
               {/* Match header */}
               <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border/50">
-                <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">Match {idx + 1}</span>
+                <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">Match {idx + 1}{sm.label ? ` · ${sm.label}` : ''}</span>
                 <span className="text-[10px] text-muted-foreground/50">
                   {dA.ptsTotal > dB.ptsTotal
                     ? `${dA.player.displayName.split(' ')[0]} ${dA.ptsTotal - dB.ptsTotal} UP`

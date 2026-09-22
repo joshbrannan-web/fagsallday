@@ -119,7 +119,7 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
           return (
             <div key={idx} className="bg-card border border-border rounded-xl p-4 space-y-2">
               <div className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider text-center">
-                Match {idx + 1}
+                Match {idx + 1}{sm.label ? ` · ${sm.label}` : ''}
               </div>
 
               <div className="flex items-center justify-center gap-4">

@@ -182,7 +182,7 @@ const TournamentFullScorecard: React.FC<Props> = ({
               return (
                 <div key={idx}>
                   <div className="flex items-center justify-between mb-2 px-1">
-                    <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">Match {idx + 1}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">Match {idx + 1}{sm.label ? ` · ${sm.label}` : ''}</span>
                     <span className="text-xs font-semibold text-muted-foreground">{matchStatus}</span>
                   </div>
                   <table className="text-xs border-collapse">
