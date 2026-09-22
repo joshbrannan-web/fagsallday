@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Trophy } from 'lucide-react';
-import type { MatchState, TournamentPlayer } from '@/types/tournament';
+import type { MatchState, TournamentPlayer, TournamentGame } from '@/types/tournament';
 import type { SubMatchup } from '@/types/tournament';
+import { matchupStrokeInfo, strokeSummaryLabel } from '@/lib/matchStrokes';
 
 interface Props {
   tournamentName: string;
@@ -16,7 +17,24 @@ interface Props {
   tournamentPlayers?: TournamentPlayer[];
   holeResults?: Record<number, { teamPoints: Record<string, number>; playerPoints?: Record<string, number> }>;
   teamAssignments?: Record<string, string>;
+  tournamentGame?: TournamentGame | null;
 }
+
+const StrokeBadge: React.FC<{ label: string }> = ({ label }) => (
+  <div className="flex justify-center">
+    <span
+      className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+      style={{
+        color: 'hsl(var(--brand-gold))',
+        backgroundColor: 'hsl(45 93% 47% / 0.12)',
+        border: '1px solid hsl(45 93% 47% / 0.3)',
+      }}
+    >
+      <span style={{ fontSize: 12, lineHeight: 1 }}>•</span> {label}
+    </span>
+  </div>
+);
+
 
 const AnimatedPoints: React.FC<{ value: number }> = ({ value }) => {
   const [displayed, setDisplayed] = useState(value);
