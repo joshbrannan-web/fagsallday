@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Trophy } from 'lucide-react';
 import type { MatchState, TournamentPlayer } from '@/types/tournament';
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   tournamentName: string;
@@ -11,7 +12,7 @@ interface Props {
   holesPlayed: number;
   matchState?: MatchState;
   totalPointsAvailable: number;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
   tournamentPlayers?: TournamentPlayer[];
   holeResults?: Record<number, { teamPoints: Record<string, number>; playerPoints?: Record<string, number> }>;
   teamAssignments?: Record<string, string>;

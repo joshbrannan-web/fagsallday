@@ -1,5 +1,6 @@
 import React from "react";
 import type { TournamentPlayer } from "@/types/tournament";
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   players: TournamentPlayer[];
@@ -8,7 +9,7 @@ interface Props {
   allHoleScores: Record<string, Record<number, number>>;
   holeResults: Record<number, { netScores?: Record<string, number>; playerPoints?: Record<string, number> }>;
   holesPlayed: number;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
   teamAId?: string;
 }
 

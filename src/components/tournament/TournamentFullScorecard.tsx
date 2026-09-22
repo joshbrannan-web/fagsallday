@@ -2,6 +2,7 @@ import React from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import type { TournamentPlayer, TournamentGame, MatchState } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   isOpen: boolean;
@@ -18,7 +19,7 @@ interface Props {
   matchState?: MatchState;
   tournamentName?: string;
   roundName?: string;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
 }
 
 const TournamentFullScorecard: React.FC<Props> = ({

@@ -2,6 +2,7 @@ import type { FC } from 'react';
 import type { TournamentPlayer } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
 import type { MatchState } from '@/types/tournament';
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   tournamentPlayers: TournamentPlayer[];
@@ -13,7 +14,7 @@ interface Props {
   teamTotals: Record<string, number>;
   viewMode: 'FRONT' | 'BACK';
   matchState?: MatchState;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
 }
 
 /* ── Score cell styling helper ── */

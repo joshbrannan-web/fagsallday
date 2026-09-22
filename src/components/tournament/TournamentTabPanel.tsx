@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { SegmentTotal, NewHoleEvent } from "@/hooks/useTournamentOverlay";
 import type { TournamentPlayer, TournamentGame, MatchState } from "@/types/tournament";
 import type { CourseHole } from "@/services/tournamentEngine";
+import type { SubMatchup } from '@/types/tournament';
 
 interface Props {
   tournamentName: string;
@@ -32,7 +33,7 @@ interface Props {
   segmentTotals: SegmentTotal[] | null;
   newlyCompletedHole: NewHoleEvent | null;
   tournamentId?: string;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
 }
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (

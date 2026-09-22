@@ -6,6 +6,7 @@ import { isRoundLevelGameType, recalcRoundLevelResults, fetchRoundMatches, recal
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints } from '@/types/tournament';
 import { resolveSubMatchups } from '@/lib/subMatchups';
+import type { SubMatchup } from '@/types/tournament';
 
 export const useTournamentScorecard = (groupId: string | undefined) => {
   const [scores, setScores] = useState<any[]>([]);
@@ -19,7 +20,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
   const [teamAssignments, setTeamAssignments] = useState<Record<string, string>>({});
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [courseHoles, setCourseHoles] = useState<CourseHole[]>([]);
-  const [subMatchups, setSubMatchups] = useState<{ playerA: string; playerB: string }[] | undefined>(undefined);
+  const [subMatchups, setSubMatchups] = useState<SubMatchup[] | undefined>(undefined);
   const [isTestGroup, setIsTestGroup] = useState(false);
 
   const fetchData = useCallback(async () => {

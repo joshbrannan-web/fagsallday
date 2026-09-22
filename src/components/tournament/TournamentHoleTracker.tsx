@@ -1,5 +1,6 @@
 import React from "react";
 import type { MatchState, TournamentPlayer } from "@/types/tournament";
+import type { SubMatchup } from '@/types/tournament';
 
 interface HoleResultData {
   teamPoints: Record<string, number>;
@@ -18,7 +19,7 @@ interface Props {
   gameType?: string;
   teamAssignments?: Record<string, string>;
   matchState?: MatchState;
-  subMatchups?: { playerA: string; playerB: string }[];
+  subMatchups?: SubMatchup[];
   tournamentPlayers?: TournamentPlayer[];
 }
 
