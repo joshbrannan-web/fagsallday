@@ -1,9 +1,10 @@
 import type { FC } from 'react';
-import type { TournamentPlayer } from '@/types/tournament';
+import type { TournamentPlayer, TournamentGame } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
 import type { MatchState } from '@/types/tournament';
 import type { SubMatchup } from '@/types/tournament';
 import { matchupCoversHole } from '@/lib/subMatchups';
+import { matchupStrokeInfo, strokesOnHole, strokeSummaryLabel } from '@/lib/matchStrokes';
 
 interface Props {
   tournamentPlayers: TournamentPlayer[];
@@ -16,7 +17,22 @@ interface Props {
   viewMode: 'FRONT' | 'BACK';
   matchState?: MatchState;
   subMatchups?: SubMatchup[];
+  game?: TournamentGame | null;
 }
+
+/* ── Gold stroke badge ── */
+const StrokesChip: FC<{ n: number }> = ({ n }) => (
+  <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-brand-gold/20 text-brand-gold whitespace-nowrap">
+    +{n}
+  </span>
+);
+
+/* ── Gold dots marking a stroke hole ── */
+const StrokeDots: FC<{ n: number }> = ({ n }) => (
+  <span className="block text-[8px] leading-none text-brand-gold -mt-0.5">
+    {n >= 2 ? '••' : '•'}
+  </span>
+);
 
 /* ── Score cell styling helper ── */
 const scoreCell = (score: number, par: number) => {
