@@ -7,7 +7,8 @@ import { Slider } from '@/components/ui/slider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { ChevronDown, Info } from 'lucide-react';
-import type { TournamentGameType } from '@/types/tournament';
+import type { TournamentGameType, StablefordPoints } from '@/types/tournament';
+import { DEFAULT_STABLEFORD_POINTS, STABLEFORD_PRESETS } from '@/types/tournament';
 
 const TOURNAMENT_GAME_DETAILS: Record<TournamentGameType, { name: string; description: string }> = {
   match_play_individual: {
@@ -50,6 +51,10 @@ const TOURNAMENT_GAME_DETAILS: Record<TournamentGameType, { name: string; descri
     name: '2 Man Score (2v2)',
     description: 'Two teams of 2 players. On each hole, both players\' scores are summed — the team with the lower combined score wins the hole. Supports gross or net scoring. If totals are tied, the halved-hole rule applies. A classic team match play format.',
   },
+  stableford: {
+    name: 'Stableford (Points by Score)',
+    description: 'Every player earns points on each hole based on their score against par — eagle, birdie, par, bogey and worse are each worth a set number of points you choose. Net scoring uses handicap strokes. Player points also add up for their team.',
+  },
 };
 import CoursePicker from '@/components/CoursePicker';
 import type { Course } from '@/types';
@@ -65,6 +70,7 @@ const GAME_TYPES: { value: TournamentGameType; label: string }[] = [
   { value: 'tournament_sixes', label: 'Tournament Sixes' },
   { value: 'blind_gross_best_ball', label: 'Blind Gross Best Ball' },
   { value: 'two_man_score', label: '2 Man Score (2v2)' },
+  { value: 'stableford', label: 'Stableford (Points by Score)' },
 ];
 
 export interface RoundConfigData {
