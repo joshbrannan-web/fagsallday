@@ -85,6 +85,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
           rulesText: g.rules_text ?? undefined,
           sixesFormat: (g as any).sixes_format ?? 'match_play',
           sixesSegmentPoints: (g as any).sixes_segment_points ?? [1, 1, 1],
+          stablefordPoints: ((g as any).stableford_points as any) ?? undefined,
         });
 
         const { data: hpData } = await supabase

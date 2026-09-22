@@ -7,7 +7,8 @@ import { Slider } from '@/components/ui/slider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { ChevronDown, Info } from 'lucide-react';
-import type { TournamentGameType } from '@/types/tournament';
+import type { TournamentGameType, StablefordPoints } from '@/types/tournament';
+import { DEFAULT_STABLEFORD_POINTS, STABLEFORD_PRESETS } from '@/types/tournament';
 
 const TOURNAMENT_GAME_DETAILS: Record<TournamentGameType, { name: string; description: string }> = {
   match_play_individual: {
@@ -50,6 +51,10 @@ const TOURNAMENT_GAME_DETAILS: Record<TournamentGameType, { name: string; descri
     name: '2 Man Score (2v2)',
     description: 'Two teams of 2 players. On each hole, both players\' scores are summed — the team with the lower combined score wins the hole. Supports gross or net scoring. If totals are tied, the halved-hole rule applies. A classic team match play format.',
   },
+  stableford: {
+    name: 'Stableford (Points by Score)',
+    description: 'Every player earns points on each hole based on their score against par — eagle, birdie, par, bogey and worse are each worth a set number of points you choose. Net scoring uses handicap strokes. Player points also add up for their team.',
+  },
 };
 import CoursePicker from '@/components/CoursePicker';
 import type { Course } from '@/types';
@@ -65,6 +70,7 @@ const GAME_TYPES: { value: TournamentGameType; label: string }[] = [
   { value: 'tournament_sixes', label: 'Tournament Sixes' },
   { value: 'blind_gross_best_ball', label: 'Blind Gross Best Ball' },
   { value: 'two_man_score', label: '2 Man Score (2v2)' },
+  { value: 'stableford', label: 'Stableford (Points by Score)' },
 ];
 
 export interface RoundConfigData {
@@ -85,6 +91,7 @@ export interface RoundConfigData {
   holePointsCustomized: boolean;
   sixesFormat: 'match_play' | 'sum_of_strokes';
   sixesSegmentPoints: [number, number, number];
+  stablefordPoints: StablefordPoints;
   teamScoringMode: 'per_hole' | 'per_round' | 'per_hole_and_round' | 'fbo' | 'per_match';
   teamScoringPoints: { round: number; front: number; back: number; overall: number; match: number };
 
@@ -112,6 +119,7 @@ export const defaultRoundConfig = (num: number): RoundConfigData => ({
   holePointsCustomized: false,
   sixesFormat: 'match_play',
   sixesSegmentPoints: [1, 1, 1],
+  stablefordPoints: { ...DEFAULT_STABLEFORD_POINTS },
   teamScoringMode: 'per_round',
   teamScoringPoints: { round: 3, front: 1, back: 1, overall: 2, match: 0 },
 
@@ -206,7 +214,7 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
 
       {data.gameType && (
         <div className="space-y-4 bg-muted/50 rounded-lg p-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid grid-cols-2 gap-3 ${data.gameType === 'stableford' ? 'hidden' : ''}`}>
             <div>
               <Label>{holePointsCount ? 'Points Per Hole' : 'Points Per Hole (tiebreak only)'}</Label>
               <Input type="number" value={data.defaultPointsPerHole} onChange={e => updateDefaultPointsPerHole(parseFloat(e.target.value) || 1)} min={0.5} step={0.5} />
@@ -327,6 +335,60 @@ const RoundConfigCard: React.FC<Props> = ({ data, onChange, roundNumber, showTea
               ))}
             </div>
           )}
+
+          {data.gameType === 'stableford' && (
+            <div className="space-y-3">
+              <div>
+                <Label>Points Preset</Label>
+                <Select
+                  value="custom"
+                  onValueChange={v => {
+                    if (v === 'custom') return;
+                    update('stablefordPoints', { ...STABLEFORD_PRESETS[v] });
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Choose a preset..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="custom">Custom (set below)</SelectItem>
+                    <SelectItem value="modified">Modified (Eagle 5 / Birdie 2 / Par 0 / Bogey -1)</SelectItem>
+                    <SelectItem value="traditional">Traditional (Eagle 4 / Birdie 3 / Par 2 / Bogey 1)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['albatross', 'Albatross (-3)'],
+                  ['eagle', 'Eagle (-2)'],
+                  ['birdie', 'Birdie (-1)'],
+                  ['par', 'Par'],
+                  ['bogey', 'Bogey (+1)'],
+                  ['doubleBogey', 'Double (+2)'],
+                  ['triplePlus', 'Triple or worse'],
+                ] as [keyof StablefordPoints, string][]).map(([key, label]) => (
+                  <div key={key}>
+                    <Label className="text-xs">{label}</Label>
+                    <Input
+                      type="number"
+                      value={data.stablefordPoints[key]}
+                      onChange={e =>
+                        update('stablefordPoints', {
+                          ...data.stablefordPoints,
+                          [key]: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      step={0.5}
+                      className="h-8 text-center"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Points are awarded on every hole by score against par. Turn handicaps on for net Stableford.
+              </p>
+            </div>
+          )}
+
 
           <Collapsible open={showHolePoints} onOpenChange={setShowHolePoints}>
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary">

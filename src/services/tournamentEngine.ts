@@ -13,6 +13,7 @@ import type {
   MatchState,
   SubMatchup,
 } from '@/types/tournament';
+import { DEFAULT_STABLEFORD_POINTS } from '@/types/tournament';
 
 // ── OUTPUT TYPES ─────────────────────────────────────────────
 
@@ -909,6 +910,89 @@ export function calcTwoManScore(input: EngineInput): RoundResult {
   };
 }
 
+// ── 9. STABLEFORD (points per hole by score vs par) ─────────
+
+export function calcStableford(input: EngineInput): RoundResult {
+  const { game, players, teamAssignments, scores, courseHoles } = input;
+  const pts = game.stablefordPoints ?? DEFAULT_STABLEFORD_POINTS;
+  const [teamAId, teamBId] = getTeamIds(teamAssignments);
+
+  const teamTotals: Record<string, number> = {};
+  Object.values(teamAssignments).forEach(tid => { teamTotals[tid] = 0; });
+  const playerTotals: Record<string, number> = {};
+  players.forEach(p => { playerTotals[p.id] = 0; });
+  const holeResults: HoleResult[] = [];
+
+  const pointsForDiff = (diff: number): number => {
+    if (diff <= -3) return pts.albatross;
+    if (diff === -2) return pts.eagle;
+    if (diff === -1) return pts.birdie;
+    if (diff === 0) return pts.par;
+    if (diff === 1) return pts.bogey;
+    if (diff === 2) return pts.doubleBogey;
+    return pts.triplePlus;
+  };
+
+  for (const hole of courseHoles) {
+    const max = maxScoreForHole(game, hole.par);
+    const grossScores: Record<string, number> = {};
+    const netScoresMap: Record<string, number> = {};
+    const holePlayerPoints: Record<string, number> = {};
+    const holeTeamPoints: Record<string, number> = {};
+    Object.keys(teamTotals).forEach(tid => { holeTeamPoints[tid] = 0; });
+
+    let anyScore = false;
+
+    players.forEach(p => {
+      const raw = scores[p.id]?.[hole.number];
+      if (raw === undefined) return;
+      anyScore = true;
+      const gross = Math.min(raw, max);
+      const strokes = game.useHandicaps
+        ? strokesReceived(
+            calcCourseHandicap(getEffectiveHandicap(p) * ((game.handicapAllowancePercent ?? 100) / 100)),
+            hole.handicapIndex,
+          )
+        : 0;
+      const net = netScore(gross, strokes);
+      grossScores[p.id] = gross;
+      netScoresMap[p.id] = net;
+
+      const earned = pointsForDiff(net - hole.par);
+      holePlayerPoints[p.id] = earned;
+      playerTotals[p.id] += earned;
+      const tid = teamAssignments[p.id];
+      if (tid) {
+        holeTeamPoints[tid] = (holeTeamPoints[tid] || 0) + earned;
+        teamTotals[tid] = (teamTotals[tid] || 0) + earned;
+      }
+    });
+
+    if (!anyScore) continue;
+
+    const best = Object.entries(holePlayerPoints).sort((a, b) => b[1] - a[1])[0];
+    const bestPlayer = best ? players.find(p => p.id === best[0]) : undefined;
+
+    holeResults.push({
+      holeNumber: hole.number,
+      teamPoints: holeTeamPoints,
+      playerPoints: holePlayerPoints,
+      pointsValue: best ? best[1] : 0,
+      resultLabel: bestPlayer ? `${bestPlayer.displayName} ${best![1] > 0 ? '+' : ''}${best![1]} pts` : '',
+      grossScores,
+      netScores: netScoresMap,
+    });
+  }
+
+  return {
+    groupId: '',
+    holeResults,
+    teamTotals,
+    playerTotals,
+    matchState: calcMatchState(holeResults, teamAId, teamBId, courseHoles.length),
+  };
+}
+
 // ── MAIN DISPATCH ────────────────────────────────────────────
 
 export function calcTournamentHoleResults(input: EngineInput): RoundResult {
@@ -930,6 +1014,8 @@ export function calcTournamentHoleResults(input: EngineInput): RoundResult {
       return calcTournamentSixes(input);
     case 'two_man_score':
       return calcTwoManScore(input);
+    case 'stableford':
+      return calcStableford(input);
     default:
       throw new Error(`Unknown tournament game type: ${input.game.gameType}`);
   }

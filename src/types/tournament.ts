@@ -17,7 +17,8 @@ export type TournamentGameType =
   | 'alternate_shot_foursomes'
   | 'tournament_sixes'
   | 'blind_gross_best_ball'
-  | 'two_man_score';
+  | 'two_man_score'
+  | 'stableford';
 
 export type ScoreboardType =
   | 'team_points'
@@ -34,6 +35,40 @@ export interface SixesSegmentConfig {
   rules: string;                       // free text rules for this segment
   formatNotes: string;                 // e.g. "Match Play, 1pt per hole, no handicaps"
 }
+
+/** Points awarded per hole in Stableford, keyed by score relative to par. */
+export interface StablefordPoints {
+  albatross: number;   // 3 under par or better
+  eagle: number;       // 2 under par
+  birdie: number;      // 1 under par
+  par: number;
+  bogey: number;       // 1 over par
+  doubleBogey: number; // 2 over par
+  triplePlus: number;  // 3 over par or worse
+}
+
+export const DEFAULT_STABLEFORD_POINTS: StablefordPoints = {
+  albatross: 8,
+  eagle: 5,
+  birdie: 2,
+  par: 0,
+  bogey: -1,
+  doubleBogey: -3,
+  triplePlus: -3,
+};
+
+export const STABLEFORD_PRESETS: Record<string, StablefordPoints> = {
+  modified: DEFAULT_STABLEFORD_POINTS,
+  traditional: {
+    albatross: 5,
+    eagle: 4,
+    birdie: 3,
+    par: 2,
+    bogey: 1,
+    doubleBogey: 0,
+    triplePlus: 0,
+  },
+};
 
 // ── TABLE TYPES ──────────────────────────────────────────────
 
@@ -106,6 +141,7 @@ export interface TournamentGame {
   rulesText?: string;
   sixesFormat?: 'match_play' | 'sum_of_strokes';
   sixesSegmentPoints?: [number, number, number];
+  stablefordPoints?: StablefordPoints;
 }
 
 export interface TournamentHolePoints {

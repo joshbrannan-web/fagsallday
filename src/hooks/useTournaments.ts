@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
-import type { Tournament } from '@/types/tournament';
+import type { Tournament, StablefordPoints } from '@/types/tournament';
 
 interface TournamentRow {
   id: string;
@@ -61,6 +61,7 @@ export interface CreateTournamentData {
       sixesConfig?: any;
       sixesFormat?: 'match_play' | 'sum_of_strokes';
       sixesSegmentPoints?: [number, number, number];
+      stablefordPoints?: StablefordPoints;
       rulesText?: string;
     };
     holePointOverrides?: { holeNumber: number; points: number }[];
@@ -199,6 +200,7 @@ export const useTournaments = () => {
             sixes_config: round.game.sixesConfig || null,
             sixes_format: round.game.sixesFormat ?? 'match_play',
             sixes_segment_points: round.game.sixesSegmentPoints ?? [1, 1, 1],
+            stableford_points: (round.game.stablefordPoints ?? null) as any,
             rules_text: round.game.rulesText || null,
           })
           .select()

@@ -48,6 +48,7 @@ function mapGame(g: any): TournamentGame {
     rulesText: g.rules_text ?? undefined,
     sixesFormat: g.sixes_format ?? 'match_play',
     sixesSegmentPoints: g.sixes_segment_points ?? [1, 1, 1],
+    stablefordPoints: g.stableford_points ?? undefined,
   } as TournamentGame;
 }
 
