@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
-import type { Tournament } from '@/types/tournament';
+import type { Tournament, StablefordPoints } from '@/types/tournament';
 
 interface TournamentRow {
   id: string;
