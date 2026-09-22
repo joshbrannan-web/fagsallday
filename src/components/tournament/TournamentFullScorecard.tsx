@@ -3,6 +3,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import type { TournamentPlayer, TournamentGame, MatchState } from '@/types/tournament';
 import type { CourseHole } from '@/services/tournamentEngine';
 import type { SubMatchup } from '@/types/tournament';
+import { matchupStrokeInfo, strokesOnHole } from '@/lib/matchStrokes';
+
 
 interface Props {
   isOpen: boolean;
@@ -48,7 +50,10 @@ const TournamentFullScorecard: React.FC<Props> = ({
 
   const has1v1 = subMatchups && subMatchups.length > 0;
 
-  const renderHoleCell = (playerId: string, hole: CourseHole) => {
+  // Handicap strokes, relative to the low handicap of whichever players are compared.
+  const groupStrokes = matchupStrokeInfo(players, game).strokesGiven;
+
+  const renderHoleCell = (playerId: string, hole: CourseHole, strokesGiven?: Record<string, number>) => {
     const gross = getPlayerGross(playerId, hole.number);
     const net = game.useHandicaps ? getPlayerNet(playerId, hole.number) : undefined;
     if (gross === undefined) return <td key={hole.number} className="min-w-[44px] text-center text-muted-foreground text-xs py-1">—</td>;
@@ -61,10 +66,23 @@ const TournamentFullScorecard: React.FC<Props> = ({
       if (best !== undefined && gross > best) isMuted = true;
     }
 
+    const allowance = strokesGiven ?? groupStrokes;
+    const strokes = game.useHandicaps
+      ? strokesOnHole(allowance[playerId] || 0, hole.handicapIndex)
+      : 0;
+
     return (
       <td key={hole.number} className="min-w-[44px] text-center py-1">
         <div className={`font-mono text-sm ${isMuted ? 'text-muted-foreground/50' : isGrossBestBall && !isMuted ? 'font-bold' : ''}`}>
           {gross}
+          {strokes > 0 && (
+            <span
+              title={`${strokes} handicap stroke${strokes > 1 ? 's' : ''} on this hole`}
+              style={{ color: 'hsl(var(--brand-gold))', fontWeight: 700 }}
+            >
+              {strokes > 1 ? '••' : '•'}
+            </span>
+          )}
           {isTeamFormat && <sup className="text-[8px] text-muted-foreground ml-0.5">T</sup>}
         </div>
         {net !== undefined && net !== gross && (
@@ -73,6 +91,7 @@ const TournamentFullScorecard: React.FC<Props> = ({
       </td>
     );
   };
+
 
   // Shared table header
   const renderTableHeader = () => (
@@ -106,26 +125,35 @@ const TournamentFullScorecard: React.FC<Props> = ({
     </thead>
   );
 
-  const renderPlayerRow = (p: TournamentPlayer) => {
+  const renderPlayerRow = (p: TournamentPlayer, strokesGiven?: Record<string, number>) => {
     const teamId = teamAssignments[p.id];
     const team = teams[teamId];
     const outGross = sumGross(p.id, frontNine);
     const inGross = sumGross(p.id, backNine);
+    const totalStrokes = (strokesGiven ?? groupStrokes)[p.id] || 0;
 
     return (
       <tr key={p.id} className="border-b border-border">
-        <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium truncate max-w-[100px]">{p.displayName}</td>
+        <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium truncate max-w-[100px]">
+          {p.displayName}
+          {game.useHandicaps && totalStrokes > 0 && (
+            <span className="ml-1 text-[10px] font-bold" style={{ color: 'hsl(var(--brand-gold))' }}>
+              +{totalStrokes}
+            </span>
+          )}
+        </td>
         <td className="sticky left-[100px] z-10 bg-card px-1 py-1.5 text-center">
           <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: team?.color }} />
         </td>
-        {frontNine.map(h => renderHoleCell(p.id, h))}
+        {frontNine.map(h => renderHoleCell(p.id, h, strokesGiven))}
         <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{outGross || '—'}</td>
-        {backNine.map(h => renderHoleCell(p.id, h))}
+        {backNine.map(h => renderHoleCell(p.id, h, strokesGiven))}
         <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{inGross || '—'}</td>
         <td className="min-w-[44px] text-center py-1.5 font-bold font-mono">{(outGross + inGross) || '—'}</td>
       </tr>
     );
   };
+
 
   // 1v1: separate sections per matchup
   if (has1v1) {
@@ -148,6 +176,10 @@ const TournamentFullScorecard: React.FC<Props> = ({
               const pA = playerMap[sm.playerA];
               const pB = playerMap[sm.playerB];
               if (!pA || !pB) return null;
+
+              const matchStrokes = matchupStrokeInfo([pA, pB], game).strokesGiven;
+
+
 
               // Per-match points
               let aPts = 0, bPts = 0;
@@ -188,8 +220,9 @@ const TournamentFullScorecard: React.FC<Props> = ({
                   <table className="text-xs border-collapse">
                     {renderTableHeader()}
                     <tbody>
-                      {renderPlayerRow(pA)}
-                      {renderPlayerRow(pB)}
+                      {renderPlayerRow(pA, matchStrokes)}
+                      {renderPlayerRow(pB, matchStrokes)}
+
                       <tr className="border-t-2 border-border bg-muted/20">
                         <td className="sticky left-0 z-10 bg-muted/20 px-2 py-1.5 font-bold text-xs">Result</td>
                         <td className="sticky left-[100px] z-10 bg-muted/20" />

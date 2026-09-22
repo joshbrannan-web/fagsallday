@@ -5,7 +5,9 @@ import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { calcTeamTotals } from '@/services/scoreboardCalculations';
 import { useNavigate } from 'react-router-dom';
 import { resolveSubMatchups } from '@/lib/subMatchups';
-import type { SubMatchup } from '@/types/tournament';
+import { matchupStrokeInfo, strokesOnHole } from '@/lib/matchStrokes';
+import type { SubMatchup, TournamentPlayer, TournamentGame } from '@/types/tournament';
+
 
 interface Props {
   teams: any[];
@@ -30,7 +32,24 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
   const playerMap = Object.fromEntries(players.map(p => [p.id, p]));
 
+  /** Normalize a raw player row into the shape stroke maths expects. */
+  const asTournamentPlayer = (id: string): TournamentPlayer | undefined => {
+    const p = playerMap[id];
+    if (!p) return undefined;
+    return {
+      id: p.id,
+      tournamentId: p.tournament_id ?? p.tournamentId ?? '',
+      displayName: p.display_name ?? p.displayName ?? '',
+      handicapIndex: p.handicap_index ?? p.handicapIndex ?? 0,
+      handicapOverride: p.handicap_override ?? p.handicapOverride ?? undefined,
+      teamId: p.team_id ?? p.teamId ?? undefined,
+    } as TournamentPlayer;
+  };
+
+  const firstName = (id: string) => (playerMap[id]?.display_name || playerMap[id]?.displayName || '').split(' ')[0];
+
   const sortedRounds = [...rounds].sort((a, b) => a.round_number - b.round_number);
+
 
   return (
     <div className="space-y-4">
@@ -40,13 +59,22 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
         const isActive = round.status === 'active';
 
         const courseData = round.course_data;
-        const courseHoles: { number: number; par: number }[] = courseData?.holes
-          ? courseData.holes.map((h: any) => ({ number: h.number, par: h.par }))
+        const courseHoles: { number: number; par: number; handicapIndex: number }[] = courseData?.holes
+          ? courseData.holes.map((h: any, i: number) => ({
+              number: h.number ?? i + 1,
+              par: h.par,
+              handicapIndex: h.handicapIndex ?? i + 1,
+            }))
           : [];
         const totalCourseHoles = courseHoles.length;
 
         const game = games[round.id];
         const defaultPointsPerHole = game?.default_points_per_hole || 1;
+        const strokeGame = {
+          useHandicaps: game?.use_handicaps ?? game?.useHandicaps ?? false,
+          handicapAllowancePercent: game?.handicap_allowance_percent ?? game?.handicapAllowancePercent ?? 100,
+        } as TournamentGame;
+
 
         // Cross-group matches own the scoring for the round: their hole results
         // are stored against the match, not any single group.
@@ -109,8 +137,24 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                     statusText = `${leader} leads · Thru ${holesPlayed} · ${remaining} pts left`;
                   }
 
+                  // Handicap strokes for everyone in this match, relative to the low handicap.
+                  const matchPlayerIds: string[] = [...m.sideA, ...m.sideB];
+                  const strokeInfo = matchupStrokeInfo(
+                    matchPlayerIds.map(asTournamentPlayer),
+                    strokeGame,
+                  );
+                  const strokeReceivers = matchPlayerIds.filter(id => (strokeInfo.strokesGiven[id] || 0) > 0);
+                  const strokeHeaderLabel = strokeInfo.enabled
+                    ? (strokeReceivers.length > 0
+                        ? `Strokes: ${strokeReceivers.map(id => `${firstName(id)} +${strokeInfo.strokesGiven[id]}`).join(' · ')}`
+                        : 'No strokes — even handicaps')
+                    : null;
+                  const sideStrokesOnHole = (ids: string[], holeIdx: number) =>
+                    ids.reduce((max, id) => Math.max(max, strokesOnHole(strokeInfo.strokesGiven[id] || 0, holeIdx)), 0);
+
                   const holeResultsMap: Record<number, any> = {};
                   matchResults.forEach((r: any) => { holeResultsMap[r.hole_number] = r; });
+
 
                   const bestScore = (holeNum: number, ids: string[]): number | undefined => {
                     const vals = roundScores
@@ -167,7 +211,13 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                         <p className={`text-[10px] text-center ${allSubmitted ? 'text-[hsl(var(--brand-gold))] font-semibold' : 'text-muted-foreground'}`}>
                           {statusText}
                         </p>
+                        {strokeHeaderLabel && (
+                          <p className="text-[10px] text-center font-semibold" style={{ color: 'hsl(var(--brand-gold))' }}>
+                            • {strokeHeaderLabel}
+                          </p>
+                        )}
                       </div>
+
 
                       {isExpanded && courseHoles.length > 0 && (
                         <div className="border-t border-border">
@@ -212,26 +262,42 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                                 );
                               }
 
+                              const aHoleStrokes = sideStrokesOnHole(m.sideA, hole.handicapIndex);
+                              const bHoleStrokes = sideStrokesOnHole(m.sideB, hole.handicapIndex);
+                              const StrokeMark = ({ count }: { count: number }) =>
+                                count > 0 ? (
+                                  <span
+                                    title={`${count} handicap stroke${count > 1 ? 's' : ''} on this hole`}
+                                    className="text-[11px] font-bold ml-1"
+                                    style={{ color: 'hsl(var(--brand-gold))' }}
+                                  >
+                                    {count > 1 ? '••' : '•'}
+                                  </span>
+                                ) : null;
+
                               return (
                                 <div key={hole.number} className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
                                   <div className="flex items-baseline gap-1">
                                     <span className="text-[13px] font-bold font-mono text-foreground">{hole.number}</span>
                                     <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
                                   </div>
-                                  <div className="flex justify-center">
+                                  <div className="flex justify-center items-center">
                                     {aScore !== undefined ? (
                                       <ScoreChip score={aScore} par={hole.par} isWinner={isAWin} winColor={teamA.color} />
                                     ) : (
                                       <span className="text-muted-foreground/30 text-sm">—</span>
                                     )}
+                                    <StrokeMark count={aHoleStrokes} />
                                   </div>
-                                  <div className="flex justify-center">
+                                  <div className="flex justify-center items-center">
                                     {bScore !== undefined ? (
                                       <ScoreChip score={bScore} par={hole.par} isWinner={isBWin} winColor={teamB.color} />
                                     ) : (
                                       <span className="text-muted-foreground/30 text-sm">—</span>
                                     )}
+                                    <StrokeMark count={bHoleStrokes} />
                                   </div>
+
                                   <div className="flex justify-end">
                                     {isHalved ? (
                                       <span className="text-[10px] text-muted-foreground font-semibold">½ ea</span>
@@ -346,9 +412,21 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                       const expandKey = `${group.id}-${smIdx}`;
                       const isExpanded = expandedId === expandKey;
 
+                      // Handicap strokes between these two opponents.
+                      const smStrokeInfo = matchupStrokeInfo(
+                        [asTournamentPlayer(sm.playerA), asTournamentPlayer(sm.playerB)],
+                        strokeGame,
+                      );
+                      const smStrokeLabel = smStrokeInfo.enabled
+                        ? (smStrokeInfo.receiverId
+                            ? `${firstName(smStrokeInfo.receiverId)} gets ${smStrokeInfo.receiverStrokes} stroke${smStrokeInfo.receiverStrokes === 1 ? '' : 's'}`
+                            : 'No strokes — even handicaps')
+                        : null;
+
                       // Build hole results map
                       const holeResultsMap: Record<number, any> = {};
                       groupResults.forEach((r: any) => { holeResultsMap[r.hole_number] = r; });
+
 
                       return (
                         <div key={expandKey} className="rounded-lg bg-muted/50 overflow-hidden">
@@ -395,7 +473,13 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                             <p className={`text-[10px] text-center ${isSubmitted ? 'text-[hsl(var(--brand-gold))] font-semibold' : 'text-muted-foreground'}`}>
                               {statusText}
                             </p>
+                            {smStrokeLabel && (
+                              <p className="text-[10px] text-center font-semibold" style={{ color: 'hsl(var(--brand-gold))' }}>
+                                • {smStrokeLabel}
+                              </p>
+                            )}
                           </div>
+
 
                           {isExpanded && courseHoles.length > 0 && (
                             <div className="border-t border-border">
@@ -443,26 +527,42 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                                     );
                                   }
 
+                                  const aSmStrokes = strokesOnHole(smStrokeInfo.strokesGiven[sm.playerA] || 0, hole.handicapIndex);
+                                  const bSmStrokes = strokesOnHole(smStrokeInfo.strokesGiven[sm.playerB] || 0, hole.handicapIndex);
+                                  const strokeMark = (count: number) =>
+                                    count > 0 ? (
+                                      <span
+                                        title={`${count} handicap stroke${count > 1 ? 's' : ''} on this hole`}
+                                        className="text-[11px] font-bold ml-1"
+                                        style={{ color: 'hsl(var(--brand-gold))' }}
+                                      >
+                                        {count > 1 ? '••' : '•'}
+                                      </span>
+                                    ) : null;
+
                                   return (
                                     <div key={hole.number} className={`grid grid-cols-[44px_1fr_1fr_72px] items-center px-3 py-2 ${idx % 2 !== 0 ? 'bg-muted/20' : ''}`}>
                                       <div className="flex items-baseline gap-1">
                                         <span className="text-[13px] font-bold font-mono text-foreground">{hole.number}</span>
                                         <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
                                       </div>
-                                      <div className="flex justify-center">
+                                      <div className="flex justify-center items-center">
                                         {aScore != null ? (
                                           <ScoreChip score={aScore} par={hole.par} isWinner={isAWin} winColor={teamA.color} />
                                         ) : (
                                           <span className="text-muted-foreground/30 text-sm">—</span>
                                         )}
+                                        {strokeMark(aSmStrokes)}
                                       </div>
-                                      <div className="flex justify-center">
+                                      <div className="flex justify-center items-center">
                                         {bScore != null ? (
                                           <ScoreChip score={bScore} par={hole.par} isWinner={isBWin} winColor={teamB.color} />
                                         ) : (
                                           <span className="text-muted-foreground/30 text-sm">—</span>
                                         )}
+                                        {strokeMark(bSmStrokes)}
                                       </div>
+
                                       <div className="flex justify-end">
                                         {isHalved ? (
                                           <span className="text-[10px] text-muted-foreground font-semibold">½ ea</span>

@@ -1,6 +1,7 @@
 import React from "react";
-import type { TournamentPlayer } from "@/types/tournament";
+import type { TournamentPlayer, TournamentGame } from "@/types/tournament";
 import type { SubMatchup } from '@/types/tournament';
+import { matchupStrokeInfo } from '@/lib/matchStrokes';
 
 interface Props {
   players: TournamentPlayer[];
@@ -11,9 +12,26 @@ interface Props {
   holesPlayed: number;
   subMatchups?: SubMatchup[];
   teamAId?: string;
+  tournamentGame?: TournamentGame | null;
 }
 
-const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults, subMatchups, teamAId }) => {
+/** "+3" strokes chip shown beside a player's name. */
+const StrokesChip: React.FC<{ strokes: number }> = ({ strokes }) => (
+  <span
+    title={`Receives ${strokes} handicap stroke${strokes > 1 ? 's' : ''}`}
+    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+    style={{
+      color: 'hsl(var(--brand-gold))',
+      backgroundColor: 'hsl(45 93% 47% / 0.12)',
+      border: '1px solid hsl(45 93% 47% / 0.3)',
+    }}
+  >
+    +{strokes}
+  </span>
+);
+
+const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, teams, allHoleScores, holeResults, subMatchups, teamAId, tournamentGame }) => {
+
   const playerData = players.map((p) => {
     const teamId = teamAssignments[p.id];
     const team = teams[teamId];
@@ -66,12 +84,17 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
               </div>
 
               <div className="grid grid-cols-2 divide-x divide-border/50">
-                {[dA, dB].map((d) => (
+                {[dA, dB].map((d) => {
+                  const info = matchupStrokeInfo([dA.player, dB.player], tournamentGame);
+                  const strokes = info.strokesGiven[d.player.id] || 0;
+                  return (
                   <div key={d.player.id} className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.team?.color }} />
                       <p className="text-[13px] font-semibold text-foreground truncate">{d.player.displayName}</p>
+                      {strokes > 0 && <StrokesChip strokes={strokes} />}
                     </div>
+
                     <div className="flex gap-3">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Gross</span>
@@ -89,7 +112,9 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
+
               </div>
             </div>
           );
@@ -101,6 +126,8 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
   // Default team-grouped layout
   const teamIds = [...new Set(playerData.map((d) => d.teamId))].filter(Boolean).sort();
   if (teamIds.length === 0) return null;
+
+  const groupStrokeInfo = matchupStrokeInfo(players, tournamentGame);
 
   return (
     <div className="grid grid-cols-2 gap-2">
@@ -125,7 +152,13 @@ const TournamentPlayerSummary: React.FC<Props> = ({ players, teamAssignments, te
                 key={d.player.id}
                 className={`px-3 py-2.5 ${i < teamPlayers.length - 1 ? "border-b border-border/50" : ""}`}
               >
-                <p className="text-[13px] font-semibold text-foreground truncate mb-1.5">{d.player.displayName}</p>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <p className="text-[13px] font-semibold text-foreground truncate">{d.player.displayName}</p>
+                  {(groupStrokeInfo.strokesGiven[d.player.id] || 0) > 0 && (
+                    <StrokesChip strokes={groupStrokeInfo.strokesGiven[d.player.id]} />
+                  )}
+                </div>
+
                 <div className="flex gap-3">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Gross</span>

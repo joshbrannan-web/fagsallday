@@ -1,7 +1,8 @@
 import React from "react";
-import type { MatchState, TournamentPlayer } from "@/types/tournament";
+import type { MatchState, TournamentPlayer, TournamentGame } from "@/types/tournament";
 import type { SubMatchup } from '@/types/tournament';
 import { matchupCoversHole } from '@/lib/subMatchups';
+import { matchupStrokeInfo, strokeSummaryLabel, strokesOnHole } from '@/lib/matchStrokes';
 
 interface HoleResultData {
   teamPoints: Record<string, number>;
@@ -16,13 +17,31 @@ interface Props {
   holeResults: Record<number, HoleResultData>;
   teamMatchup: { teamAId: string; teamBId: string } | null;
   teams: Record<string, { name: string; color: string }>;
-  courseHoles: { number: number; par: number }[];
+  courseHoles: { number: number; par: number; handicapIndex?: number }[];
   gameType?: string;
   teamAssignments?: Record<string, string>;
   matchState?: MatchState;
   subMatchups?: SubMatchup[];
   tournamentPlayers?: TournamentPlayer[];
+  tournamentGame?: TournamentGame | null;
 }
+
+/** Small gold dot marking a hole where the player receives handicap stroke(s). */
+const StrokeDot: React.FC<{ count: number }> = ({ count }) => (
+  <span
+    title={`${count} handicap stroke${count > 1 ? 's' : ''} on this hole`}
+    style={{
+      color: 'hsl(var(--brand-gold))',
+      fontSize: 13,
+      lineHeight: 1,
+      fontWeight: 700,
+      marginLeft: 2,
+    }}
+  >
+    {count > 1 ? `••` : '•'}
+  </span>
+);
+
 
 const ScoreChip: React.FC<{
   score: number;
@@ -59,8 +78,11 @@ const ScoreChip: React.FC<{
 
 const TournamentHoleTracker: React.FC<Props> = ({
   holeResults, teamMatchup, teams, courseHoles, gameType, teamAssignments, matchState,
-  subMatchups, tournamentPlayers,
+  subMatchups, tournamentPlayers, tournamentGame,
 }) => {
+  const strokeIndexFor = (holeNumber: number) =>
+    courseHoles.find(h => h.number === holeNumber)?.handicapIndex;
+
   if (!teamMatchup) return null;
 
   const teamA = teams[teamMatchup.teamAId];
@@ -110,13 +132,28 @@ const TournamentHoleTracker: React.FC<Props> = ({
           const aColor = aTeamId ? teams[aTeamId]?.color : undefined;
           const bColor = bTeamId ? teams[bTeamId]?.color : undefined;
 
+          const strokeInfo = matchupStrokeInfo([pA, pB], tournamentGame);
+          const strokeLabel = strokeInfo.enabled
+            ? strokeSummaryLabel(strokeInfo, id => (playerMap[id]?.displayName || '').split(' ')[0])
+            : null;
+          const strokesForPlayerOnHole = (pid: string, holeNumber: number) => {
+            const si = strokeIndexFor(holeNumber);
+            if (!strokeInfo.enabled || si === undefined) return 0;
+            return strokesOnHole(strokeInfo.strokesGiven[pid] || 0, si);
+          };
+
           return (
             <div key={matchIdx} className="rounded-xl border border-border overflow-hidden bg-card">
               {/* Match label */}
-              <div className="px-3 py-1 bg-muted/30 border-b border-border/50">
+              <div className="px-3 py-1 bg-muted/30 border-b border-border/50 flex items-center justify-between gap-2">
                 <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">
                   Match {matchIdx + 1}{sm.label ? ` · ${sm.label}` : ''}
                 </span>
+                {strokeLabel && (
+                  <span className="text-[10px] font-semibold" style={{ color: 'hsl(var(--brand-gold))' }}>
+                    • {strokeLabel}
+                  </span>
+                )}
               </div>
 
               {/* Column headers with player names */}
@@ -124,9 +161,15 @@ const TournamentHoleTracker: React.FC<Props> = ({
                 <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">Hole</span>
                 <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: aColor }}>
                   {pA.displayName.split(" ")[0]}
+                  {(strokeInfo.strokesGiven[sm.playerA] || 0) > 0 && (
+                    <span className="text-muted-foreground/70"> +{strokeInfo.strokesGiven[sm.playerA]}</span>
+                  )}
                 </span>
                 <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: bColor }}>
                   {pB.displayName.split(" ")[0]}
+                  {(strokeInfo.strokesGiven[sm.playerB] || 0) > 0 && (
+                    <span className="text-muted-foreground/70"> +{strokeInfo.strokesGiven[sm.playerB]}</span>
+                  )}
                 </span>
                 <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider text-right">
                   Result
@@ -148,6 +191,9 @@ const TournamentHoleTracker: React.FC<Props> = ({
                   const aNet = r.netScores?.[sm.playerA] ?? r.grossScores?.[sm.playerA];
                   const bNet = r.netScores?.[sm.playerB] ?? r.grossScores?.[sm.playerB];
 
+                  const aStrokes = strokesForPlayerOnHole(sm.playerA, hole.number);
+                  const bStrokes = strokesForPlayerOnHole(sm.playerB, hole.number);
+
                   const winnerColor = isAWin ? aColor : isBWin ? bColor : undefined;
                   const winPts = Math.max(aPts, bPts);
 
@@ -160,20 +206,27 @@ const TournamentHoleTracker: React.FC<Props> = ({
                         <span className="text-[13px] font-bold font-mono text-foreground">{hole.number}</span>
                         <span className="text-[10px] text-muted-foreground/50">p{hole.par}</span>
                       </div>
-                      <div className="flex justify-center">
+                      <div className="flex justify-center items-center">
                         {aNet !== undefined ? (
-                          <ScoreChip score={aNet} par={hole.par} isWinner={isAWin} winColor={aColor} />
+                          <>
+                            <ScoreChip score={aNet} par={hole.par} isWinner={isAWin} winColor={aColor} />
+                            {aStrokes > 0 && <StrokeDot count={aStrokes} />}
+                          </>
                         ) : (
                           <span className="text-muted-foreground/30 text-sm">—</span>
                         )}
                       </div>
-                      <div className="flex justify-center">
+                      <div className="flex justify-center items-center">
                         {bNet !== undefined ? (
-                          <ScoreChip score={bNet} par={hole.par} isWinner={isBWin} winColor={bColor} />
+                          <>
+                            <ScoreChip score={bNet} par={hole.par} isWinner={isBWin} winColor={bColor} />
+                            {bStrokes > 0 && <StrokeDot count={bStrokes} />}
+                          </>
                         ) : (
                           <span className="text-muted-foreground/30 text-sm">—</span>
                         )}
                       </div>
+
                       <div className="flex justify-end">
                         {isHalved ? (
                           <span className="text-[10px] text-muted-foreground font-semibold">½ ea</span>
@@ -227,8 +280,18 @@ const TournamentHoleTracker: React.FC<Props> = ({
     return Math.min(...vals);
   };
 
+  const teamStrokeInfo = matchupStrokeInfo(tournamentPlayers || [], tournamentGame);
+  const teamStrokeReceivers = (tournamentPlayers || [])
+    .filter(p => (teamStrokeInfo.strokesGiven[p.id] || 0) > 0)
+    .map(p => `${p.displayName.split(' ')[0]} +${teamStrokeInfo.strokesGiven[p.id]}`);
+
   return (
     <div className="rounded-xl border border-border overflow-hidden bg-card">
+      {teamStrokeInfo.enabled && (
+        <div className="px-3 py-1.5 border-b border-border/50 text-[10px] font-semibold" style={{ color: 'hsl(var(--brand-gold))' }}>
+          • {teamStrokeReceivers.length ? `Strokes: ${teamStrokeReceivers.join(' · ')}` : 'No strokes — even handicaps'}
+        </div>
+      )}
       <div className="grid grid-cols-[44px_1fr_1fr_72px] px-3 py-1.5 bg-muted/30 border-b border-border">
         <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">Hole</span>
         <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamA?.color }}>
@@ -239,6 +302,7 @@ const TournamentHoleTracker: React.FC<Props> = ({
         </span>
         <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider text-right">Result</span>
       </div>
+
 
       <div className="max-h-[340px] overflow-y-auto divide-y divide-border/50">
         {completedHoles.map((hole, idx) => {

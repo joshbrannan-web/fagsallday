@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Trophy } from 'lucide-react';
-import type { MatchState, TournamentPlayer } from '@/types/tournament';
+import type { MatchState, TournamentPlayer, TournamentGame } from '@/types/tournament';
 import type { SubMatchup } from '@/types/tournament';
+import { matchupStrokeInfo, strokeSummaryLabel } from '@/lib/matchStrokes';
 
 interface Props {
   tournamentName: string;
@@ -16,7 +17,24 @@ interface Props {
   tournamentPlayers?: TournamentPlayer[];
   holeResults?: Record<number, { teamPoints: Record<string, number>; playerPoints?: Record<string, number> }>;
   teamAssignments?: Record<string, string>;
+  tournamentGame?: TournamentGame | null;
 }
+
+const StrokeBadge: React.FC<{ label: string }> = ({ label }) => (
+  <div className="flex justify-center">
+    <span
+      className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+      style={{
+        color: 'hsl(var(--brand-gold))',
+        backgroundColor: 'hsl(45 93% 47% / 0.12)',
+        border: '1px solid hsl(45 93% 47% / 0.3)',
+      }}
+    >
+      <span style={{ fontSize: 12, lineHeight: 1 }}>•</span> {label}
+    </span>
+  </div>
+);
+
 
 const AnimatedPoints: React.FC<{ value: number }> = ({ value }) => {
   const [displayed, setDisplayed] = useState(value);
@@ -46,8 +64,9 @@ const AnimatedPoints: React.FC<{ value: number }> = ({ value }) => {
 const TournamentMatchStatusBar: React.FC<Props> = ({
   tournamentName, roundName, teamMatchup, teams, teamTotals,
   holesPlayed, matchState, totalPointsAvailable,
-  subMatchups, tournamentPlayers, holeResults, teamAssignments,
+  subMatchups, tournamentPlayers, holeResults, teamAssignments, tournamentGame,
 }) => {
+
   if (!teamMatchup) return null;
 
   const has1v1 = subMatchups && subMatchups.length > 0 && tournamentPlayers && holeResults && teamAssignments;
@@ -116,18 +135,34 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
             statusLine = `${leader} ${leadAmt} UP · Thru ${matchHolesPlayed}`;
           }
 
+          const strokeInfo = matchupStrokeInfo([pA, pB], tournamentGame);
+          const strokeLabel = strokeInfo.enabled
+            ? strokeSummaryLabel(strokeInfo, id => (playerMap[id]?.displayName || '').split(' ')[0])
+            : null;
+
           return (
             <div key={idx} className="bg-card border border-border rounded-xl p-4 space-y-2">
               <div className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider text-center">
                 Match {idx + 1}{sm.label ? ` · ${sm.label}` : ''}
               </div>
 
+
               <div className="flex items-center justify-center gap-4">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full" style={{ backgroundColor: aColor }} />
-                  <span className={`font-semibold text-sm ${aPts >= bPts ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {aName}
-                  </span>
+                  <div className="flex flex-col items-start">
+                    <span className={`font-semibold text-sm ${aPts >= bPts ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {aName}
+                    </span>
+                    {strokeInfo.enabled && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {strokeInfo.courseHandicaps[sm.playerA]} CH
+                        {(strokeInfo.strokesGiven[sm.playerA] || 0) > 0
+                          ? ` · +${strokeInfo.strokesGiven[sm.playerA]}`
+                          : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="text-3xl font-bold text-foreground font-mono">
                   <AnimatedPoints value={aPts} />
@@ -135,9 +170,19 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
                   <AnimatedPoints value={bPts} />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`font-semibold text-sm ${bPts >= aPts ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {bName}
-                  </span>
+                  <div className="flex flex-col items-end">
+                    <span className={`font-semibold text-sm ${bPts >= aPts ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {bName}
+                    </span>
+                    {strokeInfo.enabled && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {strokeInfo.courseHandicaps[sm.playerB]} CH
+                        {(strokeInfo.strokesGiven[sm.playerB] || 0) > 0
+                          ? ` · +${strokeInfo.strokesGiven[sm.playerB]}`
+                          : ''}
+                      </span>
+                    )}
+                  </div>
                   <span className="w-3 h-3 rounded-full" style={{ backgroundColor: bColor }} />
                 </div>
               </div>
@@ -145,6 +190,9 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
               <p className={`text-xs text-center ${isComplete ? 'text-[hsl(var(--brand-gold))] font-bold' : 'text-muted-foreground'}`}>
                 {statusLine}
               </p>
+
+              {strokeLabel && <StrokeBadge label={strokeLabel} />}
+
             </div>
           );
         })}
@@ -225,6 +273,20 @@ const TournamentMatchStatusBar: React.FC<Props> = ({
         <p className={`text-xs text-center ${matchState?.isComplete ? 'text-[hsl(var(--brand-gold))] font-bold' : 'text-muted-foreground'}`}>
           {statusLine}
         </p>
+
+        {(() => {
+          const info = matchupStrokeInfo(tournamentPlayers || [], tournamentGame);
+          if (!info.enabled) return null;
+          const receivers = (tournamentPlayers || [])
+            .filter(p => (info.strokesGiven[p.id] || 0) > 0)
+            .map(p => `${p.displayName.split(' ')[0]} +${info.strokesGiven[p.id]}`);
+          return (
+            <StrokeBadge
+              label={receivers.length ? `Strokes: ${receivers.join(' · ')}` : 'No strokes — even handicaps'}
+            />
+          );
+        })()}
+
       </div>
 
       {/* Match Complete Banner */}
