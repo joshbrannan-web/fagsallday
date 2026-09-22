@@ -280,8 +280,18 @@ const TournamentHoleTracker: React.FC<Props> = ({
     return Math.min(...vals);
   };
 
+  const teamStrokeInfo = matchupStrokeInfo(tournamentPlayers || [], tournamentGame);
+  const teamStrokeReceivers = (tournamentPlayers || [])
+    .filter(p => (teamStrokeInfo.strokesGiven[p.id] || 0) > 0)
+    .map(p => `${p.displayName.split(' ')[0]} +${teamStrokeInfo.strokesGiven[p.id]}`);
+
   return (
     <div className="rounded-xl border border-border overflow-hidden bg-card">
+      {teamStrokeInfo.enabled && (
+        <div className="px-3 py-1.5 border-b border-border/50 text-[10px] font-semibold" style={{ color: 'hsl(var(--brand-gold))' }}>
+          • {teamStrokeReceivers.length ? `Strokes: ${teamStrokeReceivers.join(' · ')}` : 'No strokes — even handicaps'}
+        </div>
+      )}
       <div className="grid grid-cols-[44px_1fr_1fr_72px] px-3 py-1.5 bg-muted/30 border-b border-border">
         <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">Hole</span>
         <span className="text-[9px] font-bold uppercase tracking-wider text-center" style={{ color: teamA?.color }}>
@@ -292,6 +302,7 @@ const TournamentHoleTracker: React.FC<Props> = ({
         </span>
         <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider text-right">Result</span>
       </div>
+
 
       <div className="max-h-[340px] overflow-y-auto divide-y divide-border/50">
         {completedHoles.map((hole, idx) => {
