@@ -137,8 +137,24 @@ const GroupMatchesScoreboard: React.FC<Props> = ({
                     statusText = `${leader} leads · Thru ${holesPlayed} · ${remaining} pts left`;
                   }
 
+                  // Handicap strokes for everyone in this match, relative to the low handicap.
+                  const matchPlayerIds: string[] = [...m.sideA, ...m.sideB];
+                  const strokeInfo = matchupStrokeInfo(
+                    matchPlayerIds.map(asTournamentPlayer),
+                    strokeGame,
+                  );
+                  const strokeReceivers = matchPlayerIds.filter(id => (strokeInfo.strokesGiven[id] || 0) > 0);
+                  const strokeHeaderLabel = strokeInfo.enabled
+                    ? (strokeReceivers.length > 0
+                        ? `Strokes: ${strokeReceivers.map(id => `${firstName(id)} +${strokeInfo.strokesGiven[id]}`).join(' · ')}`
+                        : 'No strokes — even handicaps')
+                    : null;
+                  const sideStrokesOnHole = (ids: string[], holeIdx: number) =>
+                    ids.reduce((max, id) => Math.max(max, strokesOnHole(strokeInfo.strokesGiven[id] || 0, holeIdx)), 0);
+
                   const holeResultsMap: Record<number, any> = {};
                   matchResults.forEach((r: any) => { holeResultsMap[r.hole_number] = r; });
+
 
                   const bestScore = (holeNum: number, ids: string[]): number | undefined => {
                     const vals = roundScores
