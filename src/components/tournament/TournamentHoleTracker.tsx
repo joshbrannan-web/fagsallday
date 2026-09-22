@@ -78,8 +78,11 @@ const ScoreChip: React.FC<{
 
 const TournamentHoleTracker: React.FC<Props> = ({
   holeResults, teamMatchup, teams, courseHoles, gameType, teamAssignments, matchState,
-  subMatchups, tournamentPlayers,
+  subMatchups, tournamentPlayers, tournamentGame,
 }) => {
+  const strokeIndexFor = (holeNumber: number) =>
+    courseHoles.find(h => h.number === holeNumber)?.handicapIndex;
+
   if (!teamMatchup) return null;
 
   const teamA = teams[teamMatchup.teamAId];
