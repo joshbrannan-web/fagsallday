@@ -138,6 +138,7 @@ const TournamentTabPanel: React.FC<Props> = ({
             tournamentPlayers={tournamentPlayers}
             holeResults={holeResults}
             teamAssignments={teamAssignments}
+            tournamentGame={tournamentGame}
           />
 
           {/* Players */}
@@ -151,6 +152,7 @@ const TournamentTabPanel: React.FC<Props> = ({
             holesPlayed={holesPlayed}
             subMatchups={subMatchups}
             teamAId={teamMatchup?.teamAId}
+            tournamentGame={tournamentGame}
           />
 
           {/* Hole tracker */}
@@ -168,8 +170,10 @@ const TournamentTabPanel: React.FC<Props> = ({
               matchState={matchState}
               subMatchups={subMatchups}
               tournamentPlayers={tournamentPlayers}
+              tournamentGame={tournamentGame}
             />
           )}
+
 
           {/* Full scorecard */}
           <button
