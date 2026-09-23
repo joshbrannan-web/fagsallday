@@ -352,16 +352,6 @@ const TournamentScorecardTable: FC<Props> = ({
         )}
       </p>
 
-      {groupStrokeInfo.enabled && (
-        <p className="text-[11px] font-semibold text-brand-gold text-center">
-          • Strokes: {sortedPlayers.filter(p => (groupStrokeInfo.strokesGiven[p.id] || 0) > 0).length === 0
-            ? 'none — even handicaps'
-            : sortedPlayers
-                .filter(p => (groupStrokeInfo.strokesGiven[p.id] || 0) > 0)
-                .map(p => `${p.displayName.split(' ')[0]} +${groupStrokeInfo.strokesGiven[p.id]}`)
-                .join(' · ')}
-        </p>
-      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-center border-collapse text-sm">
