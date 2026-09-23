@@ -34,6 +34,17 @@ const StrokeDots: FC<{ n: number }> = ({ n }) => (
   </span>
 );
 
+/* ── Corner stroke marker on a score bubble (matches regular scorecard) ── */
+const StrokeMark: FC<{ n: number }> = ({ n }) => (
+  <span
+    title={n >= 2 ? `Gets ${n} strokes on this hole` : 'Gets a stroke on this hole'}
+    className="absolute -top-1 -right-1 min-w-3 h-3 px-0.5 bg-brand-gold rounded-full border border-background flex items-center justify-center"
+  >
+    <span className="text-[8px] font-bold leading-none text-brand-dark">{n >= 2 ? n : '•'}</span>
+  </span>
+);
+
+
 /* ── Score cell styling helper ── */
 const scoreCell = (score: number, par: number) => {
   const d = score - par;
@@ -120,9 +131,11 @@ const MatchupTable: FC<{
               {activeHoles.map(h => (
                 <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
                   {h.number}
-                  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}</div>
+                  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">par {h.par}</div>
+                  <div className="text-[9px] text-muted-foreground/70 font-normal">IDX {h.handicapIndex}</div>
                 </th>
               ))}
+
               <th className="p-1.5 min-w-[40px] bg-muted">Pts</th>
             </tr>
           </thead>
@@ -151,21 +164,26 @@ const MatchupTable: FC<{
                     if (!hasScore) {
                       return (
                         <td key={h.number} className="p-1.5 border-r border-border/50">
-                          <span className="text-muted-foreground text-xs">-</span>
-                          {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
+                          <span className="relative inline-block w-7 h-7 leading-7">
+                            <span className="text-muted-foreground text-xs">-</span>
+                            {holeStrokes > 0 && <StrokeMark n={holeStrokes} />}
+                          </span>
                         </td>
                       );
                     }
                     const { shapeClass, colorClass } = scoreCell(score, h.par);
                     return (
                       <td key={h.number} className="p-1.5 border-r border-border/50">
-                        <span className={`inline-block w-7 h-7 leading-7 ${shapeClass} text-xs font-bold ${colorClass}`}>
-                          {score}
+                        <span className="relative inline-block">
+                          <span className={`inline-block w-7 h-7 leading-7 ${shapeClass} text-xs font-bold ${colorClass}`}>
+                            {score}
+                          </span>
+                          {holeStrokes > 0 && <StrokeMark n={holeStrokes} />}
                         </span>
-                        {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
                       </td>
                     );
                   })}
+
                   <td className="p-1 font-bold text-xs">
                     {player.id === playerA.id ? aPts : bPts}
                   </td>
@@ -369,9 +387,11 @@ const TournamentScorecardTable: FC<Props> = ({
               {activeHoles.map(h => (
                 <th key={h.number} className="p-2 min-w-[40px] border-r border-border/50">
                   {h.number}
-                  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{h.par}</div>
+                  <div className="text-[10px] text-muted-foreground font-normal mt-0.5">par {h.par}</div>
+                  <div className="text-[9px] text-muted-foreground/70 font-normal">IDX {h.handicapIndex}</div>
                 </th>
               ))}
+
               <th className="p-1.5 min-w-[40px] bg-muted">{viewMode === 'FRONT' ? 'F9' : 'B9'}</th>
               <th className="p-1.5 min-w-[40px] bg-muted border-l border-border">18</th>
             </tr>
@@ -403,21 +423,26 @@ const TournamentScorecardTable: FC<Props> = ({
                     if (!hasScore) {
                       return (
                         <td key={h.number} className="p-1.5 border-r border-border/50">
-                          <span className="text-muted-foreground text-xs">-</span>
-                          {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
+                          <span className="relative inline-block w-7 h-7 leading-7">
+                            <span className="text-muted-foreground text-xs">-</span>
+                            {holeStrokes > 0 && <StrokeMark n={holeStrokes} />}
+                          </span>
                         </td>
                       );
                     }
                     const { shapeClass, colorClass } = scoreCell(score, h.par);
                     return (
                       <td key={h.number} className="p-1.5 border-r border-border/50">
-                        <span className={`inline-block w-7 h-7 leading-7 ${shapeClass} text-xs font-bold ${colorClass}`}>
-                          {score}
+                        <span className="relative inline-block">
+                          <span className={`inline-block w-7 h-7 leading-7 ${shapeClass} text-xs font-bold ${colorClass}`}>
+                            {score}
+                          </span>
+                          {holeStrokes > 0 && <StrokeMark n={holeStrokes} />}
                         </span>
-                        {holeStrokes > 0 && <StrokeDots n={holeStrokes} />}
                       </td>
                     );
                   })}
+
                   <td className="p-1 font-bold text-xs">{subtotal || '-'}</td>
                   <td className="p-1 font-bold text-xs border-l border-border">{total || '-'}</td>
                 </tr>
