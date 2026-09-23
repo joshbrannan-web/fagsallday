@@ -65,8 +65,6 @@ const MatchupTable: FC<{
   const players = [playerA, playerB];
 
   const strokeInfo = matchupStrokeInfo([playerA, playerB], game);
-  const strokeLabel = strokeSummaryLabel(strokeInfo, id =>
-    (id === playerA.id ? playerA : playerB).displayName.split(' ')[0]);
 
   const getPlayerSubtotal = (playerId: string) => {
     let total = 0;
