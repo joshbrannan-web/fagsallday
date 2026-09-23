@@ -20,12 +20,6 @@ interface Props {
   game?: TournamentGame | null;
 }
 
-/* ── Gold stroke badge ── */
-const StrokesChip: FC<{ n: number }> = ({ n }) => (
-  <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-brand-gold/20 text-brand-gold whitespace-nowrap">
-    +{n}
-  </span>
-);
 
 
 /* ── Corner stroke marker on a score bubble (matches regular scorecard) ── */
@@ -148,7 +142,6 @@ const MatchupTable: FC<{
                         style={{ backgroundColor: team?.color || 'hsl(var(--muted))' }}
                       />
                       <span className="font-semibold text-xs whitespace-normal break-words leading-tight">{player.displayName}</span>
-                      {totalStrokes > 0 && <StrokesChip n={totalStrokes} />}
                     </div>
                   </td>
                   {activeHoles.map(h => {
@@ -407,7 +400,6 @@ const TournamentScorecardTable: FC<Props> = ({
                         style={{ backgroundColor: team?.color || 'hsl(var(--muted))' }}
                       />
                       <span className="font-semibold text-xs whitespace-normal break-words leading-tight">{player.displayName}</span>
-                      {totalStrokes > 0 && <StrokesChip n={totalStrokes} />}
                     </div>
                   </td>
                   {activeHoles.map(h => {
