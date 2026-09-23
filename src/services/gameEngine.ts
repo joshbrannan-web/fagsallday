@@ -1800,57 +1800,43 @@ export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
       opponentWinPoints = 3;
     }
 
-    // Award points based on winner
+    // Per-opponent wagering: each opponent settles individually, the Wolf side
+    // collects/pays the aggregate split evenly. Always balances to zero.
+    const wolfName = players.find((p) => p.id === wolfId)?.name;
+    const opponentCount = teamOpponents.length;
+    const blindTag = isBlindLoneWolf ? "(Blind) " : "";
+
+    const settle = (pointsPerOpponent: number, wolfSideWins: boolean) => {
+      const perOpponent = round2(pointsPerOpponent * unit);
+      const aggregate = round2(perOpponent * opponentCount);
+      teamOpponents.forEach((pid) => {
+        const amount = wolfSideWins ? -perOpponent : perOpponent;
+        results[pid] += amount;
+        holeResults[h][pid] = amount;
+      });
+      const perWolfSide = round2((wolfSideWins ? aggregate : -aggregate) / teamWolf.length);
+      teamWolf.forEach((pid) => {
+        results[pid] += perWolfSide;
+        holeResults[h][pid] = perWolfSide;
+      });
+      return { perOpponent, aggregate, perWolfSide };
+    };
+
     if (wolfTeamNet < opponentTeamNet) {
-      // Wolf team wins
+      const { aggregate, perWolfSide } = settle(wolfWinPoints, true);
       if (isLoneWolf) {
-        // Lone Wolf wins wolfWinPoints FROM EACH opponent
-        const totalWin = wolfWinPoints * teamOpponents.length * unit;
-        results[wolfId] += totalWin;
-        holeResults[h][wolfId] = totalWin;
-        teamOpponents.forEach((pid) => {
-          results[pid] -= wolfWinPoints * unit;
-          holeResults[h][pid] = -wolfWinPoints * unit;
-        });
-        details.push(`Hole ${h}: ${players.find((p) => p.id === wolfId)?.name} ${isBlindLoneWolf ? "(Blind) " : ""}Lone Wolf wins +${totalWin}`);
+        details.push(`Hole ${h}: ${wolfName} ${blindTag}Lone Wolf beats all ${opponentCount} — wins +${aggregate}`);
       } else {
-        // 2v2 win
-        teamWolf.forEach((pid) => {
-          results[pid] += wolfWinPoints * unit;
-          holeResults[h][pid] = wolfWinPoints * unit;
-        });
-        teamOpponents.forEach((pid) => {
-          results[pid] -= wolfWinPoints * unit;
-          holeResults[h][pid] = -wolfWinPoints * unit;
-        });
-        const wolfName = players.find((p) => p.id === wolfId)?.name;
         const partnerName = players.find((p) => p.id === partnerId)?.name;
-        details.push(`Hole ${h}: ${wolfName} + ${partnerName} win +${wolfWinPoints * unit} each`);
+        details.push(`Hole ${h}: ${wolfName} + ${partnerName} beat ${opponentCount} opponents — +${perWolfSide} each`);
       }
     } else if (opponentTeamNet < wolfTeamNet) {
-      // Opponents win
+      const points = isLoneWolf ? wolfWinPoints : opponentWinPoints;
+      const { perOpponent, aggregate, perWolfSide } = settle(points, false);
       if (isLoneWolf) {
-        // Each opponent wins wolfWinPoints from the Wolf
-        teamOpponents.forEach((pid) => {
-          results[pid] += wolfWinPoints * unit;
-          holeResults[h][pid] = wolfWinPoints * unit;
-        });
-        const totalLoss = wolfWinPoints * teamOpponents.length * unit;
-        results[wolfId] -= totalLoss;
-        holeResults[h][wolfId] = -totalLoss;
-        details.push(`Hole ${h}: ${players.find((p) => p.id === wolfId)?.name} ${isBlindLoneWolf ? "(Blind) " : ""}Lone Wolf loses -${totalLoss}`);
+        details.push(`Hole ${h}: ${wolfName} ${blindTag}Lone Wolf loses -${aggregate} (${perOpponent} to each of ${opponentCount})`);
       } else {
-        // 2v2 loss - opponents win opponentWinPoints each
-        teamOpponents.forEach((pid) => {
-          results[pid] += opponentWinPoints * unit;
-          holeResults[h][pid] = opponentWinPoints * unit;
-        });
-        teamWolf.forEach((pid) => {
-          const loss = (opponentWinPoints * teamOpponents.length * unit) / teamWolf.length;
-          results[pid] -= loss;
-          holeResults[h][pid] = -loss;
-        });
-        details.push(`Hole ${h}: Opponents beat Wolf team`);
+        details.push(`Hole ${h}: ${opponentCount} opponents beat the Wolf team — +${perOpponent} each, ${perWolfSide} for the Wolf side`);
       }
     } else {
       // Tie - push
