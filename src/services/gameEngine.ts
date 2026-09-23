@@ -1723,13 +1723,15 @@ export const calculateWolf = (round: Round, game: GameSettings): GameResult => {
   const { scores, course } = round;
   const unit = game.unitStake;
 
-  if (players.length !== 4) {
+  if (players.length < 4 || players.length > 8) {
     return {
       gameId: game.id,
       playerResults: {},
-      details: ["Wolf requires exactly 4 players"],
+      details: ["Wolf requires 4 to 8 players"],
     };
   }
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
 
   const results: { [id: string]: number } = {};
   const holeResults: { [hole: number]: { [id: string]: number } } = {};
