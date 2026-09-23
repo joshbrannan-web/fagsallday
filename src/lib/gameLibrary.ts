@@ -75,11 +75,11 @@ export const GAME_LIBRARY: GameLibraryItem[] = [
   {
     type: GameType.WOLF,
     name: "Wolf",
-    description: "Strategic 4-player game. Wolf picks partner after tee shots or goes solo for more points.",
+    description: "Strategic 4-8 player game. Wolf picks one partner after tee shots or goes solo against the whole field.",
     icon: "🐺",
     defaultUnitStake: 1,
     minPlayers: 4,
-    maxPlayers: 4,
+    maxPlayers: 8,
     config: { useHandicaps: true, handicapMode: 'relative', wolf: { teesFirst: true } },
   },
   {
@@ -139,7 +139,7 @@ export const GAME_DETAILS: Record<string, { howItWorks: string; idealPlayers: st
   [GameType.SKINS]: { howItWorks: "Lowest net score wins the 'skin' on each hole. If two or more players tie, the skin carries over to the next hole, building the pot.", idealPlayers: "3-4 players", examplePayout: "$3/skin: 3 carryovers = $12 skin" },
   [GameType.NASSAU]: { howItWorks: "Three separate match-play bets: Front 9, Back 9, and Overall 18. Each is an independent wager based on net scores.", idealPlayers: "Exactly 2 players", examplePayout: "$3/bet: max exposure $9" },
   [GameType.OPEN_BETTING]: { howItWorks: "Manually track any side bet between players — closest to pin, longest drive, or any custom wager you agree on.", idealPlayers: "Any group size", examplePayout: "Whatever you agree on!" },
-  [GameType.WOLF]: { howItWorks: "Rotating 'Wolf' picks a partner after watching tee shots, or goes Lone Wolf for double points. Blind Lone Wolf (declared before anyone tees off) pays 3x.", idealPlayers: "Exactly 4 players", examplePayout: "$1/point: Lone Wolf win = $3/player" },
+  [GameType.WOLF]: { howItWorks: "Rotating 'Wolf' picks one partner after watching tee shots, or goes Lone Wolf against the whole field for double points. Blind Lone Wolf (declared before anyone tees off) pays double again. Every opponent wagers separately, so bigger groups mean bigger swings.", idealPlayers: "4-8 players", examplePayout: "$1/point, 4 players: Lone Wolf win = $6 ($2 from each of 3)" },
   [GameType.NINE_POINTS]: { howItWorks: "9 points split each hole among 3 players: 5 for best net, 3 for second, 1 for worst. At the end, points are compared and differences paid out. Optional Home Run rule: win a hole outright by 2+ net strokes to sweep all 9 points.", idealPlayers: "Exactly 3 players", examplePayout: "$1/point: 36-point target over 18" },
   [GameType.SIXES]: { howItWorks: "2v2 teams rotate every 6 holes (or every 3). Lowest ball wins each hole. Team winning the most holes in a stretch wins the bet.", idealPlayers: "Exactly 4 players", examplePayout: "$10/stretch: win 4 holes vs 2 = $20" },
   [GameType.TEAM_BANKER]: { howItWorks: "2v2 team version of Banker. All players choose multipliers. Team with the best combined net score wins, applying multipliers for payouts.", idealPlayers: "Exactly 4 players", examplePayout: "$3 unit: team multipliers amplify" },
