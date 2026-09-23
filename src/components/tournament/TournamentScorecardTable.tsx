@@ -4,7 +4,7 @@ import type { CourseHole } from '@/services/tournamentEngine';
 import type { MatchState } from '@/types/tournament';
 import type { SubMatchup } from '@/types/tournament';
 import { matchupCoversHole } from '@/lib/subMatchups';
-import { matchupStrokeInfo, strokesOnHole, strokeSummaryLabel } from '@/lib/matchStrokes';
+import { matchupStrokeInfo, strokesOnHole } from '@/lib/matchStrokes';
 
 interface Props {
   tournamentPlayers: TournamentPlayer[];
