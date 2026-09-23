@@ -104,9 +104,6 @@ const MatchupTable: FC<{
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">{matchLabel}</span>
         <div className="flex items-center gap-2">
-          {strokeInfo.enabled && strokeLabel && (
-            <span className="text-[10px] font-semibold text-brand-gold whitespace-nowrap">• {strokeLabel}</span>
-          )}
           <span className="text-xs font-semibold text-muted-foreground">{statusText}</span>
         </div>
       </div>
