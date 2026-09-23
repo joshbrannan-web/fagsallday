@@ -27,12 +27,6 @@ const StrokesChip: FC<{ n: number }> = ({ n }) => (
   </span>
 );
 
-/* ── Gold dots marking a stroke hole ── */
-const StrokeDots: FC<{ n: number }> = ({ n }) => (
-  <span className="block text-[8px] leading-none text-brand-gold -mt-0.5">
-    {n >= 2 ? '••' : '•'}
-  </span>
-);
 
 /* ── Corner stroke marker on a score bubble (matches regular scorecard) ── */
 const StrokeMark: FC<{ n: number }> = ({ n }) => (
