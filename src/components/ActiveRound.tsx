@@ -1522,7 +1522,7 @@ const ActiveRound: React.FC = () => {
                   </div>
                   
                   {/* Partner Selection */}
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
                     {opponents.map(p => (
                       <button 
                         key={p.id}
@@ -1539,7 +1539,7 @@ const ActiveRound: React.FC = () => {
                     onClick={handleLoneWolf}
                     className="w-full py-2.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive font-bold text-sm transition-colors border border-destructive/30"
                   >
-                    Lone Wolf (1v3)
+                    Lone Wolf (1 v {opponents.length})
                   </button>
                 </div>
               )}
