@@ -4,7 +4,7 @@ import type { CourseHole } from '@/services/tournamentEngine';
 import type { MatchState } from '@/types/tournament';
 import type { SubMatchup } from '@/types/tournament';
 import { matchupCoversHole } from '@/lib/subMatchups';
-import { matchupStrokeInfo, strokesOnHole, strokeSummaryLabel } from '@/lib/matchStrokes';
+import { matchupStrokeInfo, strokesOnHole } from '@/lib/matchStrokes';
 
 interface Props {
   tournamentPlayers: TournamentPlayer[];
@@ -65,8 +65,6 @@ const MatchupTable: FC<{
   const players = [playerA, playerB];
 
   const strokeInfo = matchupStrokeInfo([playerA, playerB], game);
-  const strokeLabel = strokeSummaryLabel(strokeInfo, id =>
-    (id === playerA.id ? playerA : playerB).displayName.split(' ')[0]);
 
   const getPlayerSubtotal = (playerId: string) => {
     let total = 0;
@@ -104,9 +102,6 @@ const MatchupTable: FC<{
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">{matchLabel}</span>
         <div className="flex items-center gap-2">
-          {strokeInfo.enabled && strokeLabel && (
-            <span className="text-[10px] font-semibold text-brand-gold whitespace-nowrap">• {strokeLabel}</span>
-          )}
           <span className="text-xs font-semibold text-muted-foreground">{statusText}</span>
         </div>
       </div>
@@ -355,16 +350,6 @@ const TournamentScorecardTable: FC<Props> = ({
         )}
       </p>
 
-      {groupStrokeInfo.enabled && (
-        <p className="text-[11px] font-semibold text-brand-gold text-center">
-          • Strokes: {sortedPlayers.filter(p => (groupStrokeInfo.strokesGiven[p.id] || 0) > 0).length === 0
-            ? 'none — even handicaps'
-            : sortedPlayers
-                .filter(p => (groupStrokeInfo.strokesGiven[p.id] || 0) > 0)
-                .map(p => `${p.displayName.split(' ')[0]} +${groupStrokeInfo.strokesGiven[p.id]}`)
-                .join(' · ')}
-        </p>
-      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-center border-collapse text-sm">
