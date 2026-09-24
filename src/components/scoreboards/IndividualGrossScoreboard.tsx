@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import RoundToggleChips from './RoundToggleChips';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { calcPlayerGrossPerRound, calcThru, rankWithTies, playerHasOverride } from '@/services/scoreboardCalculations';
@@ -23,6 +24,12 @@ const IndividualGrossScoreboard: React.FC<Props> = ({
     const roundGroupIds = new Set((groups[r.id] || []).map((g: any) => g.id));
     return holeScores.some((s: any) => roundGroupIds.has(s.tournament_group_id) && s.gross_score != null);
   });
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const toggleRound = (id: string) => setExcluded(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   const activeRound = rounds.find((r: any) => r.status === 'active');
   const activeGroups = activeRound ? (groups[activeRound.id] || []) : [];
 
@@ -31,8 +38,9 @@ const IndividualGrossScoreboard: React.FC<Props> = ({
     const roundScores = startedRounds.map((r: any) =>
       calcPlayerGrossPerRound(p.id, r.id, allGroups, groupPlayers, holeScores)
     );
-    const total = roundScores.reduce((s: number, v) => s + (v ?? 0), 0);
-    const hasAny = roundScores.some(v => v !== null);
+    const counted = roundScores.filter((_, i) => !excluded.has(startedRounds[i].id));
+    const total = counted.reduce((s: number, v) => s + (v ?? 0), 0);
+    const hasAny = counted.some(v => v !== null);
     const thru = activeRound ? calcThru(p.id, activeGroups, groupPlayers, holeScores) : null;
     const hasOverride = playerHasOverride(p.id, holeScores);
     const team = teams.find((t: any) => t.id === p.team_id);
@@ -64,6 +72,7 @@ const IndividualGrossScoreboard: React.FC<Props> = ({
 
   return (
     <Card className="overflow-hidden">
+      <RoundToggleChips rounds={startedRounds} excluded={excluded} onToggle={toggleRound} />
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -112,7 +121,7 @@ const IndividualGrossScoreboard: React.FC<Props> = ({
                   return (
                     <TableCell
                       key={i}
-                      className={`text-center font-mono text-sm ${isActive ? 'italic text-muted-foreground' : ''}`}
+                      className={`text-center font-mono text-sm ${isActive ? 'italic text-muted-foreground' : ''} ${excluded.has(startedRounds[i]?.id) ? 'opacity-40 line-through' : ''}`}
                     >
                       {score !== null ? score : '—'}
                     </TableCell>

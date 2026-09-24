@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import RoundToggleChips from './RoundToggleChips';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { calcPlayerNetPerRound, calcThru, rankWithTies, playerHasOverride } from '@/services/scoreboardCalculations';
@@ -18,6 +19,12 @@ const IndividualNetScoreboard: React.FC<Props> = ({
 }) => {
   const allGroups = Object.values(groups).flat();
   const startedRounds = rounds.filter((r: any) => r.status !== 'pending');
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const toggleRound = (id: string) => setExcluded(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   const activeRound = rounds.find((r: any) => r.status === 'active');
   const activeGroups = activeRound ? (groups[activeRound.id] || []) : [];
 
@@ -26,8 +33,9 @@ const IndividualNetScoreboard: React.FC<Props> = ({
       const game = games[r.id];
       return calcPlayerNetPerRound(p, r, game, allGroups, groupPlayers, holeScores);
     });
-    const total = roundScores.reduce((s: number, v) => s + (v ?? 0), 0);
-    const hasAny = roundScores.some(v => v !== null);
+    const counted = roundScores.filter((_, i) => !excluded.has(startedRounds[i].id));
+    const total = counted.reduce((s: number, v) => s + (v ?? 0), 0);
+    const hasAny = counted.some(v => v !== null);
     const thru = activeRound ? calcThru(p.id, activeGroups, groupPlayers, holeScores) : null;
     const hasOverride = playerHasOverride(p.id, holeScores);
     const team = teams.find((t: any) => t.id === p.team_id);
@@ -49,6 +57,7 @@ const IndividualNetScoreboard: React.FC<Props> = ({
 
   return (
     <Card className="overflow-hidden">
+      <RoundToggleChips rounds={startedRounds} excluded={excluded} onToggle={toggleRound} />
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -84,7 +93,7 @@ const IndividualNetScoreboard: React.FC<Props> = ({
                   {d.player.handicap_override != null && <span className="text-amber-400">*</span>}
                 </TableCell>
                 {d.roundScores.map((score: number | null, i: number) => (
-                  <TableCell key={i} className={`text-center font-mono text-sm ${startedRounds[i]?.status === 'active' ? 'italic text-muted-foreground' : ''}`}>
+                  <TableCell key={i} className={`text-center font-mono text-sm ${startedRounds[i]?.status === 'active' ? 'italic text-muted-foreground' : ''} ${excluded.has(startedRounds[i]?.id) ? 'opacity-40 line-through' : ''}`}>
                     {score !== null ? score : '—'}
                   </TableCell>
                 ))}
