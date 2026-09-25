@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 interface ScoreEdit {
   playerId: string;
   hole: number;
-  score: number;
+  score: number | null;
 }
 
 interface Props {
@@ -55,9 +55,12 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
   const savedScore = (playerId: string, hole: number) =>
     scores.find((s: any) => s.tournament_player_id === playerId && s.hole_number === hole);
 
+  const isPendingDelete = (playerId: string, hole: number) =>
+    pendingEdits.get(makeKey(playerId, hole))?.score === null;
+
   const getScore = (playerId: string, hole: number) => {
     const pending = pendingEdits.get(makeKey(playerId, hole));
-    if (pending) return { gross: pending.score, isOverride: true, isPending: true };
+    if (pending) return pending.score == null ? null : { gross: pending.score, isOverride: true, isPending: true };
     const s = savedScore(playerId, hole);
     return s && s.gross_score != null
       ? { gross: s.gross_score as number, isOverride: s.is_super_user_override, isPending: false }
@@ -86,12 +89,28 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
     const key = makeKey(playerId, hole);
     const val = parseInt(raw, 10);
     const existing = savedScore(playerId, hole);
-    if (isNaN(val) || val < 1) return;
+    const hasSaved = existing && existing.gross_score != null;
+    if (raw.trim() === '' || isNaN(val) || val < 1) {
+      // Clear / delete the score
+      if (hasSaved) {
+        setPendingEdits(prev => new Map(prev).set(key, { playerId, hole, score: null }));
+      } else {
+        setPendingEdits(prev => { const next = new Map(prev); next.delete(key); return next; });
+      }
+      return;
+    }
     if (existing?.gross_score === val) {
       setPendingEdits(prev => { const next = new Map(prev); next.delete(key); return next; });
     } else {
       setPendingEdits(prev => new Map(prev).set(key, { playerId, hole, score: val }));
     }
+  };
+
+  const clearCell = (playerId: string, hole: number) => {
+    editValueRef.current = '';
+    setEditValue('');
+    applyValue(playerId, hole, '');
+    setEditCell(null);
   };
 
   const commitEdit = (moveTo?: { playerId: string; hole: number } | null) => {
@@ -286,12 +305,25 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
                           className="w-11 h-11 rounded-md text-center text-sm font-mono bg-background ring-2 ring-primary outline-none"
                           autoFocus
                         />
-                      ) : (
+                      ) : null}
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onMouseDown={e => { e.preventDefault(); clearCell(playerId, hole); }}
+                          className="mt-0.5 w-11 rounded text-[10px] font-semibold text-destructive hover:bg-destructive/10"
+                          aria-label="Delete score"
+                        >
+                          Delete
+                        </button>
+                      )}
+                      {!isEditing && (
                         <button
                           type="button"
                           style={score && !score.isPending ? winnerStyle(gp, playerId, hole) : undefined}
                           className={`w-11 h-11 rounded-md text-sm font-mono transition-colors ${
-                            score?.isPending
+                            isPendingDelete(playerId, hole)
+                              ? 'ring-1 ring-destructive text-destructive line-through bg-destructive/10'
+                              : score?.isPending
                               ? 'bg-primary/20 ring-1 ring-primary text-primary font-bold'
                               : score
                                 ? 'bg-muted hover:bg-accent'
@@ -299,7 +331,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
                           }`}
                           onClick={() => startEdit(playerId, hole)}
                         >
-                          {score?.gross ?? '—'}
+                          {isPendingDelete(playerId, hole) ? (savedScore(playerId, hole)?.gross_score ?? '—') : (score?.gross ?? '—')}
                           {score?.isOverride && !score?.isPending && (
                             <span className="text-[hsl(var(--brand-gold))]">*</span>
                           )}
