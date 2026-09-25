@@ -1464,6 +1464,11 @@ const Scorecard: React.FC = () => {
               <Play className="w-4 h-4 mr-2" /> Return to Hole
             </Button>
           )}
+          {firstIncompleteHole !== null && firstIncompleteHole > 1 && (
+            <Button variant="secondary" onClick={() => navigate('/summary')} className="flex-1">
+              <Flag className="w-4 h-4 mr-2" /> End Early
+            </Button>
+          )}
         </div>
       )}
     </div>
