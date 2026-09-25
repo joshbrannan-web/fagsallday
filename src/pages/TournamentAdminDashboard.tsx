@@ -24,6 +24,7 @@ import RoundConfigCard, { RoundConfigData, defaultRoundConfig } from '@/componen
 import RoundResultsDashboard from '@/components/tournament-admin/RoundResultsDashboard';
 import RoundPairingsEditor from '@/components/tournament-admin/RoundPairingsEditor';
 import SideBetsPanel from '@/components/tournament/SideBetsPanel';
+import RoundCarryoverCard from '@/components/tournament-admin/RoundCarryoverCard';
 
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -464,6 +465,7 @@ const TournamentAdminDashboard: React.FC = () => {
                     <FlaskConical className="w-3.5 h-3.5 mr-1" />
                     Test Start
                   </Button>
+                  {r.status === 'completed' && <RoundCarryoverCard sourceRound={r} rounds={rounds} />}
                 </Card>
               );
             })}

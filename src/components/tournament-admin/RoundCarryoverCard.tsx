@@ -110,7 +110,7 @@ export default function RoundCarryoverCard({ sourceRound, rounds, onApplied }: P
 
     const matches: MatchOutcome[] = [];
     srcGroups.forEach((g: any) => {
-      resolveSubMatchups(g.team_matchup)
+      (resolveSubMatchups(g.team_matchup) || [])
         .filter((m: any) => missing.some((h: number) => h >= (m.holeStart ?? 1) && h <= (m.holeEnd ?? 18)))
         .forEach((m: any) => {
           const a = m.playerA, b = m.playerB;
