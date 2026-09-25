@@ -867,7 +867,7 @@ const ActiveRound: React.FC = () => {
             <PopoverContent className="w-64 p-3" side="bottom">
               <p className="text-xs font-semibold text-muted-foreground mb-2">Jump to Hole</p>
               <div className="grid grid-cols-6 gap-1.5">
-                {Array.from({ length: 18 }, (_, i) => i + 1).map(hole => {
+                {Array.from({ length: currentRound.course?.holes?.length || 18 }, (_, i) => i + 1).map(hole => {
                   const isScored = currentRound.players.every(p => {
                     const s = currentRound.scores[hole]?.[p.id];
                     return typeof s === 'number' && s > 0;
@@ -913,7 +913,7 @@ const ActiveRound: React.FC = () => {
 
         {/* Hole completion dots */}
         <div className="flex justify-center gap-1 mb-3">
-          {Array.from({ length: 18 }, (_, i) => i + 1).map(hole => {
+          {Array.from({ length: currentRound.course?.holes?.length || 18 }, (_, i) => i + 1).map(hole => {
             const isScored = currentRound.players.every(p => {
               const s = currentRound.scores[hole]?.[p.id];
               return typeof s === 'number' && s > 0;

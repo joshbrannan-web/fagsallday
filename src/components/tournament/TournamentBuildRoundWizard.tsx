@@ -209,7 +209,7 @@ const TournamentBuildRoundWizard: React.FC = () => {
           <div className="flex gap-3 text-sm text-muted-foreground">
             <span>Par {course?.holes?.reduce((s: number, h: any) => s + h.par, 0) || 72}</span>
             <span>{course?.holes?.reduce((s: number, h: any) => s + h.yardage, 0)?.toLocaleString() || 0} yds</span>
-            <span>18 holes</span>
+            <span>{course?.holes?.length || 18} holes</span>
           </div>
         </div>
         <div>

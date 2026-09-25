@@ -21,10 +21,10 @@ interface Props {
   onBatchSave: (edits: ScoreEdit[]) => Promise<void>;
 }
 
-const FRONT = Array.from({ length: 9 }, (_, i) => i + 1);
-const BACK = Array.from({ length: 9 }, (_, i) => i + 10);
-
 const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, results, courseHoles = [], onBatchSave }) => {
+  const holeCount = courseHoles.length || 18;
+  const FRONT = Array.from({ length: Math.min(9, holeCount) }, (_, i) => i + 1);
+  const BACK = holeCount > 9 ? Array.from({ length: holeCount - 9 }, (_, i) => i + 10) : [];
   const [editCell, setEditCell] = useState<{ playerId: string; hole: number } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [pendingEdits, setPendingEdits] = useState<Map<string, ScoreEdit>>(new Map());
@@ -153,7 +153,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
 
   const holesPlayed = results.filter((r: any) => r.team_points && Object.keys(r.team_points).length > 0).length;
 
-  const holeResultDots = Array.from({ length: 18 }, (_, i) => {
+  const holeResultDots = Array.from({ length: holeCount }, (_, i) => {
     const r = getResult(i + 1);
     const teamPoints = r?.team_points as Record<string, number> | undefined;
     if (!r || !teamPoints || Object.keys(teamPoints).length === 0) {
@@ -368,7 +368,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
       <MatchStatusBar
         leadAmount={0}
         holesPlayed={holesPlayed}
-        isComplete={holesPlayed === 18}
+        isComplete={holesPlayed === holeCount}
         resultLabel={holesPlayed === 0 ? 'Not Started' : `${holesPlayed} holes played`}
         teamA={matchTeams?.[0]}
         teamB={matchTeams?.[1]}
@@ -389,7 +389,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
       )}
 
       {renderNine(FRONT, 'OUT')}
-      {renderNine(BACK, 'IN')}
+      {BACK.length > 0 && renderNine(BACK, 'IN')}
 
       {/* Totals */}
       <div className="rounded-lg border border-border overflow-x-auto">

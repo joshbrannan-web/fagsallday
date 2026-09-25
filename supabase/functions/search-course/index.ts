@@ -661,7 +661,7 @@ Guidelines:
 - The "Hcp" or "Handicap" row contains stroke index values
 - IMPORTANT: Parse the ACTUAL numbers from the table, do not make up values
 - If a value is unclear, use reasonable defaults but flag it
-- Ensure all 18 holes are extracted in order
+- Extract every hole the course actually has, in order. Many courses (par-3 and short courses) have 9, 12, 13 or another number of holes — NEVER pad to 18 or invent holes that are not on the scorecard
 - IMPORTANT: For the "location" field, look for the course's city and state on the page (often shown in the header, breadcrumb, or address area). The location MUST be a real city and state — never leave it empty or as "Location not specified". If the page shows an address, extract the city and state from it.${locationHint}
 
 CRITICAL: If the page content does not contain an actual scorecard table with numeric hole data (par, yardage, handicap values), you MUST return { "error": "no_scorecard_data" } instead of guessing. NEVER invent, estimate, or use memorized values. Only extract data that is explicitly present in the content.`;
@@ -670,7 +670,7 @@ CRITICAL: If the page content does not contain an actual scorecard table with nu
 
 ${finalMarkdown}
 
-Extract all 18 holes with their par, yardage (from Blue/Back tees), and handicap index.
+Extract every hole on the scorecard (only as many as the course actually has) with their par, yardage (from Blue/Back tees), and handicap index.
 Return ONLY the JSON object with the parsed data. If the content does not contain a scorecard table, return { "error": "no_scorecard_data" }.`;
 
   console.log('Calling Lovable AI to parse scorecard...');
