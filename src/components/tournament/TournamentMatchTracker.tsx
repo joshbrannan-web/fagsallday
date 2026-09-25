@@ -6,9 +6,10 @@ interface Props {
   teams: Record<string, { name: string; color: string }>;
   teamTotals: Record<string, number>;
   activeHole?: number;
+  totalHoles?: number;
 }
 
-const TournamentMatchTracker: FC<Props> = ({ holeResults, teamMatchup, teams, teamTotals, activeHole }) => {
+const TournamentMatchTracker: FC<Props> = ({ holeResults, teamMatchup, teams, teamTotals, activeHole, totalHoles = 18 }) => {
   if (!teamMatchup) return null;
 
   const teamA = teams[teamMatchup.teamAId];
@@ -34,7 +35,7 @@ const TournamentMatchTracker: FC<Props> = ({ holeResults, teamMatchup, teams, te
 
       {/* 18-dot tracker */}
       <div className="flex justify-center gap-1 flex-wrap">
-        {Array.from({ length: 18 }, (_, i) => {
+        {Array.from({ length: totalHoles }, (_, i) => {
           const hole = i + 1;
           const result = holeResults[hole];
           const isCurrent = hole === activeHole;

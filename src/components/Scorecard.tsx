@@ -875,7 +875,7 @@ const Scorecard: React.FC = () => {
         </div>
       )}
 
-      <div className="p-4 flex justify-center">
+      <div className={`p-4 flex justify-center ${back9.length === 0 ? 'hidden' : ''}`}>
         <div className="bg-card p-1 rounded-xl shadow-sm border border-border flex gap-1">
           <button
             onClick={() => setViewMode('FRONT')}
@@ -887,7 +887,7 @@ const Scorecard: React.FC = () => {
             onClick={() => setViewMode('BACK')}
             className={`px-6 py-2 rounded-lg text-sm font-bold transition-colors ${viewMode === 'BACK' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
           >
-            Back 9
+            {back9.length === 9 ? 'Back 9' : `Holes 10–${9 + back9.length}`}
           </button>
         </div>
       </div>
