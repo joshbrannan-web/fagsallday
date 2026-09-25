@@ -208,6 +208,17 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
           { onConflict: 'tournament_group_id,hole_number' },
         );
       }
+
+      // Clear results for holes that no longer have a complete set of scores
+      const validHoles = new Set(result.holeResults.map(hr => hr.holeNumber));
+      const { data: existingRows } = await supabase
+        .from('tournament_hole_results')
+        .select('id, hole_number')
+        .eq('tournament_group_id', groupId);
+      const stale = (existingRows || []).filter(r => !validHoles.has(r.hole_number)).map(r => r.id);
+      if (stale.length > 0) {
+        await supabase.from('tournament_hole_results').delete().in('id', stale);
+      }
     } catch (e) {
       console.error('Tournament engine error on override:', e);
     }
@@ -251,28 +262,40 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
     await runEngineRecalc(scoresMap);
   };
 
-  const batchOverrideScores = async (edits: { playerId: string; hole: number; score: number }[]) => {
+  const batchOverrideScores = async (edits: { playerId: string; hole: number; score: number | null }[]) => {
     if (!groupId || edits.length === 0) return;
 
-    // Build upsert payload
-    const upsertPayload = edits.map(edit => {
-      const existing = scores.find((s: any) => s.tournament_player_id === edit.playerId && s.hole_number === edit.hole);
-      return {
-        ...(existing?.id ? { id: existing.id } : {}),
-        tournament_group_id: groupId,
-        tournament_player_id: edit.playerId,
-        hole_number: edit.hole,
-        gross_score: edit.score,
-        is_super_user_override: true,
-        updated_at: new Date().toISOString(),
-      };
-    });
+    const deletes = edits.filter(e => e.score == null || e.score <= 0);
+    const upserts = edits.filter(e => e.score != null && e.score > 0);
 
-    const { error } = await supabase
-      .from('tournament_hole_scores')
-      .upsert(upsertPayload, { onConflict: 'tournament_group_id,tournament_player_id,hole_number' });
+    if (upserts.length > 0) {
+      const upsertPayload = upserts.map(edit => {
+        const existing = scores.find((s: any) => s.tournament_player_id === edit.playerId && s.hole_number === edit.hole);
+        return {
+          ...(existing?.id ? { id: existing.id } : {}),
+          tournament_group_id: groupId,
+          tournament_player_id: edit.playerId,
+          hole_number: edit.hole,
+          gross_score: edit.score as number,
+          is_super_user_override: true,
+          updated_at: new Date().toISOString(),
+        };
+      });
+      const { error } = await supabase
+        .from('tournament_hole_scores')
+        .upsert(upsertPayload, { onConflict: 'tournament_group_id,tournament_player_id,hole_number' });
+      if (error) { throw error; }
+    }
 
-    if (error) { throw error; }
+    for (const d of deletes) {
+      const { error } = await supabase
+        .from('tournament_hole_scores')
+        .delete()
+        .eq('tournament_group_id', groupId)
+        .eq('tournament_player_id', d.playerId)
+        .eq('hole_number', d.hole);
+      if (error) { throw error; }
+    }
 
     // Build full scores map with edits applied
     const scoresMap: Record<string, Record<number, number>> = {};
@@ -282,9 +305,12 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
         scoresMap[s.tournament_player_id][s.hole_number] = s.gross_score;
       }
     });
-    edits.forEach(edit => {
+    upserts.forEach(edit => {
       if (!scoresMap[edit.playerId]) scoresMap[edit.playerId] = {};
-      scoresMap[edit.playerId][edit.hole] = edit.score;
+      scoresMap[edit.playerId][edit.hole] = edit.score as number;
+    });
+    deletes.forEach(edit => {
+      if (scoresMap[edit.playerId]) delete scoresMap[edit.playerId][edit.hole];
     });
 
     await runEngineRecalc(scoresMap);
