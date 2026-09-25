@@ -305,12 +305,25 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
                           className="w-11 h-11 rounded-md text-center text-sm font-mono bg-background ring-2 ring-primary outline-none"
                           autoFocus
                         />
-                      ) : (
+                      ) : null}
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onMouseDown={e => { e.preventDefault(); clearCell(playerId, hole); }}
+                          className="mt-0.5 w-11 rounded text-[10px] font-semibold text-destructive hover:bg-destructive/10"
+                          aria-label="Delete score"
+                        >
+                          Delete
+                        </button>
+                      )}
+                      {!isEditing && (
                         <button
                           type="button"
                           style={score && !score.isPending ? winnerStyle(gp, playerId, hole) : undefined}
                           className={`w-11 h-11 rounded-md text-sm font-mono transition-colors ${
-                            score?.isPending
+                            isPendingDelete(playerId, hole)
+                              ? 'ring-1 ring-destructive text-destructive line-through bg-destructive/10'
+                              : score?.isPending
                               ? 'bg-primary/20 ring-1 ring-primary text-primary font-bold'
                               : score
                                 ? 'bg-muted hover:bg-accent'
@@ -318,7 +331,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
                           }`}
                           onClick={() => startEdit(playerId, hole)}
                         >
-                          {score?.gross ?? '—'}
+                          {isPendingDelete(playerId, hole) ? (savedScore(playerId, hole)?.gross_score ?? '—') : (score?.gross ?? '—')}
                           {score?.isOverride && !score?.isPending && (
                             <span className="text-[hsl(var(--brand-gold))]">*</span>
                           )}
