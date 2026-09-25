@@ -144,6 +144,7 @@ const RoundSummary: React.FC = () => {
   const [showGreenFeeDialog, setShowGreenFeeDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSyncingTournament, setIsSyncingTournament] = useState(false);
+  const [showEarlyFinish, setShowEarlyFinish] = useState(false);
   
   // Tournament overlay for batch sync on completion
   const meta = (currentRound?.gameData as any)?.['_TOURNAMENT_META'];
@@ -700,6 +701,27 @@ const RoundSummary: React.FC = () => {
             <Home className="w-4 h-4 mr-2" /> Finish & Save
           </Button>
         )}
+        {currentRound.status === 'ACTIVE' && !allHolesComplete && completedHoleCount >= 1 && (
+          <Button variant="secondary" onClick={() => setShowEarlyFinish(true)} className="w-full" disabled={isSyncingTournament}>
+            <Home className="w-4 h-4 mr-2" /> End Round Early ({completedHoleCount} holes)
+          </Button>
+        )}
+        <AlertDialog open={showEarlyFinish} onOpenChange={setShowEarlyFinish}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>End round early?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Finish with {completedHoleCount} holes played. Payouts and tournament scores will be final based only on the holes already scored. Unplayed holes stay blank.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { setShowEarlyFinish(false); handleFinish(); }}>
+                End & Save
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {(isComplete || isLocked) && (
           <Button onClick={() => navigate('/')} className="w-full">
             <Home className="w-4 h-4 mr-2" /> Home
