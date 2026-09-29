@@ -182,6 +182,7 @@ export interface GameSettings {
     sixesHiLo?: {
       payoutMode: 'cumulative' | 'flat_stretch';
       resetCarriesOnRotation: boolean;
+      segmentMode?: 'sixes' | 'nines' | 'eighteen'; // how often partners rotate
     };
     // 6's game config
     sixes?: {

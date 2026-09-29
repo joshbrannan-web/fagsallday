@@ -461,12 +461,27 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                   </div>
                 )}
 
-                {/* Sixes Low Ball / High Ball */}
+                {/* Low Ball / High Ball */}
                 {game.type === GameType.SIXES_HI_LO && (
                   <div className="space-y-4 pt-2 border-t border-border/50">
-                    <p className="text-xs text-muted-foreground">
-                      Rotation uses the player order: A+B vs C+D (1-6), A+C vs B+D (7-12), A+D vs B+C (13-18).
-                    </p>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Team Rotation</Label>
+                      <RadioGroup
+                        value={selectedGame.config.sixesHiLo?.segmentMode ?? 'sixes'}
+                        onValueChange={(v) => updateGameConfigDeep(selectedGame.id, (g) => ({
+                          ...g, config: { ...g.config, sixesHiLo: { payoutMode: 'cumulative', resetCarriesOnRotation: true, ...(g.config.sixesHiLo ?? {}), segmentMode: v as 'sixes' | 'nines' | 'eighteen' } },
+                        }))}
+                      >
+                        <div className="flex items-center gap-2"><RadioGroupItem value="sixes" id={`hl-6-${selectedGame.id}`} /><Label htmlFor={`hl-6-${selectedGame.id}`} className="text-sm">6's — partners change every 6 holes</Label></div>
+                        <div className="flex items-center gap-2"><RadioGroupItem value="nines" id={`hl-9-${selectedGame.id}`} /><Label htmlFor={`hl-9-${selectedGame.id}`} className="text-sm">9's — partners change at the turn</Label></div>
+                        <div className="flex items-center gap-2"><RadioGroupItem value="eighteen" id={`hl-18-${selectedGame.id}`} /><Label htmlFor={`hl-18-${selectedGame.id}`} className="text-sm">18 holes — same teams all round</Label></div>
+                      </RadioGroup>
+                      <p className="text-xs text-muted-foreground">
+                        {(selectedGame.config.sixesHiLo?.segmentMode ?? 'sixes') === 'sixes' && 'Player order: A+B vs C+D (1-6), A+C vs B+D (7-12), A+D vs B+C (13-18).'}
+                        {selectedGame.config.sixesHiLo?.segmentMode === 'nines' && 'Player order: A+B vs C+D (front 9), A+C vs B+D (back 9).'}
+                        {selectedGame.config.sixesHiLo?.segmentMode === 'eighteen' && 'Player order: A+B vs C+D for all 18 holes.'}
+                      </p>
+                    </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Payout</Label>
                       <RadioGroup
@@ -476,7 +491,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                         }))}
                       >
                         <div className="flex items-center gap-2"><RadioGroupItem value="cumulative" id={`hl-cum-${selectedGame.id}`} /><Label htmlFor={`hl-cum-${selectedGame.id}`} className="text-sm">Cumulative points (stake per point)</Label></div>
-                        <div className="flex items-center gap-2"><RadioGroupItem value="flat_stretch" id={`hl-flat-${selectedGame.id}`} /><Label htmlFor={`hl-flat-${selectedGame.id}`} className="text-sm">Flat bet per 6-hole stretch</Label></div>
+                        <div className="flex items-center gap-2"><RadioGroupItem value="flat_stretch" id={`hl-flat-${selectedGame.id}`} /><Label htmlFor={`hl-flat-${selectedGame.id}`} className="text-sm">Flat bet per stretch</Label></div>
                       </RadioGroup>
                     </div>
                     <div className="flex items-start justify-between gap-3">

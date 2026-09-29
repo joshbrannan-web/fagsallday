@@ -29,6 +29,12 @@ export const getHiLoTeams = (ids: string[], stretch: number): { teamA: string[];
   return { teamA: [a, d], teamB: [b, c] };
 };
 
+export type HiLoSegmentMode = 'sixes' | 'nines' | 'eighteen';
+export const getHiLoSegmentLength = (game: GameSettings): number => {
+  const m = game.config.sixesHiLo?.segmentMode ?? 'sixes';
+  return m === 'nines' ? 9 : m === 'eighteen' ? 18 : 6;
+};
+
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export const calculateSixesHiLoHoles = (round: Round, game: GameSettings): HiLoHoleResult[] => {
@@ -43,6 +49,8 @@ export const calculateSixesHiLoHoles = (round: Round, game: GameSettings): HiLoH
   // Reference for relative strokes: lowest handicap among the 4 game players
   const ref = players.reduce((m, p) => (p.courseHandicap < m.courseHandicap ? p : m), players[0]);
 
+  const segLen = getHiLoSegmentLength(game);
+  const maxStretch = Math.ceil(18 / segLen);
   let lowCarry = 0;
   let highCarry = 0;
   let lastStretch = 1;
@@ -50,7 +58,7 @@ export const calculateSixesHiLoHoles = (round: Round, game: GameSettings): HiLoH
 
   for (let i = 0; i < order.length; i++) {
     const h = order[i];
-    const stretch = Math.min(3, Math.floor(i / 6) + 1);
+    const stretch = Math.min(maxStretch, Math.floor(i / segLen) + 1);
     if (stretch !== lastStretch) {
       if (resetOnRotation) { lowCarry = 0; highCarry = 0; }
       lastStretch = stretch;
@@ -84,14 +92,15 @@ export const calculateSixesHiLo = (round: Round, game: GameSettings): GameResult
   const details: string[] = [];
   players.forEach(p => (results[p.id] = 0));
   if (players.length !== 4) {
-    return { gameId: game.id, playerResults: results, details: ["Sixes Hi-Lo requires exactly 4 players"] };
+    return { gameId: game.id, playerResults: results, details: ["Low Ball / High Ball requires exactly 4 players"] };
   }
   const name = (id: string) => players.find(p => p.id === id)?.name ?? id;
   const unit = game.unitStake;
   const payoutMode = game.config.sixesHiLo?.payoutMode ?? 'cumulative';
   const holes = calculateSixesHiLoHoles(round, game);
   const holeCount = round.course.holes.length;
-  const perStretch = Math.min(6, Math.ceil(holeCount / 3));
+  const segLen = getHiLoSegmentLength(game);
+  const perStretch = Math.min(segLen, Math.ceil(holeCount / (18 / segLen)));
 
   for (const hr of holes) {
     holeResults[hr.hole] = {};

@@ -55,6 +55,8 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
   }
   
   if (type === GameType.SIXES_HI_LO) {
+    const seg = config.sixesHiLo?.segmentMode ?? 'sixes';
+    details.push(seg === 'nines' ? "Format: 9's" : seg === 'eighteen' ? 'Format: 18 holes' : "Format: 6's");
     details.push(config.sixesHiLo?.payoutMode === 'flat_stretch' ? 'Payout: Flat per stretch' : 'Payout: Per point');
     details.push((config.sixesHiLo?.resetCarriesOnRotation ?? true) ? 'Carries reset on rotation' : 'Carries roll over');
   }
