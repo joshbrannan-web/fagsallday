@@ -19,7 +19,7 @@ interface GameSelectorProps {
 
 const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode = false }: GameSelectorProps) => {
   const availableGames = isTournamentMode
-    ? GAME_LIBRARY.filter(g => g.type !== GameType.SIXES && g.type !== GameType.STOCKTON_6)
+    ? GAME_LIBRARY.filter(g => g.type !== GameType.SIXES && g.type !== GameType.STOCKTON_6 && g.type !== GameType.SIXES_HI_LO)
     : GAME_LIBRARY;
 
   const handleGamesChange = (games: GameSettings[]) => {
@@ -458,6 +458,39 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Sixes Low Ball / High Ball */}
+                {game.type === GameType.SIXES_HI_LO && (
+                  <div className="space-y-4 pt-2 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground">
+                      Rotation uses the player order: A+B vs C+D (1-6), A+C vs B+D (7-12), A+D vs B+C (13-18).
+                    </p>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Payout</Label>
+                      <RadioGroup
+                        value={selectedGame.config.sixesHiLo?.payoutMode ?? 'cumulative'}
+                        onValueChange={(v) => updateGameConfigDeep(selectedGame.id, (g) => ({
+                          ...g, config: { ...g.config, sixesHiLo: { resetCarriesOnRotation: true, ...(g.config.sixesHiLo ?? {}), payoutMode: v as 'cumulative' | 'flat_stretch' } },
+                        }))}
+                      >
+                        <div className="flex items-center gap-2"><RadioGroupItem value="cumulative" id={`hl-cum-${selectedGame.id}`} /><Label htmlFor={`hl-cum-${selectedGame.id}`} className="text-sm">Cumulative points (stake per point)</Label></div>
+                        <div className="flex items-center gap-2"><RadioGroupItem value="flat_stretch" id={`hl-flat-${selectedGame.id}`} /><Label htmlFor={`hl-flat-${selectedGame.id}`} className="text-sm">Flat bet per 6-hole stretch</Label></div>
+                      </RadioGroup>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <Label className="text-sm font-medium">Reset carries when partners rotate</Label>
+                        <p className="text-xs text-muted-foreground">Off = pushed points roll into the next stretch with the new teams.</p>
+                      </div>
+                      <Switch
+                        checked={selectedGame.config.sixesHiLo?.resetCarriesOnRotation ?? true}
+                        onCheckedChange={(checked) => updateGameConfigDeep(selectedGame.id, (g) => ({
+                          ...g, config: { ...g.config, sixesHiLo: { payoutMode: 'cumulative', ...(g.config.sixesHiLo ?? {}), resetCarriesOnRotation: checked } },
+                        }))}
+                      />
+                    </div>
                   </div>
                 )}
 

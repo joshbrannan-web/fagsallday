@@ -36,7 +36,8 @@ export enum GameType {
   STOCKTON_6 = 'STOCKTON_6',
   SIXES = 'SIXES',
   TEAM_BANKER = 'TEAM_BANKER',
-  HAMMER = 'HAMMER'
+  HAMMER = 'HAMMER',
+  SIXES_HI_LO = 'SIXES_HI_LO'
 }
 
 // Hammer game types
@@ -176,6 +177,11 @@ export interface GameSettings {
     teamBanker?: {
       mode: 'eighteen' | 'sixes' | 'threes'; // team rotation frequency
       useSecondBallTiebreaker: boolean;
+    };
+    // Sixes Low Ball / High Ball config
+    sixesHiLo?: {
+      payoutMode: 'cumulative' | 'flat_stretch';
+      resetCarriesOnRotation: boolean;
     };
     // 6's game config
     sixes?: {

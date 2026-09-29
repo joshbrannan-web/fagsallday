@@ -54,6 +54,11 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
     details.push(`Dots: $${config.stockton6.dotValue}/dot`);
   }
   
+  if (type === GameType.SIXES_HI_LO) {
+    details.push(config.sixesHiLo?.payoutMode === 'flat_stretch' ? 'Payout: Flat per stretch' : 'Payout: Per point');
+    details.push((config.sixesHiLo?.resetCarriesOnRotation ?? true) ? 'Carries reset on rotation' : 'Carries roll over');
+  }
+
   if (type === GameType.SIXES) {
     const sixesData = gameData?.[game.id]?.[1];
     

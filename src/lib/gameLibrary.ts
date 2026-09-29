@@ -128,6 +128,16 @@ export const GAME_LIBRARY: GameLibraryItem[] = [
       handicapMode: 'relative',
     },
   },
+  {
+    type: GameType.SIXES_HI_LO,
+    name: "Sixes Low Ball / High Ball",
+    description: "Partners rotate every 6 holes (A+B, A+C, A+D). 1 pt for low ball, 1 pt for high ball. Ties carry.",
+    icon: "🔀",
+    defaultUnitStake: 1,
+    minPlayers: 4,
+    maxPlayers: 4,
+    config: { useHandicaps: true, handicapMode: 'relative', sixesHiLo: { payoutMode: 'cumulative', resetCarriesOnRotation: true } },
+  },
 ];
 
 // Detailed game info for popovers
@@ -143,5 +153,6 @@ export const GAME_DETAILS: Record<string, { howItWorks: string; idealPlayers: st
   [GameType.NINE_POINTS]: { howItWorks: "9 points split each hole among 3 players: 5 for best net, 3 for second, 1 for worst. At the end, points are compared and differences paid out. Optional Home Run rule: win a hole outright by 2+ net strokes to sweep all 9 points.", idealPlayers: "Exactly 3 players", examplePayout: "$1/point: 36-point target over 18" },
   [GameType.SIXES]: { howItWorks: "2v2 teams rotate every 6 holes (or every 3). Lowest ball wins each hole. Team winning the most holes in a stretch wins the bet.", idealPlayers: "Exactly 4 players", examplePayout: "$10/stretch: win 4 holes vs 2 = $20" },
   [GameType.TEAM_BANKER]: { howItWorks: "2v2 team version of Banker. All players choose multipliers. Team with the best combined net score wins, applying multipliers for payouts.", idealPlayers: "Exactly 4 players", examplePayout: "$3 unit: team multipliers amplify" },
+  [GameType.SIXES_HI_LO]: { howItWorks: "Players are ordered A, B, C, D. Holes 1-6: A+B vs C+D, 7-12: A+C vs B+D, 13-18: A+D vs B+C. Each hole, the better low ball wins 1 point and the better high ball wins 1 point. Tied points carry to the next hole like skins (optionally reset when partners rotate). Pay per point overall, or a flat bet per 6-hole stretch.", idealPlayers: "Exactly 4 players (order = A, B, C, D)", examplePayout: "$1/pt: win a stretch 8–4 = +$4 each" },
   [GameType.HAMMER]: { howItWorks: "Each hole starts at the base bet. Either team can throw the Hammer to double the pot — the other team must accept or throw it back (doubling again). Lowest net ball wins; ties push and reset. Team Hammer = fixed 2v2 teams per segment. LR Hammer = pick teams each hole (2v2 with 4 players, or 2v1 with 3).", idealPlayers: "3-4 players", examplePayout: "$5 base + 2 throws = $20/player. Birdie 3x = $60/player." },
 };
