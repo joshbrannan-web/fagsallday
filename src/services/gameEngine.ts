@@ -1,6 +1,7 @@
 import { Course, GameSettings, GameType, Player, Round, GameResult, WolfHoleData, FBOPressState } from "../types";
 import { calculateStockton6 } from "./stockton6Engine";
 import { calculateSixes } from "./sixesEngine";
+import { calculateSixesHiLo } from "./sixesHiLoEngine";
 import { calculateTeamBanker } from "./teamBankerEngine";
 import { calculateHammer } from "./hammerEngine";
 import { getPlayHalf, getFrontNineHoles, getBackNineHoles, getPlayedHoles, getPlayOrder, isInLastNPlayed, TOTAL_HOLES } from "../lib/holeOrder";
@@ -1992,6 +1993,9 @@ export const calculatePerGameTotals = (round: Round): {
         break;
       case GameType.HAMMER:
         result = calculateHammer(round, game);
+        break;
+      case GameType.SIXES_HI_LO:
+        result = calculateSixesHiLo(round, game);
         break;
       default:
         return;

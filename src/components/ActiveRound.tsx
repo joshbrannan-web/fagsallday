@@ -2723,6 +2723,8 @@ const ActiveRound: React.FC = () => {
                     return 'Bets';
                   case GameType.TEAM_BANKER:
                     return 'TB';
+                  case GameType.SIXES_HI_LO:
+                    return 'Hi-Lo';
                   default:
                     return type;
                 }
