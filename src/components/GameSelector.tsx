@@ -10,6 +10,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 
+// Games whose scoring uses only the chosen participants, so a larger group
+// can pick a subset of players (e.g. 3 of 4 play Nine Points).
+const SUBSET_GAMES = new Set<GameType>([GameType.NINE_POINTS, GameType.NASSAU]);
+const canSelectGame = (game: GameLibraryItem, count: number) =>
+  count >= game.minPlayers && (count <= game.maxPlayers || SUBSET_GAMES.has(game.type));
+
 interface GameSelectorProps {
   players: Player[];
   selectedGames: GameSettings[];
@@ -40,7 +46,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
     if (exists) {
       handleGamesChange(selectedGames.filter((g) => g.type !== game.type));
     } else {
-      if (players.length < game.minPlayers || players.length > game.maxPlayers) {
+      if (!canSelectGame(game, players.length)) {
         toast.error(`${game.name} requires ${game.minPlayers}-${game.maxPlayers} players`);
         return;
       }
@@ -49,7 +55,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
         gameConfig.fboPlayers = players.map((p) => p.id);
       }
       // Default all players as selected for every game
-      gameConfig.gamePlayers = players.map((p) => p.id);
+      gameConfig.gamePlayers = players.slice(0, game.maxPlayers).map((p) => p.id);
       handleGamesChange([
         ...selectedGames,
         {
@@ -70,9 +76,14 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
     const isIn = currentPlayers.includes(playerId);
     const libraryItem = GAME_LIBRARY.find(g => g.type === gameType);
     const minPlayers = libraryItem?.minPlayers || 2;
+    const maxPlayers = libraryItem?.maxPlayers || 99;
 
     if (isIn && currentPlayers.length <= minPlayers) {
       toast.error(`${game.name} requires at least ${minPlayers} players`);
+      return;
+    }
+    if (!isIn && currentPlayers.length >= maxPlayers) {
+      toast.error(`${game.name} allows only ${maxPlayers} players — tap someone off first`);
       return;
     }
     const newPlayers = isIn
@@ -107,7 +118,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
     <div className="space-y-4">
       {availableGames.map((game) => {
         const isSelected = selectedGames.find((g) => g.type === game.type);
-        const isDisabled = players.length < game.minPlayers || players.length > game.maxPlayers;
+        const isDisabled = !canSelectGame(game, players.length);
         const selectedGame = selectedGames.find((g) => g.type === game.type);
 
         return (
@@ -222,10 +233,11 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                   {(() => {
                     const libraryItem = GAME_LIBRARY.find(g => g.type === game.type);
                     const minP = libraryItem?.minPlayers || 2;
+                    const maxP = libraryItem?.maxPlayers || 99;
                     const count = (selectedGame.config.gamePlayers || players.map(p => p.id)).length;
-                    return count < minP ? (
-                      <p className="text-xs text-destructive">Select at least {minP} players</p>
-                    ) : null;
+                    if (count < minP) return <p className="text-xs text-destructive">Select at least {minP} players</p>;
+                    if (maxP < players.length) return <p className="text-xs text-muted-foreground">{count} of {players.length} players in this game</p>;
+                    return null;
                   })()}
                 </div>
 
