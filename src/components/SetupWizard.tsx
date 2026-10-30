@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import CourseResultPreview from "./CourseResultPreview";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useApp } from "../contexts/AppContext";
 import { Course, Player, GameSettings, GameType, Hole, GameLibraryItem } from "../types";
@@ -1212,21 +1213,14 @@ const SetupWizard: React.FC = () => {
                     Verified by community ({verifiedResults.length})
                   </Label>
                   {verifiedResults.map((result) => (
-                    <button
+                    <CourseResultPreview
                       key={result.id}
-                      onClick={() => handleSelectVerifiedCourse(result)}
-                      className="w-full p-3 rounded-lg border-2 border-primary/30 bg-primary/5 hover:border-primary/60 text-left transition-all"
-                    >
-                      <div className="flex items-center gap-2">
-                        <BadgeCheck className="w-4 h-4 text-primary flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm">{result.course_name}</div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {result.course_location || "No location"} · Par {result.total_par} · {result.total_yardage.toLocaleString()} yards
-                          </div>
-                        </div>
-                      </div>
-                    </button>
+                      verified
+                      name={result.course_name}
+                      subtitle={`${result.course_location || "No location"} · Par ${result.total_par} · ${result.total_yardage.toLocaleString()} yards`}
+                      course={result.course_data}
+                      onSelect={() => { handleSelectVerifiedCourse(result); setVerifiedResults([]); setSearchResults([]); }}
+                    />
                   ))}
                 </div>
               )}
@@ -1242,40 +1236,38 @@ const SetupWizard: React.FC = () => {
                     External results ({searchResults.length} found)
                   </Label>
                   {searchResults.map((result, idx) => (
-                    <button
-                      key={idx}
-                      onClick={async () => {
-                        setIsFetchingDetails(true);
-                        setSearchResults([]);
-                        toast.info(`Fetching scorecard for ${result.name}...`);
-                        
-                        const detailsResult = await fetchCourseDetails(result.url, result.name);
-                        
-                        if (detailsResult.success && detailsResult.course) {
-                          const course = courseDataToCourse(detailsResult.course);
-                          if (course) {
-                            setSelectedCourse(course);
-                            setHoles(course.holes);
-                            setCourseName(course.name);
-                            setCourseLocation(course.location);
-                            toast.success(`Loaded ${course.name} scorecard!`);
-                          }
-                        } else {
-                          toast.error(detailsResult.error || "Failed to fetch course details");
-                        }
-                        setIsFetchingDetails(false);
-                      }}
+                    <CourseResultPreview
+                      key={`${result.url}-${idx}`}
+                      name={result.name}
+                      subtitle={result.location}
                       disabled={isFetchingDetails}
-                      className="w-full p-3 rounded-lg border border-border bg-card hover:border-primary/50 text-left transition-all disabled:opacity-50"
-                    >
-                      <div className="font-medium text-sm">{result.name}</div>
-                      {result.location && (
-                        <div className="text-xs text-muted-foreground truncate">{result.location}</div>
-                      )}
-                    </button>
+                      loadCourse={async () => {
+                        const d = await fetchCourseDetails(result.url, result.name);
+                        return d.success && d.course ? courseDataToCourse(d.course) : null;
+                      }}
+                      onSelect={(course) => {
+                        setSelectedCourse(course);
+                        setHoles(course.holes);
+                        setCourseName(course.name);
+                        setCourseLocation(course.location);
+                        setSearchResults([]);
+                        setVerifiedResults([]);
+                        toast.success(`Loaded ${course.name} scorecard!`);
+                      }}
+                    />
                   ))}
                 </div>
               )}
+
+              {(verifiedResults.length > 0 || searchResults.length > 0) && (
+                <div className="rounded-lg border border-dashed border-border p-3 text-center space-y-2">
+                  <p className="text-xs text-muted-foreground">None of these match your course?</p>
+                  <Button variant="outline" size="sm" className="w-full" onClick={handleCameraUpload}>
+                    <Camera className="w-4 h-4" /> Scan Scorecard
+                  </Button>
+                </div>
+              )}
+              
               
               {isFetchingDetails && (
                 <div className="flex items-center justify-center gap-2 p-4 text-muted-foreground">
