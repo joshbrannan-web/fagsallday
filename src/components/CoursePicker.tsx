@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import CourseResultPreview from '@/components/CourseResultPreview';
 import {
   Search, Camera, Loader2, Star, BadgeCheck, MapPin, ChevronDown, X, Check,
 } from 'lucide-react';
@@ -265,40 +266,45 @@ const CoursePicker: React.FC<CoursePickerProps> = ({ selectedCourse, onCourseSel
 
       {/* Search results */}
       {(verifiedResults.length > 0 || externalResults.length > 0) && (
-        <div className="space-y-2 max-h-48 overflow-y-auto">
+        <div className="space-y-2 max-h-96 overflow-y-auto">
           {verifiedResults.length > 0 && (
-            <div>
+            <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground mb-1">Verified Courses</p>
               {verifiedResults.map(r => (
-                <button key={r.id} onClick={() => handleSelectVerified(r)} className="w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 text-left text-sm">
-                  <BadgeCheck className="w-4 h-4 text-green-500 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="truncate">{r.course_name}</p>
-                    <p className="text-xs text-muted-foreground">Par {r.total_par} · {r.total_yardage} yds</p>
-                  </div>
-                </button>
+                <CourseResultPreview
+                  key={r.id}
+                  verified
+                  name={r.course_name}
+                  subtitle={`Par ${r.total_par} · ${r.total_yardage} yds`}
+                  course={r.course_data}
+                  onSelect={() => handleSelectVerified(r)}
+                />
               ))}
             </div>
           )}
           {externalResults.length > 0 && (
-            <div>
+            <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground mb-1">Web Results</p>
               {externalResults.map((r, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSelectExternal(r.url, r.name)}
-                  disabled={isLoading}
-                  className="w-full flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 text-left text-sm disabled:opacity-50"
-                >
-                  <Search className="w-3 h-3 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="truncate">{r.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{r.location}</p>
-                  </div>
-                </button>
+                <CourseResultPreview
+                  key={`${r.url}-${i}`}
+                  name={r.name}
+                  subtitle={r.location}
+                  loadCourse={async () => {
+                    const d = await fetchCourseDetails(r.url, r.name);
+                    return d.success && d.course ? courseDataToCourse(d.course) : null;
+                  }}
+                  onSelect={(c) => { selectCourse(c); toast.success(`Loaded ${c.name}!`); }}
+                />
               ))}
             </div>
           )}
+          <div className="rounded-lg border border-dashed border-border p-2 text-center space-y-1">
+            <p className="text-xs text-muted-foreground">None of these match?</p>
+            <Button variant="outline" size="sm" className="w-full" onClick={handleScan} disabled={isLoading}>
+              <Camera className="w-4 h-4 mr-1" /> Scan Scorecard
+            </Button>
+          </div>
         </div>
       )}
 
