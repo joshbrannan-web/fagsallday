@@ -233,10 +233,11 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                   {(() => {
                     const libraryItem = GAME_LIBRARY.find(g => g.type === game.type);
                     const minP = libraryItem?.minPlayers || 2;
+                    const maxP = libraryItem?.maxPlayers || 99;
                     const count = (selectedGame.config.gamePlayers || players.map(p => p.id)).length;
-                    return count < minP ? (
-                      <p className="text-xs text-destructive">Select at least {minP} players</p>
-                    ) : null;
+                    if (count < minP) return <p className="text-xs text-destructive">Select at least {minP} players</p>;
+                    if (maxP < players.length) return <p className="text-xs text-muted-foreground">{count} of {players.length} players in this game</p>;
+                    return null;
                   })()}
                 </div>
 
