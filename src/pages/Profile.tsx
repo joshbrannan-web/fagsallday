@@ -4,7 +4,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Loader2, User, RefreshCw, CheckCircle2, Unlink } from 'lucide-react';
+import { ArrowLeft, Loader2, User, RefreshCw, CheckCircle2, Unlink, Trash2 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,6 +26,22 @@ const Profile: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSyncConfirmation, setShowSyncConfirmation] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-my-account', { body: {} });
+      if (error || (data as any)?.error) throw new Error((data as any)?.error || error?.message);
+      Object.keys(localStorage).filter(k => k.startsWith('fg_') || k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+      await supabase.auth.signOut().catch(() => {});
+      toast.success('Your account has been deleted');
+      navigate('/');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete account');
+      setIsDeleting(false);
+    }
+  };
 
   const isGhinLinked = !!profile?.ghin_number;
 
@@ -279,6 +299,38 @@ const Profile: React.FC = () => {
             'Save Changes'
           )}
         </Button>
+
+        <div className="pt-6 border-t border-border space-y-3">
+          <div className="flex justify-center gap-4 text-xs">
+            <button className="text-muted-foreground hover:text-primary underline" onClick={() => navigate('/privacy')}>Privacy Policy</button>
+            <button className="text-muted-foreground hover:text-primary underline" onClick={() => navigate('/terms')}>Terms of Service</button>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="w-full text-destructive border-destructive/40 hover:text-destructive">
+                <Trash2 className="w-4 h-4 mr-2" /> Delete Account
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently deletes your account, profile, rounds, saved players and saved courses. This can't be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={isDeleting}
+                  onClick={(e) => { e.preventDefault(); handleDeleteAccount(); }}
+                >
+                  {isDeleting ? 'Deleting…' : 'Delete Forever'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
 
       </div>
 

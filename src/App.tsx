@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { FC } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { PrivacyPolicy, TermsOfService } from './pages/LegalPage';
 import { Round, Player, Course, GameSettings } from './types';
 import Landing from './components/Landing';
 import SetupWizard from './components/SetupWizard';
@@ -817,6 +818,8 @@ const AppContent: FC = () => {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
         <Route path="/players" element={<Players />} />
         <Route path="/setup" element={<SetupWizard />} />
         <Route path="/active" element={<ActiveRound />} />

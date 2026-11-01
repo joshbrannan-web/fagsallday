@@ -627,6 +627,15 @@ const Auth: React.FC = () => {
               </Button>
             </form>
 
+            {mode === 'signup' && (
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                By creating an account you agree to our{' '}
+                <button type="button" className="underline hover:text-primary" onClick={() => navigate('/terms')}>Terms of Service</button>{' '}
+                and{' '}
+                <button type="button" className="underline hover:text-primary" onClick={() => navigate('/privacy')}>Privacy Policy</button>.
+              </p>
+            )}
+
             {/* Forgot Password Link */}
             {mode === 'signin' && (
               <div className="mt-4 text-center">
