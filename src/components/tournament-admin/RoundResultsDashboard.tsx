@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trophy, Medal, TrendingUp, TrendingDown, Minus, RefreshCw, ClipboardList } from 'lucide-react';
+import { Trophy, Medal, TrendingUp, TrendingDown, Minus, RefreshCw, ClipboardList, AlertTriangle } from 'lucide-react';
 import {
   calcTeamTotalsPerRound,
   calcPlayerGrossPerRound,
@@ -23,6 +23,7 @@ import {
   recalcRoundMatchResults,
   fetchRoundMatches,
   fetchRoundMatchesForRounds,
+  findHolesMissingResults,
 } from '@/services/roundLevelScoring';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -292,6 +293,18 @@ const RoundResultsDashboard: React.FC<Props> = ({
 
           const roundResultRows = holeResultsForRound(round.id);
 
+          // Holes with complete scores but no saved result: a recalculation failed somewhere
+          // (e.g. on a player's phone at submission). Derived from what's saved, so it shows
+          // whichever device failed, and clears itself once results are recalculated.
+          const holesMissingResults = findHolesMissingResults({
+            matches: matchesByRound[round.id] || [],
+            isRoundLevel: isRoundLevelGameType(game?.game_type),
+            groupIds: [...roundGroups].sort((a, b) => a.group_number - b.group_number).map(g => g.id),
+            roundPlayerIds: roundGroups.flatMap(g => (groupPlayersByGroup[g.id] || []).map(gp => gp.tournament_player_id)),
+            scores: holeScores,
+            results: roundResultRows,
+          });
+
           const playerRows = roundPlayers.map((p: any) => {
             const gross = calcPlayerGrossPerRound(
               p.id, round.id,
@@ -331,6 +344,11 @@ const RoundResultsDashboard: React.FC<Props> = ({
                       {round.round_date && ` • ${format(new Date(round.round_date), 'MMM d, yyyy')}`}
                     </p>
                   </div>
+                  {holesMissingResults.length > 0 && (
+                    <Badge variant="outline" className="border-[hsl(var(--brand-gold))]/60 text-xs">
+                      <AlertTriangle className="w-3 h-3 mr-1" /> Results behind
+                    </Badge>
+                  )}
                   <Badge className={round.status === 'completed' ? 'bg-primary/20 text-primary' : 'bg-success/20 text-success'}>
                     {round.status === 'completed' ? 'Complete' : `${submittedCount}/${roundGroups.length}`}
                   </Badge>
@@ -346,6 +364,25 @@ const RoundResultsDashboard: React.FC<Props> = ({
                   >
                     <ClipboardList className="w-3.5 h-3.5 mr-1" /> View Scorecard &amp; Results
                   </Button>
+                )}
+
+                {holesMissingResults.length > 0 && (
+                  <div className="rounded border border-[hsl(var(--brand-gold))]/50 bg-[hsl(var(--brand-gold))]/10 p-2 space-y-2">
+                    <p className="text-xs">
+                      {holesMissingResults.length === 1 ? 'Hole' : 'Holes'} {holesMissingResults.join(', ')}{' '}
+                      {holesMissingResults.length === 1 ? 'has' : 'have'} scores but no saved result, so the
+                      results for this round may be behind. This usually means a player's phone couldn't
+                      finish calculating them.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={recalcRoundId === round.id}
+                      onClick={() => handleRecalc(round)}
+                    >
+                      {recalcRoundId === round.id ? 'Recalculating…' : 'Recalculate results'}
+                    </Button>
+                  </div>
                 )}
 
                 {/* Team Results for this round */}

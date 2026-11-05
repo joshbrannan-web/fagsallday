@@ -256,7 +256,11 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
       });
       if (upToDate) continue;
 
-      const recalced = await recalcRoundMatchResults(rid);
+      // A failure for one round must not stop the other rounds being refreshed
+      const recalced = await recalcRoundMatchResults(rid).catch(e => {
+        console.warn('Background match results refresh failed for round', rid, e);
+        return null;
+      });
       if (!recalced) continue;
 
 
@@ -306,7 +310,10 @@ export const useTournamentScoreboards = (tournamentId: string | undefined) => {
 
       if (completeHoles === anchorResultHoles && !hasStrayResults) continue;
 
-      const recalced = await recalcRoundLevelResults(rid);
+      const recalced = await recalcRoundLevelResults(rid).catch(e => {
+        console.warn('Background round results refresh failed for round', rid, e);
+        return null;
+      });
       if (!recalced) continue;
 
       const { data: refreshed } = await supabase

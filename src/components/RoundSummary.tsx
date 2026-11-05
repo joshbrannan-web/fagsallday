@@ -399,7 +399,8 @@ const RoundSummary: React.FC = () => {
 
       // Every score and result for this group was just re-sent and confirmed, so anything
       // still queued for it is an older copy that must not overwrite them. Clear it now,
-      // even if marking the round submitted fails below.
+      // even if marking the round submitted fails below. ('results-pending' isn't a
+      // complete re-send, so the queue is kept.)
       if (syncResult === 'complete') {
         offlineStorage.removeTournamentItemsForGroup(tournamentGroupId);
       }
@@ -418,7 +419,13 @@ const RoundSummary: React.FC = () => {
         return;
       }
       stopSyncing();
-      toast.success('Round submitted to tournament! 🏆');
+      if (syncResult === 'results-pending') {
+        // Scores are in; the hole results couldn't be worked out. Organisers see this on the
+        // round results page, which flags holes with scores but no results.
+        toast.success('Round submitted. Hole results are still being finalised.');
+      } else {
+        toast.success('Round submitted to tournament! 🏆');
+      }
     }
     
     await finishRound();
