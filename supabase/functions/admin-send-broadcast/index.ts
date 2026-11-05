@@ -4,7 +4,9 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
+// The iOS app (Capacitor) loads the site from capacitor://localhost. The first entry stays
+// the web site: it is the fallback sent to any address not on this list.
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app", "capacitor://localhost"];
 
 // Rate limiting: 5 broadcasts per hour per admin
 const rateLimits = new Map<string, { count: number; resetAt: number }>();

@@ -4,7 +4,9 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
+// The iOS app (Capacitor) loads the site from capacitor://localhost. The first entry stays
+// the web site: it is the fallback sent to any address not on this list.
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app", "capacitor://localhost"];
 
 // Rate limiting: 10 password resets per minute per admin
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -93,13 +95,21 @@ serve(async (req: Request) => {
       );
     }
 
+    // The emailed link must open in a web browser. A request from the iOS app reports
+    // capacitor://localhost, which can't open from an email, so links from anything other
+    // than a web address the site is served on point at the main site instead.
+    const isWebOrigin =
+      ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"].includes(requestOrigin) ||
+      /^https:\/\/[a-z0-9-]+\.(lovable\.app|lovableproject\.com)$/.test(requestOrigin);
+    const linkBase = isWebOrigin ? requestOrigin : "https://fagsallday.com";
+
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
     
     const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
       type: "recovery",
       email: userEmail,
       options: {
-        redirectTo: `${requestOrigin}/#/auth?mode=reset`,
+        redirectTo: `${linkBase}/#/auth?mode=reset`,
       },
     });
 
@@ -109,7 +119,7 @@ serve(async (req: Request) => {
     }
 
     // Use token_hash + verifyOtp instead of action_link to defeat email link prefetchers.
-    const resetLink = `${requestOrigin}/#/auth?mode=reset&token_hash=${encodeURIComponent(hashedToken)}&type=recovery`;
+    const resetLink = `${linkBase}/#/auth?mode=reset&token_hash=${encodeURIComponent(hashedToken)}&type=recovery`;
 
     const emailResponse = await resend.emails.send({
       from: "Fags All Day Golf <noreply@fagsallday.com>",

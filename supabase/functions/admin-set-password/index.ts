@@ -1,7 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app"];
+// The iOS app (Capacitor) loads the site from capacitor://localhost. The first entry stays
+// the web site: it is the fallback sent to any address not on this list.
+const allowedOrigins = ["https://fagsallday.com", "https://www.fagsallday.com", "https://fagsallday.lovable.app", "capacitor://localhost"];
 
 // Rate limiting: 10 password sets per minute per admin
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
