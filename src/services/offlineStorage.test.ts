@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { offlineStorage, isTournamentRetryDue } from './offlineStorage';
+import { offlineStorage, isTournamentRetryDue, splitByAdminOverride } from './offlineStorage';
 
 const store = new Map<string, string>();
 
@@ -120,5 +120,24 @@ describe('tournament queue retries', () => {
     for (let i = 0; i < 60; i++) offlineStorage.incrementTournamentScoreRetry(expired.id);
     offlineStorage.addTournamentScore('g1', 'p1', 4, 5);
     expect(offlineStorage.removeExpiredTournamentItems().scores.map(item => item.holeNumber)).toEqual([3]);
+  });
+});
+
+describe('queued scores vs official corrections', () => {
+  const item = (group: string, player: string, hole: number) =>
+    ({ tournamentGroupId: group, tournamentPlayerId: player, holeNumber: hole });
+
+  it('holds back only scores whose exact group, player and hole an official corrected', () => {
+    const items = [item('g1', 'p1', 3), item('g1', 'p2', 3), item('g1', 'p1', 4), item('g2', 'p1', 3)];
+    const { corrected, toSend } = splitByAdminOverride(items, [
+      { tournament_group_id: 'g1', tournament_player_id: 'p1', hole_number: 3 },
+    ]);
+    expect(corrected).toEqual([item('g1', 'p1', 3)]);
+    expect(toSend).toEqual([item('g1', 'p2', 3), item('g1', 'p1', 4), item('g2', 'p1', 3)]);
+  });
+
+  it('sends everything when nothing was corrected', () => {
+    const items = [item('g1', 'p1', 3)];
+    expect(splitByAdminOverride(items, [])).toEqual({ corrected: [], toSend: items });
   });
 });

@@ -72,6 +72,23 @@ export function isTournamentRetryDue(
   return now - (item.lastAttempt ?? item.timestamp) >= backoffMs;
 }
 
+/**
+ * Split queued tournament scores into those whose hole an official has since corrected
+ * (must never be sent: the correction wins) and those that are safe to send.
+ */
+export function splitByAdminOverride<T extends { tournamentGroupId: string; tournamentPlayerId: string; holeNumber: number }>(
+  items: T[],
+  overrides: { tournament_group_id: string; tournament_player_id: string; hole_number: number }[],
+): { corrected: T[]; toSend: T[] } {
+  const overridden = new Set(overrides.map(o => `${o.tournament_group_id}_${o.tournament_player_id}_${o.hole_number}`));
+  const corrected: T[] = [];
+  const toSend: T[] = [];
+  for (const item of items) {
+    (overridden.has(`${item.tournamentGroupId}_${item.tournamentPlayerId}_${item.holeNumber}`) ? corrected : toSend).push(item);
+  }
+  return { corrected, toSend };
+}
+
 /** Remove expired items (>24h or >= MAX_RETRY_COUNT retries) from a queue array */
 function pruneExpired<T extends { timestamp: number; retryCount?: number }>(items: T[]): T[] {
   const now = Date.now();
