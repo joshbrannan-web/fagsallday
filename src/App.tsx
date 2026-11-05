@@ -57,7 +57,7 @@ import { useRounds, dbRoundToRound, queuedScoresForRound, UUID_RE, type DbRound 
 import { useSavedCourses } from '@/hooks/useSavedCourses';
 import { useSavedPlayers } from '@/hooks/useSavedPlayers';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { offlineStorage } from '@/services/offlineStorage';
+import { offlineStorage, isTournamentRetryDue } from '@/services/offlineStorage';
 import { mergeScores, mergeGameData, fillScoreGaps, fillGameDataGaps } from '@/lib/mergeRoundData';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -395,12 +395,29 @@ const AppContent: FC = () => {
     const drainAllTournamentQueues = async () => {
       let syncedCount = 0;
 
+      // 0. Report items that ran out of attempts or time instead of dropping them silently.
+      // Tournament scores also live on the round scorecard and are all re-sent when the
+      // round is submitted, so a dropped item means the live leaderboard is behind.
+      const expired = offlineStorage.removeExpiredTournamentItems();
+      const staleHoles = Array.from(new Set([
+        ...expired.scores.map(item => item.holeNumber),
+        ...expired.results.flatMap(item => item.payload.map(p => p.hole_number)),
+      ])).sort((a, b) => a - b);
+      if (staleHoles.length > 0) {
+        const holeList = staleHoles.length === 1
+          ? `hole ${staleHoles[0]}`
+          : `holes ${staleHoles.slice(0, -1).join(', ')} and ${staleHoles[staleHoles.length - 1]}`;
+        toast.warning(
+          `The live leaderboard may be out of date for ${holeList}. Your scores are still on your scorecard and will be sent when you finish and submit the round.`,
+          { duration: Infinity, closeButton: true },
+        );
+      }
+
       // 1. Drain score queue
       const scoreQueue = offlineStorage.getTournamentSyncQueue();
       for (const item of scoreQueue) {
-        // Skip items that haven't waited long enough based on retry count
-        const backoffMs = Math.min(30000 * Math.pow(2, item.retryCount ?? 0), 300000);
-        if (Date.now() - item.timestamp < backoffMs) continue;
+        // Skip items that haven't waited long enough since their last attempt
+        if (!isTournamentRetryDue(item)) continue;
         try {
           const { error } = await supabase.from('tournament_hole_scores').upsert({
             tournament_group_id: item.tournamentGroupId,
@@ -423,9 +440,8 @@ const AppContent: FC = () => {
       // 2. Drain result queue
       const resultQueue = offlineStorage.getTournamentResultQueue();
       for (const item of resultQueue) {
-        // Skip items that haven't waited long enough based on retry count
-        const backoffMs = Math.min(30000 * Math.pow(2, item.retryCount ?? 0), 300000);
-        if (Date.now() - item.timestamp < backoffMs) continue;
+        // Skip items that haven't waited long enough since their last attempt
+        if (!isTournamentRetryDue(item)) continue;
         try {
           const { error } = await supabase.from('tournament_hole_results').upsert(
             item.payload,
