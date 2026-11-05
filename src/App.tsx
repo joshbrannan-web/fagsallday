@@ -57,7 +57,7 @@ import { useRounds, dbRoundToRound, queuedScoresForRound, UUID_RE, type DbRound 
 import { useSavedCourses } from '@/hooks/useSavedCourses';
 import { useSavedPlayers } from '@/hooks/useSavedPlayers';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { offlineStorage, isTournamentRetryDue } from '@/services/offlineStorage';
+import { offlineStorage, isTournamentRetryDue, splitByAdminOverride } from '@/services/offlineStorage';
 import { mergeScores, mergeGameData, fillScoreGaps, fillGameDataGaps } from '@/lib/mergeRoundData';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -413,29 +413,61 @@ const AppContent: FC = () => {
         );
       }
 
-      // 1. Drain score queue
-      const scoreQueue = offlineStorage.getTournamentSyncQueue();
-      for (const item of scoreQueue) {
-        // Skip items that haven't waited long enough since their last attempt
-        if (!isTournamentRetryDue(item)) continue;
-        // Skip items cleared while this loop was running (e.g. the round was just submitted)
-        if (!offlineStorage.isTournamentItemQueued('scores', item.id)) continue;
+      // 1. Drain score queue — never send over a hole an official has corrected
+      // (that would replace the correction and clear its "corrected" flag)
+      const dueScores = offlineStorage.getTournamentSyncQueue().filter(item => isTournamentRetryDue(item));
+      if (dueScores.length > 0) {
+        let overrides: { tournament_group_id: string; tournament_player_id: string; hole_number: number }[] | null = null;
         try {
-          const { error } = await supabase.from('tournament_hole_scores').upsert({
-            tournament_group_id: item.tournamentGroupId,
-            tournament_player_id: item.tournamentPlayerId,
-            hole_number: item.holeNumber,
-            gross_score: item.grossScore,
-            is_super_user_override: false,
-          }, { onConflict: 'tournament_group_id,tournament_player_id,hole_number' });
-          if (!error) {
-            offlineStorage.removeTournamentSyncItems([item.id]);
-            syncedCount++;
-          } else {
-            offlineStorage.incrementTournamentScoreRetry(item.id);
+          const { data, error } = await supabase
+            .from('tournament_hole_scores')
+            .select('tournament_group_id, tournament_player_id, hole_number')
+            .in('tournament_group_id', Array.from(new Set(dueScores.map(item => item.tournamentGroupId))))
+            .eq('is_super_user_override', true);
+          if (!error) overrides = data ?? [];
+        } catch {
+          /* handled below */
+        }
+
+        if (overrides === null) {
+          // Couldn't check for corrections: don't send blind, count it as a failed attempt
+          dueScores.forEach(item => offlineStorage.incrementTournamentScoreRetry(item.id));
+        } else {
+          const { corrected, toSend } = splitByAdminOverride(dueScores, overrides);
+
+          // An official's correction wins: drop the player's queued score and say why
+          const stillQueued = corrected.filter(item => offlineStorage.isTournamentItemQueued('scores', item.id));
+          if (stillQueued.length > 0) {
+            offlineStorage.removeTournamentSyncItems(stillQueued.map(item => item.id));
+            const holes = Array.from(new Set(stillQueued.map(item => item.holeNumber))).sort((a, b) => a - b);
+            toast.info(
+              holes.length === 1
+                ? `Hole ${holes[0]} was corrected by an official.`
+                : `Holes ${holes.slice(0, -1).join(', ')} and ${holes[holes.length - 1]} were corrected by an official.`,
+            );
           }
-        } catch (e) {
-          offlineStorage.incrementTournamentScoreRetry(item.id);
+
+          for (const item of toSend) {
+            // Skip items cleared while this loop was running (e.g. the round was just submitted)
+            if (!offlineStorage.isTournamentItemQueued('scores', item.id)) continue;
+            try {
+              const { error } = await supabase.from('tournament_hole_scores').upsert({
+                tournament_group_id: item.tournamentGroupId,
+                tournament_player_id: item.tournamentPlayerId,
+                hole_number: item.holeNumber,
+                gross_score: item.grossScore,
+                is_super_user_override: false,
+              }, { onConflict: 'tournament_group_id,tournament_player_id,hole_number' });
+              if (!error) {
+                offlineStorage.removeTournamentSyncItems([item.id]);
+                syncedCount++;
+              } else {
+                offlineStorage.incrementTournamentScoreRetry(item.id);
+              }
+            } catch (e) {
+              offlineStorage.incrementTournamentScoreRetry(item.id);
+            }
+          }
         }
       }
 

@@ -502,12 +502,24 @@ export const useTournamentOverlay = (
 
     try {
       // 1. Check for admin overrides on this hole
-      const { data: overridden } = await supabase
+      const { data: overridden, error: overrideErr } = await supabase
         .from('tournament_hole_scores')
         .select('tournament_player_id, hole_number')
         .eq('tournament_group_id', tournamentGroupId)
         .eq('hole_number', holeNumber)
         .eq('is_super_user_override', true);
+
+      if (overrideErr) {
+        // Couldn't check for official corrections, so don't save blind (that could overwrite
+        // a correction). Queue this hole's scores instead: the background retry checks for
+        // corrections before sending each one.
+        Object.entries(allHoleScores).forEach(([playerId, holes]) => {
+          const score = holes[holeNumber];
+          if (score === undefined) return;
+          offlineStorage.addTournamentScore(tournamentGroupId, playerId, holeNumber, score);
+        });
+        throw overrideErr;
+      }
 
       const overrideSet = new Set(
         (overridden || []).map(o => `${o.tournament_player_id}_${o.hole_number}`)
@@ -628,22 +640,25 @@ export const useTournamentOverlay = (
 
     try {
       // 1. Check for admin overrides — exclude those player/hole combos
-      const { data: overridden } = await supabase
+      const { data: overridden, error: overrideErr } = await supabase
         .from('tournament_hole_scores')
         .select('tournament_player_id, hole_number')
         .eq('tournament_group_id', tournamentGroupId)
         .eq('is_super_user_override', true);
+      // Never submit blind: without this check a submission could overwrite official corrections
+      if (overrideErr) throw overrideErr;
 
       const overrideSet = new Set(
         (overridden || []).map(o => `${o.tournament_player_id}_${o.hole_number}`)
       );
 
       // Also fetch the actual admin override scores to include in engine input
-      const { data: overriddenScores } = await supabase
+      const { data: overriddenScores, error: overrideScoresErr } = await supabase
         .from('tournament_hole_scores')
         .select('tournament_player_id, hole_number, gross_score')
         .eq('tournament_group_id', tournamentGroupId)
         .eq('is_super_user_override', true);
+      if (overrideScoresErr) throw overrideScoresErr;
 
       // Create a merged scores map that includes admin overrides
       const mergedScores = { ...scoresToSync };
