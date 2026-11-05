@@ -5,6 +5,7 @@ import { isRoundLevelGameType, buildRoundLevelContext, recalcRoundLevelResults, 
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints, MatchState } from '@/types/tournament';
 import { offlineStorage } from '@/services/offlineStorage';
+import { runWithRetry, SubmitError, SUBMIT_DEADLINE_MS } from '@/services/retry';
 import { resolveSubMatchups } from '@/lib/subMatchups';
 import type { SubMatchup } from '@/types/tournament';
 
@@ -625,40 +626,46 @@ export const useTournamentOverlay = (
 
   // Batch sync all scores and results to DB — called only on round completion
   // Accepts optional externalScores to avoid race conditions with React state
-  // Resolves to false on failure. Otherwise 'complete' only when every score and result was
-  // sent and confirmed written; 'incomplete' when nothing was sent or the server wrote fewer
-  // rows than expected (both still truthy, so callers that only check success are unchanged).
+  // Resolves to 'complete' only when every score and result was sent and confirmed written;
+  // 'incomplete' when nothing was sent or the server wrote fewer rows than expected.
+  // On failure: 'failed-connection' (couldn't reach the server, even after silent retries)
+  // or 'failed-rejected' (the server refused, or something else went wrong).
+  // Each request is retried on connection failures until `deadline`. Every step is safe to
+  // repeat, so a write that landed even though the phone saw a timeout is harmless.
   const batchSyncAllScores = useCallback(async (
     externalScores?: Record<string, Record<number, number>>,
-  ): Promise<false | 'complete' | 'incomplete'> => {
+    opts?: { deadline?: number },
+  ): Promise<'complete' | 'incomplete' | 'failed-connection' | 'failed-rejected'> => {
     if (!tournamentGroupId || !tournamentGame || tournamentPlayers.length === 0 || courseHoles.length === 0) {
       return 'incomplete';
     }
+    const retry = { deadline: opts?.deadline ?? Date.now() + SUBMIT_DEADLINE_MS };
 
     const scoresToSync = externalScores || allHoleScores;
     let complete = true;
 
     try {
       // 1. Check for admin overrides — exclude those player/hole combos
-      const { data: overridden, error: overrideErr } = await supabase
+      // Never submit blind: without this check a submission could overwrite official corrections
+      // (runWithRetry throws if it can't be done)
+      const overridden = await runWithRetry(signal => supabase
         .from('tournament_hole_scores')
         .select('tournament_player_id, hole_number')
         .eq('tournament_group_id', tournamentGroupId)
-        .eq('is_super_user_override', true);
-      // Never submit blind: without this check a submission could overwrite official corrections
-      if (overrideErr) throw overrideErr;
+        .eq('is_super_user_override', true)
+        .abortSignal(signal), retry);
 
       const overrideSet = new Set(
         (overridden || []).map(o => `${o.tournament_player_id}_${o.hole_number}`)
       );
 
       // Also fetch the actual admin override scores to include in engine input
-      const { data: overriddenScores, error: overrideScoresErr } = await supabase
+      const overriddenScores = await runWithRetry(signal => supabase
         .from('tournament_hole_scores')
         .select('tournament_player_id, hole_number, gross_score')
         .eq('tournament_group_id', tournamentGroupId)
-        .eq('is_super_user_override', true);
-      if (overrideScoresErr) throw overrideScoresErr;
+        .eq('is_super_user_override', true)
+        .abortSignal(signal), retry);
 
       // Create a merged scores map that includes admin overrides
       const mergedScores = { ...scoresToSync };
@@ -693,11 +700,10 @@ export const useTournamentOverlay = (
       if (scorePayload.length === 0) complete = false;
 
       if (scorePayload.length > 0) {
-        const { data: scoreData, error: scoreErr } = await supabase.from('tournament_hole_scores').upsert(
+        const scoreData = await runWithRetry(signal => supabase.from('tournament_hole_scores').upsert(
           scorePayload,
           { onConflict: 'tournament_group_id,tournament_player_id,hole_number' },
-        ).select('id');
-        if (scoreErr) throw scoreErr;
+        ).select('id').abortSignal(signal), retry);
 
         // 3. Verify row count
         const expectedCount = scorePayload.length;
@@ -743,11 +749,10 @@ export const useTournamentOverlay = (
         }));
 
       if (resultPayload.length > 0) {
-        const { data: resultData, error: resultErr } = await supabase.from('tournament_hole_results').upsert(
+        const resultData = await runWithRetry(signal => supabase.from('tournament_hole_results').upsert(
           resultPayload,
           { onConflict: 'tournament_group_id,hole_number' },
-        ).select('id');
-        if (resultErr) throw resultErr;
+        ).select('id').abortSignal(signal), retry);
 
         const expectedResults = resultPayload.length;
         const actualResults = resultData?.length ?? 0;
@@ -760,7 +765,7 @@ export const useTournamentOverlay = (
       return complete ? 'complete' : 'incomplete';
     } catch (e) {
       console.error('Batch tournament sync failed:', e);
-      return false;
+      return e instanceof SubmitError && e.kind === 'connection' ? 'failed-connection' : 'failed-rejected';
     }
   }, [tournamentGroupId, tournamentGame, tournamentPlayers, courseHoles, holePointOverrides, teamAssignments, allHoleScores, subMatchups, state.teams]);
 

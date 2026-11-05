@@ -12,6 +12,7 @@ import GreenFeeSplitDialog from './GreenFeeSplitDialog';
 import TournamentRoundSummary from './tournament/TournamentRoundSummary';
 import { supabase } from '@/integrations/supabase/client';
 import { offlineStorage } from '@/services/offlineStorage';
+import { runWithRetry, SubmitError, SUBMIT_DEADLINE_MS } from '@/services/retry';
 import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -152,6 +153,7 @@ const RoundSummary: React.FC = () => {
   const [showGreenFeeDialog, setShowGreenFeeDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSyncingTournament, setIsSyncingTournament] = useState(false);
+  const [isSlowSubmit, setIsSlowSubmit] = useState(false);
   const [showEarlyFinish, setShowEarlyFinish] = useState(false);
   
   // Tournament overlay for batch sync on completion
@@ -357,7 +359,19 @@ const RoundSummary: React.FC = () => {
     
     // Batch sync tournament scores on completion — pass scores directly to avoid React state race
     if (tournamentGroupId && tournamentOverlay.batchSyncAllScores) {
+      if (isSyncingTournament) return; // a submit is already running
       setIsSyncingTournament(true);
+      setIsSlowSubmit(false);
+      const slowTimer = setTimeout(() => setIsSlowSubmit(true), 5_000);
+      // One 30-second budget for the whole tap; each step retries silently within it
+      const deadline = Date.now() + SUBMIT_DEADLINE_MS;
+      const connectionMessage = "Couldn't reach the server. Your scores are saved on this phone. Move somewhere with signal and tap Finish again.";
+      const rejectedMessage = "Your scores couldn't be submitted. Please try again, or contact the tournament organiser if this keeps happening.";
+      const stopSyncing = () => {
+        clearTimeout(slowTimer);
+        setIsSyncingTournament(false);
+        setIsSlowSubmit(false);
+      };
 
       // Build tournament scores map directly from round scores (no React state dependency)
       const playerMapping = meta?.playerMapping || tournamentState?.playerMapping;
@@ -376,23 +390,34 @@ const RoundSummary: React.FC = () => {
         });
       }
 
-      const success = await tournamentOverlay.batchSyncAllScores(directScores);
-      setIsSyncingTournament(false);
-      if (!success) {
-        toast.error('Failed to sync tournament scores. Please try again.');
+      const syncResult = await tournamentOverlay.batchSyncAllScores(directScores, { deadline });
+      if (syncResult === 'failed-connection' || syncResult === 'failed-rejected') {
+        stopSyncing();
+        toast.error(syncResult === 'failed-connection' ? connectionMessage : rejectedMessage);
         return;
       }
-      
-      const { error: submitErr } = await supabase.from('tournament_groups').update({
-        status: 'submitted',
-        submitted_at: new Date().toISOString(),
-      }).eq('id', tournamentGroupId);
 
       // Every score and result for this group was just re-sent and confirmed, so anything
-      // still queued for it is an older copy that must not overwrite the submitted scores.
-      if (success === 'complete' && !submitErr) {
+      // still queued for it is an older copy that must not overwrite them. Clear it now,
+      // even if marking the round submitted fails below.
+      if (syncResult === 'complete') {
         offlineStorage.removeTournamentItemsForGroup(tournamentGroupId);
       }
+
+      // Mark the round submitted, confirming a row was actually updated. Safe to repeat.
+      try {
+        const updated = await runWithRetry(signal => supabase.from('tournament_groups').update({
+          status: 'submitted',
+          submitted_at: new Date().toISOString(),
+        }).eq('id', tournamentGroupId).select('id').abortSignal(signal), { deadline });
+        if (!updated || updated.length === 0) throw new SubmitError('rejected', 'No tournament group was updated');
+      } catch (e) {
+        console.error('Marking tournament group submitted failed:', e);
+        stopSyncing();
+        toast.error(e instanceof SubmitError && e.kind === 'connection' ? connectionMessage : rejectedMessage);
+        return;
+      }
+      stopSyncing();
       toast.success('Round submitted to tournament! 🏆');
     }
     
@@ -711,8 +736,12 @@ const RoundSummary: React.FC = () => {
           </>
         )}
         {currentRound.status === 'ACTIVE' && allHolesComplete && (
-          <Button onClick={handleFinish} className="w-full">
-            <Home className="w-4 h-4 mr-2" /> Finish & Save
+          <Button onClick={handleFinish} className="w-full" disabled={isSyncingTournament}>
+            {isSyncingTournament ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {isSlowSubmit ? 'Weak signal, still trying…' : 'Submitting…'}</>
+            ) : (
+              <><Home className="w-4 h-4 mr-2" /> Finish & Save</>
+            )}
           </Button>
         )}
         {currentRound.status === 'ACTIVE' && !allHolesComplete && completedHoleCount >= 1 && (
