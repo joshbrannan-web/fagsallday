@@ -613,14 +613,18 @@ export const useTournamentOverlay = (
 
   // Batch sync all scores and results to DB — called only on round completion
   // Accepts optional externalScores to avoid race conditions with React state
+  // Resolves to false on failure. Otherwise 'complete' only when every score and result was
+  // sent and confirmed written; 'incomplete' when nothing was sent or the server wrote fewer
+  // rows than expected (both still truthy, so callers that only check success are unchanged).
   const batchSyncAllScores = useCallback(async (
     externalScores?: Record<string, Record<number, number>>,
-  ): Promise<boolean> => {
+  ): Promise<false | 'complete' | 'incomplete'> => {
     if (!tournamentGroupId || !tournamentGame || tournamentPlayers.length === 0 || courseHoles.length === 0) {
-      return true;
+      return 'incomplete';
     }
 
     const scoresToSync = externalScores || allHoleScores;
+    let complete = true;
 
     try {
       // 1. Check for admin overrides — exclude those player/hole combos
@@ -671,6 +675,8 @@ export const useTournamentOverlay = (
         });
       });
 
+      if (scorePayload.length === 0) complete = false;
+
       if (scorePayload.length > 0) {
         const { data: scoreData, error: scoreErr } = await supabase.from('tournament_hole_scores').upsert(
           scorePayload,
@@ -683,18 +689,19 @@ export const useTournamentOverlay = (
         const actualCount = scoreData?.length ?? 0;
         if (actualCount < expectedCount) {
           console.warn(`Score sync mismatch: expected ${expectedCount}, got ${actualCount}. Some rows may have been blocked by RLS.`);
+          complete = false;
         }
       }
 
       // 4. Re-run engine and upsert results (using mergedScores which includes admin overrides)
       if (hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
         await recalcRoundMatchResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
-        return true;
+        return complete ? 'complete' : 'incomplete';
       }
 
       if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
         await recalcRoundLevelResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
-        return true;
+        return complete ? 'complete' : 'incomplete';
       }
 
       const teamNameMap: Record<string, string> = {};
@@ -731,10 +738,11 @@ export const useTournamentOverlay = (
         const actualResults = resultData?.length ?? 0;
         if (actualResults < expectedResults) {
           console.warn(`Result sync mismatch: expected ${expectedResults}, got ${actualResults}.`);
+          complete = false;
         }
       }
 
-      return true;
+      return complete ? 'complete' : 'incomplete';
     } catch (e) {
       console.error('Batch tournament sync failed:', e);
       return false;

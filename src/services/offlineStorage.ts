@@ -425,6 +425,33 @@ export const offlineStorage = {
     return offlineStorage.getTournamentResultQueue().length;
   },
 
+  /** Whether a tournament queue item is still waiting to be sent. */
+  isTournamentItemQueued: (queue: 'scores' | 'results', id: string): boolean => {
+    try {
+      const raw = localStorage.getItem(queue === 'scores' ? TOURNAMENT_SYNC_QUEUE_KEY : TOURNAMENT_RESULT_QUEUE_KEY);
+      const items: { id: string }[] = raw ? JSON.parse(raw) : [];
+      return items.some(item => item.id === id);
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Drop every queued tournament score and result for one tournament group (one group's
+   * round). Only call after that round was submitted and every score confirmed written.
+   */
+  removeTournamentItemsForGroup: (tournamentGroupId: string) => {
+    for (const key of [TOURNAMENT_SYNC_QUEUE_KEY, TOURNAMENT_RESULT_QUEUE_KEY]) {
+      try {
+        const raw = localStorage.getItem(key);
+        const items: { tournamentGroupId: string }[] = raw ? JSON.parse(raw) : [];
+        localStorage.setItem(key, JSON.stringify(items.filter(item => item.tournamentGroupId !== tournamentGroupId)));
+      } catch (error) {
+        console.error('Failed to clear tournament queue for group:', error);
+      }
+    }
+  },
+
   /**
    * Permanently remove tournament queue items that have run out of attempts or time,
    * and return them so the caller can tell the user.

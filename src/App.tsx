@@ -418,6 +418,8 @@ const AppContent: FC = () => {
       for (const item of scoreQueue) {
         // Skip items that haven't waited long enough since their last attempt
         if (!isTournamentRetryDue(item)) continue;
+        // Skip items cleared while this loop was running (e.g. the round was just submitted)
+        if (!offlineStorage.isTournamentItemQueued('scores', item.id)) continue;
         try {
           const { error } = await supabase.from('tournament_hole_scores').upsert({
             tournament_group_id: item.tournamentGroupId,
@@ -442,6 +444,8 @@ const AppContent: FC = () => {
       for (const item of resultQueue) {
         // Skip items that haven't waited long enough since their last attempt
         if (!isTournamentRetryDue(item)) continue;
+        // Skip items cleared while this loop was running (e.g. the round was just submitted)
+        if (!offlineStorage.isTournamentItemQueued('results', item.id)) continue;
         try {
           const { error } = await supabase.from('tournament_hole_results').upsert(
             item.payload,

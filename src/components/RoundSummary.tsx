@@ -11,6 +11,7 @@ import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
 import GreenFeeSplitDialog from './GreenFeeSplitDialog';
 import TournamentRoundSummary from './tournament/TournamentRoundSummary';
 import { supabase } from '@/integrations/supabase/client';
+import { offlineStorage } from '@/services/offlineStorage';
 import { useTournamentOverlay } from '@/hooks/useTournamentOverlay';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -382,10 +383,16 @@ const RoundSummary: React.FC = () => {
         return;
       }
       
-      await supabase.from('tournament_groups').update({
+      const { error: submitErr } = await supabase.from('tournament_groups').update({
         status: 'submitted',
         submitted_at: new Date().toISOString(),
       }).eq('id', tournamentGroupId);
+
+      // Every score and result for this group was just re-sent and confirmed, so anything
+      // still queued for it is an older copy that must not overwrite the submitted scores.
+      if (success === 'complete' && !submitErr) {
+        offlineStorage.removeTournamentItemsForGroup(tournamentGroupId);
+      }
       toast.success('Round submitted to tournament! 🏆');
     }
     

@@ -92,6 +92,29 @@ describe('tournament queue retries', () => {
     expect(offlineStorage.removeExpiredTournamentItems()).toEqual({ scores: [], results: [] });
   });
 
+  it('clears only the submitted group\'s scores and results', () => {
+    offlineStorage.addTournamentScore('submitted-group', 'p1', 3, 5);
+    offlineStorage.addTournamentScore('other-group', 'p2', 3, 4);
+    offlineStorage.addTournamentResult('submitted-group', [{
+      tournament_group_id: 'submitted-group', hole_number: 3, team_points: {}, result_label: 'Won', updated_at: '',
+    }]);
+    const otherResult = offlineStorage.addTournamentResult('other-group', [{
+      tournament_group_id: 'other-group', hole_number: 3, team_points: {}, result_label: 'Halved', updated_at: '',
+    }])!;
+
+    offlineStorage.removeTournamentItemsForGroup('submitted-group');
+
+    expect(offlineStorage.getTournamentSyncQueue().map(item => item.tournamentGroupId)).toEqual(['other-group']);
+    expect(offlineStorage.getTournamentResultQueue().map(item => item.id)).toEqual([otherResult.id]);
+  });
+
+  it('reports whether an item is still queued', () => {
+    const added = offlineStorage.addTournamentScore('g1', 'p1', 3, 4)!;
+    expect(offlineStorage.isTournamentItemQueued('scores', added.id)).toBe(true);
+    offlineStorage.removeTournamentItemsForGroup('g1');
+    expect(offlineStorage.isTournamentItemQueued('scores', added.id)).toBe(false);
+  });
+
   it('does not silently erase expired items when a new score is queued', () => {
     const expired = offlineStorage.addTournamentScore('g1', 'p1', 3, 4)!;
     for (let i = 0; i < 60; i++) offlineStorage.incrementTournamentScoreRetry(expired.id);
