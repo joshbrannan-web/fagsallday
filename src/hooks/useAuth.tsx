@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { publicOrigin } from '@/lib/publicOrigin';
 import { offlineStorage } from '@/services/offlineStorage';
 import { toast } from 'sonner';
 
@@ -279,7 +280,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signUp = async (email: string, password: string, displayName: string, handicapIndex: number) => {
-    const redirectUrl = `${window.location.origin}/`;
+    // Goes into the confirmation email, so it must be a web address (not the iOS app's own)
+    const redirectUrl = `${publicOrigin()}/`;
     
     const { error } = await supabase.auth.signUp({
       email,

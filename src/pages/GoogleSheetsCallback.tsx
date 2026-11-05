@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { publicOrigin } from '@/lib/publicOrigin';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -33,7 +34,8 @@ const GoogleSheetsCallback: React.FC = () => {
       }
 
       try {
-        const redirectUri = window.location.origin;
+        // Must match the address sent to Google in TournamentRegistrationAdmin
+        const redirectUri = publicOrigin();
         
         const { data, error } = await supabase.functions.invoke('google-sheets-exchange', {
           body: { code, config_id: configId, redirect_uri: redirectUri },

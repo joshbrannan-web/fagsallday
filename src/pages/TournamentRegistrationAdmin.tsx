@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { publicOrigin } from '@/lib/publicOrigin';
 import { useAuth } from '@/hooks/useAuth';
 import { useTournamentAdmin } from '@/hooks/useTournamentAdmin';
 import { useTournaments } from '@/hooks/useTournaments';
@@ -324,7 +325,8 @@ const TournamentRegistrationAdmin: React.FC = () => {
       toast.error('Google OAuth not configured');
       return;
     }
-    const redirectUri = window.location.origin;
+    // Sent to Google, which only accepts registered web addresses (must match GoogleSheetsCallback)
+    const redirectUri = publicOrigin();
     const state = btoa(JSON.stringify({ config_id: selectedConfig.id }));
     const scopes = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
     const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}&access_type=offline&prompt=consent`;

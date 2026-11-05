@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { publicOrigin } from '@/lib/publicOrigin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -234,7 +235,8 @@ const Admin = () => {
         body: { 
           userId: user.id, 
           userEmail: user.email,
-          origin: window.location.origin 
+          // Base of the emailed reset link, so it must be a web address
+          origin: publicOrigin()
         }
       });
       

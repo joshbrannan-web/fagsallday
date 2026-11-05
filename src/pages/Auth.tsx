@@ -9,6 +9,7 @@ import { Flag, Loader2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { publicOrigin } from '@/lib/publicOrigin';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters');
@@ -173,7 +174,7 @@ const Auth: React.FC = () => {
     try {
       // Call edge function that generates reset link and sends branded email
       const { error } = await supabase.functions.invoke('generate-reset-link', {
-        body: { email, origin: window.location.origin }
+        body: { email, origin: publicOrigin() }
       });
 
       if (error) {
