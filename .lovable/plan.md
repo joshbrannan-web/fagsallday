@@ -1,17 +1,10 @@
-# Add the iOS app address to allowed sign-in return addresses
+# Check the iOS app address in the sign-in settings
 
-I can't edit the Redirect URLs list myself. Only you can change it, and it takes about a minute.
+You've added `capacitor://localhost/` to Redirect URLs. When you approve, I'll check it without changing anything.
 
-## Steps for you
-1. In Lovable, open **More → Users → Auth settings → Advanced**.
-2. Under **Redirect URLs**, add: `capacitor://localhost/**`
-   - The `/**` at the end makes it match every page inside the app, not just the home screen. If you only want the exact address, enter `capacitor://localhost/`.
-3. Save. Leave **Site URL** as it is and keep every existing entry.
+## What I'll check
+1. Read the sign-in settings and confirm `capacitor://localhost/` (or `capacitor://localhost/**`) is on the Redirect URLs list.
+2. Confirm the Site URL wasn't changed and your earlier entries are all still there.
+3. Tell you what I found. If something is missing, I'll tell you exactly what to fix.
 
-## Things to know
-- Lovable keeps your own entries when it updates this list automatically. It only removes extra addresses on Lovable's own domains, so this entry won't be removed.
-- The list holds up to 50 entries, and Lovable's own entries count toward that limit.
-
-## After you save (optional, I can do this)
-- Read the settings back to confirm the new address is listed and the Site URL didn't change.
-- Check that the app builds password-reset and sign-up links from the current app address rather than a fixed website address, so links opened in the iOS app return to the app.
+I won't change any settings or any part of the app.
