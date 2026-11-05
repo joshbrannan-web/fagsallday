@@ -13,9 +13,15 @@ const MIN_ATTEMPT_MS = 1_000;
 export type SubmitFailureKind = 'connection' | 'rejected';
 
 export class SubmitError extends Error {
-  constructor(public kind: SubmitFailureKind, message: string) {
+  constructor(public kind: SubmitFailureKind, message: string, public cause?: unknown) {
     super(message);
     this.name = 'SubmitError';
+  }
+
+  /** The database error code behind a refusal, e.g. '23505' for a unique-key clash. */
+  get code(): string | undefined {
+    const c = (this.cause as { code?: unknown } | undefined)?.code;
+    return c === undefined || c === null ? undefined : String(c);
   }
 }
 
@@ -76,11 +82,11 @@ export async function runWithRetry<T>(
     }
 
     if (!isConnectionError(lastError)) {
-      throw new SubmitError('rejected', `Server refused the request: ${describe(lastError)}`);
+      throw new SubmitError('rejected', `Server refused the request: ${describe(lastError)}`, lastError);
     }
   }
 
-  throw new SubmitError('connection', `Could not reach the server: ${describe(lastError ?? 'out of time')}`);
+  throw new SubmitError('connection', `Could not reach the server: ${describe(lastError ?? 'out of time')}`, lastError);
 }
 
 function describe(error: unknown): string {

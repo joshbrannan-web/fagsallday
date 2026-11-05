@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { calcTournamentHoleResults, type EngineInput, type RoundResult, type CourseHole } from '@/services/tournamentEngine';
-import { isRoundLevelGameType, buildRoundLevelContext, recalcRoundLevelResults, fetchRoundMatches, recalcRoundMatchResults } from '@/services/roundLevelScoring';
+import { isRoundLevelGameType, buildRoundLevelContext, recalcRoundLevelResults, fetchRoundMatches, recalcRoundMatchResults, ResultsCalculationError } from '@/services/roundLevelScoring';
 
 import type { TournamentPlayer, TournamentGame, TournamentHolePoints, MatchState } from '@/types/tournament';
 import { offlineStorage } from '@/services/offlineStorage';
@@ -565,8 +565,11 @@ export const useTournamentOverlay = (
 
       // 4. Run engine and upsert results for this hole
       // Cross-group matches own the scoring for the round.
+      // The scores above are saved; a results failure here is logged and otherwise left
+      // alone, because the next hole's save recalculates the whole round anyway.
       if (hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
-        await recalcRoundMatchResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
+        await recalcRoundMatchResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current })
+          .catch(e => console.warn(`Round match results not updated after hole ${holeNumber}:`, e));
         syncedHolesRef.current.add(holeNumber);
         dirtyHolesRef.current.delete(holeNumber);
         return true;
@@ -574,7 +577,8 @@ export const useTournamentOverlay = (
 
       // Round-level formats are recomputed for the whole round (all foursomes).
       if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
-        await recalcRoundLevelResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
+        await recalcRoundLevelResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current })
+          .catch(e => console.warn(`Round-level results not updated after hole ${holeNumber}:`, e));
         syncedHolesRef.current.add(holeNumber);
         dirtyHolesRef.current.delete(holeNumber);
         return true;
@@ -627,7 +631,9 @@ export const useTournamentOverlay = (
   // Batch sync all scores and results to DB — called only on round completion
   // Accepts optional externalScores to avoid race conditions with React state
   // Resolves to 'complete' only when every score and result was sent and confirmed written;
-  // 'incomplete' when nothing was sent or the server wrote fewer rows than expected.
+  // 'incomplete' when nothing was sent or the server wrote fewer rows than expected;
+  // 'results-pending' when the scores were saved but the scoring engine failed to work out
+  // hole results (a bug, not a connection problem: it must not stop the round being submitted).
   // On failure: 'failed-connection' (couldn't reach the server, even after silent retries)
   // or 'failed-rejected' (the server refused, or something else went wrong).
   // Each request is retried on connection failures until `deadline`. Every step is safe to
@@ -635,7 +641,7 @@ export const useTournamentOverlay = (
   const batchSyncAllScores = useCallback(async (
     externalScores?: Record<string, Record<number, number>>,
     opts?: { deadline?: number },
-  ): Promise<'complete' | 'incomplete' | 'failed-connection' | 'failed-rejected'> => {
+  ): Promise<'complete' | 'incomplete' | 'results-pending' | 'failed-connection' | 'failed-rejected'> => {
     if (!tournamentGroupId || !tournamentGame || tournamentPlayers.length === 0 || courseHoles.length === 0) {
       return 'incomplete';
     }
@@ -715,13 +721,25 @@ export const useTournamentOverlay = (
       }
 
       // 4. Re-run engine and upsert results (using mergedScores which includes admin overrides)
+      // These share the submit's time budget. Connection failures and refusals throw and
+      // fail the submit (it can be retried); an engine failure doesn't block it.
       if (hasRoundMatchesRef.current && tournamentGame.tournamentRoundId) {
-        await recalcRoundMatchResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
+        try {
+          await recalcRoundMatchResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current, deadline: retry.deadline });
+        } catch (e) {
+          if (e instanceof ResultsCalculationError) return 'results-pending';
+          throw e;
+        }
         return complete ? 'complete' : 'incomplete';
       }
 
       if (isRoundLevelGameType(tournamentGame.gameType) && tournamentGame.tournamentRoundId) {
-        await recalcRoundLevelResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current });
+        try {
+          await recalcRoundLevelResults(tournamentGame.tournamentRoundId, { isTest: isTestGroupRef.current, deadline: retry.deadline });
+        } catch (e) {
+          if (e instanceof ResultsCalculationError) return 'results-pending';
+          throw e;
+        }
         return complete ? 'complete' : 'incomplete';
       }
 
@@ -734,7 +752,14 @@ export const useTournamentOverlay = (
         teamAssignments, scores: mergedScores, courseHoles,
         teamNames: teamNameMap, subMatchups,
       };
-      const result = calcTournamentHoleResults(engineInput);
+      let result: RoundResult;
+      try {
+        result = calcTournamentHoleResults(engineInput);
+      } catch (e) {
+        // Same rule as the round-wide formats: an engine failure doesn't block the submit
+        console.error('Tournament engine error on submit', e);
+        return 'results-pending';
+      }
 
       const resultPayload = result.holeResults
         .filter(hr => hr.resultLabel && hr.resultLabel !== '')

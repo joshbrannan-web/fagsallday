@@ -221,6 +221,7 @@ export const useTournamentScorecard = (groupId: string | undefined) => {
       }
     } catch (e) {
       console.error('Tournament engine error on override:', e);
+      toast.warning("Score saved, but hole results couldn't be updated. Open the round results and tap Recalculate.");
     }
   };
 
