@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { removeItem } from '@/services/nativeBackup';
 import { publicOrigin } from '@/lib/publicOrigin';
 import { offlineStorage } from '@/services/offlineStorage';
 import { toast } from 'sonner';
@@ -319,9 +320,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (hasActiveRound) {
       // Preserve round data + sync queue, just clear session keys
-      localStorage.removeItem('fg_current_round');
-      localStorage.removeItem('fg_history');
-      localStorage.removeItem('fg_saved_courses');
+      removeItem('fg_current_round');
+      removeItem('fg_history');
+      removeItem('fg_saved_courses');
       localStorage.removeItem('fg_session_start');
       localStorage.removeItem('fg_last_activity');
       toast.warning('Active round preserved locally. Sign back in to sync your scores.', { duration: 8000 });
@@ -330,9 +331,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       offlineStorage.clearCachedRound();
       offlineStorage.clearSyncQueue();
       offlineStorage.clearTournamentSyncQueue();
-      localStorage.removeItem('fg_current_round');
-      localStorage.removeItem('fg_history');
-      localStorage.removeItem('fg_saved_courses');
+      removeItem('fg_current_round');
+      removeItem('fg_history');
+      removeItem('fg_saved_courses');
       localStorage.removeItem('fg_session_start');
       localStorage.removeItem('fg_last_activity');
       localStorage.removeItem('fg_build_hash');

@@ -1,4 +1,5 @@
 import { Round } from '@/types';
+import { saveItem, removeItem } from '@/services/nativeBackup';
 
 const OFFLINE_ROUND_KEY = 'fg_offline_round';
 const OFFLINE_ROUND_META_KEY = 'fg_offline_round_meta';
@@ -104,7 +105,7 @@ export const offlineStorage = {
   // `serverUpdatedAt` (ISO string) records which server revision this cache was based on.
   cacheRound: (round: Round, serverUpdatedAt?: string | null) => {
     try {
-      localStorage.setItem(OFFLINE_ROUND_KEY, JSON.stringify(round));
+      saveItem(OFFLINE_ROUND_KEY, JSON.stringify(round));
       const prev = offlineStorage.getCacheMeta();
       const meta: OfflineRoundMeta = {
         roundId: round.id,
@@ -112,7 +113,7 @@ export const offlineStorage = {
         serverUpdatedAt:
           serverUpdatedAt ?? (prev && prev.roundId === round.id ? prev.serverUpdatedAt : null),
       };
-      localStorage.setItem(OFFLINE_ROUND_META_KEY, JSON.stringify(meta));
+      saveItem(OFFLINE_ROUND_META_KEY, JSON.stringify(meta));
     } catch (error) {
       console.error('Failed to cache round:', error);
     }
@@ -132,7 +133,7 @@ export const offlineStorage = {
     try {
       const prev = offlineStorage.getCacheMeta();
       if (!prev || prev.roundId !== roundId) return;
-      localStorage.setItem(
+      saveItem(
         OFFLINE_ROUND_META_KEY,
         JSON.stringify({ ...prev, serverUpdatedAt, cachedAt: Date.now() })
       );
@@ -172,7 +173,7 @@ export const offlineStorage = {
       const cached = offlineStorage.getCachedRound();
       if (cached && cached.id === roundId) {
         const updated = { ...cached, ...updates };
-        localStorage.setItem(OFFLINE_ROUND_KEY, JSON.stringify(updated));
+        saveItem(OFFLINE_ROUND_KEY, JSON.stringify(updated));
         return updated;
       }
       return null;
@@ -185,8 +186,8 @@ export const offlineStorage = {
   // Clear cached round
   clearCachedRound: () => {
     try {
-      localStorage.removeItem(OFFLINE_ROUND_KEY);
-      localStorage.removeItem(OFFLINE_ROUND_META_KEY);
+      removeItem(OFFLINE_ROUND_KEY);
+      removeItem(OFFLINE_ROUND_META_KEY);
     } catch (error) {
       console.error('Failed to clear cached round:', error);
     }
@@ -198,7 +199,7 @@ export const offlineStorage = {
       const raw = localStorage.getItem(SYNC_QUEUE_KEY);
       const items: SyncQueueItem[] = raw ? JSON.parse(raw) : [];
       const filtered = items.filter(item => item.roundId !== roundId);
-      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(filtered));
+      saveItem(SYNC_QUEUE_KEY, JSON.stringify(filtered));
     } catch (error) {
       console.error('Failed to clear sync queue for round:', error);
     }
@@ -227,7 +228,7 @@ export const offlineStorage = {
         timestamp: Date.now()
       };
       dedupedQueue.push(newItem);
-      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(dedupedQueue));
+      saveItem(SYNC_QUEUE_KEY, JSON.stringify(dedupedQueue));
       return newItem;
     } catch (error) {
       console.error('Failed to add to sync queue:', error);
@@ -251,7 +252,7 @@ export const offlineStorage = {
   // Clear entire sync queue after successful sync
   clearSyncQueue: () => {
     try {
-      localStorage.removeItem(SYNC_QUEUE_KEY);
+      removeItem(SYNC_QUEUE_KEY);
     } catch (error) {
       console.error('Failed to clear sync queue:', error);
     }
@@ -262,7 +263,7 @@ export const offlineStorage = {
     try {
       const queue = offlineStorage.getSyncQueue();
       const filtered = queue.filter(item => !ids.includes(item.id));
-      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(filtered));
+      saveItem(SYNC_QUEUE_KEY, JSON.stringify(filtered));
     } catch (error) {
       console.error('Failed to remove from sync queue:', error);
     }
@@ -277,7 +278,7 @@ export const offlineStorage = {
       if (item) {
         item.retryCount = (item.retryCount ?? 0) + 1;
         item.lastAttempt = Date.now();
-        localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(items));
+        saveItem(SYNC_QUEUE_KEY, JSON.stringify(items));
       }
     } catch (error) {
       console.error('Failed to increment sync retry count:', error);
@@ -311,7 +312,7 @@ export const offlineStorage = {
         retryCount: 0,
       };
       filtered.push(newItem);
-      localStorage.setItem(TOURNAMENT_SYNC_QUEUE_KEY, JSON.stringify(filtered));
+      saveItem(TOURNAMENT_SYNC_QUEUE_KEY, JSON.stringify(filtered));
       return newItem;
     } catch (error) {
       console.error('Failed to add tournament score to sync queue:', error);
@@ -335,7 +336,7 @@ export const offlineStorage = {
       const queue = localStorage.getItem(TOURNAMENT_SYNC_QUEUE_KEY);
       const items: TournamentSyncQueueItem[] = queue ? JSON.parse(queue) : [];
       const filtered = items.filter(item => !ids.includes(item.id));
-      localStorage.setItem(TOURNAMENT_SYNC_QUEUE_KEY, JSON.stringify(filtered));
+      saveItem(TOURNAMENT_SYNC_QUEUE_KEY, JSON.stringify(filtered));
     } catch (error) {
       console.error('Failed to remove from tournament sync queue:', error);
     }
@@ -349,7 +350,7 @@ export const offlineStorage = {
       if (item) {
         item.retryCount = (item.retryCount ?? 0) + 1;
         item.lastAttempt = Date.now();
-        localStorage.setItem(TOURNAMENT_SYNC_QUEUE_KEY, JSON.stringify(items));
+        saveItem(TOURNAMENT_SYNC_QUEUE_KEY, JSON.stringify(items));
       }
     } catch (error) {
       console.error('Failed to increment retry count:', error);
@@ -358,7 +359,7 @@ export const offlineStorage = {
 
   clearTournamentSyncQueue: () => {
     try {
-      localStorage.removeItem(TOURNAMENT_SYNC_QUEUE_KEY);
+      removeItem(TOURNAMENT_SYNC_QUEUE_KEY);
     } catch (error) {
       console.error('Failed to clear tournament sync queue:', error);
     }
@@ -385,7 +386,7 @@ export const offlineStorage = {
         retryCount: 0,
       };
       filtered.push(newItem);
-      localStorage.setItem(TOURNAMENT_RESULT_QUEUE_KEY, JSON.stringify(filtered));
+      saveItem(TOURNAMENT_RESULT_QUEUE_KEY, JSON.stringify(filtered));
       return newItem;
     } catch (error) {
       console.error('Failed to add tournament result to sync queue:', error);
@@ -409,7 +410,7 @@ export const offlineStorage = {
       const queue = localStorage.getItem(TOURNAMENT_RESULT_QUEUE_KEY);
       const items: TournamentResultQueueItem[] = queue ? JSON.parse(queue) : [];
       const filtered = items.filter(item => !ids.includes(item.id));
-      localStorage.setItem(TOURNAMENT_RESULT_QUEUE_KEY, JSON.stringify(filtered));
+      saveItem(TOURNAMENT_RESULT_QUEUE_KEY, JSON.stringify(filtered));
     } catch (error) {
       console.error('Failed to remove from tournament result queue:', error);
     }
@@ -423,7 +424,7 @@ export const offlineStorage = {
       if (item) {
         item.retryCount += 1;
         item.lastAttempt = Date.now();
-        localStorage.setItem(TOURNAMENT_RESULT_QUEUE_KEY, JSON.stringify(items));
+        saveItem(TOURNAMENT_RESULT_QUEUE_KEY, JSON.stringify(items));
       }
     } catch (error) {
       console.error('Failed to increment result retry count:', error);
@@ -432,7 +433,7 @@ export const offlineStorage = {
 
   clearTournamentResultQueue: () => {
     try {
-      localStorage.removeItem(TOURNAMENT_RESULT_QUEUE_KEY);
+      removeItem(TOURNAMENT_RESULT_QUEUE_KEY);
     } catch (error) {
       console.error('Failed to clear tournament result queue:', error);
     }
@@ -462,7 +463,7 @@ export const offlineStorage = {
       try {
         const raw = localStorage.getItem(key);
         const items: { tournamentGroupId: string }[] = raw ? JSON.parse(raw) : [];
-        localStorage.setItem(key, JSON.stringify(items.filter(item => item.tournamentGroupId !== tournamentGroupId)));
+        saveItem(key, JSON.stringify(items.filter(item => item.tournamentGroupId !== tournamentGroupId)));
       } catch (error) {
         console.error('Failed to clear tournament queue for group:', error);
       }
@@ -481,7 +482,7 @@ export const offlineStorage = {
         const kept = pruneExpired(items);
         if (kept.length === items.length) return [];
         const keptIds = new Set(kept.map(item => item.id));
-        localStorage.setItem(key, JSON.stringify(kept));
+        saveItem(key, JSON.stringify(kept));
         return items.filter(item => !keptIds.has(item.id));
       } catch (error) {
         console.error('Failed to remove expired tournament queue items:', error);

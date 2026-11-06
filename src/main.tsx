@@ -3,6 +3,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { initNativeBackup } from "./services/nativeBackup";
 import "./index.css";
 
 // Register offline support only in production. A service worker must never cache
@@ -29,12 +30,21 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-const root = ReactDOM.createRoot(document.getElementById("root")!);
-root.render(
-  <React.StrictMode>
-    <AppErrorBoundary>
-      <App />
-    </AppErrorBoundary>
-  </React.StrictMode>
-);
+function renderApp() {
+  const root = ReactDOM.createRoot(document.getElementById("root")!);
+  root.render(
+    <React.StrictMode>
+      <AppErrorBoundary>
+        <App />
+      </AppErrorBoundary>
+    </React.StrictMode>
+  );
+}
+
+// Inside the iOS app, make sure saved scores and rounds are in place before the app reads
+// them (restoring them if iOS cleared the web view's storage). On the website, and on a
+// normal iOS launch, this finishes immediately. The app always starts, even if it fails.
+initNativeBackup()
+  .catch(error => console.error("Native backup startup check failed", error))
+  .finally(renderApp);
 

@@ -4,6 +4,8 @@
 // while the app is already broken, and they must still return something useful
 // even if storage is unavailable or its contents are damaged.
 
+import { removeItem } from '@/services/nativeBackup';
+
 /** Scores waiting to reach the server. Only ever removed by deleteUnsentScores(). */
 export const UNSENT_QUEUE_KEYS = ['fg_sync_queue', 'fg_tournament_sync_queue', 'fg_tournament_result_queue'];
 
@@ -51,11 +53,8 @@ function read(storage: Storage | null, key: string): string | null {
 }
 
 function remove(storage: Storage | null, key: string): void {
-  try {
-    storage?.removeItem(key);
-  } catch {
-    /* nothing more we can do */
-  }
+  // Also removes the iOS app's backup copy, so cleared data can't be restored later.
+  removeItem(key, storage);
 }
 
 function allKeys(storage: Storage | null): string[] {
