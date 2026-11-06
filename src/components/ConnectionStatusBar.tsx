@@ -36,7 +36,7 @@ const ConnectionStatusBar: React.FC = () => {
   if (isOnline && !showBackOnline && pendingSyncCount === 0) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[9999] flex justify-center pointer-events-none">
+    <div className="fixed top-[var(--safe-top)] left-0 right-0 z-[9999] flex justify-center pointer-events-none">
       <div
         className={`
           pointer-events-auto px-4 py-1.5 rounded-b-lg text-xs font-medium flex items-center gap-2 shadow-md

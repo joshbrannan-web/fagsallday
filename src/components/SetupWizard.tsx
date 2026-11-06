@@ -831,7 +831,7 @@ const SetupWizard: React.FC = () => {
       />
 
       {/* Header */}
-      <div className="bg-card p-4 shadow-sm sticky top-0 z-10 flex items-center gap-3 border-b border-border">
+      <div className="bg-card p-4 shadow-sm sticky top-[var(--safe-top)] z-10 flex items-center gap-3 border-b border-border">
         <button
           onClick={() => {
             if (changeGamesMode && step === 3) {

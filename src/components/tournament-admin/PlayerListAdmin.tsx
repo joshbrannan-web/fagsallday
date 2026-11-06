@@ -179,7 +179,7 @@ const PlayerListAdmin: React.FC<Props> = ({ players, teams, onUpdatePlayer, onAd
       </div>
 
       {pendingCount > 0 && (
-        <div className="sticky bottom-2 flex items-center justify-between gap-2 bg-card border border-primary/40 rounded-lg p-2.5 shadow-lg">
+        <div className="sticky bottom-[calc(0.5rem+var(--safe-bottom))] flex items-center justify-between gap-2 bg-card border border-primary/40 rounded-lg p-2.5 shadow-lg">
           <span className="text-xs text-muted-foreground">
             {pendingCount} player{pendingCount > 1 ? 's' : ''} with unsaved team changes
           </span>

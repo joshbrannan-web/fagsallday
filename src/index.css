@@ -200,3 +200,57 @@
 .animate-pulse-subtle {
   animation: pulse-subtle 2s ease-in-out infinite;
 }
+
+/* ── Safe areas (iOS app only) ──────────────────────────────────────────
+   Inside the iOS app the page runs under the status bar, Dynamic Island and home
+   indicator. These values are 0 everywhere except when the page is marked .native-app
+   (set at startup in the app only), so nothing here changes the website. */
+:root {
+  --safe-top: 0px;
+  --safe-right: 0px;
+  --safe-bottom: 0px;
+  --safe-left: 0px;
+}
+
+html.native-app {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* Every screen's normal content clears the edges. */
+html.native-app body {
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+
+/* A solid strip behind the clock and battery, so scrolled content doesn't show through.
+   Below pop-up overlays (z-50) so they still dim it. */
+html.native-app body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--safe-top);
+  background: hsl(var(--background));
+  z-index: 40;
+  pointer-events: none;
+}
+
+/* Full-screen layouts shrink by the padding, so short screens don't scroll for nothing. */
+html.native-app .min-h-screen {
+  min-height: calc(100vh - var(--safe-top) - var(--safe-bottom));
+}
+html.native-app .h-screen {
+  height: calc(100vh - var(--safe-top) - var(--safe-bottom));
+}
+
+/* Toasts (sonner) keep their usual spacing from the edge (16px on phones, 32px wider),
+   plus the safe area. !important is needed to beat the values sonner sets inline. */
+html.native-app [data-sonner-toaster] {
+  --offset-top: calc(32px + var(--safe-top)) !important;
+  --offset-bottom: calc(32px + var(--safe-bottom)) !important;
+  --mobile-offset-top: calc(16px + var(--safe-top)) !important;
+  --mobile-offset-bottom: calc(16px + var(--safe-bottom)) !important;
+}

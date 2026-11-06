@@ -14,6 +14,31 @@ export function isNativeApp(): boolean {
   }
 }
 
+// ── Screen edges (status bar, Dynamic Island, home indicator) ─────────
+
+/**
+ * Inside the iOS app the page fills the whole screen, under the status bar, Dynamic Island
+ * and home indicator. Ask iOS to report how much space those take (viewport-fit=cover) and
+ * mark the page as running in the app, which switches on the safe-area rules in index.css.
+ * Must run before the app first draws. Does nothing on the website.
+ */
+export function applyNativeViewport(
+  doc: Pick<Document, 'querySelector' | 'documentElement'> = document,
+  native: boolean = isNativeApp(),
+): void {
+  if (!native) return;
+  try {
+    const meta = doc.querySelector('meta[name="viewport"]');
+    const content = meta?.getAttribute('content') ?? '';
+    if (meta && !/viewport-fit\s*=/.test(content)) {
+      meta.setAttribute('content', content ? `${content}, viewport-fit=cover` : 'viewport-fit=cover');
+    }
+    doc.documentElement.classList.add('native-app');
+  } catch {
+    /* the app still works, just without the safe-area spacing */
+  }
+}
+
 // ── Haptics (iPhone only; the website stays silent) ────────────────────
 
 /** The lightest "tick", like a picker wheel. Used when a score changes. */

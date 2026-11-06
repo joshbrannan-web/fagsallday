@@ -397,7 +397,7 @@ const TournamentBuildRoundWizard: React.FC = () => {
       </div>
 
       {/* Bottom action bar */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
+      <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+var(--safe-bottom))] bg-background border-t border-border">
         {step < totalSteps ? (
           <Button className="w-full" onClick={handleNext} disabled={!canProceed()}>
             Continue <ArrowRight className="w-4 h-4 ml-1" />
