@@ -5,6 +5,7 @@ import { formatMoney } from '@/services/gameEngine';
 import { Trophy, TrendingDown, CheckCircle, AlertTriangle, Share } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { isNativeApp, shareTextNative } from '@/lib/native';
 
 interface Stockton6RoundSummaryProps {
   round: Round;
@@ -55,7 +56,10 @@ const Stockton6RoundSummary: React.FC<Stockton6RoundSummaryProps> = ({
     const text = `🏌️ ${round.course.name} - ${roundDate}\n\n${results}\n\nMoney Shot by F&Gs All Day`;
     
     try {
-      if (navigator.share) {
+      if (isNativeApp()) {
+        // iPhone app: open the native share sheet (the browser one isn't available there)
+        await shareTextNative('Stockton 6\'s Results', text);
+      } else if (navigator.share) {
         await navigator.share({ title: 'Stockton 6\'s Results', text });
       } else {
         await navigator.clipboard.writeText(text);

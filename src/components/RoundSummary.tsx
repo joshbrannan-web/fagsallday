@@ -7,6 +7,7 @@ import { GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { isNativeApp, shareTextNative } from '@/lib/native';
 import ScorecardImage, { ScorecardImageHandle } from './ScorecardImage';
 import GreenFeeSplitDialog from './GreenFeeSplitDialog';
 import TournamentRoundSummary from './tournament/TournamentRoundSummary';
@@ -513,6 +514,16 @@ const RoundSummary: React.FC = () => {
   };
 
   const doShare = async (text: string) => {
+    // iPhone app: open the native share sheet (the browser one isn't available there)
+    if (isNativeApp()) {
+      try {
+        await shareTextNative('Golf Round Results', text);
+      } catch (err) {
+        console.error('Share failed:', err);
+        toast.error("Couldn't open sharing");
+      }
+      return;
+    }
     if (navigator.share) {
       await navigator.share({ title: 'Golf Round Results', text });
     } else {
