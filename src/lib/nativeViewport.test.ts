@@ -5,7 +5,7 @@ vi.mock('@capacitor/haptics', () => ({ Haptics: {}, ImpactStyle: {} }));
 vi.mock('@capacitor/share', () => ({ Share: {} }));
 vi.mock('@capacitor/filesystem', () => ({ Filesystem: {}, Directory: {} }));
 
-import { applyNativeViewport } from './native';
+import { applyNativeViewport, removeWebAppManifest } from './native';
 
 function fakeDoc(viewport: string | null) {
   let content = viewport;
@@ -50,5 +50,23 @@ describe('applyNativeViewport', () => {
     applyNativeViewport(f.doc, true);
     applyNativeViewport(f.doc, true);
     expect(f.content).toBe('width=device-width, viewport-fit=cover');
+  });
+});
+
+describe('removeWebAppManifest', () => {
+  function docWithManifest() {
+    const removed: string[] = [];
+    const link = { remove: () => removed.push('manifest') };
+    return { doc: { querySelectorAll: () => [link] } as never, removed };
+  }
+  it('removes the manifest link inside the iOS app', () => {
+    const d = docWithManifest();
+    removeWebAppManifest(d.doc, true);
+    expect(d.removed).toEqual(['manifest']);
+  });
+  it('keeps it on the website', () => {
+    const d = docWithManifest();
+    removeWebAppManifest(d.doc, false);
+    expect(d.removed).toEqual([]);
   });
 });

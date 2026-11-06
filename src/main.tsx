@@ -5,35 +5,20 @@ import App from "./App.tsx";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { initNativeBackup } from "./services/nativeBackup";
 import "./index.css";
-import { applyNativeViewport } from "./lib/native";
+import { applyNativeViewport, isNativeApp, removeWebAppManifest } from "./lib/native";
+import { setupServiceWorker } from "./lib/serviceWorker";
 
 // Inside the iOS app, make room for the status bar, Dynamic Island and home indicator.
 // Runs before anything is drawn (the app only renders further down), so there is no jump.
 applyNativeViewport();
+// The "Add to Home Screen" manifest is for the website only.
+removeWebAppManifest();
 
-// Register offline support only in production. A service worker must never cache
-// Vite's development modules because dependency re-optimization changes their
-// hashes and can otherwise mix two React module generations in one page.
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    if (import.meta.env.PROD) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
-        // Service worker registration failed - app still works without it
-      });
-      return;
-    }
-
-    void navigator.serviceWorker.getRegistrations().then((registrations) =>
-      Promise.all(registrations.map((registration) => registration.unregister()))
-    );
-
-    if ('caches' in window) {
-      void caches.keys().then((cacheNames) =>
-        Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)))
-      );
-    }
-  });
-}
+// The website's offline cache: registered on the website's production build only. In
+// development and inside the iOS app, any existing service worker and cache are removed.
+window.addEventListener('load', () => {
+  setupServiceWorker({ isNative: isNativeApp(), isProd: import.meta.env.PROD });
+});
 
 function renderApp() {
   const root = ReactDOM.createRoot(document.getElementById("root")!);
