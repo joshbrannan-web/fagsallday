@@ -61,6 +61,7 @@ import { offlineStorage, isTournamentRetryDue, splitByAdminOverride } from '@/se
 import { mergeScores, mergeGameData, fillScoreGaps, fillGameDataGaps } from '@/lib/mergeRoundData';
 
 import { supabase } from '@/integrations/supabase/client';
+import { saveItem, removeItem } from '@/services/nativeBackup';
 import { AppContext, AppState } from './contexts/AppContext';
 import ConnectionStatusBar from './components/ConnectionStatusBar';
 import { toast } from 'sonner';
@@ -531,7 +532,7 @@ const AppContent: FC = () => {
   useEffect(() => {
     if (!isAuthenticated && localCurrentRound) {
       if (localCurrentRound.status === 'ACTIVE') {
-        localStorage.setItem('fg_current_round', JSON.stringify(localCurrentRound));
+        saveItem('fg_current_round', JSON.stringify(localCurrentRound));
 
         setLocalRoundHistory(prev => {
           const index = prev.findIndex(r => r.id === localCurrentRound.id);
@@ -545,19 +546,19 @@ const AppContent: FC = () => {
         });
       }
     } else if (!isAuthenticated) {
-      localStorage.removeItem('fg_current_round');
+      removeItem('fg_current_round');
     }
   }, [localCurrentRound, isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) {
-      localStorage.setItem('fg_saved_courses', JSON.stringify(localSavedCourses));
+      saveItem('fg_saved_courses', JSON.stringify(localSavedCourses));
     }
   }, [localSavedCourses, isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) {
-      localStorage.setItem('fg_history', JSON.stringify(localRoundHistory));
+      saveItem('fg_history', JSON.stringify(localRoundHistory));
     }
   }, [localRoundHistory, isAuthenticated]);
 

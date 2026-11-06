@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { clearBackup } from '@/services/nativeBackup';
 import { formatDistanceToNow } from 'date-fns';
 import GhinSyncConfirmation from '@/components/GhinSyncConfirmation';
 import { parseHandicapInput, formatHandicap } from '@/lib/handicap';
@@ -34,6 +35,8 @@ const Profile: React.FC = () => {
       const { data, error } = await supabase.functions.invoke('delete-my-account', { body: {} });
       if (error || (data as any)?.error) throw new Error((data as any)?.error || error?.message);
       Object.keys(localStorage).filter(k => k.startsWith('fg_') || k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+      // Also clear the iOS app's backup copy, or it would be restored on next launch
+      await clearBackup().catch(() => {});
       await supabase.auth.signOut().catch(() => {});
       toast.success('Your account has been deleted');
       navigate('/');

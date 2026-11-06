@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { removeItem } from '@/services/nativeBackup';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 import type { SubMatchup, MatchupMode } from '@/types/tournament';
@@ -264,9 +265,9 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
       try {
         const cachedRaw = localStorage.getItem('fg_offline_round');
         if (cachedRaw && JSON.parse(cachedRaw)?.id === linkedRoundId) {
-          localStorage.removeItem('fg_offline_round');
-          localStorage.removeItem('fg_offline_round_meta');
-          localStorage.removeItem('fg_sync_queue');
+          removeItem('fg_offline_round');
+          removeItem('fg_offline_round_meta');
+          removeItem('fg_sync_queue');
         }
       } catch {
         /* non-critical */
@@ -309,8 +310,8 @@ export const useTournamentDetail = (tournamentId: string | undefined) => {
         const cachedRound = JSON.parse(cachedRoundRaw);
         const cachedTournamentId = cachedRound?.gameData?._TOURNAMENT_META?.tournamentId;
         if (cachedTournamentId === tournamentId) {
-          localStorage.removeItem('fg_offline_round');
-          localStorage.removeItem('fg_sync_queue');
+          removeItem('fg_offline_round');
+          removeItem('fg_sync_queue');
         }
       }
     } catch {

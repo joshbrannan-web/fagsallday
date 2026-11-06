@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { saveItem } from '@/services/nativeBackup';
 import { useAuth } from './useAuth';
 import { Course } from '@/types';
 import { toast } from 'sonner';
@@ -62,7 +63,7 @@ export const useSavedCourses = () => {
       const localCourses = JSON.parse(localStorage.getItem('fg_saved_courses') || '[]');
       const exists = localCourses.find((c: Course) => c.id === course.id);
       if (!exists) {
-        localStorage.setItem('fg_saved_courses', JSON.stringify([...localCourses, course]));
+        saveItem('fg_saved_courses', JSON.stringify([...localCourses, course]));
       }
       return true;
     }
@@ -94,7 +95,7 @@ export const useSavedCourses = () => {
     if (!user) {
       const localCourses = JSON.parse(localStorage.getItem('fg_saved_courses') || '[]');
       const updated = localCourses.map((c: Course) => c.id === course.id ? course : c);
-      localStorage.setItem('fg_saved_courses', JSON.stringify(updated));
+      saveItem('fg_saved_courses', JSON.stringify(updated));
       setSavedCourses(prev => prev.map(c => c.id === course.id ? course : c));
       return true;
     }
@@ -183,7 +184,7 @@ export const useSavedCourses = () => {
   const deleteCourse = async (courseId: string) => {
     if (!user) {
       const localCourses = JSON.parse(localStorage.getItem('fg_saved_courses') || '[]');
-      localStorage.setItem('fg_saved_courses', JSON.stringify(localCourses.filter((c: Course) => c.id !== courseId)));
+      saveItem('fg_saved_courses', JSON.stringify(localCourses.filter((c: Course) => c.id !== courseId)));
       setSavedCourses(prev => prev.filter(c => c.id !== courseId));
       return true;
     }
