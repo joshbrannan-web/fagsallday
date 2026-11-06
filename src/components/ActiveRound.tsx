@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, Fi
 import { Progress } from '@/components/ui/progress';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
+import { hapticTap, hapticTick, isNativeApp, shareTextNative } from '@/lib/native';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -497,8 +498,10 @@ const ActiveRound: React.FC = () => {
 
     if (getPlayOrder(activeHole, roundStartHole) === TOTAL_HOLES) {
       if (isReadOnly) return; // Read-only users can't finish
+      hapticTap(); // hole confirmed
       navigate('/summary');
     } else {
+      hapticTap(); // hole confirmed
       setActiveHole(h => getNextHole(h, roundStartHole));
     }
   };
@@ -564,6 +567,7 @@ const ActiveRound: React.FC = () => {
       console.warn(validation.message);
     }
     updateScore(activeHole, pid, newScore);
+    hapticTick();
   };
 
   const handleScoreClick = (pid: string, displayScore: number) => {
@@ -582,6 +586,7 @@ const ActiveRound: React.FC = () => {
       console.warn(validation.message);
     }
     updateScore(activeHole, pid, displayScore);
+    hapticTick();
   };
 
 
@@ -631,7 +636,10 @@ const ActiveRound: React.FC = () => {
         return;
       }
       const shareText = data.shareText as string;
-      if (navigator.share) {
+      if (isNativeApp()) {
+        // iPhone app: open the native share sheet (the browser one isn't available there)
+        await shareTextNative('Round Link', shareText);
+      } else if (navigator.share) {
         await navigator.share({ title: 'Round Link', text: shareText });
       } else {
         await navigator.clipboard.writeText(shareText);

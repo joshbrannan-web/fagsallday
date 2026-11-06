@@ -2,6 +2,7 @@ import React, { useRef, useImperativeHandle } from 'react';
 import { Crown } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
+import { isNativeApp, isShareCancel, shareImageNative } from '@/lib/native';
 import { calculateAggregatedHolePnL } from '../services/gameEngine';
 import { calculateRelativeStrokes } from '../services/stockton6Engine';
 import { GameType, Round } from '../types';
@@ -68,6 +69,13 @@ const ScorecardImage = React.forwardRef<ScorecardImageHandle, ScorecardImageProp
           style: { opacity: '1' },
         });
 
+        // iPhone app: the web view has no share sheet and ignores downloads, so save the
+        // image to the app's cache (one file, replaced each time) and open the iOS share sheet.
+        if (isNativeApp()) {
+          await shareImageNative(dataUrl, `${currentRound.course.name} Scorecard`);
+          return;
+        }
+
         const response = await fetch(dataUrl);
         const blob = await response.blob();
         const file = new File([blob], 'scorecard.png', { type: 'image/png' });
@@ -85,6 +93,7 @@ const ScorecardImage = React.forwardRef<ScorecardImageHandle, ScorecardImageProp
           toast.success('Scorecard image downloaded!');
         }
       } catch (err) {
+        if (isShareCancel(err)) return; // closed the share sheet: not an error
         console.error('Share image failed:', err);
         toast.error('Failed to generate image');
       }
