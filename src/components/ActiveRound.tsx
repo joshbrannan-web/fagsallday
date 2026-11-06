@@ -838,7 +838,7 @@ const ActiveRound: React.FC = () => {
       )}
 
       {/* Top Bar: Hole Nav */}
-      <div className="bg-brand-dark text-primary-foreground p-4 pb-2 shadow-lg sticky top-0 z-20">
+      <div className="bg-brand-dark text-primary-foreground p-4 pb-2 shadow-lg sticky top-[var(--safe-top)] z-20">
         <div className="flex items-center justify-center mb-3 relative">
           <div className="absolute left-0 flex items-center gap-1">
             <button className="p-2" onClick={() => setShowHomeConfirm(true)}><Home className="w-5 h-5" /></button>
@@ -1165,7 +1165,7 @@ const ActiveRound: React.FC = () => {
 
       {/* Tournament Toggle Tabs */}
       {!stockton6NeedsSetup && !sixesNeedsSetup && !teamBankerNeedsSetup && tournamentGroupId && (
-        <div className="sticky top-0 z-20 bg-background px-4 pt-2 pb-1">
+        <div className="sticky top-[var(--safe-top)] z-20 bg-background px-4 pt-2 pb-1">
           <div className="flex rounded-lg bg-muted p-1">
             <button
               onClick={() => setActiveTab('betting')}
@@ -2657,7 +2657,7 @@ const ActiveRound: React.FC = () => {
 
 
       {/* Floating Bottom Drawer / Summary Teaser */}
-      <div className={`fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] transition-all duration-300 z-50 ${isBottomBarMinimized ? 'pb-safe' : 'p-4 pb-safe'}`}>
+      <div className={`fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] transition-all duration-300 z-50 ${isBottomBarMinimized ? 'pb-[var(--safe-bottom)]' : 'p-4 pb-[calc(1rem+var(--safe-bottom))]'}`}>
         {/* Toggle Button */}
         <button
           onClick={() => setIsBottomBarMinimized(!isBottomBarMinimized)}

@@ -143,7 +143,7 @@ const Players: React.FC = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="bg-card p-4 shadow-sm sticky top-0 z-10 flex items-center gap-3 border-b border-border">
+      <div className="bg-card p-4 shadow-sm sticky top-[var(--safe-top)] z-10 flex items-center gap-3 border-b border-border">
         <button
           onClick={() => navigate('/')}
           className="p-2 hover:bg-muted rounded-full transition-colors"

@@ -376,7 +376,7 @@ const GroupScorecardAdmin: React.FC<Props> = ({ groupPlayers, teams, scores, res
 
 
       {pendingEdits.size > 0 && (
-        <div className="flex items-center justify-between bg-primary/10 rounded-lg px-3 py-2 sticky top-14 z-30">
+        <div className="flex items-center justify-between bg-primary/10 rounded-lg px-3 py-2 sticky top-[calc(3.5rem+var(--safe-top))] z-30">
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="text-xs">{pendingEdits.size} unsaved</Badge>
             <span className="text-xs text-muted-foreground">Tap a score to edit</span>

@@ -5,6 +5,11 @@ import App from "./App.tsx";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { initNativeBackup } from "./services/nativeBackup";
 import "./index.css";
+import { applyNativeViewport } from "./lib/native";
+
+// Inside the iOS app, make room for the status bar, Dynamic Island and home indicator.
+// Runs before anything is drawn (the app only renders further down), so there is no jump.
+applyNativeViewport();
 
 // Register offline support only in production. A service worker must never cache
 // Vite's development modules because dependency re-optimization changes their

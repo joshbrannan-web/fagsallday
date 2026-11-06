@@ -104,7 +104,7 @@ const TournamentLiveToast: React.FC<Props> = ({ newHoleResult, teams, players, g
 
   return (
     <div
-      className="fixed top-16 left-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-3 animate-fade-in"
+      className="fixed top-[calc(4rem+var(--safe-top))] left-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-3 animate-fade-in"
       style={{ borderLeftWidth: '4px', borderLeftColor: content.teamColor }}
     >
       <p className="text-sm font-medium">

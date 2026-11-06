@@ -65,7 +65,7 @@ const TournamentAdminLiveView: React.FC = () => {
   return (
     <div className="min-h-screen bg-background animate-fade-in">
       {/* Admin Mode Banner */}
-      <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 py-2.5 px-4 flex items-center gap-2 sticky top-0 z-50">
+      <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 py-2.5 px-4 flex items-center gap-2 sticky top-[var(--safe-top)] z-50">
         <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
         <span className="text-sm font-semibold text-amber-900 dark:text-amber-200">Admin Mode — Viewing as Player</span>
       </div>
