@@ -138,7 +138,8 @@ const Landing: React.FC = () => {
       {user && <OnboardingOverlay forceOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />}
       {user && <WhatsNewDialog />}
       {user && <GhinPrompt />}
-      <div className="absolute top-4 right-4">
+      {/* Kept 1rem from the corner, plus the status bar / notch inside the iOS app (0 on the web) */}
+      <div className="absolute top-[calc(1rem+var(--safe-top))] right-[calc(1rem+var(--safe-right))]">
         {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
