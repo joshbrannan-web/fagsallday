@@ -39,6 +39,19 @@ export function applyNativeViewport(
   }
 }
 
+/** Inside the iOS app, drop the website's "Add to Home Screen" manifest. Does nothing on the website. */
+export function removeWebAppManifest(
+  doc: Pick<Document, 'querySelectorAll'> = document,
+  native: boolean = isNativeApp(),
+): void {
+  if (!native) return;
+  try {
+    doc.querySelectorAll('link[rel="manifest"]').forEach(link => link.remove());
+  } catch {
+    /* harmless if it stays */
+  }
+}
+
 // ── Haptics (iPhone only; the website stays silent) ────────────────────
 
 /** The lightest "tick", like a picker wheel. Used when a score changes. */
