@@ -31,7 +31,7 @@ const steps = [
   {
     icon: <DollarSign className="w-10 h-10 text-primary" />,
     title: "Track & Settle",
-    description: "Scores auto-calculate net results, multipliers, and payouts. When you're done, see who owes who — no math required.",
+    description: "Scores auto-calculate net results, multipliers, and who's up and who's down. When you're done, see who owes who — no math required.",
   },
 ];
 

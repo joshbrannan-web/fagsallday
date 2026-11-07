@@ -536,7 +536,7 @@ export const calculateStretchPayouts = (
   } else if (totalTeamAAdvantage < 0) {
     details.push(`  → Team B each: +$${Math.abs(totalTeamAAdvantage)}`);
   } else {
-    details.push(`  → Push (no money changes hands)`);
+    details.push(`  → Push (nobody owes anything)`);
   }
   
   return { playerPayouts, details };

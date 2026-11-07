@@ -60,7 +60,7 @@ const getGameConfigDetails = (game: GameSettings, gameData?: Record<string, any>
   if (type === GameType.SIXES_HI_LO) {
     const seg = config.sixesHiLo?.segmentMode ?? 'sixes';
     details.push(seg === 'nines' ? "Format: 9's" : seg === 'eighteen' ? 'Format: 18 holes' : "Format: 6's");
-    details.push(config.sixesHiLo?.payoutMode === 'flat_stretch' ? 'Payout: Flat per stretch' : 'Payout: Per point');
+    details.push(config.sixesHiLo?.payoutMode === 'flat_stretch' ? 'Settle up: Flat per stretch' : 'Settle up: Per point');
     details.push((config.sixesHiLo?.resetCarriesOnRotation ?? true) ? 'Carries reset on rotation' : 'Carries roll over');
   }
 
@@ -495,7 +495,7 @@ const RoundSummary: React.FC = () => {
       const totalLines = sortedPlayers.map(p => 
         `${p.name} net: ${formatMoney(finalAmounts[p.id] || 0)}`
       ).join('\n');
-      totalPayoutsText = `\n\n--- Total Payouts ---\n${totalLines}`;
+      totalPayoutsText = `\n\n--- Final Tally ---\n${totalLines}`;
     }
 
     // Settlement plan using final (merged) amounts
@@ -506,11 +506,11 @@ const RoundSummary: React.FC = () => {
     }));
     const transactions = calculateSettlement(playerAmounts);
     if (transactions.length > 0) {
-      const lines = transactions.map(t => `  ${t.from} pays ${t.to} $${t.amount.toFixed(2)}`).join('\n');
-      settlementText = `\n\n--- Who Pays Who ---\n${lines}`;
+      const lines = transactions.map(t => `  ${t.from} owes ${t.to} $${t.amount.toFixed(2)}`).join('\n');
+      settlementText = `\n\n--- Who Owes Who ---\n${lines}`;
     }
 
-    return `🏌️ ${currentRound.course.name} - ${roundDate}\n\n--- Game $$ Payouts ---\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}${greenFeeText}${totalPayoutsText}${settlementText}`;
+    return `🏌️ ${currentRound.course.name} - ${roundDate}\n\n--- Game $$ Results ---\n\n${results}\n\nMoney Shot by F&Gs All Day${gameBreakdown}${greenFeeText}${totalPayoutsText}${settlementText}`;
   };
 
   const doShare = async (text: string) => {
@@ -772,7 +772,7 @@ const RoundSummary: React.FC = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>End round early?</AlertDialogTitle>
               <AlertDialogDescription>
-                Finish with {completedHoleCount} holes played. Payouts and tournament scores will be final based only on the holes already scored. Unplayed holes stay blank.
+                Finish with {completedHoleCount} holes played. Results and tournament scores will be final based only on the holes already scored. Unplayed holes stay blank.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -442,7 +442,7 @@ export const calculateSkins = (round: Round, game: GameSettings): GameResult => 
       // Tie - carry over or split
       if (carryovers) {
         currentPot += unit;
-        details.push(`Hole ${h}: Tie - pot carries over to $${currentPot * (players.length - 1)}`);
+        details.push(`Hole ${h}: Tie - carries over, next skin worth $${currentPot * (players.length - 1)}`);
       } else {
         details.push(`Hole ${h}: Tie - no carryover`);
       }

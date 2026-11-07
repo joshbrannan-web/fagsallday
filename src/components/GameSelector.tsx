@@ -495,7 +495,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium">Payout</Label>
+                      <Label className="text-sm font-medium">Settle up</Label>
                       <RadioGroup
                         value={selectedGame.config.sixesHiLo?.payoutMode ?? 'cumulative'}
                         onValueChange={(v) => updateGameConfigDeep(selectedGame.id, (g) => ({
