@@ -156,7 +156,7 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
               <span className="text-sm font-bold">Hammer · Hole {activeHole}</span>
             </div>
             <div className="text-right">
-              <div className="text-xs text-muted-foreground">Pot</div>
+              <div className="text-xs text-muted-foreground">On the line</div>
               <div className="text-2xl font-extrabold tabular-nums">${game.unitStake}</div>
             </div>
           </div>
@@ -186,7 +186,7 @@ export const HammerStatusBar: React.FC<HammerStatusBarProps> = ({
               <span className="text-sm font-bold">Hammer · Hole {activeHole}</span>
             </div>
             <div className="text-right">
-              <div className="text-xs text-muted-foreground">Pot</div>
+              <div className="text-xs text-muted-foreground">On the line</div>
               <div className="text-2xl font-extrabold tabular-nums">${pot}</div>
             </div>
           </div>

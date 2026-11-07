@@ -336,7 +336,7 @@ const SideBetsPanel: React.FC<Props> = ({ tournamentId, players, rounds }) => {
             ) : (
               results.settlement.map((s, i) => (
                 <div key={i} className="flex items-center justify-between text-sm">
-                  <span><span className="font-medium">{s.from}</span> pays <span className="font-medium">{s.to}</span></span>
+                  <span><span className="font-medium">{s.from}</span> owes <span className="font-medium">{s.to}</span></span>
                   <span className="font-semibold">{money(s.amount)}</span>
                 </div>
               ))

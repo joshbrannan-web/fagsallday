@@ -361,7 +361,7 @@ export const calculateHammer = (round: Round, game: GameSettings): GameResult =>
       // Could be incomplete OR push
       const result = calculateHammerHole(round, game, h);
       if (result && result.winningTeam === null) {
-        details.push(`Hole ${h}: Push (pot $${result.potBeforeMultipliers} resets)`);
+        details.push(`Hole ${h}: Push ($${result.potBeforeMultipliers} on the line resets)`);
       }
       continue;
     }

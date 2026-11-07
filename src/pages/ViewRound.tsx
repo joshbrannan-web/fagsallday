@@ -260,7 +260,7 @@ const ViewRound = () => {
             {settlements.length > 0 && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Who Pays Who</CardTitle>
+                  <CardTitle className="text-base">Who Owes Who</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">

@@ -12,6 +12,7 @@ import GhinPrompt from './GhinPrompt';
 import WhatsNewDialog from './WhatsNewDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { offlineStorage } from '@/services/offlineStorage';
+import { useAppVersionLabel } from '@/lib/appVersion';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ const Landing: React.FC = () => {
   const { isAdmin } = useAdminAuth();
   const { isTournamentAdmin, requestStatus, requestAccess } = useTournamentAdmin();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const versionLabel = useAppVersionLabel();
 
   // Clear any manually-loaded past round when returning to home
   React.useEffect(() => {
@@ -221,7 +223,7 @@ const Landing: React.FC = () => {
           <span className="block text-primary">All Day</span>
         </h1>
         <p className="text-muted-foreground mb-8">
-          Track scores, bets, and payouts automatically.
+          Track scores, bets, and who owes who.
         </p>
 
         {/* Hero Illustration */}
@@ -328,7 +330,7 @@ const Landing: React.FC = () => {
       </div>
 
       <p className="text-xs text-muted-foreground mt-auto">
-        v1.0.0 • {user ? 'Synced' : 'Offline Ready'}
+        {versionLabel ? `${versionLabel} • ` : ''}{user ? 'Synced' : 'Offline Ready'}
       </p>
     </div>
   );
