@@ -133,13 +133,14 @@ const Landing: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8 bg-background animate-fade-in">
+    <div className="relative flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8 bg-background animate-fade-in">
       {/* Onboarding Overlay */}
       {user && <OnboardingOverlay forceOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />}
       {user && <WhatsNewDialog />}
       {user && <GhinPrompt />}
-      {/* Kept 1rem from the corner, plus the status bar / notch inside the iOS app (0 on the web) */}
-      <div className="absolute top-[calc(1rem+var(--safe-top))] right-[calc(1rem+var(--safe-right))]">
+      {/* Pinned to this screen (which is itself below the iOS status bar), not to the page corner,
+          so it doesn't jump when the fade-in ends */}
+      <div className="absolute top-4 right-4">
         {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
