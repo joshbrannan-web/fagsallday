@@ -3,7 +3,7 @@ import { Player, GameSettings, GameType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Users, ArrowRight, ArrowLeft, Check } from 'lucide-react';
+import { Users, ArrowRight, ArrowLeft, Check, Loader2 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface TeamSetupStepProps {
@@ -11,13 +11,15 @@ interface TeamSetupStepProps {
   selectedGames: GameSettings[];
   onConfirm: (initialGameData: Record<string, any>) => void;
   onBack: () => void;
+  isStartingRound?: boolean;
 }
 
 const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
   players,
   selectedGames,
   onConfirm,
-  onBack
+  onBack,
+  isStartingRound = false
 }) => {
   // Stockton 6's state
   const stockton6Game = selectedGames.find(g => g.type === GameType.STOCKTON_6);
@@ -465,6 +467,7 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
         <Button
           variant="outline"
           onClick={onBack}
+          disabled={isStartingRound}
           className="flex-1"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -472,11 +475,11 @@ const TeamSetupStep: React.FC<TeamSetupStepProps> = ({
         </Button>
         <Button
           onClick={handleConfirm}
-          disabled={!canConfirm()}
+          disabled={!canConfirm() || isStartingRound}
           className="flex-1 gap-2"
         >
-          <Check className="w-4 h-4" />
-          Start Round
+          {isStartingRound ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" /> : <Check className="w-4 h-4" />}
+          {isStartingRound ? 'Starting Round...' : 'Start Round'}
         </Button>
       </div>
     </div>

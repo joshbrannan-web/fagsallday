@@ -568,7 +568,8 @@ const AppContent: FC = () => {
           await addSavedPlayer(player.name, player.handicapIndex || 0, player.tee);
         }
       }
-      await createRound(course, players, games, initialGameData, startHole);
+      const round = await createRound(course, players, games, initialGameData, startHole);
+      return Boolean(round);
     } else {
       const mergedGameData: Record<string, any> = {
         ...(initialGameData || {}),
@@ -589,6 +590,7 @@ const AppContent: FC = () => {
         startHole: startHole || 1,
       };
       setLocalCurrentRound(newRound);
+      return true;
     }
   };
 

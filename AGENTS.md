@@ -1,0 +1,1 @@
+Keep round creation awaitable and return success before navigating to scoring, so failed starts stay in setup and duplicate starts are blocked.
