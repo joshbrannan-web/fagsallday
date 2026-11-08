@@ -112,6 +112,8 @@ const SetupWizard: React.FC = () => {
   const [courseMode, setCourseMode] = useState<CourseFinderMode>("select");
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncingGhin, setIsSyncingGhin] = useState(false);
+  const [isStartingRound, setIsStartingRound] = useState(false);
+  const startingRoundRef = useRef(false);
   const [showSavedPlayers, setShowSavedPlayers] = useState(false);
    const [showUserSearch, setShowUserSearch] = useState(false);
    const [userSearchSlotIndex, setUserSearchSlotIndex] = useState<number | null>(null);
@@ -774,7 +776,8 @@ const SetupWizard: React.FC = () => {
     }
   };
 
-  const handleStartRound = (initialGameData?: Record<string, any>) => {
+  const handleStartRound = async (initialGameData?: Record<string, any>) => {
+    if (startingRoundRef.current) return;
     if (selectedGames.length === 0) {
       toast.error("Please select at least one game");
       return;
@@ -803,9 +806,20 @@ const SetupWizard: React.FC = () => {
         courseHandicap: calculateCourseHandicap(p.handicapIndex, 72),
       }));
 
-    startNewRound(course, validPlayers, selectedGames, initialGameData, startHole);
-    toast.success(startHole === 1 ? "Round started!" : `Round started on hole ${startHole}!`);
-    navigate("/active");
+    startingRoundRef.current = true;
+    setIsStartingRound(true);
+    try {
+      const started = await startNewRound(course, validPlayers, selectedGames, initialGameData, startHole);
+      if (!started) return;
+      toast.success(startHole === 1 ? "Round started!" : `Round started on hole ${startHole}!`);
+      navigate("/active", { state: { isStartingRound: true, startHole } });
+    } catch (error) {
+      console.error('Error starting round:', error);
+      toast.error('Could not start your round. Please try again.');
+    } finally {
+      startingRoundRef.current = false;
+      setIsStartingRound(false);
+    }
   };
 
   const canProceed = () => {
@@ -1852,6 +1866,7 @@ const SetupWizard: React.FC = () => {
             selectedGames={selectedGames}
             onConfirm={(initialGameData) => handleStartRound(initialGameData)}
             onBack={() => setStep(3)}
+            isStartingRound={isStartingRound}
           />
         )}
       </div>
@@ -1859,14 +1874,19 @@ const SetupWizard: React.FC = () => {
       {/* Footer - hide on step 4 since TeamSetupStep has its own buttons */}
       {step !== 4 && (
         <div className="p-4 bg-card border-t border-border">
-          <Button onClick={handleNext} disabled={!canProceed() || isSyncingGhin} className="w-full h-12 text-lg font-bold">
-            {isSyncingGhin ? (
+          <Button onClick={handleNext} disabled={!canProceed() || isSyncingGhin || isStartingRound} className="w-full h-12 text-lg font-bold">
+            {isStartingRound ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin motion-reduce:animate-none" />
+                Starting Round...
+              </>
+            ) : isSyncingGhin ? (
               <>
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                 Syncing Handicaps...
               </>
             ) : step === 3 && !hasTeamGame ? "Start Round" : "Continue"}
-            {!isSyncingGhin && <ArrowRight className="w-5 h-5 ml-2" />}
+            {!isSyncingGhin && !isStartingRound && <ArrowRight className="w-5 h-5 ml-2" />}
           </Button>
         </div>
       )}

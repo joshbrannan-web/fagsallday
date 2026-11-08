@@ -4,6 +4,7 @@ import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import { useApp } from '../contexts/AppContext';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, DollarSign, FileText, Crown, Home, CheckSquare, Flag, Check, TrendingDown, Flame, WifiOff, Cloud, AlertTriangle, Grid3X3, Share2, Loader2, Trophy } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { hapticTap, hapticTick, isNativeApp, shareTextNative } from '@/lib/native';
@@ -44,6 +45,12 @@ const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals, isLoading, refetchRounds } = useApp();
+  const [roundLoadGraceExpired, setRoundLoadGraceExpired] = useState(false);
+  useEffect(() => {
+    setRoundLoadGraceExpired(false);
+    const timer = window.setTimeout(() => setRoundLoadGraceExpired(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, [location.key]);
   const isReadOnly = currentRound?.isShared === true;
   
   // Tournament mode state — fall back to persisted _TOURNAMENT_META when location.state is lost
@@ -423,12 +430,12 @@ const ActiveRound: React.FC = () => {
   }, [currentRound, isLoading, tournamentGroupId, tournamentRefetchAttempted, refetchRounds]);
 
   if (!currentRound) {
-    if (isLoading || (tournamentGroupId && !tournamentRefetchAttempted)) {
+    if (isLoading || !roundLoadGraceExpired || (tournamentGroupId && !tournamentRefetchAttempted)) {
       return (
         <div className="flex flex-col items-center justify-center h-screen bg-background p-6 text-center space-y-6">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <h2 className="text-xl font-bold text-foreground">Loading Course...</h2>
-          <p className="text-muted-foreground">Preparing your round</p>
+          <Loader2 aria-hidden="true" className="h-12 w-12 text-primary animate-spin motion-reduce:animate-none" />
+          <h2 role="status" className="text-xl font-bold text-foreground">Loading Round...</h2>
+          <p className="text-muted-foreground">Setting up your scorecard and games...</p>
         </div>
       );
     }
@@ -437,12 +444,12 @@ const ActiveRound: React.FC = () => {
       <div className="flex flex-col items-center justify-center h-screen bg-background p-6 text-center space-y-6">
         <h2 className="text-xl font-bold text-foreground">No Active Round</h2>
         <p className="text-muted-foreground">Please set up a new round to start scoring.</p>
-        <button 
+        <Button
           onClick={() => navigate('/')}
-          className="bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold flex items-center gap-2"
+          className="font-bold gap-2"
         >
           <Home className="w-5 h-5" /> Go Home
-        </button>
+        </Button>
       </div>
     );
   }
