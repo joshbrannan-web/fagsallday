@@ -9,6 +9,8 @@ export interface AppState {
   roundHistory: Round[];
   startNewRound: (course: Course, players: Player[], games: GameSettings[], initialGameData?: Record<string, any>, startHole?: number) => Promise<boolean>;
   updateScore: (holeNumber: number, playerId: string, score: number) => void;
+  /** Write the same hole for several players in one state update (e.g. scramble partners). */
+  updateScores?: (holeNumber: number, entries: Record<string, number>) => void;
   updateGameData: (gameId: string, holeNumber: number, key: string, value: any) => void;
   updateGameDataBatch: (gameId: string, holeNumber: number, updates: Record<string, any>) => void;
   finishRound: () => void;

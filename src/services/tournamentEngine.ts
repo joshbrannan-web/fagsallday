@@ -553,9 +553,10 @@ export function calcScramble(input: EngineInput): RoundResult {
     const max = maxScoreForHole(game, hole.par);
 
     const getTeamScore = (tid: string): number | null => {
-      const first = (teamPlayers[tid] || [])[0];
-      if (!first) return null;
-      const g = scores[first.id]?.[hole.number];
+      // Scramble teams share one score; accept it from whichever partner holds it.
+      const g = (teamPlayers[tid] || [])
+        .map(p => scores[p.id]?.[hole.number])
+        .find((v): v is number => typeof v === 'number');
       if (g === undefined) return null;
       const adj = Math.min(g, max);
       if (!game.useHandicaps) return adj;

@@ -635,6 +635,34 @@ const AppContent: FC = () => {
     }
   };
 
+  const updateScores = async (holeNumber: number, entries: Record<string, number>) => {
+    if (!currentRound) return;
+    const valid = Object.entries(entries).filter(([, sc]) => Number.isInteger(sc) && sc >= 1 && sc <= 99);
+    if (valid.length === 0) return;
+    const newScores = { ...currentRound.scores };
+    newScores[holeNumber] = { ...(newScores[holeNumber] || {}), ...Object.fromEntries(valid) };
+    if (!isAuthenticated) {
+      setLocalCurrentRound(prev => prev ? { ...prev, scores: newScores } : null);
+      return;
+    }
+    updateRound(currentRound.id, { scores: newScores }, { localOnly: true });
+    let failed = false;
+    for (const [playerId, score] of valid) {
+      try {
+        const { data: wasUpdated, error } = await supabase.rpc('patch_round_scores', {
+          p_round_id: currentRound.id, p_hole: holeNumber, p_player_id: playerId, p_score: score,
+        });
+        if (error) throw error;
+        if (wasUpdated !== true) throw new Error('The round was not updated');
+      } catch (error) {
+        console.error('Error patching score, queuing atomic retry:', error);
+        offlineStorage.addToSyncQueue({ roundId: currentRound.id, type: 'scorePatch', data: { holeNumber, playerId, score } });
+        failed = true;
+      }
+    }
+    if (failed) toast.error('Score saved on this device and will retry automatically');
+  };
+
   const updateGameData = async (gameId: string, holeNumber: number, key: string, value: any) => {
     if (!currentRound) return;
 
@@ -831,6 +859,7 @@ const AppContent: FC = () => {
     roundHistory,
     startNewRound,
     updateScore,
+    updateScores,
     updateGameData,
     updateGameDataBatch,
     changeGames,
