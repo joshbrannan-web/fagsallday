@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ScrambleTeamCards from '@/components/tournament/ScrambleTeamCards';
 import { useNavigate, useLocation } from 'react-router-dom';
 import TestRoundBanner from '@/components/tournament/TestRoundBanner';
 import { useApp } from '../contexts/AppContext';
@@ -44,7 +45,7 @@ import { isTeamBankerStretchStartHole, getTeamBankerTeamAssignment, getTeamBanke
 const ActiveRound: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentRound, updateScore, updateGameData, updateGameDataBatch, roundTotals, isLoading, refetchRounds } = useApp();
+  const { currentRound, updateScore, updateScores, updateGameData, updateGameDataBatch, roundTotals, isLoading, refetchRounds } = useApp();
   const [roundLoadGraceExpired, setRoundLoadGraceExpired] = useState(false);
   useEffect(() => {
     setRoundLoadGraceExpired(false);
@@ -73,6 +74,11 @@ const ActiveRound: React.FC = () => {
     tournamentPlayerMapping,
     teamMatchup,
     isReadOnly,
+  );
+
+  const isScrambleRound = Boolean(
+    tournamentGroupId && tournamentOverlay.tournamentGame?.gameType?.startsWith('scramble_')
+    && Object.keys(tournamentOverlay.teamAssignments || {}).length > 0,
   );
 
   // Round-level start hole (defaults to 1). Used to remap hole positions for game logic.
@@ -2325,8 +2331,33 @@ const ActiveRound: React.FC = () => {
           );
         })()}
 
+        {/* Scramble: one shared card per team */}
+        {isScrambleRound && tournamentOverlay.tournamentGame && tournamentPlayerMapping && (
+          <ScrambleTeamCards
+            players={currentRound.players}
+            playerMapping={tournamentPlayerMapping}
+            tournamentPlayers={tournamentOverlay.tournamentPlayers || []}
+            teamAssignments={tournamentOverlay.teamAssignments}
+            teams={tournamentOverlay.teams}
+            teamOrder={tournamentOverlay.teamMatchup ? [tournamentOverlay.teamMatchup.teamAId, tournamentOverlay.teamMatchup.teamBId] : undefined}
+            game={tournamentOverlay.tournamentGame}
+            holeScores={currentRound.scores[activeHole]}
+            par={courseHole?.par || 4}
+            holeHandicapIndex={courseHole?.handicapIndex}
+            readOnly={isReadOnly}
+            onSetTeamScore={(entries) => {
+              if (!courseHole) {
+                toast.error('This hole is missing from the course setup — fix the course before scoring.');
+                return;
+              }
+              if (updateScores) updateScores(activeHole, entries);
+              else Object.entries(entries).forEach(([pid, sc]) => updateScore(activeHole, pid, sc));
+            }}
+          />
+        )}
+
         {/* Player Cards */}
-        {currentRound.players.map(p => {
+        {!isScrambleRound && currentRound.players.map(p => {
           const rawScore = currentRound.scores[activeHole]?.[p.id];
           const hasScore = rawScore !== undefined && rawScore !== null;
           const displayScore = hasScore ? rawScore : (courseHole?.par || '-');

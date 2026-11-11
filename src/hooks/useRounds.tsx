@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { Round, Course, Player, GameSettings } from '@/types';
+import { remapGamePlayerIds } from '@/lib/remapGamePlayerIds';
 import { toast } from 'sonner';
 import { offlineStorage } from '@/services/offlineStorage';
 import { mergeScores, mergeGameData, countScoredHoles, fillScoreGaps, fillGameDataGaps } from '@/lib/mergeRoundData';
@@ -31,7 +32,7 @@ export const dbRoundToRound = (dbRound: DbRound, isShared = false, ownerName?: s
     id: dbRound.id,
     course: dbRound.course_data as Course,
     players: dbRound.players_data as Player[],
-    games: dbRound.games_data as GameSettings[],
+    games: remapGamePlayerIds(dbRound.games_data as GameSettings[], gd?._TOURNAMENT_META?.playerMapping),
     scores: dbRound.scores || {},
     gameData: gd,
     status: dbRound.status as Round['status'],

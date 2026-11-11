@@ -1,3 +1,4 @@
+import { remapGamePlayerIds } from '@/lib/remapGamePlayerIds';
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -316,7 +317,7 @@ export const useTournamentRoundSetup = (tournamentId: string | undefined) => {
           user_id: user.id,
           course_data: courseData as any,
           players_data: players as any,
-          games_data: sideGames as any,
+          games_data: remapGamePlayerIds(sideGames, pMapping) as any,
           scores: {},
           game_data: {
             _TOURNAMENT_META: {

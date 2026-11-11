@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { Home, Play, Crown, Trophy, TrendingDown, Minus, AlertTriangle, Share2, Flag, Eye } from 'lucide-react';
-import { calculateAggregatedHolePnL, calculateBanker, calculateFBO, calculateGameStrokes, calculateBankerMatchupStrokes } from '../services/gameEngine';
+import { calculateAggregatedHolePnL, calculateBanker, calculateFBO, calculateFBOTeamHoleWinner, calculateGameStrokes, calculateBankerMatchupStrokes } from '../services/gameEngine';
 import { calculateTeamBanker } from '../services/teamBankerEngine';
 import { calculateHammer, getHammerHoleState } from '../services/hammerEngine';
 import { calculateRelativeStrokes, getWeightedDotCount, STRETCH_HOLES, getHolePressInfo, calculateStockton6 } from '../services/stockton6Engine';
@@ -23,6 +23,7 @@ interface FBOSegmentResultsProps {
   scores: { [holeNumber: number]: HoleScores };
   gameData: GameData;
   courseHoles: Hole[];
+  getHoleDots?: (hole: number) => string[];
 }
 
 const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
@@ -31,6 +32,7 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
   scores,
   gameData,
   courseHoles,
+  getHoleDots,
 }) => {
   const unit = fboGame.unitStake;
   const fboData = gameData?.[fboGame.id] || {};
@@ -62,7 +64,7 @@ const FBOSegmentResults: React.FC<FBOSegmentResultsProps> = ({
   });
 
   for (let h = 1; h <= courseHoles.length; h++) {
-    const holeDots = fboData[h]?.dots || [];
+    const holeDots = getHoleDots ? getHoleDots(h) : (fboData[h]?.dots || []);
     holeDots.forEach((playerId: string | number) => {
       const normalizedId = String(playerId);
       if (dotCounts.overall[normalizedId] !== undefined) {
@@ -743,6 +745,11 @@ const Scorecard: React.FC = () => {
   };
   const getDotsForHole = (holeNum: number): string[] => {
     if (!fboGame) return [];
+    const teamsCfg = fboGame.config.fbo?.teams;
+    if (fboGame.config.fbo?.gameMode === 'teams' && teamsCfg) {
+      const td = currentRound.gameData?.[fboGame.id]?.[holeNum]?.teamDot ?? calculateFBOTeamHoleWinner(currentRound, fboGame, holeNum);
+      return td === 'A' ? teamsCfg.teamA.map(String) : td === 'B' ? teamsCfg.teamB.map(String) : [];
+    }
     return currentRound.gameData?.[fboGame.id]?.[holeNum]?.dots || [];
   };
 
@@ -1275,6 +1282,7 @@ const Scorecard: React.FC = () => {
                 scores={currentRound.scores}
                 gameData={currentRound.gameData}
                 courseHoles={holes}
+                getHoleDots={getDotsForHole}
               />
             )}
 

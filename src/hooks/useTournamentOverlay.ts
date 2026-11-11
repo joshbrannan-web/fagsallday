@@ -68,6 +68,7 @@ export const useTournamentOverlay = (
   // Dirty-hole tracking for per-hole sync
   const syncedHolesRef = useRef<Set<number>>(new Set());
   const dirtyHolesRef = useRef<Set<number>>(new Set());
+  const allHoleScoresRef = useRef<Record<string, Record<number, number>>>({});
 
   // Animation trigger
   const previousHoleCount = useRef(0);
@@ -146,6 +147,8 @@ export const useTournamentOverlay = (
       }
     });
     setAllHoleScores(scoresMap);
+    allHoleScoresRef.current = scoresMap;
+    Object.values(scoresMap).forEach(h => Object.keys(h).forEach(n => syncedHolesRef.current.add(Number(n))));
 
     try {
       const teamNameMap: Record<string, string> = {};
@@ -320,6 +323,8 @@ export const useTournamentOverlay = (
         }
       });
       setAllHoleScores(scoresMap);
+      allHoleScoresRef.current = scoresMap;
+      Object.values(scoresMap).forEach(h => Object.keys(h).forEach(n => syncedHolesRef.current.add(Number(n))));
 
       // Run engine for initial state
       if (game && groupTournamentPlayers.length > 0 && holes.length > 0) {
@@ -420,6 +425,8 @@ export const useTournamentOverlay = (
     if (!tournamentPlayerId) return;
 
     // If this hole was already synced to DB, mark it dirty for re-sync
+    // Ignore unchanged scores; a changed score on an already-saved hole needs re-sending
+    if (allHoleScoresRef.current[tournamentPlayerId]?.[holeNumber] === grossScore) return;
     if (syncedHolesRef.current.has(holeNumber)) {
       dirtyHolesRef.current.add(holeNumber);
     }
@@ -429,6 +436,7 @@ export const useTournamentOverlay = (
       const updated = { ...prev };
       if (!updated[tournamentPlayerId]) updated[tournamentPlayerId] = {};
       updated[tournamentPlayerId] = { ...updated[tournamentPlayerId], [holeNumber]: grossScore };
+      allHoleScoresRef.current = updated;
       return updated;
     });
   }, [tournamentGroupId, playerMapping, tournamentGame]);
@@ -627,6 +635,16 @@ export const useTournamentOverlay = (
       return false;
     }
   }, [tournamentGroupId, tournamentGame, tournamentPlayers, courseHoles, holePointOverrides, teamAssignments, allHoleScores, subMatchups, state.teams]);
+
+  // Edits to already-saved holes are sent automatically (debounced), so going back to fix
+  // a hole updates the live match even without tapping Next Hole.
+  useEffect(() => {
+    if (dirtyHolesRef.current.size === 0) return;
+    const t = setTimeout(() => {
+      Array.from(dirtyHolesRef.current).forEach(h => { batchSyncHole(h).catch(() => {}); });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [allHoleScores, batchSyncHole]);
 
   // Batch sync all scores and results to DB — called only on round completion
   // Accepts optional externalScores to avoid race conditions with React state

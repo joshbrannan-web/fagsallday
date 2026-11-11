@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { useEffect, type FC } from "react";
 import { Player, GameSettings, GameType, GameLibraryItem } from "../types";
 import { GAME_LIBRARY, GAME_DETAILS } from "@/lib/gameLibrary";
 import { Info, Check } from "lucide-react";
@@ -21,14 +21,45 @@ interface GameSelectorProps {
   selectedGames: GameSettings[];
   onGamesChange: (games: GameSettings[]) => void;
   isTournamentMode?: boolean;
+  /** Scramble rounds: only team-compatible side games can be picked. */
+  isScramble?: boolean;
+  /** Scramble rounds: the fixed tournament teams (player IDs). */
+  scrambleTeams?: { teamA: string[]; teamB: string[] };
 }
 
-const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode = false }: GameSelectorProps) => {
+export const SCRAMBLE_SIDE_GAMES: GameType[] = [
+  GameType.FBO, GameType.HAMMER, GameType.SKINS, GameType.NASSAU, GameType.TEAM_BANKER, GameType.OPEN_BETTING,
+];
+
+const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode = false, isScramble = false, scrambleTeams }: GameSelectorProps) => {
+  const scrambleBlocked = (t: GameType) => isScramble && !SCRAMBLE_SIDE_GAMES.includes(t);
+  // Scramble: one shared ball per team, so force fixed-team modes and drop 2nd-ball tiebreakers.
+  const applyScrambleRules = (g: GameSettings): GameSettings => {
+    if (!isScramble) return g;
+    if (g.type === GameType.FBO) {
+      return { ...g, config: { ...g.config, fbo: { ...(g.config.fbo ?? { allowPresses: false }), gameMode: 'teams', headToHeadMatchups: undefined,
+        teams: { teamA: scrambleTeams?.teamA ?? g.config.fbo?.teams?.teamA ?? [], teamB: scrambleTeams?.teamB ?? g.config.fbo?.teams?.teamB ?? [], useSecondBallTiebreaker: false } } } };
+    }
+    if (g.type === GameType.HAMMER) {
+      return { ...g, config: { ...g.config, hammer: { ...(g.config.hammer ?? { segmentLength: 18 }), variant: 'team', segmentLength: g.config.hammer?.segmentLength ?? 18, useSecondBallTiebreaker: false } } };
+    }
+    if (g.type === GameType.TEAM_BANKER) {
+      return { ...g, config: { ...g.config, teamBanker: { mode: g.config.teamBanker?.mode ?? 'eighteen', useSecondBallTiebreaker: false } } };
+    }
+    return g;
+  };
+  useEffect(() => {
+    if (!isScramble) return;
+    const next = selectedGames.filter(g => !scrambleBlocked(g.type)).map(applyScrambleRules);
+    if (JSON.stringify(next) !== JSON.stringify(selectedGames)) onGamesChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isScramble, selectedGames]);
   const availableGames = isTournamentMode
     ? GAME_LIBRARY.filter(g => g.type !== GameType.SIXES && g.type !== GameType.STOCKTON_6 && g.type !== GameType.SIXES_HI_LO)
     : GAME_LIBRARY;
 
-  const handleGamesChange = (games: GameSettings[]) => {
+  const handleGamesChange = (rawGames: GameSettings[]) => {
+    const games = rawGames.map(applyScrambleRules);
     if (isTournamentMode) {
       const sanitized = games.map(g =>
         g.type === GameType.TEAM_BANKER
@@ -118,7 +149,8 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
     <div className="space-y-4">
       {availableGames.map((game) => {
         const isSelected = selectedGames.find((g) => g.type === game.type);
-        const isDisabled = !canSelectGame(game, players.length);
+        const blockedByScramble = scrambleBlocked(game.type);
+        const isDisabled = blockedByScramble || !canSelectGame(game, players.length);
         const selectedGame = selectedGames.find((g) => g.type === game.type);
 
         return (
@@ -140,6 +172,9 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                   <div>
                     <div className="font-semibold flex items-center gap-1.5">
                       {game.name}
+                      {blockedByScramble && (
+                        <span className="text-[10px] font-medium text-muted-foreground">Not available in Scramble</span>
+                      )}
                       <Popover>
                         <PopoverTrigger asChild>
                           <button
@@ -280,25 +315,25 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                         }}
                         className="space-y-2"
                       >
-                        <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
-                          <RadioGroupItem value="together" id={`fbo-mode-together-${selectedGame.id}`} className="mt-1" />
+                        <div className={`flex items-start space-x-2 p-2 rounded-lg bg-background/50 ${isScramble ? 'opacity-40' : ''}`}>
+                          <RadioGroupItem value="together" disabled={isScramble} id={`fbo-mode-together-${selectedGame.id}`} className="mt-1" />
                           <div className="flex-1">
                             <Label htmlFor={`fbo-mode-together-${selectedGame.id}`} className="font-medium cursor-pointer">All Together</Label>
-                            <p className="text-xs text-muted-foreground">Everyone competes in one pool. Most dots wins each segment.</p>
+                            <p className="text-xs text-muted-foreground">{isScramble ? 'Not available in Scramble' : 'Everyone competes in one pool. Most dots wins each segment.'}</p>
                           </div>
                         </div>
-                        <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
-                          <RadioGroupItem value="headToHead" id={`fbo-mode-h2h-${selectedGame.id}`} className="mt-1" />
+                        <div className={`flex items-start space-x-2 p-2 rounded-lg bg-background/50 ${isScramble ? 'opacity-40' : ''}`}>
+                          <RadioGroupItem value="headToHead" disabled={isScramble} id={`fbo-mode-h2h-${selectedGame.id}`} className="mt-1" />
                           <div className="flex-1">
                             <Label htmlFor={`fbo-mode-h2h-${selectedGame.id}`} className="font-medium cursor-pointer">Head to Head</Label>
-                            <p className="text-xs text-muted-foreground">Create 1v1 matchups with separate stakes.</p>
+                            <p className="text-xs text-muted-foreground">{isScramble ? 'Not available in Scramble' : 'Create 1v1 matchups with separate stakes.'}</p>
                           </div>
                         </div>
                         <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
                           <RadioGroupItem value="teams" id={`fbo-mode-teams-${selectedGame.id}`} className="mt-1" />
                           <div className="flex-1">
                             <Label htmlFor={`fbo-mode-teams-${selectedGame.id}`} className="font-medium cursor-pointer">Teams (2v2)</Label>
-                            <p className="text-xs text-muted-foreground">Two teams of 2. Low net ball wins the hole's dot for the team.</p>
+                            <p className="text-xs text-muted-foreground">{isScramble ? 'Uses your scramble teams.' : "Two teams of 2. Low net ball wins the hole's dot for the team."}</p>
                           </div>
                         </div>
                       </RadioGroup>
@@ -351,6 +386,16 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                         </div>
                       );
                       const validTeams = teams.teamA.length === 2 && teams.teamB.length === 2;
+                      if (isScramble) {
+                        const names = (ids: string[]) => ids.map(id => players.find(p => p.id === id)?.name).filter(Boolean).join(' & ') || '—';
+                        return (
+                          <div className="space-y-1 pt-2 border-t border-border/50 text-sm">
+                            <p><span className="font-medium">Team A:</span> {names(teams.teamA)}</p>
+                            <p><span className="font-medium">Team B:</span> {names(teams.teamB)}</p>
+                            <p className="text-xs text-muted-foreground">Teams are set by your scramble pairing.</p>
+                          </div>
+                        );
+                      }
                       return (
                         <div className="space-y-3 animate-fade-in pt-2 border-t border-border/50">
                           <div className="space-y-2">
@@ -750,7 +795,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                           <p className="text-xs text-muted-foreground">Fixed to 18-hole teams in tournament mode.</p>
                         )}
 
-                        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                        {!isScramble && <div className="flex items-center justify-between pt-2 border-t border-border/50">
                           <div>
                             <Label className="text-sm font-medium">2nd Ball Tiebreaker</Label>
                             <p className="text-xs text-muted-foreground">If 1st balls tie, compare 2nd balls</p>
@@ -763,7 +808,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                               }));
                             }}
                           />
-                        </div>
+                        </div>}
                       </div>
                     )}
 
@@ -788,17 +833,17 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                                 <p className="text-xs text-muted-foreground">Fixed teams per segment. Requires 4 players.</p>
                               </div>
                             </div>
-                            <div className="flex items-start space-x-2 p-2 rounded-lg bg-background/50">
-                              <RadioGroupItem value="lr" id={`hammer-lr-${selectedGame.id}`} className="mt-1" />
+                            <div className={`flex items-start space-x-2 p-2 rounded-lg bg-background/50 ${isScramble ? 'opacity-40' : ''}`}>
+                              <RadioGroupItem value="lr" disabled={isScramble} id={`hammer-lr-${selectedGame.id}`} className="mt-1" />
                               <div className="flex-1">
                                 <Label htmlFor={`hammer-lr-${selectedGame.id}`} className="font-medium cursor-pointer">LR Hammer (Left/Right)</Label>
-                                <p className="text-xs text-muted-foreground">Pick teams each hole. 4 players = 2v2; 3 players = 2v1.</p>
+                                <p className="text-xs text-muted-foreground">{isScramble ? 'Not available in Scramble' : 'Pick teams each hole. 4 players = 2v2; 3 players = 2v1.'}</p>
                               </div>
                             </div>
                           </RadioGroup>
                         </div>
 
-                        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                        {!isScramble && <div className="flex items-center justify-between pt-2 border-t border-border/50">
                           <div>
                             <Label className="text-sm font-medium">2nd Ball Tiebreaker</Label>
                             <p className="text-xs text-muted-foreground">If 1st balls tie, compare 2nd balls (2v2 only)</p>
@@ -820,7 +865,7 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                               }));
                             }}
                           />
-                        </div>
+                        </div>}
 
                         {selectedGame.config.hammer?.variant !== 'lr' && (
                           <div className="space-y-2">

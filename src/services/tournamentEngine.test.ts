@@ -340,6 +340,14 @@ describe('Scramble', () => {
     expect(r.playerTotals['a2']).toBe(1);
   });
 
+  it('scramble uses the team score even when only the second partner holds it', () => {
+    const game = makeGame('scramble_2');
+    const input = singleHoleInput(game, players, teams, { a2: { 1: 4 }, b1: { 1: 5 } });
+    const r = calcScramble(input);
+    expect(r.holeResults[0].teamPoints['tA']).toBe(1);
+    expect(r.holeResults[0].teamPoints['tB']).toBe(0);
+  });
+
   it('Test 17: tied scores with half_point → all get 0.5', () => {
     const game = makeGame('scramble_2', { halvedHoleRule: 'half_point' });
     const input = singleHoleInput(game, players, teams, {

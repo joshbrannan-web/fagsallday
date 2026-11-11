@@ -1193,7 +1193,7 @@ export const getFBOTeamDormieStatus = (
   let aDots = 0, bDots = 0;
   for (const h of segmentHoles) {
     if (getPlayOrder(h, startHole) >= currentPos) break;
-    const td = fboData[h]?.teamDot;
+    const td = fboData[h]?.teamDot ?? calculateFBOTeamHoleWinner(round, game, h);
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
   }
@@ -1221,7 +1221,7 @@ export const getFBOTeamOverallDormieStatus = (
   let aDots = 0, bDots = 0;
   for (let i = 0; i < currentPos - 1; i++) {
     const h = played[i];
-    const td = fboData[h]?.teamDot;
+    const td = fboData[h]?.teamDot ?? calculateFBOTeamHoleWinner(round, game, h);
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
   }
@@ -1266,7 +1266,7 @@ export const getFBOTeamPressEligibility = (
   let aDots = 0, bDots = 0;
   for (let pos = latestPressPos; pos < currentPos; pos++) {
     const h = played[pos - 1];
-    const td = fboData[h]?.teamDot;
+    const td = fboData[h]?.teamDot ?? calculateFBOTeamHoleWinner(round, game, h);
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
   }
@@ -1312,7 +1312,7 @@ export const getFBOTeamPressEligibilityOverall = (
   let aDots = 0, bDots = 0;
   for (let pos = latestPressPos; pos < currentPos; pos++) {
     const h = played[pos - 1];
-    const td = fboData[h]?.teamDot;
+    const td = fboData[h]?.teamDot ?? calculateFBOTeamHoleWinner(round, game, h);
     if (td === 'A') aDots++;
     else if (td === 'B') bDots++;
   }
@@ -1424,7 +1424,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
     const countTeamDots = (holes: number[]) => {
       let aDots = 0, bDots = 0;
       for (const h of holes) {
-        const td = fboData[h]?.teamDot;
+        const td = fboData[h]?.teamDot ?? calculateFBOTeamHoleWinner(round, game, h);
         if (td === 'A') aDots++;
         else if (td === 'B') bDots++;
       }
@@ -1620,7 +1620,7 @@ export const calculateFBO = (round: Round, game: GameSettings): GameResult => {
 
         let aDots = 0, bDots = 0;
         for (const h of pressHoles) {
-          const td = fboData[h]?.teamDot;
+          const td = fboData[h]?.teamDot ?? calculateFBOTeamHoleWinner(round, game, h);
           if (td === 'A') aDots++;
           else if (td === 'B') bDots++;
         }
