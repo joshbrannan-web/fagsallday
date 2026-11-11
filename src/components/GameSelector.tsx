@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { useEffect, type FC } from "react";
 import { Player, GameSettings, GameType, GameLibraryItem } from "../types";
 import { GAME_LIBRARY, GAME_DETAILS } from "@/lib/gameLibrary";
 import { Info, Check } from "lucide-react";
@@ -21,9 +21,22 @@ interface GameSelectorProps {
   selectedGames: GameSettings[];
   onGamesChange: (games: GameSettings[]) => void;
   isTournamentMode?: boolean;
+  /** Scramble rounds: only team-compatible side games can be picked. */
+  isScramble?: boolean;
 }
 
-const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode = false }: GameSelectorProps) => {
+export const SCRAMBLE_SIDE_GAMES: GameType[] = [
+  GameType.FBO, GameType.HAMMER, GameType.SKINS, GameType.NASSAU, GameType.TEAM_BANKER, GameType.OPEN_BETTING,
+];
+
+const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode = false, isScramble = false }: GameSelectorProps) => {
+  const scrambleBlocked = (t: GameType) => isScramble && !SCRAMBLE_SIDE_GAMES.includes(t);
+  useEffect(() => {
+    if (isScramble && selectedGames.some(g => scrambleBlocked(g.type))) {
+      onGamesChange(selectedGames.filter(g => !scrambleBlocked(g.type)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isScramble, selectedGames]);
   const availableGames = isTournamentMode
     ? GAME_LIBRARY.filter(g => g.type !== GameType.SIXES && g.type !== GameType.STOCKTON_6 && g.type !== GameType.SIXES_HI_LO)
     : GAME_LIBRARY;
@@ -118,7 +131,8 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
     <div className="space-y-4">
       {availableGames.map((game) => {
         const isSelected = selectedGames.find((g) => g.type === game.type);
-        const isDisabled = !canSelectGame(game, players.length);
+        const blockedByScramble = scrambleBlocked(game.type);
+        const isDisabled = blockedByScramble || !canSelectGame(game, players.length);
         const selectedGame = selectedGames.find((g) => g.type === game.type);
 
         return (
@@ -140,6 +154,9 @@ const GameSelector = ({ players, selectedGames, onGamesChange, isTournamentMode 
                   <div>
                     <div className="font-semibold flex items-center gap-1.5">
                       {game.name}
+                      {blockedByScramble && (
+                        <span className="text-[10px] font-medium text-muted-foreground">Not available in Scramble</span>
+                      )}
                       <Popover>
                         <PopoverTrigger asChild>
                           <button

@@ -302,6 +302,7 @@ const TournamentBuildRoundWizard: React.FC = () => {
           selectedGames={sideGames}
           onGamesChange={setup.setSideGames}
           isTournamentMode
+          isScramble={['scramble_2', 'scramble_4'].includes(setup.tournamentGame?.game_type as string)}
         />
       </div>
     );
