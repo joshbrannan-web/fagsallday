@@ -303,6 +303,12 @@ const TournamentBuildRoundWizard: React.FC = () => {
           onGamesChange={setup.setSideGames}
           isTournamentMode
           isScramble={['scramble_2', 'scramble_4'].includes(setup.tournamentGame?.game_type as string)}
+          scrambleTeams={(() => {
+            const ids = Array.from(new Set(setup.selectedPlayers.map(p => setup.teamAssignments[p.id]).filter(Boolean)));
+            if (ids.length !== 2) return undefined;
+            const of = (t: string) => setup.selectedPlayers.filter(p => setup.teamAssignments[p.id] === t).map(p => p.id);
+            return { teamA: of(ids[0] as string), teamB: of(ids[1] as string) };
+          })()}
         />
       </div>
     );
