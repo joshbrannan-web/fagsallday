@@ -48,7 +48,7 @@ interface GroupPlayer {
 import type { SubMatchup, MatchupMode } from '@/types/tournament';
 import { buildSplitMatchupPayload, resolveSubMatchups } from '@/lib/subMatchups';
 
-const ONE_V_ONE_TYPES = ['match_play_individual', 'alternate_shot_twosomes', 'scramble_2'];
+const ONE_V_ONE_TYPES = ['match_play_individual'];
 
 interface RoundMatchRow {
   id: string;
