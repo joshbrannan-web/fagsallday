@@ -97,8 +97,8 @@ rm -rf "$TMP/node_modules"
   || { rm -rf "$TMP"; fail "bun install --frozen-lockfile failed — bun.lock is out of step. This is what breaks Cloudflare."; }
 rm -rf "$TMP"
 
-# ---------- 7. Build number ----------
-step "7/7  Increment Build number"
+# ---------- 7. Build number + Version ----------
+step "7/7  Increment Build number and set Version"
 NUMS="$(grep -E 'CURRENT_PROJECT_VERSION = [0-9]+;' "$PBX" | sed -E 's/.*= ([0-9]+);.*/\1/' | sort -u)"
 COUNT="$(printf '%s\n' "$NUMS" | grep -c .)"
 [ "$COUNT" -eq 1 ] || fail "Found different Build numbers in the Xcode project ($(echo $NUMS)). Fix in Xcode before archiving."
@@ -107,20 +107,64 @@ NEW=$((OLD + 1))
 perl -pi -e "s/CURRENT_PROJECT_VERSION = $OLD;/CURRENT_PROJECT_VERSION = $NEW;/g" "$PBX"
 CHECK="$(grep -E 'CURRENT_PROJECT_VERSION = [0-9]+;' "$PBX" | sed -E 's/.*= ([0-9]+);.*/\1/' | sort -u)"
 [ "$CHECK" = "$NEW" ] || fail "Build number edit didn't apply cleanly (found: $CHECK)."
-VER="$(grep -E 'MARKETING_VERSION = ' "$PBX" | head -1 | sed -E 's/.*= ([^;]+);.*/\1/')"
+
+VERS="$(grep -E 'MARKETING_VERSION = ' "$PBX" | sed -E 's/.*= ([^;]+);.*/\1/' | sort -u)"
+[ "$(printf '%s\n' "$VERS" | grep -c .)" -eq 1 ] || fail "Found different Version numbers in the Xcode project ($(echo $VERS)). Fix in Xcode before archiving."
+OLDVER="$VERS"
+
+# is_higher A B -> true if version A is higher than version B (e.g. 1.1 > 1.0.1)
+is_higher() {
+  awk -v a="$1" -v b="$2" 'BEGIN{
+    n=split(a,x,"."); m=split(b,y,"."); k=(n>m?n:m)
+    for(i=1;i<=k;i++){ xi=(i<=n?x[i]:0)+0; yi=(i<=m?y[i]:0)+0
+      if(xi>yi) exit 0; if(xi<yi) exit 1 }
+    exit 1 }'
+}
+
+echo
+echo "Current Version: $OLDVER"
+echo "If $OLDVER is already LIVE on the App Store or SUBMITTED for review,"
+echo "Apple won't accept it again, so you need a higher Version."
+echo "  - Bug fixes only  -> e.g. a.b.c+1   (1.0.1 -> 1.0.2)"
+echo "  - New features    -> e.g. a.b+1     (1.0.1 -> 1.1)"
+NEWVER=""
+TRIES=0
+while :; do
+  echo
+  echo "Type the new Version and press Return,"
+  echo "or just press Return to keep $OLDVER (only if $OLDVER has NOT been released or submitted):"
+  read -r ans </dev/tty
+  if [ -z "$ans" ]; then NEWVER="$OLDVER"; break; fi
+  if printf '%s' "$ans" | grep -Eq '^[0-9]+(\.[0-9]+){1,2}$' && is_higher "$ans" "$OLDVER"; then
+    NEWVER="$ans"; break
+  fi
+  echo "'$ans' isn't valid. Use numbers like 1.1 or 1.0.2, higher than $OLDVER."
+  TRIES=$((TRIES + 1))
+  [ "$TRIES" -lt 3 ] || fail "No valid Version entered. Build number was already raised to $NEW; re-run or set the Version in Xcode."
+done
+if [ "$NEWVER" != "$OLDVER" ]; then
+  perl -pi -e "s/MARKETING_VERSION = \Q$OLDVER\E;/MARKETING_VERSION = $NEWVER;/g" "$PBX"
+  VCHECK="$(grep -E 'MARKETING_VERSION = ' "$PBX" | sed -E 's/.*= ([^;]+);.*/\1/' | sort -u)"
+  [ "$VCHECK" = "$NEWVER" ] || fail "Version edit didn't apply cleanly (found: $VCHECK)."
+fi
 
 echo
 echo "**************************************************"
-echo "   Version:  $VER"
+if [ "$NEWVER" != "$OLDVER" ]; then
+echo "   Version:  $OLDVER  -->  $NEWVER"
+else
+echo "   Version:  $NEWVER  (unchanged)"
+fi
 echo "   Build:    $OLD  -->  $NEW"
 echo "**************************************************"
 echo
 echo "Next, in Xcode (Cmd+Q and reopen it first if it was already open):"
 echo "  1. Open ios/App/App.xcodeproj   (or run: npx cap open ios)"
-echo "  2. Check General tab shows Version $VER, Build $NEW"
+echo "  2. Check General tab shows Version $NEWVER, Build $NEW"
 echo "  3. Destination (top bar) = Any iOS Device (arm64)"
 echo "  4. Product -> Archive"
-echo "  5. Distribute App -> TestFlight Internal Only"
+echo "  5. Distribute App -> App Store Connect -> Upload"
+echo "     (NOT 'TestFlight Internal Only' - that build can't go to the App Store)"
 echo
 echo "Nothing was committed or pushed."
 echo
@@ -128,8 +172,13 @@ echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 echo "!!!  AFTER YOU ARCHIVE — DON'T SKIP THIS:        !!!"
 echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 echo "  6. Open GitHub Desktop (branch: mobile)"
-echo "  7. Commit the Build-number change, e.g. \"Build $NEW\""
+echo "  7. Commit, e.g. \"Version $NEWVER ($NEW)\""
 echo "     (file: ios/App/App.xcodeproj/project.pbxproj)"
 echo "  8. Click Push origin"
 echo "  Skipping this is how your Mac and GitHub drift apart."
+echo
+echo "Then, to release it:"
+echo "  9. Test the build from TestFlight on your phone"
+echo " 10. App Store Connect -> + next to 'iOS App' -> version $NEWVER"
+echo "     -> pick Build $NEW, fill in What's New, Submit for Review"
 echo "RESULT: SUCCESS"
