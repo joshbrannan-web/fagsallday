@@ -43,7 +43,16 @@ Deno.serve(async (req) => {
     const { data: entry, error: entryError } = await adminClient.from("tournament_registration_entries").select(`id, full_name, email, handicap_index, user_id, status, sheet_row_index, tournament_registration_configs ( id, tournament_id, created_by, google_sheet_id, google_refresh_token )`).eq("id", entry_id).single();
     if (entryError || !entry) return new Response(JSON.stringify({ error: "Entry not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const config = (entry as any).tournament_registration_configs;
-    if (config?.created_by !== user.id) return new Response(JSON.stringify({ error: "Not authorized" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    let allowed = config?.created_by === user.id;
+    if (!allowed) {
+      const [{ data: role }, { data: tAdmin }, { data: tour }] = await Promise.all([
+        adminClient.from("user_roles").select("id").eq("user_id", user.id).eq("role", "admin").maybeSingle(),
+        adminClient.from("tournament_admins").select("id").eq("user_id", user.id).maybeSingle(),
+        config?.tournament_id ? adminClient.from("tournaments").select("created_by").eq("id", config.tournament_id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      allowed = !!role || !!tAdmin || (tour as any)?.created_by === user.id;
+    }
+    if (!allowed) return new Response(JSON.stringify({ error: "Not authorized" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     if (entry.status === (action === "approve" ? "approved" : "rejected")) return new Response(JSON.stringify({ success: true, already_processed: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     let tournamentPlayerId: string | null = null;
     if (action === "approve") {
