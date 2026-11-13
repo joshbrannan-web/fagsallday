@@ -37,7 +37,16 @@ Deno.serve(async (req) => {
     if (configErr || !config) {
       return new Response(JSON.stringify({ error: "Config not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    if (config.created_by !== user.id) {
+    let allowed = config.created_by === user.id;
+    if (!allowed) {
+      const [{ data: role }, { data: tAdmin }, { data: tour }] = await Promise.all([
+        adminClient.from("user_roles").select("id").eq("user_id", user.id).eq("role", "admin").maybeSingle(),
+        adminClient.from("tournament_admins").select("id").eq("user_id", user.id).maybeSingle(),
+        config.tournament_id ? adminClient.from("tournaments").select("created_by").eq("id", config.tournament_id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      allowed = !!role || !!tAdmin || (tour as any)?.created_by === user.id;
+    }
+    if (!allowed) {
       return new Response(JSON.stringify({ error: "Not authorized" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
